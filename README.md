@@ -219,7 +219,13 @@ src/main/java/data/mtxgdn/          # 游戏数据定义
 - **MySQL 8.0+**（使用 MySQL 模式时，需创建数据库 `xiuxian`）
 - **SQLite 3.x**（使用 SQLite 模式时零配置，驱动已内置）
 
-### 1. 选择数据库模式
+### 1. 克隆仓库
+
+```bash
+git clone https://github.com/oooohhhhhhhhhh/xiuxiangame.git
+```
+
+### 2. 选择数据库模式
 
 #### MySQL 模式（默认）
 
@@ -249,14 +255,14 @@ database:
 
 > 切换 `type` 字段即可在 MySQL 和 SQLite 之间切换，无需改动任何代码。SQLite 模式下无需安装任何数据库软件。
 
-### 2. 构建
+### 3. 构建
 
 ```bash
-cd main
+cd xiuxian-server
 mvn clean package -DskipTests
 ```
 
-### 3. 运行
+### 4. 运行
 
 ```bash
 java -jar target/main-V0.0.0-alpha.jar
