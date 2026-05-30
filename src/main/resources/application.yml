@@ -1,0 +1,51 @@
+# ========================================
+#  修仙世界 - 服务器配置文件
+# ========================================
+#  启动时自动生成，修改后重启即可生效
+
+# ---- 应用 ----
+app:
+  name: 修仙世界
+
+# ---- 服务器 ----
+server:
+  host: 127.0.0.1
+  port: 8080
+
+# ---- 数据库 ----
+database:
+  type: mysql
+  url: jdbc:mysql://localhost:3306/xiuxian?useUnicode=true&characterEncoding=UTF-8&connectionCollation=utf8mb4_unicode_ci
+  username: root
+  password: root
+  sqlite_path: xiuxian.db
+
+# ---- JWT ----
+jwt:
+  secret: xiuxian-game-jwt-secret-key-2026-must-be-at-least-256-bits-long!!
+
+# ---- 管理后台 ----
+admin:
+  username: admin
+  password: admin123
+
+# ---- 邮件 (SMTP) ----
+smtp:
+  host: smtp.qq.com
+  port: 587
+  username: ""
+  password: ""
+  from: ""
+  auth: true
+  starttls: true
+
+# ---- OneBot QQ Bot ----
+onebot:
+  enabled: true
+  port: 6700
+
+# ---- 日志 ----
+logging:
+  level: DEBUG
+  dir: log
+  color: true

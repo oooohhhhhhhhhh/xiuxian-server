@@ -1,0 +1,923 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>修仙世界 · 管理后台</title>
+<style>
+:root {
+  --bg-deep: #0a0f18;
+  --bg-panel: #151d2b;
+  --bg-card: #1a2332;
+  --bg-input: #111827;
+  --border: #26344a;
+  --border-gold: #4a3a2a;
+  --text-primary: #e2e8f0;
+  --text-secondary: #8899b4;
+  --text-muted: #556780;
+  --gold: #d4a853;
+  --gold-light: #f0d78c;
+  --jade: #3db8a0;
+  --jade-light: #6fe0c8;
+  --crimson: #e05353;
+  --crimson-light: #ff7b7b;
+  --amber: #e89440;
+  --info: #5b9bd5;
+  --radius: 10px;
+  --shadow: 0 4px 24px rgba(0,0,0,0.3);
+  --transition: 0.2s cubic-bezier(0.4,0,0.2,1);
+}
+
+* { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  background: var(--bg-deep);
+  color: var(--text-primary);
+  font-family: 'Microsoft YaHei', 'PingFang SC', 'Noto Sans SC', sans-serif;
+  height: 100vh;
+  display: flex;
+  overflow: hidden;
+}
+
+::-webkit-scrollbar { width: 5px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #2a3a55; border-radius: 3px; }
+::-webkit-scrollbar-thumb:hover { background: #3a4a65; }
+
+/* Login */
+.login-overlay {
+  position: fixed; inset: 0;
+  background: radial-gradient(ellipse at center, #111d30 0%, #0a0f18 70%);
+  display: flex; align-items: center; justify-content: center;
+  z-index: 999;
+}
+.login-box {
+  background: var(--bg-panel);
+  padding: 48px 44px;
+  border-radius: 16px;
+  border: 1px solid var(--border-gold);
+  width: 400px;
+  text-align: center;
+  box-shadow: 0 8px 60px rgba(0,0,0,0.5), 0 0 80px rgba(212,168,83,0.06);
+}
+.login-box .logo {
+  font-size: 36px;
+  margin-bottom: 4px;
+}
+.login-box h2 {
+  font-size: 26px;
+  font-weight: 600;
+  background: linear-gradient(135deg, var(--gold-light), var(--gold));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  margin-bottom: 6px;
+  letter-spacing: 2px;
+}
+.login-box .subtitle {
+  color: var(--text-muted);
+  font-size: 14px;
+  margin-bottom: 32px;
+  letter-spacing: 4px;
+}
+.login-box .input-group {
+  position: relative;
+  margin-bottom: 16px;
+  text-align: left;
+}
+.login-box .input-group .icon {
+  position: absolute;
+  left: 14px; top: 50%;
+  transform: translateY(-50%);
+  color: var(--text-muted);
+  font-size: 16px;
+}
+.login-box input {
+  width: 100%; padding: 12px 14px 12px 42px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--text-primary);
+  font-size: 14px;
+  outline: none;
+  transition: var(--transition);
+}
+.login-box input:focus {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 3px rgba(212,168,83,0.1);
+}
+.login-box .btn-login {
+  width: 100%; padding: 12px;
+  background: linear-gradient(135deg, #c49a3c, #a67c2e);
+  color: #fff;
+  border: none; border-radius: 8px;
+  font-size: 16px; font-weight: 600;
+  cursor: pointer;
+  letter-spacing: 2px;
+  transition: var(--transition);
+  margin-top: 8px;
+}
+.login-box .btn-login:hover {
+  background: linear-gradient(135deg, #d4a853, #b88a3a);
+  box-shadow: 0 4px 20px rgba(212,168,83,0.3);
+}
+.login-error { color: var(--crimson); font-size: 13px; margin-top: 14px; min-height: 20px; }
+
+/* App Layout */
+.app { display: none; flex: 1; }
+.app.show { display: flex; }
+
+/* Sidebar */
+.sidebar {
+  width: 220px; min-width: 220px;
+  background: var(--bg-panel);
+  border-right: 1px solid var(--border);
+  display: flex; flex-direction: column;
+  position: relative;
+  z-index: 10;
+}
+.sidebar-header {
+  padding: 20px 20px 16px;
+  border-bottom: 1px solid var(--border);
+}
+.sidebar-header .brand {
+  font-size: 15px; font-weight: 700;
+  color: var(--gold);
+  letter-spacing: 1px;
+  display: flex; align-items: center; gap: 8px;
+}
+.sidebar-header .brand .dot {
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--jade);
+  box-shadow: 0 0 8px var(--jade);
+}
+.sidebar-nav {
+  flex: 1; overflow-y: auto;
+  padding: 8px;
+}
+.nav-section {
+  padding: 6px 12px 4px;
+  font-size: 10px; font-weight: 600;
+  color: var(--text-muted);
+  letter-spacing: 2px;
+  text-transform: uppercase;
+}
+.nav-item {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 14px; margin: 2px 0;
+  border-radius: 6px;
+  color: var(--text-secondary);
+  cursor: pointer; font-size: 13px;
+  transition: var(--transition);
+  user-select: none;
+}
+.nav-item:hover { background: rgba(255,255,255,0.04); color: var(--text-primary); }
+.nav-item.active {
+  background: rgba(212,168,83,0.10);
+  color: var(--gold);
+  font-weight: 500;
+}
+.nav-item .nav-icon { font-size: 17px; width: 22px; text-align: center; }
+.sidebar-footer {
+  padding: 12px;
+  border-top: 1px solid var(--border);
+}
+.sidebar-footer .user-info {
+  display: flex; align-items: center; gap: 8px;
+  font-size: 12px; color: var(--text-secondary);
+}
+.sidebar-footer .conn-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  margin-left: auto;
+}
+.conn-dot.on { background: var(--jade); box-shadow: 0 0 6px var(--jade); }
+.conn-dot.off { background: var(--crimson); }
+.sidebar-footer .btn-logout {
+  background: none; border: 1px solid var(--border);
+  color: var(--text-muted); border-radius: 6px;
+  padding: 4px 12px; font-size: 11px; cursor: pointer;
+  transition: var(--transition);
+}
+.sidebar-footer .btn-logout:hover { border-color: var(--crimson); color: var(--crimson); }
+
+/* Main */
+.main {
+  flex: 1; display: flex; flex-direction: column;
+  overflow: hidden; min-width: 0;
+}
+.top-bar {
+  background: var(--bg-panel);
+  padding: 0 24px; height: 52px; min-height: 52px;
+  display: flex; align-items: center; justify-content: space-between;
+  border-bottom: 1px solid var(--border);
+}
+.top-bar .page-title {
+  font-size: 15px; font-weight: 500; color: var(--text-primary);
+}
+.top-stats { display: flex; gap: 20px; align-items: center; font-size: 12px; }
+.top-stats .stat { color: var(--text-muted); }
+.top-stats .stat b { color: var(--text-secondary); font-weight: 500; }
+.top-stats .stat .val-green { color: var(--jade); }
+
+.content {
+  flex: 1; overflow-y: auto; padding: 24px;
+}
+.tab { display: none; }
+.tab.active { display: block; }
+
+/* Stats Grid */
+.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(160px, 1fr)); gap: 14px; margin-bottom: 24px; }
+.stat-card {
+  background: var(--bg-card);
+  padding: 18px 20px; border-radius: var(--radius);
+  border: 1px solid var(--border);
+  transition: var(--transition);
+}
+.stat-card:hover { border-color: var(--border-gold); }
+.stat-card .label {
+  font-size: 12px; color: var(--text-muted);
+  letter-spacing: 1px; margin-bottom: 8px;
+}
+.stat-card .value {
+  font-size: 28px; font-weight: 700;
+  background: linear-gradient(135deg, var(--text-primary), var(--gold));
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+.stat-card .desc {
+  font-size: 11px; color: var(--text-muted);
+  margin-top: 4px;
+}
+
+/* Card */
+.card {
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding: 20px; margin-bottom: 18px;
+}
+.card-header {
+  display: flex; align-items: center; justify-content: space-between;
+  margin-bottom: 16px; padding-bottom: 12px;
+  border-bottom: 1px solid var(--border);
+}
+.card-title {
+  font-size: 14px; font-weight: 600;
+  color: var(--gold);
+  letter-spacing: 1px;
+}
+
+/* Table */
+.table-wrap { overflow-x: auto; }
+table { width: 100%; border-collapse: collapse; font-size: 13px; }
+th {
+  text-align: left; padding: 10px 12px;
+  color: var(--text-muted); font-weight: 500; font-size: 11px;
+  letter-spacing: 1px; border-bottom: 2px solid var(--border);
+  white-space: nowrap;
+}
+td { padding: 9px 12px; border-bottom: 1px solid rgba(38,52,74,0.5); color: var(--text-secondary); }
+tr:hover td { background: rgba(212,168,83,0.03); }
+td:first-child, th:first-child { padding-left: 0; }
+td:last-child, th:last-child { padding-right: 0; }
+
+/* Forms */
+input, select {
+  padding: 8px 12px;
+  background: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  color: var(--text-primary);
+  font-size: 13px; outline: none;
+  transition: var(--transition);
+}
+input:focus, select:focus {
+  border-color: var(--gold);
+  box-shadow: 0 0 0 2px rgba(212,168,83,0.1);
+}
+select { cursor: pointer; }
+select option { background: var(--bg-panel); color: var(--text-primary); }
+
+.btn {
+  padding: 8px 18px; border: none; border-radius: 6px;
+  cursor: pointer; font-size: 13px; font-weight: 500;
+  transition: var(--transition); letter-spacing: 0.5px;
+  white-space: nowrap;
+}
+.btn:hover { transform: translateY(-1px); }
+.btn:active { transform: translateY(0); }
+.btn-primary { background: var(--gold); color: #1a1a1a; }
+.btn-primary:hover { box-shadow: 0 4px 14px rgba(212,168,83,0.3); }
+.btn-action { background: var(--jade); color: #0a1a18; }
+.btn-action:hover { box-shadow: 0 4px 14px rgba(61,184,160,0.3); }
+.btn-danger {
+  background: transparent;
+  border: 1px solid var(--crimson);
+  color: var(--crimson);
+}
+.btn-danger:hover { background: var(--crimson); color: #fff; }
+.btn-sm {
+  padding: 5px 12px; font-size: 12px;
+  background: transparent; border: 1px solid var(--border);
+  color: var(--text-secondary); border-radius: 5px;
+  cursor: pointer; transition: var(--transition);
+}
+.btn-sm:hover { border-color: var(--gold); color: var(--gold); }
+.btn-ghost {
+  background: transparent; border: 1px solid var(--border);
+  color: var(--text-secondary); cursor: pointer;
+  padding: 4px 12px; border-radius: 5px;
+  font-size: 12px;
+}
+
+.row { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
+.grow { flex: 1; }
+.spacer { flex: 1; }
+
+/* Msg */
+.msg {
+  font-size: 13px; padding: 10px 14px; border-radius: 6px;
+  margin-top: 10px;
+}
+.msg-ok { background: rgba(61,184,160,0.12); color: var(--jade-light); border: 1px solid rgba(61,184,160,0.25); }
+.msg-err { background: rgba(224,83,83,0.12); color: var(--crimson-light); border: 1px solid rgba(224,83,83,0.25); }
+
+/* Badge/Tag */
+.badge {
+  display: inline-block; padding: 2px 10px; border-radius: 20px;
+  font-size: 11px; font-weight: 500;
+}
+.badge-gold { background: rgba(212,168,83,0.15); color: var(--gold); }
+.badge-jade { background: rgba(61,184,160,0.15); color: var(--jade); }
+.badge-gray { background: rgba(85,103,128,0.2); color: var(--text-muted); }
+
+.tags { display: flex; gap: 5px; flex-wrap: wrap; }
+.tag {
+  background: rgba(91,155,213,0.15); color: var(--info);
+  padding: 3px 10px; border-radius: 20px; font-size: 11px;
+  display: inline-flex; align-items: center; gap: 4px;
+}
+.tag .tag-x {
+  cursor: pointer; color: var(--crimson);
+  font-weight: bold; font-size: 14px; line-height: 1;
+}
+.tag .tag-x:hover { color: var(--crimson-light); }
+
+/* Modal */
+.modal-overlay {
+  position: fixed; inset: 0;
+  background: rgba(10,15,24,0.85); backdrop-filter: blur(4px);
+  display: none; align-items: center; justify-content: center;
+  z-index: 998;
+}
+.modal-overlay.show { display: flex; }
+.modal {
+  background: var(--bg-panel);
+  border: 1px solid var(--border-gold);
+  border-radius: 12px; padding: 28px;
+  width: 95%; max-width: 720px; max-height: 85vh; overflow-y: auto;
+  box-shadow: 0 12px 60px rgba(0,0,0,0.6);
+}
+.modal h3 {
+  font-size: 18px; font-weight: 600;
+  color: var(--gold); margin-bottom: 20px;
+  letter-spacing: 1px;
+}
+.modal .close {
+  float: right; background: none; border: none;
+  color: var(--text-muted); font-size: 24px; cursor: pointer;
+  transition: var(--transition);
+}
+.modal .close:hover { color: var(--crimson); }
+.modal .form-grid {
+  display: grid; grid-template-columns: 1fr 1fr 1fr;
+  gap: 12px;
+}
+.modal label { display: block; color: var(--text-muted); font-size: 11px; margin-bottom: 4px; letter-spacing: 1px; }
+.modal input, .modal select { width: 100%; }
+.modal .actions { display: flex; gap: 8px; margin-top: 16px; justify-content: flex-end; }
+.modal .section-title {
+  font-size: 13px; font-weight: 600;
+  color: var(--jade); margin-top: 20px; margin-bottom: 10px;
+  letter-spacing: 1px;
+}
+
+/* Empty */
+.empty {
+  text-align: center; padding: 40px 20px;
+  color: var(--text-muted); font-size: 14px;
+}
+.empty .empty-icon { font-size: 48px; margin-bottom: 12px; opacity: 0.4; }
+
+/* Log */
+.log-container {
+  background: var(--bg-deep); border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 14px 18px;
+  font-size: 13px; line-height: 1.7;
+  font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
+  white-space: pre-wrap; word-break: break-all;
+  min-height: 400px; max-height: calc(100vh - 220px);
+  overflow-y: auto;
+}
+.log-line { padding: 1px 0; }
+
+/* Quick info */
+.quick-info {
+  display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+  gap: 14px;
+}
+.quick-info .card p {
+  font-size: 13px; color: var(--text-secondary);
+  padding: 4px 0;
+}
+.quick-info .card p b { color: var(--text-primary); font-weight: 500; }
+</style>
+</head>
+<body>
+
+<div class="login-overlay" id="loginOverlay">
+  <div class="login-box">
+    <div class="logo">☯</div>
+    <h2>修仙世界</h2>
+    <div class="subtitle">管 理 后 台</div>
+    <div class="input-group">
+      <span class="icon">👤</span>
+      <input id="usr" placeholder="用户名" autocomplete="off">
+    </div>
+    <div class="input-group">
+      <span class="icon">🔒</span>
+      <input id="pwd" type="password" placeholder="密码" onkeydown="if(event.key==='Enter')login()">
+    </div>
+    <button class="btn-login" onclick="login()">进 入 洞 府</button>
+    <div class="login-error" id="loginError"></div>
+  </div>
+</div>
+
+<div class="app" id="app">
+  <div class="sidebar">
+    <div class="sidebar-header">
+      <div class="brand"><span class="dot"></span>修仙世界</div>
+    </div>
+    <div class="sidebar-nav">
+      <div class="nav-section">主菜单</div>
+      <div class="nav-item active" onclick="switchTab('overview')">
+        <span class="nav-icon">📊</span> 总览
+      </div>
+      <div class="nav-item" onclick="switchTab('players')">
+        <span class="nav-icon">👥</span> 玩家管理
+      </div>
+      <div class="nav-section" style="margin-top:8px">系统</div>
+      <div class="nav-item" onclick="switchTab('database')">
+        <span class="nav-icon">🗄️</span> 数据库
+      </div>
+      <div class="nav-item" onclick="switchTab('users')">
+        <span class="nav-icon">🔑</span> 用户/角色
+      </div>
+      <div class="nav-item" onclick="switchTab('logs')">
+        <span class="nav-icon">📜</span> 实时日志
+      </div>
+    </div>
+    <div class="sidebar-footer">
+      <div style="display:flex;align-items:center;justify-content:space-between">
+        <div class="user-info">
+          <span>☯</span>
+          <span>管理员</span>
+          <span class="conn-dot on" id="connDot"></span>
+        </div>
+        <button class="btn-logout" onclick="logout()">退出</button>
+      </div>
+    </div>
+  </div>
+
+  <div class="main">
+    <div class="top-bar">
+      <div class="page-title" id="pageTitle">📊 总览</div>
+      <div class="top-stats">
+        <span class="stat">运行: <b id="uptime">--</b></span>
+        <span class="stat">在线: <b class="val-green" id="online">0</b></span>
+        <span class="stat">内存: <b id="mem">-- MB</b></span>
+      </div>
+    </div>
+
+    <div class="content">
+      <div class="tab active" id="tab-overview">
+        <div class="stats-grid" id="statsGrid"></div>
+        <div class="card">
+          <div class="card-title">📋 服务器信息</div>
+          <div class="quick-info" id="quickStats"></div>
+        </div>
+      </div>
+
+      <div class="tab" id="tab-players">
+        <div class="card">
+          <div class="row">
+            <input class="grow" id="playerSearch" placeholder="🔍 搜索角色名..." onkeydown="if(event.key==='Enter')loadPlayers()">
+            <button class="btn btn-primary" onclick="loadPlayers()">搜索</button>
+            <button class="btn-sm" onclick="document.getElementById('playerSearch').value='';loadPlayers()">全部玩家</button>
+          </div>
+          <div id="playerTable" class="table-wrap"></div>
+          <div id="playerMsg"></div>
+        </div>
+      </div>
+
+      <div class="tab" id="tab-database">
+        <div class="card">
+          <div class="card-title">⚠️ 数据库操作</div>
+          <p style="font-size:12px;color:var(--text-muted);margin-bottom:14px">危险操作，请谨慎执行</p>
+          <div class="row">
+            <button class="btn btn-danger" onclick="if(confirm('确定清除所有玩家数据？(users表不受影响)')) dbAction('clear_players')">清除玩家数据</button>
+            <button class="btn btn-danger" onclick="if(confirm('⚠️ 确定重置全部数据？包括users、角色、背包等所有表！')) dbAction('reset_all')">重置全部数据</button>
+          </div>
+          <div id="dbMsg"></div>
+        </div>
+      </div>
+
+      <div class="tab" id="tab-users">
+        <div class="card">
+          <div class="card-title">用户与角色管理</div>
+          <div id="userRolesTable" class="table-wrap"></div>
+        </div>
+      </div>
+
+      <div class="tab" id="tab-logs">
+        <div class="card">
+          <div class="row">
+            <button class="btn-sm" id="btnPause" onclick="togglePause()">⏸ 暂停</button>
+            <button class="btn-sm" onclick="clearLogs()">🗑 清空</button>
+          </div>
+        </div>
+        <div class="log-container" id="logContainer">
+          <div class="empty">加载中...</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modalOverlay">
+  <div class="modal" id="modalContent"></div>
+</div>
+
+<script>
+const API = '/api/admin';
+let token = '', paused = false, autoScroll = true, lastSeq = 0, firstLoad = true;
+let statusTimer, logsTimer, currentTab = 'overview';
+
+function $h(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+function hdrs() { return token ? { 'Authorization': 'Bearer ' + token } : {}; }
+
+async function api(path, opts) {
+  opts = opts || {};
+  opts.headers = Object.assign(hdrs(), opts.headers || {});
+  const r = await fetch(API + path, opts);
+  if (r.status === 401) { logout(); throw new Error('unauth'); }
+  return r.json();
+}
+
+async function login() {
+  const u = document.getElementById('usr').value.trim();
+  const p = document.getElementById('pwd').value;
+  const e = document.getElementById('loginError');
+  if (!u || !p) { e.textContent = '请输入用户名和密码'; return; }
+  try {
+    const d = await api('/login', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username:u,password:p}) });
+    if (d.token) {
+      token = d.token;
+      document.getElementById('loginOverlay').style.display = 'none';
+      document.getElementById('app').classList.add('show');
+      e.textContent = '';
+      initApp();
+    } else { e.textContent = d.message || '登录失败'; }
+  } catch (x) { e.textContent = '网络错误'; }
+}
+
+function logout() {
+  token = ''; clearInterval(statusTimer); clearInterval(logsTimer);
+  document.getElementById('loginOverlay').style.display = 'flex';
+  document.getElementById('app').classList.remove('show');
+  lastSeq = 0; firstLoad = true;
+}
+
+function initApp() {
+  fetchStatus();
+  statusTimer = setInterval(fetchStatus, 2000);
+  loadOverview();
+}
+
+async function fetchStatus() {
+  try {
+    const d = await api('/status');
+    document.getElementById('uptime').textContent = d.uptimeFormatted;
+    document.getElementById('online').textContent = d.onlineCount;
+    document.getElementById('mem').textContent = d.usedMemoryMB + ' MB';
+    document.getElementById('connDot').className = 'conn-dot on';
+  } catch (x) { document.getElementById('connDot').className = 'conn-dot off'; }
+}
+
+const TAB_TITLES = { overview:'📊 总览', players:'👥 玩家管理', database:'🗄️ 数据库', users:'🔑 用户/角色', logs:'📜 实时日志' };
+
+function switchTab(name) {
+  currentTab = name;
+  document.getElementById('pageTitle').textContent = TAB_TITLES[name] || name;
+  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
+  event.target.closest('.nav-item').classList.add('active');
+  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+  document.getElementById('tab-' + name).classList.add('active');
+  if (name === 'logs') {
+    if (logsTimer) { clearInterval(logsTimer); }
+    lastSeq = 0; firstLoad = true;
+    document.getElementById('logContainer').innerHTML = '<div class="empty">加载中...</div>';
+    fetchLogs();
+    logsTimer = setInterval(fetchLogs, 500);
+  } else {
+    if (logsTimer) { clearInterval(logsTimer); logsTimer = null; }
+    loadAllData();
+  }
+}
+
+function loadAllData() {
+  if (currentTab === 'overview') loadOverview();
+  if (currentTab === 'players') loadPlayers();
+  if (currentTab === 'users') loadUsers();
+}
+
+async function loadOverview() {
+  try {
+    const d = await api('/status');
+    const g = document.getElementById('statsGrid');
+    g.innerHTML =
+      '<div class="stat-card"><div class="label">运行时</div><div class="value">' + $h(d.uptimeFormatted) + '</div></div>' +
+      '<div class="stat-card"><div class="label">在线玩家</div><div class="value">' + (d.onlineCount||0) + '</div></div>' +
+      '<div class="stat-card"><div class="label">已用内存</div><div class="value">' + (d.usedMemoryMB||0) + '</div><div class="desc">MB</div></div>' +
+      '<div class="stat-card"><div class="label">最大内存</div><div class="value">' + (d.maxMemoryMB||0) + '</div><div class="desc">MB</div></div>';
+    try {
+      const p = await api('/players?limit=100');
+      document.getElementById('quickStats').innerHTML =
+        '<div class="card" style="border:1px solid var(--border-gold)"><p>道统传承 · 已有 <b>' + (p.total||0) + '</b> 位修士踏入仙途</p></div>';
+    } catch (x) {}
+  } catch (x) {}
+}
+
+async function loadPlayers() {
+  const q = document.getElementById('playerSearch').value.trim();
+  let url = '/players?limit=50';
+  if (q) url += '&name=' + encodeURIComponent(q);
+  try {
+    const d = await api(url);
+    if (!d.players || d.players.length === 0) {
+      document.getElementById('playerTable').innerHTML = '<div class="empty"><div class="empty-icon">☯</div>暂无修士记录</div>';
+      return;
+    }
+    let h = '<table><tr><th>ID</th><th>道号</th><th>境界</th><th>灵根</th><th>等级</th><th>生命</th><th>攻击</th><th>防御</th><th>金币</th><th>灵石</th><th>状态</th><th>操作</th></tr>';
+    for (const p of d.players) {
+      const cultivating = p.cultivating ? '<span class="badge badge-gold">闭关中</span>' : '<span class="badge badge-jade">游历中</span>';
+      h += '<tr>' +
+        '<td style="color:var(--text-muted);font-size:11px">' + p.id + '</td>' +
+        '<td style="color:var(--gold)">' + $h(p.name) + '</td>' +
+        '<td>' + $h(p.realm) + '</td>' +
+        '<td>' + $h(p.spiritualRoot||'') + ' <span style="color:var(--text-muted);font-size:11px">' + $h(p.rootTier||'') + '</span></td>' +
+        '<td>' + p.level + '</td>' +
+        '<td>' + p.hp + '/' + p.maxHp + '</td>' +
+        '<td>' + p.attack + '</td>' +
+        '<td>' + p.defense + '</td>' +
+        '<td>' + p.gold + '</td>' +
+        '<td>' + (p.spiritStones||0) + '</td>' +
+        '<td>' + cultivating + '</td>' +
+        '<td><button class="btn btn-action btn-sm" onclick="openPlayerDetail(' + p.id + ',\'' + $h(p.name) + '\')">详情</button></td>' +
+        '</tr>';
+    }
+    h += '</table><p style="color:var(--text-muted);font-size:12px;margin-top:10px">共 ' + (d.total||0) + ' 位修士</p>';
+    document.getElementById('playerTable').innerHTML = h;
+  } catch (x) { document.getElementById('playerTable').innerHTML = '<div class="empty">加载失败</div>'; }
+}
+
+async function openPlayerDetail(id, name) {
+  try {
+    const d = await api('/players/' + id);
+    const p = d.player;
+    if (!p) { alert('玩家不存在'); return; }
+
+    let itemsHtml = '<table><tr><th>物品</th><th>标识</th><th>数量</th></tr>';
+    if (p.items) {
+      for (const i of p.items) {
+        itemsHtml += '<tr><td>' + $h(i.name) + '</td><td style="color:var(--text-muted);font-size:11px">' + i.key + '</td><td>' + i.qty + '</td></tr>';
+      }
+    }
+    itemsHtml += '</table>';
+
+    const html =
+      '<button class="close" onclick="closeModal()">&times;</button>' +
+      '<h3>☯ ' + $h(p.name) + ' <span style="font-size:12px;color:var(--text-muted);font-weight:normal">ID:' + p.id + ' · UID:' + p.userId + '</span></h3>' +
+      '<div class="form-grid">' +
+        '<div><label>生命值</label><input id="edHp" value="' + p.hp + '"></div>' +
+        '<div><label>最大生命</label><input id="edMaxHp" value="' + p.maxHp + '"></div>' +
+        '<div><label>法力值</label><input id="edMp" value="' + p.mp + '"></div>' +
+        '<div><label>最大法力</label><input id="edMaxMp" value="' + p.maxMp + '"></div>' +
+        '<div><label>攻击力</label><input id="edAtk" value="' + p.attack + '"></div>' +
+        '<div><label>防御力</label><input id="edDef" value="' + p.defense + '"></div>' +
+        '<div><label>速度</label><input id="edSpd" value="' + p.speed + '"></div>' +
+        '<div><label>神识</label><input id="edSpi" value="' + p.spirit + '"></div>' +
+        '<div><label>等级</label><input id="edLvl" value="' + p.level + '"></div>' +
+        '<div><label>金币</label><input id="edGold" value="' + p.gold + '"></div>' +
+        '<div><label>灵力</label><input id="edExp" value="' + p.experience + '"></div>' +
+        '<div><label>境界</label><input id="edRealm" value="' + p.realm + '"></div>' +
+      '</div>' +
+      '<div style="margin-top:16px;padding:12px;background:rgba(212,168,83,0.05);border-radius:8px;font-size:13px;color:var(--text-secondary)">' +
+        '灵根: <b style="color:var(--gold)">' + $h(p.spiritualRoot||'—') + '</b>' +
+        '（' + $h(p.rootTier||'') + '）' +
+        ' &nbsp;|&nbsp; 灵石: <b style="color:var(--jade)">' + (p.spiritStones||0) + '</b>' +
+        ' &nbsp;|&nbsp; ' + (p.cultivating?'<span class="badge badge-gold">闭关中</span>':'<span class="badge badge-jade">游历中</span>') +
+      '</div>' +
+      '<div class="actions">' +
+        '<button class="btn btn-primary" onclick="editPlayer(' + id + ')">保存修改</button>' +
+      '</div>' +
+      '<div class="section-title">🎁 发放资源</div>' +
+      '<div class="row">' +
+        '<input placeholder="金币" id="gvGold" style="width:80px">' +
+        '<input placeholder="灵力" id="gvExp" style="width:80px">' +
+        '<input placeholder="灵石" id="gvSS" style="width:80px">' +
+        '<select id="gvItem"><option value="">--选物品--</option></select>' +
+        '<input placeholder="数量" id="gvQty" style="width:60px">' +
+        '<button class="btn btn-action" onclick="giveToPlayer(' + id + ')">发放</button>' +
+      '</div>' +
+      '<div class="section-title">🎒 背包物品</div>' +
+      itemsHtml +
+      '<div id="playerActionMsg"></div>';
+
+    document.getElementById('modalContent').innerHTML = html;
+    document.getElementById('modalOverlay').classList.add('show');
+
+    try {
+      const items = await api('/items');
+      const sel = document.getElementById('gvItem');
+      for (const i of items.items) {
+        sel.innerHTML += '<option value="' + i.key + '">' + $h(i.name) + '</option>';
+      }
+    } catch (x) {}
+  } catch (x) { alert('加载失败'); }
+}
+
+function closeModal() {
+  document.getElementById('modalOverlay').classList.remove('show');
+}
+
+document.getElementById('modalOverlay').addEventListener('click', function(e) {
+  if (e.target === this) closeModal();
+});
+
+async function editPlayer(id) {
+  const g = function(id) { return document.getElementById(id).value; };
+  const body = {
+    hp: parseInt(g('edHp')), maxHp: parseInt(g('edMaxHp')),
+    mp: parseInt(g('edMp')), maxMp: parseInt(g('edMaxMp')),
+    attack: parseInt(g('edAtk')), defense: parseInt(g('edDef')),
+    speed: parseInt(g('edSpd')), spirit: parseInt(g('edSpi')),
+    level: parseInt(g('edLvl')), gold: parseInt(g('edGold')),
+    experience: parseInt(g('edExp')), realm: parseInt(g('edRealm'))
+  };
+  try {
+    const d = await api('/players/' + id + '/edit', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+    document.getElementById('playerActionMsg').innerHTML = '<div class="msg msg-ok">' + $h(d.message) + '</div>';
+    loadPlayers();
+  } catch (x) { document.getElementById('playerActionMsg').innerHTML = '<div class="msg msg-err">修改失败</div>'; }
+}
+
+async function giveToPlayer(id) {
+  const body = {};
+  const g = document.getElementById('gvGold').value;
+  const e = document.getElementById('gvExp').value;
+  const s = document.getElementById('gvSS').value;
+  const k = document.getElementById('gvItem').value;
+  const q = document.getElementById('gvQty').value;
+  if (g) body.gold = parseInt(g);
+  if (e) body.exp = parseInt(e);
+  if (s) body.spiritStones = parseInt(s);
+  if (k && q) { body.itemKey = k; body.itemQty = parseInt(q); }
+  try {
+    const d = await api('/players/' + id + '/give', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+    document.getElementById('playerActionMsg').innerHTML = '<div class="msg msg-ok">' + $h(d.message) + '</div>';
+    loadPlayers();
+  } catch (x) { document.getElementById('playerActionMsg').innerHTML = '<div class="msg msg-err">发放失败</div>'; }
+}
+
+async function dbAction(action) {
+  try {
+    const d = await api('/database/' + action, { method:'POST' });
+    let detail = '';
+    if (d.detail) {
+      for (const [k, v] of Object.entries(d.detail)) {
+        detail += k + ': ' + v + ' 条; ';
+      }
+    }
+    document.getElementById('dbMsg').innerHTML = '<div class="msg msg-ok">' + $h(d.message) + '<br><small style="color:var(--text-muted)">' + $h(detail) + '</small></div>';
+  } catch (x) { document.getElementById('dbMsg').innerHTML = '<div class="msg msg-err">操作失败</div>'; }
+}
+
+async function loadUsers() {
+  try {
+    const d = await api('/users');
+    if (!d.users || d.users.length === 0) {
+      document.getElementById('userRolesTable').innerHTML = '<div class="empty">暂无用户</div>';
+      return;
+    }
+    const roles = await api('/roles');
+    const allRoles = [];
+    for (const r of roles.roles) allRoles.push(r.name);
+
+    let h = '<table><tr><th>ID</th><th>用户名</th><th>角色</th><th>操作</th></tr>';
+    for (const u of d.users) {
+      const roleTags = (u.roles||[]).map(r =>
+        '<span class="tag">' + $h(r) + ' <span class="tag-x" onclick="removeRole(' + u.id + ',\'' + r + '\')" title="移除角色">&times;</span></span>'
+      ).join(' ');
+      h += '<tr>' +
+        '<td style="color:var(--text-muted)">' + u.id + '</td>' +
+        '<td>' + $h(u.username) + '</td>' +
+        '<td><span class="tags">' + (roleTags || '<span class="badge badge-gray">无</span>') + '</span></td>' +
+        '<td>' +
+          '<select id="roleSel_' + u.id + '" style="width:100px">' +
+            allRoles.map(r => '<option value="' + r + '">' + r + '</option>').join('') +
+          '</select> ' +
+          '<button class="btn btn-primary btn-sm" onclick="assignRole(' + u.id + ')">分配</button> ' +
+        '</td>' +
+        '</tr>';
+    }
+    h += '</table>';
+    document.getElementById('userRolesTable').innerHTML = h;
+  } catch (x) { document.getElementById('userRolesTable').innerHTML = '<div class="empty">加载失败</div>'; }
+}
+
+async function assignRole(uid) {
+  const role = document.getElementById('roleSel_' + uid).value;
+  try {
+    await api('/user/' + uid + '/role', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({role:role}) });
+    loadUsers();
+  } catch (x) { alert('分配失败'); }
+}
+
+async function removeRole(uid, roleName) {
+  if (!confirm('确定移除用户 #' + uid + ' 的角色【' + roleName + '】吗？')) return;
+  try {
+    await api('/user/' + uid + '/role/' + encodeURIComponent(roleName), { method:'DELETE' });
+    loadUsers();
+  } catch (x) { alert('移除失败'); }
+}
+
+function togglePause() {
+  paused = !paused;
+  const btn = document.getElementById('btnPause');
+  btn.textContent = paused ? '▶ 继续' : '⏸ 暂停';
+  btn.style.background = paused ? 'rgba(61,184,160,0.2)' : '';
+  btn.style.color = paused ? 'var(--jade)' : '';
+}
+
+function clearLogs() {
+  document.getElementById('logContainer').innerHTML = '';
+  lastSeq = 0;
+}
+
+async function fetchLogs() {
+  if (paused || !token) return;
+  try {
+    const d = await api('/logs?since=' + lastSeq);
+    const c = document.getElementById('logContainer');
+    if (firstLoad) { c.innerHTML = ''; firstLoad = false; }
+    if (d.entries && d.entries.length > 0) {
+      for (const e of d.entries) {
+        const dv = document.createElement('div');
+        dv.className = 'log-line';
+        dv.innerHTML =
+          '<span style="color:#3a4a5a">[' + $h(e.timestamp) + ']</span> ' +
+          '<span style="' + levelClass(e.level) + '">[' + $h(e.level) + ']</span> ' +
+          '<span style="color:#8e6bb8">[' + $h(e.logger) + ']</span> ' +
+          '<span style="color:var(--text-secondary)">' + $h(e.message) + '</span>';
+        c.appendChild(dv);
+        lastSeq = Math.max(lastSeq, e.seq||0);
+      }
+      while (c.children.length > 2000) c.removeChild(c.firstChild);
+      if (autoScroll) c.scrollTop = c.scrollHeight;
+    }
+    if (d.latestSeq > lastSeq) lastSeq = d.latestSeq;
+  } catch (x) {}
+}
+
+function levelClass(level) {
+  switch (level) {
+    case 'DEBUG': return 'color:#5b9bd5';
+    case 'INFO': return 'color:#3db8a0';
+    case 'WARN': return 'color:#e89440';
+    case 'ERROR': return 'color:#e05353';
+    default: return 'color:var(--text-muted)';
+  }
+}
+
+(function() {
+  const lc = document.getElementById('logContainer');
+  if (lc) {
+    lc.addEventListener('scroll', function() {
+      autoScroll = lc.scrollHeight - lc.scrollTop - lc.clientHeight < 30;
+    });
+  }
+})();
+</script>
+</body>
+</html>
