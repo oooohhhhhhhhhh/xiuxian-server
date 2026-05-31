@@ -270,10 +270,10 @@ public class TechniqueService {
                 ps.setString(8, (String) row[7]);
                 ps.setInt(9, ((Number) row[8]).intValue());
                 for (int i = 0; i < 6; i++) ps.setInt(10 + i, ((Number) row[9 + i]).intValue());
-                ps.setDouble(16, ((Number) row[16]).doubleValue());
-                ps.setDouble(17, ((Number) row[17]).doubleValue());
-                ps.setDouble(18, ((Number) row[18]).doubleValue());
-                ps.setDouble(19, ((Number) row[19]).doubleValue());
+                ps.setDouble(16, ((Number) row[15]).doubleValue());
+                ps.setDouble(17, ((Number) row[16]).doubleValue());
+                ps.setDouble(18, ((Number) row[17]).doubleValue());
+                ps.setDouble(19, ((Number) row[18]).doubleValue());
                 ps.executeUpdate();
             }
         } catch (SQLException e) { throw new RuntimeException("初始化功法失败", e); }
