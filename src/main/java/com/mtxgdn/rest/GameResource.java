@@ -14,6 +14,7 @@ import com.mtxgdn.game.entity.Skill;
 import com.mtxgdn.game.item.Item;
 import com.mtxgdn.game.item.ItemRegistry;
 import com.mtxgdn.game.service.HeartDemonService;
+import com.mtxgdn.game.service.OfflineRewardService;
 import com.mtxgdn.game.service.CombatService;
 import com.mtxgdn.game.service.DailyService;
 import com.mtxgdn.game.service.ExplorationService;
@@ -82,6 +83,9 @@ public class GameResource {
             return Response.ok(result.toString()).build();
         }
 
+        OfflineRewardService.OfflineRewardResult offlineReward =
+                new OfflineRewardService().processOfflineRewards(userId);
+
         JsonObject data = gson.toJsonTree(player).getAsJsonObject();
 
         RealmConfig current = GameConfigLoader.getRealmConfig(player.getRealm(), player.getSubRealm());
@@ -110,6 +114,26 @@ public class GameResource {
             rootObj.addProperty("effectName", player.getSpiritualRoot().getEffect().name());
             rootObj.addProperty("effectValue", player.getSpiritualRoot().getEffectValue());
             data.add("spiritualRoot", rootObj);
+        }
+
+        if (offlineReward.hasReward) {
+            JsonObject offlineJson = new JsonObject();
+            offlineJson.addProperty("offlineSeconds", offlineReward.offlineSeconds);
+            offlineJson.addProperty("offlineMinutes", offlineReward.offlineMinutes);
+            offlineJson.addProperty("offlineHours", offlineReward.offlineHours);
+            offlineJson.addProperty("hpRecovered", offlineReward.hpRecovered);
+            offlineJson.addProperty("mpRecovered", offlineReward.mpRecovered);
+            if (offlineReward.wasCultivating) {
+                offlineJson.addProperty("expGained", offlineReward.expGained);
+                offlineJson.addProperty("rawExpGained", offlineReward.rawExpGained);
+                if (offlineReward.heartDemonTriggered) {
+                    offlineJson.addProperty("heartDemonTriggered", true);
+                    offlineJson.addProperty("heartDemonSeverity", offlineReward.heartDemonSeverity);
+                    offlineJson.addProperty("heartDemonNarrative", offlineReward.heartDemonNarrative);
+                    offlineJson.addProperty("heartDemonExpLost", offlineReward.heartDemonExpLost);
+                }
+            }
+            data.add("offlineReward", offlineJson);
         }
 
         return Response.ok(GameMessage.restOk("获取成功", data).toString()).build();

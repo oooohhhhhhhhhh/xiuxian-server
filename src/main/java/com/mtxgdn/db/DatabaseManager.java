@@ -123,6 +123,7 @@ public class DatabaseManager {
                 "last_exploration_time BIGINT DEFAULT 0, " +
                 "tutorial_step INT DEFAULT 0, " +
                 "tutorial_tips INT DEFAULT 0, " +
+                "last_offline_time BIGINT DEFAULT 0, " +
                 "created_at " + tsDefault + ", " +
                 "updated_at " + tsUpdate;
 

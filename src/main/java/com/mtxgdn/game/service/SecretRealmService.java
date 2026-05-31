@@ -1,6 +1,8 @@
 package com.mtxgdn.game.service;
 
 import com.mtxgdn.entity.Player;
+import com.mtxgdn.game.entity.Monster;
+import com.mtxgdn.game.entity.PveCombatResult;
 import com.mtxgdn.game.entity.SecretRealmResult;
 import com.mtxgdn.game.entity.SpiritualRoot;
 import com.mtxgdn.game.item.ItemRegistry;
@@ -82,10 +84,12 @@ public class SecretRealmService {
         result.setSuccess(true);
         result.setLog(log);
 
-        if (roll < 0.25) {
+        if (roll < 0.20) {
             return handleTreasure(player, area, result, log);
-        } else if (roll < 0.50) {
+        } else if (roll < 0.40) {
             return handleMonsterEncounter(player, area, result, log);
+        } else if (roll < 0.50) {
+            return handleBossEncounter(player, area, result, log);
         } else if (roll < 0.65) {
             return handleHerbFinding(player, area, result, log);
         } else if (roll < 0.78) {
@@ -127,84 +131,47 @@ public class SecretRealmService {
         result.setEventType("encounter_monster");
         result.setEventDescription("遭遇妖兽");
 
-        int realm = player.getRealm() + 1;
-        String monsterName = generateMonsterName();
-        int monsterAtk = 5 + realm * 15 + random.nextInt(realm * 10);
-        int monsterHp = 30 + realm * 40 + random.nextInt(realm * 30);
+        Monster monster = Monster.random(player.getRealm(), random);
+        CombatService combatService = new CombatService();
+        PveCombatResult pveResult = combatService.pveFight(player.getId(), monster);
 
-        log.add("⚔ 前方突然窜出一只【" + monsterName + "】！");
-        log.add("妖兽属性 - 攻击:" + monsterAtk + " 生命:" + monsterHp);
+        result.setMonsterDefeated(pveResult.isPlayerWon());
+        result.setMonsterName(monster.getName());
+        result.setExpGained(pveResult.getExpGained());
+        result.setGoldGained(pveResult.getGoldGained());
+        result.setSpiritStonesGained(pveResult.getSpiritStonesGained());
+        result.setItemGained(pveResult.getItemGained());
+        result.setItemQuantity(pveResult.getItemQuantity());
+        result.setMessage(pveResult.getMessage());
 
-        int playerAtk = player.getAttack() + player.getSpirit();
-        int playerHp = player.getHp();
-
-        boolean playerFirst = player.getSpeed() >= 5 + realm * 3;
-        int rounds = 0;
-        boolean won = false;
-
-        while (playerHp > 0 && monsterHp > 0 && rounds < 30) {
-            rounds++;
-            if (playerFirst) {
-                int dmg = Math.max(1, playerAtk + random.nextInt(-5, 6));
-                monsterHp -= dmg;
-                if (monsterHp <= 0) {
-                    won = true;
-                    break;
-                }
-                dmg = Math.max(1, monsterAtk - player.getDefense() / 2 + random.nextInt(-3, 4));
-                playerHp -= dmg;
-            } else {
-                int dmg = Math.max(1, monsterAtk - player.getDefense() / 2 + random.nextInt(-3, 4));
-                playerHp -= dmg;
-                if (playerHp <= 0) break;
-                dmg = Math.max(1, playerAtk + random.nextInt(-5, 6));
-                monsterHp -= dmg;
-                if (monsterHp <= 0) {
-                    won = true;
-                    break;
-                }
-            }
+        if (pveResult.getBattleLog() != null) {
+            log.addAll(pveResult.getBattleLog());
         }
 
-        int hpLost = player.getHp() - Math.max(0, playerHp);
-        result.setHpLost(hpLost);
-        result.setMonsterName(monsterName);
-        result.setMonsterDefeated(won);
+        return result;
+    }
 
-        if (won) {
-            long exp = realm * 80L + random.nextLong(realm * 30L);
-            playerService.addExperience(player.getId(), exp);
-            result.setExpGained(exp);
+    private SecretRealmResult handleBossEncounter(Player player, SecretRealm area, SecretRealmResult result, List<String> log) {
+        result.setEventType("encounter_boss");
+        result.setEventDescription("遭遇秘境守护者");
 
-            log.add("经过 " + rounds + " 回合激战，你成功击败了【" + monsterName + "】！");
-            log.add("获得了 " + exp + " 点经验。");
+        Monster boss = Monster.createBossForRealm(area.getRequiredRealm(), random);
+        CombatService combatService = new CombatService();
+        PveCombatResult pveResult = combatService.pveFight(player.getId(), boss);
 
-            if (random.nextDouble() < 0.3) {
-                String lootItem = getRandomLootItem();
-                if (lootItem != null && ItemRegistry.contains(lootItem)) {
-                    itemService.addItem(player.getId(), lootItem, 1);
-                    result.setItemGained(lootItem);
-                    result.setItemQuantity(1);
-                    log.add("妖兽身上掉落了一件物品！");
-                }
-            }
+        result.setMonsterDefeated(pveResult.isPlayerWon());
+        result.setMonsterName(boss.getName());
+        result.setExpGained(pveResult.getExpGained());
+        result.setGoldGained(pveResult.getGoldGained());
+        result.setSpiritStonesGained(pveResult.getSpiritStonesGained());
+        result.setItemGained(pveResult.getItemGained());
+        result.setItemQuantity(pveResult.getItemQuantity());
+        result.setMessage(pveResult.getMessage());
 
-            result.setMessage("击败了【" + monsterName + "】，获得 " + exp + " 点经验");
-        } else {
-            log.add("你被【" + monsterName + "】击败了，损失了 " + hpLost + " 点生命值...");
-            result.setMessage("被【" + monsterName + "】击败，损失了 " + hpLost + " 点生命值");
+        if (pveResult.getBattleLog() != null) {
+            log.addAll(pveResult.getBattleLog());
         }
 
-        int finalHp = Math.max(0, playerHp);
-        String updateSql = "UPDATE players SET hp = ? WHERE id = ?";
-        try (var conn = com.mtxgdn.db.DatabaseManager.getConnection();
-             var ps = conn.prepareStatement(updateSql)) {
-            ps.setInt(1, finalHp);
-            ps.setLong(2, player.getId());
-            ps.executeUpdate();
-        } catch (Exception e) {
-            throw new RuntimeException("更新生命值失败", e);
-        }
         return result;
     }
 

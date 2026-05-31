@@ -98,7 +98,7 @@ public class PlayerService {
                 hp = ?, max_hp = ?, mp = ?, max_mp = ?, attack = ?, defense = ?,
                 speed = ?, spirit = ?, gold = ?,
                 cultivation_progress = ?, is_cultivating = ?, cultivation_start_time = ?,
-                last_secret_realm_time = ?, last_exploration_time = ?
+                last_secret_realm_time = ?, last_exploration_time = ?, last_offline_time = ?
             WHERE id = ?
             """;
         try (Connection conn = DatabaseManager.getConnection();
@@ -121,7 +121,8 @@ public class PlayerService {
             ps.setLong(16, player.getCultivationStartTime());
             ps.setLong(17, player.getLastSecretRealmTime());
             ps.setLong(18, player.getLastExplorationTime());
-            ps.setLong(19, playerId);
+            ps.setLong(19, player.getLastOfflineTime());
+            ps.setLong(20, playerId);
             ps.executeUpdate();
         } catch (SQLException e) {
             throw new RuntimeException("更新玩家失败", e);
@@ -155,7 +156,7 @@ public class PlayerService {
     public void setCultivating(long playerId, boolean cultivating) {
         String sql;
         if (cultivating) {
-            sql = "UPDATE players SET is_cultivating = ?, cultivation_start_time = ? WHERE id = ?";
+            sql = "UPDATE players SET is_cultivating = ?, cultivation_start_time = ?, last_offline_time = 0 WHERE id = ?";
         } else {
             sql = "UPDATE players SET is_cultivating = ?, cultivation_start_time = 0 WHERE id = ?";
         }
@@ -322,6 +323,18 @@ public class PlayerService {
         }
     }
 
+    public void updateLastOfflineTime(long playerId, long lastOfflineTime) {
+        String sql = "UPDATE players SET last_offline_time = ? WHERE id = ?";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setLong(1, lastOfflineTime);
+            ps.setLong(2, playerId);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException("更新离线时间失败", e);
+        }
+    }
+
     public List<PlayerInfo> getAllPlayers(int limit, int offset) {
         String sql = "SELECT * FROM players ORDER BY level DESC, experience DESC LIMIT ? OFFSET ?";
         List<PlayerInfo> players = new ArrayList<>();
@@ -413,6 +426,7 @@ public class PlayerService {
         pi.setLastExplorationTime(rs.getLong("last_exploration_time"));
         pi.setTutorialStep(rs.getInt("tutorial_step"));
         pi.setTutorialTips(rs.getInt("tutorial_tips"));
+        pi.setLastOfflineTime(rs.getLong("last_offline_time"));
         pi.setCreatedAt(rs.getString("created_at"));
         pi.setUpdatedAt(rs.getString("updated_at"));
 
@@ -449,6 +463,7 @@ public class PlayerService {
         p.setLastExplorationTime(rs.getLong("last_exploration_time"));
         p.setTutorialStep(rs.getInt("tutorial_step"));
         p.setTutorialTips(rs.getInt("tutorial_tips"));
+        p.setLastOfflineTime(rs.getLong("last_offline_time"));
         p.setCreatedAt(rs.getString("created_at"));
         p.setUpdatedAt(rs.getString("updated_at"));
         return p;

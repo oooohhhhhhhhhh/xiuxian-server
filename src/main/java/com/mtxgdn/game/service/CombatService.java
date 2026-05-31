@@ -1,8 +1,12 @@
 package com.mtxgdn.game.service;
 
 import com.mtxgdn.entity.Player;
+import com.mtxgdn.game.entity.Monster;
+import com.mtxgdn.game.entity.PveCombatResult;
 import com.mtxgdn.game.entity.Skill;
 import com.mtxgdn.game.entity.SpiritualRoot;
+import com.mtxgdn.game.item.ItemRegistry;
+import com.mtxgdn.game.service.ItemService;
 
 import java.util.*;
 
@@ -255,6 +259,258 @@ public class CombatService {
             baseExp *= 2;
         }
         return baseExp + random.nextLong(0, 30);
+    }
+
+    public PveCombatResult pveFight(long playerId, Monster monster) {
+        Player player = playerService.getPlayerById(playerId);
+
+        if (player == null) {
+            return PveCombatResult.failure("角色不存在");
+        }
+        if (player.getHp() <= 0) {
+            return PveCombatResult.failure("你的生命值不足，无法战斗");
+        }
+
+        List<Skill> playerSkills = skillService.getPlayerSkills(player.getId());
+        Set<Long> usedSkillIds = new HashSet<>();
+
+        int playerCurrentHp = player.getHp();
+        int playerCurrentMp = player.getMp();
+        int monsterCurrentHp = monster.getHp();
+
+        List<String> battleLog = new ArrayList<>();
+        if (monster.isBoss()) {
+            battleLog.add("👑 前方出现了一股强大的气息——【" + monster.getName() + "】！");
+            battleLog.add(monster.getDescription());
+        } else {
+            battleLog.add("⚔ 前方突然窜出一只【" + monster.getName() + "】！");
+        }
+        battleLog.add("【" + monster.getName() + "】- 攻击:" + monster.getAttack() + " 防御:" + monster.getDefense() + " 生命:" + monster.getHp());
+        battleLog.add("---");
+
+        boolean playerFirst = player.getSpeed() >= monster.getSpeed();
+        int maxRounds = 30;
+        int round = 0;
+        boolean playerWon = false;
+
+        int[] mpOut = new int[1];
+        SpiritualRoot playerRoot = player.getSpiritualRoot();
+
+        while (round < maxRounds && playerCurrentHp > 0 && monsterCurrentHp > 0) {
+            round++;
+
+            if (playerRoot != null && playerRoot.hasEffect(SpiritualRoot.SpecialEffect.REGENERATION)) {
+                int regen = (int)(player.getMaxHp() * playerRoot.getEffectValue());
+                playerCurrentHp = Math.min(player.getMaxHp(), playerCurrentHp + regen);
+            }
+
+            if (playerFirst) {
+                int damage = calculatePlayerDamageToMonster(player, monster, playerSkills, playerCurrentMp,
+                        battleLog, player.getName(), monster.getName(), usedSkillIds, mpOut);
+                playerCurrentMp = Math.max(0, playerCurrentMp - mpOut[0]);
+                monsterCurrentHp -= damage;
+                battleLog.add("【" + monster.getName() + "】受到 " + damage + " 点伤害，剩余生命 " + Math.max(0, monsterCurrentHp));
+
+                if (monsterCurrentHp <= 0) {
+                    playerWon = true;
+                    break;
+                }
+
+                int mDamage = calculateMonsterDamageToPlayer(monster, player, battleLog,
+                        monster.getName(), player.getName());
+                playerCurrentHp -= mDamage;
+                battleLog.add("你受到 " + mDamage + " 点伤害，剩余生命 " + Math.max(0, playerCurrentHp));
+
+                if (playerCurrentHp <= 0) {
+                    break;
+                }
+            } else {
+                int mDamage = calculateMonsterDamageToPlayer(monster, player, battleLog,
+                        monster.getName(), player.getName());
+                playerCurrentHp -= mDamage;
+                battleLog.add("你受到 " + mDamage + " 点伤害，剩余生命 " + Math.max(0, playerCurrentHp));
+
+                if (playerCurrentHp <= 0) {
+                    break;
+                }
+
+                int damage = calculatePlayerDamageToMonster(player, monster, playerSkills, playerCurrentMp,
+                        battleLog, player.getName(), monster.getName(), usedSkillIds, mpOut);
+                playerCurrentMp = Math.max(0, playerCurrentMp - mpOut[0]);
+                monsterCurrentHp -= damage;
+                battleLog.add("【" + monster.getName() + "】受到 " + damage + " 点伤害，剩余生命 " + Math.max(0, monsterCurrentHp));
+
+                if (monsterCurrentHp <= 0) {
+                    playerWon = true;
+                    break;
+                }
+            }
+        }
+
+        PveCombatResult result = new PveCombatResult();
+        result.setSuccess(true);
+        result.setMonsterName(monster.getName());
+        result.setBoss(monster.isBoss());
+        result.setPlayerHpRemaining(Math.max(0, playerCurrentHp));
+        result.setMonsterHpRemaining(Math.max(0, monsterCurrentHp));
+        result.setTotalRounds(round);
+
+        ItemService itemService = new ItemService();
+
+        if (playerWon) {
+            result.setPlayerWon(true);
+
+            long expReward = monster.getExpReward();
+            SpiritualRoot root = player.getSpiritualRoot();
+            if (root != null && root.hasEffect(SpiritualRoot.SpecialEffect.MONSTER_EXP)) {
+                expReward = (long)(expReward * (1 + root.getEffectValue()));
+            }
+            playerService.addExperience(player.getId(), expReward);
+            result.setExpGained(expReward);
+
+            long goldReward = monster.getGoldReward();
+            if (goldReward > 0) {
+                playerService.addGold(player.getId(), goldReward);
+                result.setGoldGained(goldReward);
+            }
+
+            long ssReward = monster.getSpiritStoneReward();
+            if (root != null && root.hasEffect(SpiritualRoot.SpecialEffect.SPIRIT_STONE_DROP)) {
+                ssReward = (long)(ssReward * (1 + root.getEffectValue()));
+            }
+            if (ssReward > 0) {
+                itemService.addSpiritStones(player.getId(), ssReward);
+                result.setSpiritStonesGained(ssReward);
+            }
+
+            if (random.nextDouble() < monster.getLootChance()) {
+                String[] lootTable = monster.getLootTable();
+                if (lootTable != null && lootTable.length > 0) {
+                    String lootItem = lootTable[random.nextInt(lootTable.length)];
+                    if (ItemRegistry.contains(lootItem)) {
+                        itemService.addItem(player.getId(), lootItem, 1);
+                        result.setItemGained(lootItem);
+                        result.setItemQuantity(1);
+                    }
+                }
+            }
+
+            battleLog.add("---");
+            if (monster.isBoss()) {
+                battleLog.add("🎉 经过 " + round + " 回合的鏖战，你成功击败了 Boss【" + monster.getName() + "】！");
+            } else {
+                battleLog.add("经过 " + round + " 回合激战，你成功击败了【" + monster.getName() + "】！");
+            }
+            battleLog.add("获得了 " + expReward + " 点经验。");
+            if (goldReward > 0) battleLog.add("获得了 " + goldReward + " 金币。");
+            if (ssReward > 0) battleLog.add("获得了 " + ssReward + " 灵石。");
+            if (result.getItemGained() != null) battleLog.add("妖兽身上掉落了一件物品！");
+
+            StringBuilder msgBuilder = new StringBuilder("击败了【" + monster.getName() + "】，获得 " + expReward + " 经验");
+            if (goldReward > 0) msgBuilder.append(", ").append(goldReward).append(" 金币");
+            if (ssReward > 0) msgBuilder.append(", ").append(ssReward).append(" 灵石");
+            if (result.getItemGained() != null) msgBuilder.append(", 掉落物品");
+            result.setMessage(msgBuilder.toString());
+        } else {
+            result.setPlayerWon(false);
+            int hpLost = player.getHp() - Math.max(0, playerCurrentHp);
+            battleLog.add("---");
+            if (monster.isBoss()) {
+                battleLog.add("Boss【" + monster.getName() + "】的力量太过强大，你被击败了...");
+            } else {
+                battleLog.add("你被【" + monster.getName() + "】击败了，损失了 " + hpLost + " 点生命值...");
+            }
+            result.setMessage("被【" + monster.getName() + "】击败，损失了 " + hpLost + " 点生命值");
+        }
+
+        for (long skillId : usedSkillIds) {
+            skillService.addProficiency(player.getId(), skillId, 15);
+        }
+
+        player.setHp(Math.max(0, playerCurrentHp));
+        playerService.updatePlayer(player.getId(), player);
+
+        result.setBattleLog(battleLog);
+        return result;
+    }
+
+    private int calculatePlayerDamageToMonster(Player attacker, Monster defender, List<Skill> skills,
+                                                int currentMp, List<String> battleLog, String attackerName,
+                                                String defenderName, Set<Long> usedSkillIds, int[] mpCostOut) {
+        SpiritualRoot attackerRoot = attacker.getSpiritualRoot();
+
+        Skill attackSkill = null;
+        if (!skills.isEmpty() && currentMp > 0) {
+            for (Skill skill : skills) {
+                int scaledMpCost = skill.getMpCost() + (int)(skill.getMpCost() * (skill.getLevel() - 1) * 0.15);
+                if (attackerRoot != null && attackerRoot.hasEffect(SpiritualRoot.SpecialEffect.MP_COST_REDUCTION)) {
+                    scaledMpCost = (int)(scaledMpCost * (1 - attackerRoot.getEffectValue()));
+                }
+                if (skill.isAttackSkill() && scaledMpCost <= currentMp) {
+                    attackSkill = skill;
+                    break;
+                }
+            }
+        }
+
+        int baseDamage;
+        if (attackSkill != null) {
+            int skillLevel = attackSkill.getLevel();
+            int scaledMpCost = attackSkill.getMpCost() + (int)(attackSkill.getMpCost() * (skillLevel - 1) * 0.15);
+            if (attackerRoot != null && attackerRoot.hasEffect(SpiritualRoot.SpecialEffect.MP_COST_REDUCTION)) {
+                scaledMpCost = (int)(scaledMpCost * (1 - attackerRoot.getEffectValue()));
+            }
+            baseDamage = attackSkill.getDamage() + (int)(attackSkill.getDamage() * (skillLevel - 1) * 0.15);
+            if (attackerRoot != null && attackerRoot.hasEffect(SpiritualRoot.SpecialEffect.SKILL_DAMAGE)) {
+                baseDamage = (int)(baseDamage * (1 + attackerRoot.getEffectValue()));
+            }
+            battleLog.add("【" + attackerName + "】使用了【" + attackSkill.getName() + " Lv." + skillLevel
+                    + "】（消耗 " + scaledMpCost + " MP）！");
+            usedSkillIds.add(attackSkill.getId());
+            mpCostOut[0] = scaledMpCost;
+        } else {
+            mpCostOut[0] = 0;
+            baseDamage = attacker.getAttack() + attacker.getSpirit();
+            battleLog.add("【" + attackerName + "】发动了普通攻击！");
+        }
+
+        if (attackerRoot != null && attackerRoot.hasEffect(SpiritualRoot.SpecialEffect.DAMAGE_BOOST)) {
+            baseDamage = (int)(baseDamage * (1 + attackerRoot.getEffectValue()));
+        }
+
+        double critChance = attacker.getSpeed() / 200.0;
+        if (attackerRoot != null && attackerRoot.hasEffect(SpiritualRoot.SpecialEffect.CRIT_CHANCE)) {
+            critChance += attackerRoot.getEffectValue();
+        }
+        boolean isCrit = random.nextDouble() < critChance;
+        if (isCrit) {
+            double critMult = 1.5;
+            if (attackerRoot != null && attackerRoot.hasEffect(SpiritualRoot.SpecialEffect.CRIT_DAMAGE)) {
+                critMult += attackerRoot.getEffectValue();
+            }
+            baseDamage = (int)(baseDamage * critMult);
+            battleLog.add("暴击！");
+        }
+
+        int variance = random.nextInt(-5, 6);
+        int finalDamage = Math.max(1, baseDamage + variance - defender.getDefense() / 3);
+
+        return Math.max(1, finalDamage);
+    }
+
+    private int calculateMonsterDamageToPlayer(Monster attacker, Player defender, List<String> battleLog,
+                                                String attackerName, String defenderName) {
+        SpiritualRoot defenderRoot = defender.getSpiritualRoot();
+
+        int baseDamage = attacker.getAttack();
+        int variance = random.nextInt(-4, 5);
+        int finalDamage = Math.max(1, baseDamage + variance - defender.getDefense() / 3);
+
+        if (defenderRoot != null && defenderRoot.hasEffect(SpiritualRoot.SpecialEffect.DAMAGE_REDUCTION)) {
+            finalDamage = (int)(finalDamage * (1 - defenderRoot.getEffectValue()));
+        }
+
+        return Math.max(1, finalDamage);
     }
 
     public static class CombatResult {

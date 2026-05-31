@@ -16,6 +16,7 @@ import com.mtxgdn.game.service.HeartDemonService;
 import com.mtxgdn.game.service.ExplorationService;
 import com.mtxgdn.game.service.SecretRealmService;
 import com.mtxgdn.game.service.ItemService;
+import com.mtxgdn.game.service.OfflineRewardService;
 import com.mtxgdn.game.service.PlayerService;
 import com.mtxgdn.game.service.RealmService;
 import com.mtxgdn.permission.PermissionService;
@@ -103,9 +104,32 @@ public class GameWebSocketApp extends WebSocketApplication {
 
             actionLog.logConnect(userId, username);
 
+            OfflineRewardService.OfflineRewardResult offlineReward =
+                    new OfflineRewardService().processOfflineRewards(userId);
+
             JsonObject welcomeData = new JsonObject();
             welcomeData.addProperty("userId", userId);
             welcomeData.addProperty("username", username);
+
+            if (offlineReward.hasReward) {
+                JsonObject offlineJson = new JsonObject();
+                offlineJson.addProperty("offlineSeconds", offlineReward.offlineSeconds);
+                offlineJson.addProperty("offlineMinutes", offlineReward.offlineMinutes);
+                offlineJson.addProperty("offlineHours", offlineReward.offlineHours);
+                offlineJson.addProperty("hpRecovered", offlineReward.hpRecovered);
+                offlineJson.addProperty("mpRecovered", offlineReward.mpRecovered);
+                if (offlineReward.wasCultivating) {
+                    offlineJson.addProperty("expGained", offlineReward.expGained);
+                    offlineJson.addProperty("rawExpGained", offlineReward.rawExpGained);
+                    if (offlineReward.heartDemonTriggered) {
+                        offlineJson.addProperty("heartDemonTriggered", true);
+                        offlineJson.addProperty("heartDemonSeverity", offlineReward.heartDemonSeverity);
+                        offlineJson.addProperty("heartDemonNarrative", offlineReward.heartDemonNarrative);
+                        offlineJson.addProperty("heartDemonExpLost", offlineReward.heartDemonExpLost);
+                    }
+                }
+                welcomeData.add("offlineReward", offlineJson);
+            }
             welcomeData.addProperty("message", "连接成功，欢迎进入修仙世界！");
 
             GameMessage welcome = GameMessage.ok(0, "welcome", welcomeData);
@@ -127,6 +151,9 @@ public class GameWebSocketApp extends WebSocketApplication {
             userSessions.remove(userId);
             broadcastUserOffline(userId);
             PlayerInfo player = playerService.getPlayerByUserId(userId);
+            if (player != null) {
+                playerService.updateLastOfflineTime(player.getId(), System.currentTimeMillis());
+            }
             String name = player != null ? player.getName() : "未知玩家";
             actionLog.logDisconnect(userId, name);
         }

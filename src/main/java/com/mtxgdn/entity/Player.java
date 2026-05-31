@@ -27,6 +27,7 @@ public class Player {
     private long lastExplorationTime;
     private int tutorialStep;
     private int tutorialTips;
+    private long lastOfflineTime;
     private String createdAt;
     private String updatedAt;
 
@@ -206,6 +207,9 @@ public class Player {
 
     public int getTutorialTips() { return tutorialTips; }
     public void setTutorialTips(int tutorialTips) { this.tutorialTips = tutorialTips; }
+
+    public long getLastOfflineTime() { return lastOfflineTime; }
+    public void setLastOfflineTime(long lastOfflineTime) { this.lastOfflineTime = lastOfflineTime; }
 
     public String getCreatedAt() {
         return createdAt;
