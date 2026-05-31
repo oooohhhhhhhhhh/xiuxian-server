@@ -3,7 +3,7 @@
   <modelVersion>4.0.0</modelVersion>
   <groupId>com.mtxgdn</groupId>
   <artifactId>main</artifactId>
-  <version>V0.1.0</version>
+  <version>V1.0.0</version>
   <build>
     <resources>
       <resource>
