@@ -543,9 +543,9 @@ java -jar target/main-V0.0.0-alpha.jar
 | `/recipes [类型]` / `/配方` | 查看制造配方 |
 | `/craft <配方ID>` / `/制造` | 制造物品 |
 | `/enhance <部位>` / `/强化` | 强化装备（部位：weapon/armor/accessory） |
-| `/msg <玩家名> <内容>` / `/私聊` | 发送私聊消息给指定玩家（仅私聊） |
+| `/msg <玩家名> <内容>` / `/私聊` | 发送私聊消息给指定玩家 |
 | `/rank [类型]` / `/排行` / `/排行榜` | 查看排行榜（realm/power/wealth） |
-| `/好友 <add\|accept\|remove\|list>` | 好友管理（添加/接受/删除/列表，仅私聊） |
+| `/好友 <add\|accept\|remove\|list>` | 好友管理（添加/接受/删除/列表） |
 | `/cleardb_players` / `/清除玩家数据` | 清除所有玩家数据（SUPER_ADMIN，仅私聊） |
 | `/cleardb_all` / `/重置全部数据` | 重置全部数据并重新初始化（SUPER_ADMIN，仅私聊） |
 

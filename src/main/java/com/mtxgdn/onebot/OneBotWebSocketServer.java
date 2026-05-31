@@ -409,11 +409,14 @@ public class OneBotWebSocketServer extends WebSocketApplication {
                 handleDaily(socket, selfId, senderQq, groupId);
                 break;
             case "msg", "私聊":
+                handlePrivateMessageCmd(socket, selfId, senderQq, arg, groupId);
+                break;
             case "rank", "排行":
             case "rank2", "排行榜":
+                handleRankCmd(socket, selfId, senderQq, arg, groupId);
+                break;
             case "friend", "好友":
-                sendGroupMsg(socket, selfId, groupId,
-                        "[CQ:at,qq=" + senderQq + "] 此指令请私聊使用。");
+                handleFriendCmd(socket, selfId, senderQq, arg, groupId);
                 break;
         }
     }
