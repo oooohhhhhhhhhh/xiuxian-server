@@ -254,7 +254,7 @@ public class TechniqueService {
             {"紫霄天诀", "天阶功法，引九霄紫气淬体，全面提升", 4, 8000L, 1500L, 1500, 600, "CULTIVATION", 10, 30, 30, 5, 5, 5, 5, 0.10, 0.05, 0.02, 0.02},
             {"大衍剑诀", "剑修至高功法，人剑合一，无坚不摧", 4, 10000L, 2000L, 2000, 800, "ATTACK", 10, 0, 0, 25, 0, 0, 8, 0.0, 0.0, 0.08, 0.0},
             {"金刚不坏功", "佛门护体神功，金刚怒目，万法不侵", 5, 15000L, 3000L, 3000, 1200, "DEFENSE", 10, 80, 0, 0, 20, 0, 0, 0.0, 0.0, 0.0, 0.06},
-            {"混沌天经", "传说中的远古功法，混沌之力，无所不包", 5, 20000L, 5000L, 5000, 2000, "CULTIVATION", 10, 50, 50, 10, 10, 10, 10, 0.15, 0.10, 0.05, 0.05},
+            {"混沌天经", "传说中的远古功法，混沌之力，无所不包", 5, 20000L, 5000L, 5000, 2000, "CULTIVATION", 10, 50, 50, 10, 10, 10, 10, 0, 0.15, 0.10, 0.05, 0.05},
         };
 
         try (Connection conn = DatabaseManager.getConnection();
@@ -269,11 +269,11 @@ public class TechniqueService {
                 ps.setInt(7, ((Number) row[6]).intValue());
                 ps.setString(8, (String) row[7]);
                 ps.setInt(9, ((Number) row[8]).intValue());
-                for (int i = 9; i < 17; i++) ps.setInt(i + 1, ((Number) row[i]).intValue());
-                ps.setDouble(18, ((Number) row[17]).doubleValue());
-                ps.setDouble(19, ((Number) row[18]).doubleValue());
-                ps.setDouble(20, ((Number) row[19]).doubleValue());
-                ps.setDouble(21, ((Number) row[20]).doubleValue());
+                for (int i = 0; i < 6; i++) ps.setInt(10 + i, ((Number) row[9 + i]).intValue());
+                ps.setDouble(16, ((Number) row[16]).doubleValue());
+                ps.setDouble(17, ((Number) row[17]).doubleValue());
+                ps.setDouble(18, ((Number) row[18]).doubleValue());
+                ps.setDouble(19, ((Number) row[19]).doubleValue());
                 ps.executeUpdate();
             }
         } catch (SQLException e) { throw new RuntimeException("初始化功法失败", e); }
