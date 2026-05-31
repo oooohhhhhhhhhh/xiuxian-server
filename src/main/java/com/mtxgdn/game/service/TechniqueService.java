@@ -262,18 +262,18 @@ public class TechniqueService {
             for (Object[] row : defaults) {
                 ps.setString(1, (String) row[0]);
                 ps.setString(2, (String) row[1]);
-                ps.setInt(3, (int) row[2]);
-                ps.setLong(4, (long) row[3]);
-                ps.setLong(5, (long) row[4]);
-                ps.setInt(6, (int) row[5]);
-                ps.setInt(7, (int) row[6]);
+                ps.setInt(3, ((Number) row[2]).intValue());
+                ps.setLong(4, ((Number) row[3]).longValue());
+                ps.setLong(5, ((Number) row[4]).longValue());
+                ps.setInt(6, ((Number) row[5]).intValue());
+                ps.setInt(7, ((Number) row[6]).intValue());
                 ps.setString(8, (String) row[7]);
-                ps.setInt(9, (int) row[8]);
-                for (int i = 9; i < 17; i++) ps.setInt(i + 1, (int) row[i]);
-                ps.setDouble(18, (double) row[17]);
-                ps.setDouble(19, (double) row[18]);
-                ps.setDouble(20, (double) row[19]);
-                ps.setDouble(21, (double) row[20]);
+                ps.setInt(9, ((Number) row[8]).intValue());
+                for (int i = 9; i < 17; i++) ps.setInt(i + 1, ((Number) row[i]).intValue());
+                ps.setDouble(18, ((Number) row[17]).doubleValue());
+                ps.setDouble(19, ((Number) row[18]).doubleValue());
+                ps.setDouble(20, ((Number) row[19]).doubleValue());
+                ps.setDouble(21, ((Number) row[20]).doubleValue());
                 ps.executeUpdate();
             }
         } catch (SQLException e) { throw new RuntimeException("初始化功法失败", e); }

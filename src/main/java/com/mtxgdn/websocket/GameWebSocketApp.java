@@ -28,6 +28,7 @@ import com.mtxgdn.game.service.ChatService;
 import com.mtxgdn.game.service.FriendService;
 import com.mtxgdn.game.entity.Friend;
 import com.mtxgdn.game.entity.ChatMessage;
+import com.mtxgdn.game.entity.SpiritualRoot;
 import com.mtxgdn.permission.PermissionService;
 import com.mtxgdn.util.JwtUtil;
 import com.mtxgdn.util.PlayerActionLogger;
@@ -610,6 +611,27 @@ public class GameWebSocketApp extends WebSocketApplication {
 
         if (player != null) {
             data = gson.toJsonTree(player).getAsJsonObject();
+
+            SpiritualRoot root = player.getSpiritualRoot();
+            if (root != null) {
+                JsonObject rootObj = new JsonObject();
+                rootObj.addProperty("key", root.name());
+                rootObj.addProperty("displayName", root.getDisplayName());
+                rootObj.addProperty("description", root.getDescription());
+                rootObj.addProperty("tier", root.getTier().getDisplayName());
+                rootObj.addProperty("attackBonus", root.getAttackBonus());
+                rootObj.addProperty("hpBonus", root.getHpBonus());
+                rootObj.addProperty("mpBonus", root.getMpBonus());
+                rootObj.addProperty("spiritBonus", root.getSpiritBonus());
+                rootObj.addProperty("defenseBonus", root.getDefenseBonus());
+                rootObj.addProperty("speedBonus", root.getSpeedBonus());
+                rootObj.addProperty("effectName", root.getEffect().name());
+                rootObj.addProperty("effectValue", root.getEffectValue());
+                data.add("spiritualRoot", rootObj);
+            }
+
+            long spiritStones = itemService.getSpiritStoneCount(player.getId());
+            data.addProperty("spiritStones", spiritStones);
         } else {
             data.addProperty("exists", false);
         }

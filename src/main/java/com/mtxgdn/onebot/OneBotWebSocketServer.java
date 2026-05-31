@@ -10,6 +10,7 @@ import com.mtxgdn.game.entity.SecretRealmResult;
 import com.mtxgdn.game.entity.Friend;
 import com.mtxgdn.game.entity.ChatMessage;
 import com.mtxgdn.game.entity.Skill;
+import com.mtxgdn.game.entity.SpiritualRoot;
 import com.mtxgdn.game.config.GameConfigLoader;
 import com.mtxgdn.game.item.Item;
 import com.mtxgdn.game.item.ItemRegistry;
@@ -624,6 +625,11 @@ public class OneBotWebSocketServer extends WebSocketApplication {
                 if ("register".equals(session.type)) {
                     if (isUsernameExists(session.username)) {
                         replyToSource(socket, selfId, senderQq, session.sourceGroupId, "角色名【" + session.username + "】已被占用，请重新注册。");
+                        pendingSessions.remove(senderQq);
+                        return;
+                    }
+                    if (bindingService.findByQq(senderQq) != null) {
+                        replyToSource(socket, selfId, senderQq, session.sourceGroupId, "你已注册角色，无需重复注册。如需重来请先用 /unbind 解绑。");
                         pendingSessions.remove(senderQq);
                         return;
                     }
@@ -1543,7 +1549,13 @@ public class OneBotWebSocketServer extends WebSocketApplication {
     // ==================== 格式化 ====================
 
     private String formatPlayerStatus(PlayerInfo p) {
+        SpiritualRoot root = p.getSpiritualRoot();
+        String rootStr = root != null
+                ? "【" + root.getDisplayName() + "】" + root.getTier().getDisplayName()
+                        + " | " + root.getDescription()
+                : "无";
         return "【" + p.getName() + "】" +
+                "\n灵根: " + rootStr +
                 "\n境界: " + p.getRealmName() + " (Lv." + p.getLevel() + ")" +
                 "\n灵力: " + p.getExperience() +
                 "\n生命: " + p.getHp() + "/" + p.getMaxHp() +
