@@ -9,6 +9,8 @@ import com.mtxgdn.game.entity.SecretRealmResult;
 import com.mtxgdn.game.entity.ExplorationResult;
 import com.mtxgdn.game.entity.PlayerInfo;
 import com.mtxgdn.game.entity.RealmBreakthroughResult;
+import com.mtxgdn.game.entity.Recipe;
+import com.mtxgdn.game.entity.Technique;
 import com.mtxgdn.game.item.Item;
 import com.mtxgdn.game.item.ItemRegistry;
 import com.mtxgdn.game.secretrealm.SecretRealm;
@@ -19,6 +21,8 @@ import com.mtxgdn.game.service.ItemService;
 import com.mtxgdn.game.service.OfflineRewardService;
 import com.mtxgdn.game.service.PlayerService;
 import com.mtxgdn.game.service.RealmService;
+import com.mtxgdn.game.service.TechniqueService;
+import com.mtxgdn.game.service.CraftingService;
 import com.mtxgdn.permission.PermissionService;
 import com.mtxgdn.util.JwtUtil;
 import com.mtxgdn.util.PlayerActionLogger;
@@ -38,6 +42,8 @@ public class GameWebSocketApp extends WebSocketApplication {
     private static final SecretRealmService secretRealmService = new SecretRealmService(playerService);
     private static final ExplorationService explorationService = new ExplorationService(playerService);
     private static final HeartDemonService heartDemonService = new HeartDemonService();
+    private static final TechniqueService techniqueService = new TechniqueService();
+    private static final CraftingService craftingService = new CraftingService();
 
     private final Map<WebSocket, Long> sessionUsers = new ConcurrentHashMap<>();
     private final Map<Long, WebSocket> userSessions = new ConcurrentHashMap<>();
@@ -213,6 +219,38 @@ public class GameWebSocketApp extends WebSocketApplication {
             case "exploration":
                 if (!checkWsPermission(socket, msgId, userId, "game.explore")) break;
                 handleExploration(socket, msgId, userId);
+                break;
+            case "techniques":
+                if (!checkWsPermission(socket, msgId, userId, "game.technique.learn")) break;
+                handleTechniques(socket, msgId);
+                break;
+            case "my_techniques":
+                if (!checkWsPermission(socket, msgId, userId, "game.technique.learn")) break;
+                handleMyTechniques(socket, msgId, userId);
+                break;
+            case "technique_learn":
+                if (!checkWsPermission(socket, msgId, userId, "game.technique.learn")) break;
+                handleTechniqueLearn(socket, msgId, userId, data);
+                break;
+            case "technique_equip":
+                if (!checkWsPermission(socket, msgId, userId, "game.technique.equip")) break;
+                handleTechniqueEquip(socket, msgId, userId, data);
+                break;
+            case "technique_unequip":
+                if (!checkWsPermission(socket, msgId, userId, "game.technique.equip")) break;
+                handleTechniqueUnequip(socket, msgId, userId, data);
+                break;
+            case "technique_upgrade":
+                if (!checkWsPermission(socket, msgId, userId, "game.technique.upgrade")) break;
+                handleTechniqueUpgrade(socket, msgId, userId, data);
+                break;
+            case "crafting_recipes":
+                if (!checkWsPermission(socket, msgId, userId, "game.crafting.recipes")) break;
+                handleCraftingRecipes(socket, msgId, data);
+                break;
+            case "crafting_craft":
+                if (!checkWsPermission(socket, msgId, userId, "game.crafting.craft")) break;
+                handleCraftingCraft(socket, msgId, userId, data);
                 break;
             default:
                 GameMessage err = GameMessage.error(msgId, type, GameErrorCode.UNKNOWN_TYPE);
@@ -525,5 +563,198 @@ public class GameWebSocketApp extends WebSocketApplication {
 
     public int getOnlineCount() {
         return sessionUsers.size();
+    }
+
+    private void handleTechniques(WebSocket socket, long msgId) {
+        List<Technique> techniques = techniqueService.getAllTechniques();
+        JsonArray arr = new JsonArray();
+        for (Technique t : techniques) {
+            JsonObject o = new JsonObject();
+            o.addProperty("id", t.getId());
+            o.addProperty("name", t.getName());
+            o.addProperty("description", t.getDescription());
+            o.addProperty("requiredRealm", t.getRequiredRealm());
+            o.addProperty("learnCostGold", t.getLearnCostGold());
+            o.addProperty("learnCostSpiritStones", t.getLearnCostSpiritStones());
+            o.addProperty("type", t.getType().name());
+            o.addProperty("maxLevel", t.getMaxLevel());
+            o.addProperty("hpBonus", t.getHpBonus());
+            o.addProperty("mpBonus", t.getMpBonus());
+            o.addProperty("attackBonus", t.getAttackBonus());
+            o.addProperty("defenseBonus", t.getDefenseBonus());
+            o.addProperty("speedBonus", t.getSpeedBonus());
+            o.addProperty("spiritBonus", t.getSpiritBonus());
+            o.addProperty("cultivationSpeedBonus", t.getCultivationSpeedBonus());
+            o.addProperty("expBonus", t.getExpBonus());
+            o.addProperty("combatDamageBonus", t.getCombatDamageBonus());
+            o.addProperty("damageReduction", t.getDamageReduction());
+            arr.add(o);
+        }
+        JsonObject data = new JsonObject();
+        data.add("techniques", arr);
+        socket.send(GameMessage.ok(msgId, "techniques", data).toJson());
+    }
+
+    private void handleMyTechniques(WebSocket socket, long msgId, Long userId) {
+        PlayerInfo player = playerService.getPlayerByUserId(userId);
+        if (player == null) {
+            socket.send(GameMessage.error(msgId, "my_techniques", GameErrorCode.PLAYER_NOT_FOUND).toJson());
+            return;
+        }
+        List<Technique> techniques = techniqueService.getPlayerTechniques(player.getId());
+        JsonArray arr = new JsonArray();
+        for (Technique t : techniques) {
+            JsonObject o = gson.toJsonTree(t).getAsJsonObject();
+            o.addProperty("scaledHpBonus", t.getScaledHpBonus());
+            o.addProperty("scaledMpBonus", t.getScaledMpBonus());
+            o.addProperty("scaledAttackBonus", t.getScaledAttackBonus());
+            o.addProperty("scaledDefenseBonus", t.getScaledDefenseBonus());
+            o.addProperty("scaledSpeedBonus", t.getScaledSpeedBonus());
+            o.addProperty("scaledSpiritBonus", t.getScaledSpiritBonus());
+            o.addProperty("scaledCultivationSpeedBonus", t.getScaledCultivationSpeedBonus());
+            arr.add(o);
+        }
+        JsonObject data = new JsonObject();
+        data.add("techniques", arr);
+        socket.send(GameMessage.ok(msgId, "my_techniques", data).toJson());
+    }
+
+    private void handleTechniqueLearn(WebSocket socket, long msgId, Long userId, JsonObject data) {
+        if (data == null || !data.has("techniqueId")) {
+            socket.send(GameMessage.error(msgId, "technique_learn", GameErrorCode.PARAM_MISSING).toJson());
+            return;
+        }
+        PlayerInfo player = playerService.getPlayerByUserId(userId);
+        if (player == null) {
+            socket.send(GameMessage.error(msgId, "technique_learn", GameErrorCode.PLAYER_NOT_FOUND).toJson());
+            return;
+        }
+        long techniqueId = data.get("techniqueId").getAsLong();
+        Map<String, Object> result = techniqueService.learnTechnique(player.getId(), techniqueId);
+        if (Boolean.TRUE.equals(result.get("success"))) {
+            socket.send(GameMessage.ok(msgId, "technique_learn", (String) result.get("message"), null).toJson());
+        } else {
+            socket.send(GameMessage.error(msgId, "technique_learn", 400, (String) result.get("message")).toJson());
+        }
+    }
+
+    private void handleTechniqueEquip(WebSocket socket, long msgId, Long userId, JsonObject data) {
+        if (data == null || !data.has("techniqueId")) {
+            socket.send(GameMessage.error(msgId, "technique_equip", GameErrorCode.PARAM_MISSING).toJson());
+            return;
+        }
+        PlayerInfo player = playerService.getPlayerByUserId(userId);
+        if (player == null) {
+            socket.send(GameMessage.error(msgId, "technique_equip", GameErrorCode.PLAYER_NOT_FOUND).toJson());
+            return;
+        }
+        long techniqueId = data.get("techniqueId").getAsLong();
+        Map<String, Object> result = techniqueService.equipTechnique(player.getId(), techniqueId);
+        if (Boolean.TRUE.equals(result.get("success"))) {
+            socket.send(GameMessage.ok(msgId, "technique_equip", (String) result.get("message"), null).toJson());
+        } else {
+            socket.send(GameMessage.error(msgId, "technique_equip", 400, (String) result.get("message")).toJson());
+        }
+    }
+
+    private void handleTechniqueUnequip(WebSocket socket, long msgId, Long userId, JsonObject data) {
+        if (data == null || !data.has("techniqueId")) {
+            socket.send(GameMessage.error(msgId, "technique_unequip", GameErrorCode.PARAM_MISSING).toJson());
+            return;
+        }
+        PlayerInfo player = playerService.getPlayerByUserId(userId);
+        if (player == null) {
+            socket.send(GameMessage.error(msgId, "technique_unequip", GameErrorCode.PLAYER_NOT_FOUND).toJson());
+            return;
+        }
+        long techniqueId = data.get("techniqueId").getAsLong();
+        Map<String, Object> result = techniqueService.unequipTechnique(player.getId(), techniqueId);
+        if (Boolean.TRUE.equals(result.get("success"))) {
+            socket.send(GameMessage.ok(msgId, "technique_unequip", (String) result.get("message"), null).toJson());
+        } else {
+            socket.send(GameMessage.error(msgId, "technique_unequip", 400, (String) result.get("message")).toJson());
+        }
+    }
+
+    private void handleTechniqueUpgrade(WebSocket socket, long msgId, Long userId, JsonObject data) {
+        if (data == null || !data.has("techniqueId")) {
+            socket.send(GameMessage.error(msgId, "technique_upgrade", GameErrorCode.PARAM_MISSING).toJson());
+            return;
+        }
+        PlayerInfo player = playerService.getPlayerByUserId(userId);
+        if (player == null) {
+            socket.send(GameMessage.error(msgId, "technique_upgrade", GameErrorCode.PLAYER_NOT_FOUND).toJson());
+            return;
+        }
+        long techniqueId = data.get("techniqueId").getAsLong();
+        Map<String, Object> result = techniqueService.upgradeTechnique(player.getId(), techniqueId);
+        if (Boolean.TRUE.equals(result.get("success"))) {
+            socket.send(GameMessage.ok(msgId, "technique_upgrade", (String) result.get("message"), null).toJson());
+        } else {
+            socket.send(GameMessage.error(msgId, "technique_upgrade", 400, (String) result.get("message")).toJson());
+        }
+    }
+
+    private void handleCraftingRecipes(WebSocket socket, long msgId, JsonObject data) {
+        List<Recipe> recipes;
+        if (data != null && data.has("category")) {
+            try {
+                recipes = craftingService.getRecipesByCategory(Recipe.Category.valueOf(data.get("category").getAsString().toUpperCase()));
+            } catch (IllegalArgumentException e) {
+                socket.send(GameMessage.error(msgId, "crafting_recipes", 400, "无效的分类").toJson());
+                return;
+            }
+        } else {
+            recipes = craftingService.getAllRecipes();
+        }
+        JsonArray arr = new JsonArray();
+        for (Recipe r : recipes) {
+            JsonObject o = new JsonObject();
+            o.addProperty("id", r.getId());
+            o.addProperty("name", r.getName());
+            o.addProperty("description", r.getDescription());
+            o.addProperty("category", r.getCategory().name());
+            o.addProperty("requiredRealm", r.getRequiredRealm());
+            o.addProperty("resultItemKey", r.getResultItemKey());
+            o.addProperty("resultQuantity", r.getResultQuantity());
+            if (r.getMaterial1Key() != null) o.addProperty("material1Key", r.getMaterial1Key());
+            if (r.getMaterial1Key() != null) o.addProperty("material1Count", r.getMaterial1Count());
+            if (r.getMaterial2Key() != null) o.addProperty("material2Key", r.getMaterial2Key());
+            if (r.getMaterial2Key() != null) o.addProperty("material2Count", r.getMaterial2Count());
+            if (r.getMaterial3Key() != null) o.addProperty("material3Key", r.getMaterial3Key());
+            if (r.getMaterial3Key() != null) o.addProperty("material3Count", r.getMaterial3Count());
+            o.addProperty("costGold", r.getCostGold());
+            o.addProperty("costSpiritStones", r.getCostSpiritStones());
+            o.addProperty("successRate", r.getSuccessRate());
+            arr.add(o);
+        }
+        JsonObject respData = new JsonObject();
+        respData.add("recipes", arr);
+        socket.send(GameMessage.ok(msgId, "crafting_recipes", respData).toJson());
+    }
+
+    private void handleCraftingCraft(WebSocket socket, long msgId, Long userId, JsonObject data) {
+        if (data == null || !data.has("recipeId")) {
+            socket.send(GameMessage.error(msgId, "crafting_craft", GameErrorCode.PARAM_MISSING).toJson());
+            return;
+        }
+        PlayerInfo player = playerService.getPlayerByUserId(userId);
+        if (player == null) {
+            socket.send(GameMessage.error(msgId, "crafting_craft", GameErrorCode.PLAYER_NOT_FOUND).toJson());
+            return;
+        }
+        long recipeId = data.get("recipeId").getAsLong();
+        Map<String, Object> result = craftingService.craft(player.getId(), recipeId);
+        if (Boolean.TRUE.equals(result.get("success"))) {
+            JsonObject respData = new JsonObject();
+            respData.addProperty("message", (String) result.get("message"));
+            if (result.containsKey("craftSuccess")) respData.addProperty("craftSuccess", (boolean) result.get("craftSuccess"));
+            if (result.containsKey("expGained")) respData.addProperty("expGained", ((Number) result.get("expGained")).longValue());
+            if (result.containsKey("itemGained")) respData.addProperty("itemGained", (String) result.get("itemGained"));
+            if (result.containsKey("itemQuantity")) respData.addProperty("itemQuantity", ((Number) result.get("itemQuantity")).intValue());
+            socket.send(GameMessage.ok(msgId, "crafting_craft", (String) result.get("message"), respData).toJson());
+        } else {
+            socket.send(GameMessage.error(msgId, "crafting_craft", 400, (String) result.get("message")).toJson());
+        }
     }
 }

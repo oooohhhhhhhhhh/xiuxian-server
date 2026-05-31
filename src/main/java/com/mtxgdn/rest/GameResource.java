@@ -10,12 +10,14 @@ import com.mtxgdn.game.config.GameConfigLoader;
 import com.mtxgdn.game.entity.PlayerInfo;
 import com.mtxgdn.game.entity.RealmBreakthroughResult;
 import com.mtxgdn.game.entity.RealmConfig;
+import com.mtxgdn.game.entity.Recipe;
 import com.mtxgdn.game.entity.Skill;
 import com.mtxgdn.game.item.Item;
 import com.mtxgdn.game.item.ItemRegistry;
 import com.mtxgdn.game.service.HeartDemonService;
 import com.mtxgdn.game.service.OfflineRewardService;
 import com.mtxgdn.game.service.CombatService;
+import com.mtxgdn.game.service.CraftingService;
 import com.mtxgdn.game.service.DailyService;
 import com.mtxgdn.game.service.ExplorationService;
 import com.mtxgdn.game.service.SecretRealmService;
@@ -24,6 +26,8 @@ import com.mtxgdn.game.service.PlayerService;
 import com.mtxgdn.game.service.RealmService;
 import com.mtxgdn.game.service.SkillService;
 import com.mtxgdn.game.service.TradeService;
+import com.mtxgdn.game.entity.Technique;
+import com.mtxgdn.game.service.TechniqueService;
 import com.mtxgdn.game.secretrealm.SecretRealm;
 import com.mtxgdn.game.entity.SpiritualRoot;
 import com.mtxgdn.permission.RequirePermission;
@@ -53,6 +57,8 @@ public class GameResource {
     private static final DailyService dailyService = new DailyService();
     private static final TradeService tradeService = new TradeService();
     private static final HeartDemonService heartDemonService = new HeartDemonService();
+    private static final TechniqueService techniqueService = new TechniqueService();
+    private static final CraftingService craftingService = new CraftingService();
 
     @Context
     private ContainerRequestContext requestContext;
@@ -886,6 +892,221 @@ public class GameResource {
         JsonObject data = new JsonObject();
         data.add("listings", arr);
         return Response.ok(GameMessage.restOk("获取成功", data).toString()).build();
+    }
+
+    @GET
+    @Path("/techniques")
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("game.technique.learn")
+    public Response getAllTechniques() {
+        List<Technique> techniques = techniqueService.getAllTechniques();
+        JsonArray arr = new JsonArray();
+        for (Technique t : techniques) {
+            JsonObject o = new JsonObject();
+            o.addProperty("id", t.getId());
+            o.addProperty("name", t.getName());
+            o.addProperty("description", t.getDescription());
+            o.addProperty("requiredRealm", t.getRequiredRealm());
+            o.addProperty("learnCostGold", t.getLearnCostGold());
+            o.addProperty("learnCostSpiritStones", t.getLearnCostSpiritStones());
+            o.addProperty("upgradeBaseCostGold", t.getUpgradeBaseCostGold());
+            o.addProperty("upgradeBaseCostSpiritStones", t.getUpgradeBaseCostSpiritStones());
+            o.addProperty("type", t.getType().name());
+            o.addProperty("maxLevel", t.getMaxLevel());
+            o.addProperty("hpBonus", t.getHpBonus());
+            o.addProperty("mpBonus", t.getMpBonus());
+            o.addProperty("attackBonus", t.getAttackBonus());
+            o.addProperty("defenseBonus", t.getDefenseBonus());
+            o.addProperty("speedBonus", t.getSpeedBonus());
+            o.addProperty("spiritBonus", t.getSpiritBonus());
+            o.addProperty("cultivationSpeedBonus", t.getCultivationSpeedBonus());
+            o.addProperty("expBonus", t.getExpBonus());
+            o.addProperty("combatDamageBonus", t.getCombatDamageBonus());
+            o.addProperty("damageReduction", t.getDamageReduction());
+            arr.add(o);
+        }
+        JsonObject data = new JsonObject();
+        data.add("techniques", arr);
+        return Response.ok(GameMessage.restOk("获取成功", data).toString()).build();
+    }
+
+    @GET
+    @Path("/technique/my")
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("game.technique.learn")
+    public Response getMyTechniques() {
+        Long userId = getCurrentUserId();
+        PlayerInfo player = playerService.getPlayerByUserId(userId);
+        if (player == null) {
+            return Response.ok(GameMessage.restError(GameErrorCode.PLAYER_NOT_FOUND).toString()).build();
+        }
+        List<Technique> techniques = techniqueService.getPlayerTechniques(player.getId());
+        JsonArray arr = new JsonArray();
+        for (Technique t : techniques) {
+            JsonObject o = gson.toJsonTree(t).getAsJsonObject();
+            o.addProperty("scaledHpBonus", t.getScaledHpBonus());
+            o.addProperty("scaledMpBonus", t.getScaledMpBonus());
+            o.addProperty("scaledAttackBonus", t.getScaledAttackBonus());
+            o.addProperty("scaledDefenseBonus", t.getScaledDefenseBonus());
+            o.addProperty("scaledSpeedBonus", t.getScaledSpeedBonus());
+            o.addProperty("scaledSpiritBonus", t.getScaledSpiritBonus());
+            o.addProperty("scaledCultivationSpeedBonus", t.getScaledCultivationSpeedBonus());
+            o.addProperty("scaledExpBonus", t.getScaledExpBonus());
+            o.addProperty("scaledCombatDamageBonus", t.getScaledCombatDamageBonus());
+            o.addProperty("scaledDamageReduction", t.getScaledDamageReduction());
+            arr.add(o);
+        }
+        JsonObject data = new JsonObject();
+        data.add("techniques", arr);
+        return Response.ok(GameMessage.restOk("获取成功", data).toString()).build();
+    }
+
+    @POST
+    @Path("/technique/learn")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("game.technique.learn")
+    public Response learnTechnique(String body) {
+        Long userId = getCurrentUserId();
+        PlayerInfo player = playerService.getPlayerByUserId(userId);
+        if (player == null) {
+            return Response.ok(GameMessage.restError(GameErrorCode.PLAYER_NOT_FOUND).toString()).build();
+        }
+        JsonObject req = gson.fromJson(body, JsonObject.class);
+        long techniqueId = req.get("techniqueId").getAsLong();
+        Map<String, Object> result = techniqueService.learnTechnique(player.getId(), techniqueId);
+        if (Boolean.TRUE.equals(result.get("success"))) {
+            return Response.ok(GameMessage.restOk((String) result.get("message"), null).toString()).build();
+        }
+        return Response.ok(GameMessage.restError(400, (String) result.get("message")).toString()).build();
+    }
+
+    @POST
+    @Path("/technique/equip")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("game.technique.equip")
+    public Response equipTechnique(String body) {
+        Long userId = getCurrentUserId();
+        PlayerInfo player = playerService.getPlayerByUserId(userId);
+        if (player == null) {
+            return Response.ok(GameMessage.restError(GameErrorCode.PLAYER_NOT_FOUND).toString()).build();
+        }
+        JsonObject req = gson.fromJson(body, JsonObject.class);
+        long techniqueId = req.get("techniqueId").getAsLong();
+        Map<String, Object> result = techniqueService.equipTechnique(player.getId(), techniqueId);
+        if (Boolean.TRUE.equals(result.get("success"))) {
+            return Response.ok(GameMessage.restOk((String) result.get("message"), null).toString()).build();
+        }
+        return Response.ok(GameMessage.restError(400, (String) result.get("message")).toString()).build();
+    }
+
+    @POST
+    @Path("/technique/unequip")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("game.technique.equip")
+    public Response unequipTechnique(String body) {
+        Long userId = getCurrentUserId();
+        PlayerInfo player = playerService.getPlayerByUserId(userId);
+        if (player == null) {
+            return Response.ok(GameMessage.restError(GameErrorCode.PLAYER_NOT_FOUND).toString()).build();
+        }
+        JsonObject req = gson.fromJson(body, JsonObject.class);
+        long techniqueId = req.get("techniqueId").getAsLong();
+        Map<String, Object> result = techniqueService.unequipTechnique(player.getId(), techniqueId);
+        if (Boolean.TRUE.equals(result.get("success"))) {
+            return Response.ok(GameMessage.restOk((String) result.get("message"), null).toString()).build();
+        }
+        return Response.ok(GameMessage.restError(400, (String) result.get("message")).toString()).build();
+    }
+
+    @POST
+    @Path("/technique/upgrade")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("game.technique.upgrade")
+    public Response upgradeTechnique(String body) {
+        Long userId = getCurrentUserId();
+        PlayerInfo player = playerService.getPlayerByUserId(userId);
+        if (player == null) {
+            return Response.ok(GameMessage.restError(GameErrorCode.PLAYER_NOT_FOUND).toString()).build();
+        }
+        JsonObject req = gson.fromJson(body, JsonObject.class);
+        long techniqueId = req.get("techniqueId").getAsLong();
+        Map<String, Object> result = techniqueService.upgradeTechnique(player.getId(), techniqueId);
+        if (Boolean.TRUE.equals(result.get("success"))) {
+            return Response.ok(GameMessage.restOk((String) result.get("message"), null).toString()).build();
+        }
+        return Response.ok(GameMessage.restError(400, (String) result.get("message")).toString()).build();
+    }
+
+    @GET
+    @Path("/crafting/recipes")
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("game.crafting.recipes")
+    public Response getRecipes(@QueryParam("category") @DefaultValue("") String category) {
+        List<Recipe> recipes;
+        if (category != null && !category.isEmpty()) {
+            try {
+                Recipe.Category cat = Recipe.Category.valueOf(category.toUpperCase());
+                recipes = craftingService.getRecipesByCategory(cat);
+            } catch (IllegalArgumentException e) {
+                return Response.ok(GameMessage.restError(400, "无效的配方分类: " + category).toString()).build();
+            }
+        } else {
+            recipes = craftingService.getAllRecipes();
+        }
+        JsonArray arr = new JsonArray();
+        for (Recipe r : recipes) {
+            JsonObject o = new JsonObject();
+            o.addProperty("id", r.getId());
+            o.addProperty("name", r.getName());
+            o.addProperty("description", r.getDescription());
+            o.addProperty("category", r.getCategory().name());
+            o.addProperty("requiredRealm", r.getRequiredRealm());
+            o.addProperty("resultItemKey", r.getResultItemKey());
+            o.addProperty("resultQuantity", r.getResultQuantity());
+            if (r.getMaterial1Key() != null) o.addProperty("material1Key", r.getMaterial1Key());
+            if (r.getMaterial1Key() != null) o.addProperty("material1Count", r.getMaterial1Count());
+            if (r.getMaterial2Key() != null) o.addProperty("material2Key", r.getMaterial2Key());
+            if (r.getMaterial2Key() != null) o.addProperty("material2Count", r.getMaterial2Count());
+            if (r.getMaterial3Key() != null) o.addProperty("material3Key", r.getMaterial3Key());
+            if (r.getMaterial3Key() != null) o.addProperty("material3Count", r.getMaterial3Count());
+            o.addProperty("costGold", r.getCostGold());
+            o.addProperty("costSpiritStones", r.getCostSpiritStones());
+            o.addProperty("successRate", r.getSuccessRate());
+            arr.add(o);
+        }
+        JsonObject data = new JsonObject();
+        data.add("recipes", arr);
+        return Response.ok(GameMessage.restOk("获取成功", data).toString()).build();
+    }
+
+    @POST
+    @Path("/crafting/craft")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("game.crafting.craft")
+    public Response craftItem(String body) {
+        Long userId = getCurrentUserId();
+        PlayerInfo player = playerService.getPlayerByUserId(userId);
+        if (player == null) {
+            return Response.ok(GameMessage.restError(GameErrorCode.PLAYER_NOT_FOUND).toString()).build();
+        }
+        JsonObject req = gson.fromJson(body, JsonObject.class);
+        long recipeId = req.get("recipeId").getAsLong();
+        Map<String, Object> result = craftingService.craft(player.getId(), recipeId);
+        if (Boolean.TRUE.equals(result.get("success"))) {
+            JsonObject data = new JsonObject();
+            data.addProperty("message", (String) result.get("message"));
+            if (result.containsKey("craftSuccess")) data.addProperty("craftSuccess", (boolean) result.get("craftSuccess"));
+            if (result.containsKey("expGained")) data.addProperty("expGained", ((Number) result.get("expGained")).longValue());
+            if (result.containsKey("itemGained")) data.addProperty("itemGained", (String) result.get("itemGained"));
+            if (result.containsKey("itemQuantity")) data.addProperty("itemQuantity", ((Number) result.get("itemQuantity")).intValue());
+            return Response.ok(GameMessage.restOk((String) result.get("message"), data).toString()).build();
+        }
+        return Response.ok(GameMessage.restError(400, (String) result.get("message")).toString()).build();
     }
 
     private String formatUptime(long totalSeconds) {

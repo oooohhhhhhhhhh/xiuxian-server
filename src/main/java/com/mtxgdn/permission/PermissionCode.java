@@ -15,6 +15,11 @@ public enum PermissionCode {
     GAME_SKILL_LEARN("game.skill.learn", "学习技能", "游戏功能"),
     GAME_ITEM_ADD("game.item.add", "添加物品", "游戏功能"),
     GAME_PVP_CHALLENGE("game.pvp.challenge", "PVP挑战", "游戏功能"),
+    GAME_TECHNIQUE_LEARN("game.technique.learn", "学习功法", "游戏功能"),
+    GAME_TECHNIQUE_EQUIP("game.technique.equip", "装备功法", "游戏功能"),
+    GAME_TECHNIQUE_UPGRADE("game.technique.upgrade", "升级功法", "游戏功能"),
+    GAME_CRAFTING_RECIPES("game.crafting.recipes", "查看配方", "游戏功能"),
+    GAME_CRAFTING_CRAFT("game.crafting.craft", "制造物品", "游戏功能"),
 
     QQ_BIND("qq.bind", "绑定QQ", "QQ指令"),
     QQ_UNBIND("qq.unbind", "解绑QQ", "QQ指令"),

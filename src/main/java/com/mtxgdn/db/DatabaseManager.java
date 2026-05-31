@@ -90,6 +90,65 @@ public class DatabaseManager {
                 "created_at " + tsDefault +
                 ")";
 
+        String techniquesTableSql = "CREATE TABLE IF NOT EXISTS techniques (" +
+                "id " + pk + ", " +
+                "name VARCHAR(64) NOT NULL, " +
+                "description VARCHAR(256) DEFAULT '', " +
+                "required_realm INT DEFAULT 0, " +
+                "learn_cost_gold BIGINT DEFAULT 0, " +
+                "learn_cost_spirit_stones BIGINT DEFAULT 0, " +
+                "upgrade_base_cost_gold INT DEFAULT 100, " +
+                "upgrade_base_cost_spirit_stones INT DEFAULT 50, " +
+                "type VARCHAR(16) NOT NULL DEFAULT 'CULTIVATION', " +
+                "max_level INT DEFAULT 10, " +
+                "hp_bonus INT DEFAULT 0, " +
+                "mp_bonus INT DEFAULT 0, " +
+                "attack_bonus INT DEFAULT 0, " +
+                "defense_bonus INT DEFAULT 0, " +
+                "speed_bonus INT DEFAULT 0, " +
+                "spirit_bonus INT DEFAULT 0, " +
+                "cultivation_speed_bonus DOUBLE DEFAULT 0, " +
+                "exp_bonus DOUBLE DEFAULT 0, " +
+                "combat_damage_bonus DOUBLE DEFAULT 0, " +
+                "damage_reduction DOUBLE DEFAULT 0, " +
+                "created_at " + tsDefault +
+                ")";
+
+        String playersTechniquesTableSql = "CREATE TABLE IF NOT EXISTS players_techniques (" +
+                "id " + pk + ", " +
+                "player_id BIGINT NOT NULL, " +
+                "technique_id BIGINT NOT NULL, " +
+                "level INT NOT NULL DEFAULT 1, " +
+                "proficiency INT DEFAULT 0, " +
+                "is_equipped " + (IS_SQLITE ? "INTEGER DEFAULT 0" : "BOOLEAN DEFAULT FALSE") + ", " +
+                "created_at " + tsDefault + ", " +
+                "updated_at " + tsUpdate + ", " +
+                (IS_SQLITE ? "" : "FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE, FOREIGN KEY (technique_id) REFERENCES techniques(id) ON DELETE CASCADE, ") +
+                "UNIQUE (player_id, technique_id)" +
+                ")";
+
+        String recipesTableSql = "CREATE TABLE IF NOT EXISTS recipes (" +
+                "id " + pk + ", " +
+                "name VARCHAR(64) NOT NULL, " +
+                "description VARCHAR(256) DEFAULT '', " +
+                "category VARCHAR(16) NOT NULL DEFAULT 'PILL', " +
+                "required_realm INT DEFAULT 0, " +
+                "result_item_key VARCHAR(128) NOT NULL, " +
+                "result_quantity INT DEFAULT 1, " +
+                "material1_key VARCHAR(128), " +
+                "material1_count INT DEFAULT 0, " +
+                "material2_key VARCHAR(128), " +
+                "material2_count INT DEFAULT 0, " +
+                "material3_key VARCHAR(128), " +
+                "material3_count INT DEFAULT 0, " +
+                "cost_gold BIGINT DEFAULT 0, " +
+                "cost_spirit_stones BIGINT DEFAULT 0, " +
+                "success_rate DOUBLE DEFAULT 0.8, " +
+                "min_exp_gain BIGINT DEFAULT 0, " +
+                "max_exp_gain BIGINT DEFAULT 0, " +
+                "created_at " + tsDefault +
+                ")";
+
         String verificationCodesTableSql = "CREATE TABLE IF NOT EXISTS verification_codes (" +
                 "id " + pk + ", " +
                 "email VARCHAR(128) NOT NULL, " +
@@ -264,6 +323,9 @@ public class DatabaseManager {
             stmt.execute(playersEquipmentTableSql);
             stmt.execute(skillsTableSql);
             stmt.execute(playersSkillsTableSql);
+            stmt.execute(techniquesTableSql);
+            stmt.execute(playersTechniquesTableSql);
+            stmt.execute(recipesTableSql);
             stmt.execute(tradeListingsTableSql);
             stmt.execute(playerDailyTableSql);
             stmt.execute(qqBindingsTableSql);

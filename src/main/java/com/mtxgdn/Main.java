@@ -5,7 +5,9 @@ import com.mtxgdn.demo.DemoClient;
 import com.mtxgdn.game.item.ItemScanner;
 import com.mtxgdn.game.explorationevent.ExplorationEventScanner;
 import com.mtxgdn.game.secretrealm.SecretRealmScanner;
+import com.mtxgdn.game.service.CraftingService;
 import com.mtxgdn.game.service.SkillService;
+import com.mtxgdn.game.service.TechniqueService;
 import com.mtxgdn.minecraft.MinecraftMotdServer;
 import com.mtxgdn.onebot.OneBotWebSocketServer;
 import com.mtxgdn.util.AppConfig;
@@ -55,6 +57,12 @@ public class Main {
 
         LOG.info("正在初始化默认技能...");
         new SkillService().insertDefaultSkills();
+
+        LOG.info("正在初始化默认功法...");
+        new TechniqueService().insertDefaultTechniques();
+
+        LOG.info("正在初始化默认配方...");
+        new CraftingService().insertDefaultRecipes();
 
         LOG.info("正在扫描并注册物品...");
         ItemScanner.ScanResult scanResult = ItemScanner.scanAndRegister();
