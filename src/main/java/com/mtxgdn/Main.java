@@ -5,6 +5,8 @@ import com.mtxgdn.demo.DemoClient;
 import com.mtxgdn.game.item.ItemScanner;
 import com.mtxgdn.game.explorationevent.ExplorationEventScanner;
 import com.mtxgdn.game.secretrealm.SecretRealmScanner;
+import com.mtxgdn.common.command.CommandScanner;
+
 import com.mtxgdn.game.service.CraftingService;
 import com.mtxgdn.game.service.SkillService;
 import com.mtxgdn.game.service.TechniqueService;
@@ -100,6 +102,10 @@ public class Main {
         LOG.info("正在扫描并注册游历事件...");
         ExplorationEventScanner.ScanResult eventScanResult = ExplorationEventScanner.scanAndRegister();
         LOG.info(eventScanResult.toString());
+
+        LOG.info("正在扫描并注册命令...");
+        CommandScanner.ScanResult cmdScanResult = CommandScanner.scanAndRegister("com.mtxgdn.onebot.command");
+        LOG.info(cmdScanResult.toString());
 
         ResourceConfig config = new ResourceConfig().packages("com.mtxgdn.rest");
 

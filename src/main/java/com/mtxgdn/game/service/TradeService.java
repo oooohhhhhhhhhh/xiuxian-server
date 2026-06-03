@@ -28,9 +28,16 @@ public class TradeService {
             result.put("message", "数量和价格必须大于 0");
             return result;
         }
-        if (!itemService.hasItem(playerId, itemKey, quantity)) {
+        Item item = ItemRegistry.resolve(itemKey);
+        if (item == null) {
             result.put("success", false);
-            result.put("message", "背包中没有足够的该物品");
+            result.put("message", "物品不存在，请使用 /物品列表 查看可用物品");
+            return result;
+        }
+        String fullKey = item.getFullKey();
+        if (!itemService.hasItem(playerId, fullKey, quantity)) {
+            result.put("success", false);
+            result.put("message", "背包中没有足够的【" + item.getName() + "】");
             return result;
         }
         long fee = (long)(priceSpiritStones * TRADE_FEE_RATE);
@@ -49,18 +56,18 @@ public class TradeService {
         try (Connection conn = DatabaseManager.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, playerId);
-            ps.setString(2, itemKey);
+            ps.setString(2, fullKey);
             ps.setInt(3, quantity);
             ps.setLong(4, priceSpiritStones);
             ps.setLong(5, fee);
             ps.executeUpdate();
         } catch (SQLException e) {
-            itemService.addItem(playerId, itemKey, quantity);
+            itemService.addItem(playerId, fullKey, quantity);
             throw new RuntimeException("上架物品失败", e);
         }
 
         result.put("success", true);
-        result.put("message", "已将【" + ItemRegistry.get(itemKey).getName() + "】×" + quantity + " 挂入坊市，售价 " + priceSpiritStones + " 灵石（坊市抽成 " + fee + " 灵石）");
+        result.put("message", "已将【" + item.getName() + " (" + fullKey + ")】×" + quantity + " 挂入坊市，售价 " + priceSpiritStones + " 灵石（坊市抽成 " + fee + " 灵石）");
         result.put("fee", fee);
         return result;
     }

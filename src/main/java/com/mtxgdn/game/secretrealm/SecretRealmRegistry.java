@@ -1,6 +1,7 @@
 package com.mtxgdn.game.secretrealm;
 
 import com.mtxgdn.util.GameLogger;
+import com.mtxgdn.util.LangManager;
 
 import java.util.ArrayList;
 import java.util.Collection;
@@ -29,6 +30,33 @@ public class SecretRealmRegistry {
 
     public static SecretRealm get(String fullKey) {
         return realms.get(fullKey);
+    }
+
+    public static SecretRealm resolve(String input) {
+        if (input == null || input.isEmpty()) {
+            return null;
+        }
+        SecretRealm byKey = realms.get(input);
+        if (byKey != null) {
+            return byKey;
+        }
+        for (SecretRealm realm : realms.values()) {
+            String translatedName = realm.getName();
+            if (translatedName != null && translatedName.equals(input)) {
+                return realm;
+            }
+        }
+        String lower = input.toLowerCase();
+        for (SecretRealm realm : realms.values()) {
+            String translatedName = realm.getName();
+            if (translatedName != null && translatedName.toLowerCase().contains(lower)) {
+                return realm;
+            }
+            if (realm.getFullKey().toLowerCase().contains(lower)) {
+                return realm;
+            }
+        }
+        return null;
     }
 
     public static List<SecretRealm> getByRealm(int requiredRealm) {

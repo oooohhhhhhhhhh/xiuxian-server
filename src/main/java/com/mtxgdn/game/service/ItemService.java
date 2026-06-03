@@ -143,13 +143,14 @@ public class ItemService {
 
     public Map<String, Object> equipItem(long playerId, String itemKey, String slot) {
         Map<String, Object> result = new LinkedHashMap<>();
-        Item item = ItemRegistry.get(itemKey);
+        Item item = ItemRegistry.resolve(itemKey);
         if (item == null) {
             result.put("success", false);
-            result.put("message", "物品不存在");
+            result.put("message", "物品不存在，请使用 /物品列表 查看可用物品");
             return result;
         }
-        if (!hasItem(playerId, itemKey, 1)) {
+        String fullKey = item.getFullKey();
+        if (!hasItem(playerId, fullKey, 1)) {
             result.put("success", false);
             result.put("message", "背包中没有该物品");
             return result;
@@ -164,7 +165,7 @@ public class ItemService {
         }
 
         String occupied = getEquippedItem(playerId, slot);
-        if (occupied != null && occupied.equals(itemKey)) {
+        if (occupied != null && occupied.equals(fullKey)) {
             result.put("success", false);
             result.put("message", "已装备该物品");
             return result;
@@ -209,16 +210,17 @@ public class ItemService {
             throw new RuntimeException("装备失败", e);
         }
 
-        removeItem(playerId, itemKey, 1);
+        removeItem(playerId, fullKey, 1);
 
+        String itemDisplay = item.getName() + " (" + fullKey + ")";
         String msg;
         if (msgBuilder.length() > 0) {
-            msg = "装备了【" + item.getName() + "】: " + msgBuilder.toString();
+            msg = "装备了【" + itemDisplay + "】: " + msgBuilder.toString();
             if (msg.endsWith("，")) {
                 msg = msg.substring(0, msg.length() - 1);
             }
         } else {
-            msg = "装备了【" + item.getName() + "】";
+            msg = "装备了【" + itemDisplay + "】";
         }
 
         result.put("success", true);
@@ -348,14 +350,15 @@ public class ItemService {
             }
         }
 
+        String itemDisplay = item.getName() + " (" + fullKey + ")";
         String msg;
         if (msgBuilder.length() > 0) {
-            msg = "使用了【" + item.getName() + "】: " + msgBuilder.toString();
+            msg = "使用了【" + itemDisplay + "】: " + msgBuilder.toString();
             if (msg.endsWith("，")) {
                 msg = msg.substring(0, msg.length() - 1);
             }
         } else {
-            msg = "使用了【" + item.getName() + "】";
+            msg = "使用了【" + itemDisplay + "】";
         }
 
         result.put("success", true);

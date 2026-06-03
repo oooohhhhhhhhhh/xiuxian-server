@@ -73,10 +73,17 @@ src/main/java/com/mtxgdn/
 │   ├── GameApi.java             # 游戏 API
 │   └── GameWebSocketClient.java # WebSocket 客户端
 │
-├── common/                      # 通用类型
+├── common/                      # 通用类型与基础设施
 │   ├── ApiResponse.java         # API 统一响应
 │   ├── GameErrorCode.java       # 游戏错误码枚举
-│   └── GameMessage.java         # WebSocket 消息协议
+│   ├── GameMessage.java         # WebSocket 消息协议
+│   ├── command/                 # 指令框架
+│   │   ├── Command.java         # 指令基类（自注册 + 权限 + 帮助信息）
+│   │   ├── CommandContext.java  # 指令上下文（回复/权限校验/翻译名支持）
+│   │   ├── CommandRegistry.java # 指令注册中心
+│   │   └── CommandScanner.java  # 指令扫描器（classpath 递归扫描）
+│   └── service/
+│       └── ServiceRegistry.java # 服务统一注册中心
 │
 ├── db/
 │   └── DatabaseManager.java     # 数据库连接管理、表结构初始化（MySQL/SQLite 双适配）
@@ -152,9 +159,23 @@ src/main/java/com/mtxgdn/
 │   └── VarInt.java                 # Minecraft VarInt 编解码
 │
 ├── onebot/                         # QQ 机器人集成
-│   ├── OneBotWebSocketServer.java  # OneBot WebSocket 服务端
+│   ├── OneBotAccountFlow.java      # OneBot 账号流程（注册/绑定/解绑）
+│   ├── OneBotWebSocketServer.java  # OneBot WebSocket 服务端 + 消息发送
+│   ├── OneBotMessageSender.java    # OneBot 消息发送接口
 │   ├── QqBinding.java              # QQ 绑定实体
-│   └── QqBindingService.java       # QQ 绑定服务
+│   ├── QqBindingService.java       # QQ 绑定服务
+│   └── command/                    # QQ 机器人指令（33 个按功能模块化）
+│       ├── OneBotCommandContext.java  # OneBot 指令上下文
+│       ├── account/                   # 账号指令（Help/Register/Bind/Unbind）
+│       ├── cultivation/               # 修炼指令（Cultivate/CultivateStop/Breakthrough）
+│       ├── exploration/               # 探索指令（Explore/SecretAreas/SecretEnter）
+│       ├── item/                      # 物品指令（Backpack/ItemUse/ItemMap/Equip/Unequip/Equipped）
+│       ├── market/                    # 坊市指令（Market/ListItem/BuyItem/CancelListing/MyListings）
+│       ├── social/                    # 社交指令（Friend/PrivateMessage/Rank）
+│       ├── combat/                    # 战斗指令（Pvp/Skills/LearnSkill）
+│       ├── daily/                     # 每日指令（Daily/Morning）
+│       ├── player/                    # 角色指令（Status/Heal）
+│       └── admin/                     # 管理指令（ClearPlayersDb/ResetAllDb）
 │
 ├── permission/                     # 权限系统
 │   ├── PermissionCode.java         # 权限码定义
@@ -506,52 +527,85 @@ java -jar target/main-V0.0.0-alpha.jar
 
 ## QQ 机器人指令
 
-支持 OneBot 协议（如 Lagrange、LLOneBot），私聊或群聊中以 `/` 开头使用指令：
+支持 OneBot 协议（如 Lagrange、LLOneBot），私聊或群聊中以 `/` 开头使用指令。所有涉及物品的指令均支持**中文名**和 **key** 混用（如 `/使用 回血丹` 和 `/使用 healing_pill` 等价）。
 
-| 指令 | 说明 |
-|------|------|
-| `/help` / `/帮助` | 查看帮助 |
-| `/register <角色名>` / `/注册` | 注册角色并绑定QQ（群聊可用，密码私聊发送，注册即创建角色） |
-| `/bind` / `/绑定` | 绑定已有游戏账号（仅私聊） |
-| `/unbind` / `/解绑` | 解除QQ绑定（仅私聊） |
-| `/status` / `/状态` | 查看修炼状态 |
-| `/cultivate` / `/修炼` / `/闭关` | 开始修炼 |
-| `/stop` / `/停止` | 停止修炼（可能触发心魔） |
-| `/explore` / `/游历` | 游历探索 |
-| `/breakthrough` / `/突破` | 境界突破（可能触发天劫） |
-| `/morning` / `/晨修` | 每日晨修 |
-| `/daily` / `/天象` | 查看今日天象与机缘 |
-| `/market` / `/坊市` | 查看坊市挂单 |
-| `/list <物品名称> <数量> <灵石>` / `/上架` | 上架物品 |
-| `/buy <挂单ID>` / `/购买` | 购买坊市物品 |
-| `/cancel <挂单ID>` / `/撤单` | 撤单 |
-| `/mylistings` / `/我的挂单` | 查看我的挂单 |
-| `/backpack` / `/背包` | 查看背包 |
-| `/itemuse <物品名称>` / `/使用` | 使用物品（支持中文名，如 /使用 回血丹） |
-| `/itemmap` / `/物品列表` | 查看物品中文名与 key 的映射表 |
-| `/secret` / `/秘境` | 查看秘境区域 |
-| `/secret_enter <名称>` / `/进入秘境` | 进入秘境 |
-| `/skills` / `/技能` | 查看技能列表 |
-| `/learn <技能ID>` / `/学习` | 学习技能 |
-| `/pvp <角色名>` / `/挑战` | PVP 挑战其他修士 |
-| `/equip <物品名称> <部位>` / `/装备` | 装备物品（部位：weapon/armor/accessory） |
-| `/unequip <部位>` / `/卸下` | 卸下装备 |
-| `/equipped` / `/已装备` | 查看已装备的物品 |
-| `/techniques` / `/功法` | 查看功法列表 |
-| `/mytechniques` / `/我的功法` | 查看已学习功法 |
-| `/learn_tech <功法ID>` / `/学功法` | 学习功法 |
-| `/equiptech <功法ID>` / `/装功法` | 装备功法 |
-| `/unequiptech <功法ID>` / `/卸功法` | 卸下功法 |
-| `/upgradetech <功法ID>` / `/升功法` | 升级功法 |
-| `/recipes [类型]` / `/配方` | 查看制造配方 |
-| `/craft <配方ID>` / `/制造` | 制造物品 |
-| `/enhance <部位>` / `/强化` | 强化装备（部位：weapon/armor/accessory） |
-| `/heal` / `/疗伤` | 灵石疗伤（消耗灵石瞬间回满HP+MP，境界越高花费越多） |
-| `/msg <玩家名> <内容>` / `/私聊` | 发送私聊消息给指定玩家 |
-| `/rank [类型]` / `/排行` / `/排行榜` | 查看排行榜（realm/power/wealth） |
-| `/好友 <add\|accept\|remove\|list>` | 好友管理（添加/接受/删除/列表） |
-| `/cleardb_players` / `/清除玩家数据` | 清除所有玩家数据（SUPER_ADMIN，仅私聊） |
-| `/cleardb_all` / `/重置全部数据` | 重置全部数据并重新初始化（SUPER_ADMIN，仅私聊） |
+### 账号与系统
+
+| 指令 | 权限 | 说明 |
+|------|------|------|
+| `/help` / `/帮助` | - | 查看帮助（按权限分级显示） |
+| `/register <角色名>` / `/注册` | `qq.bind` | 注册角色并绑定QQ（群聊可用，密码私聊发送） |
+| `/bind` / `/绑定` | `qq.bind` | 绑定已有游戏账号（仅私聊） |
+| `/unbind` / `/解绑` | `qq.bind` | 解除QQ绑定（仅私聊） |
+
+### 角色与修炼
+
+| 指令 | 权限 | 说明 |
+|------|------|------|
+| `/status` / `/状态` | `game.player.info` | 查看修炼状态（含HP/MP/攻防速/金币灵石） |
+| `/cultivate` / `/修炼` / `/闭关` | `game.cultivate` | 开始修炼 |
+| `/stop` / `/停止` | `game.cultivate` | 停止修炼（可能触发心魔） |
+| `/breakthrough` / `/突破` | `game.realm.breakthrough` | 境界突破（可能触发天劫） |
+| `/heal` / `/疗伤` | `game.player.info` | 灵石疗伤（消耗灵石回满HP+MP） |
+
+### 探索
+
+| 指令 | 权限 | 说明 |
+|------|------|------|
+| `/explore` / `/游历` | `game.explore` | 游历探索 |
+| `/secret` / `/秘境` | `game.secret_realm` | 查看可用秘境（含境界/冷却/描述） |
+| `/secret_enter <名称>` / `/进入秘境` | `game.secret_realm` | 进入秘境（支持中文名，如 /进入秘境 远古战场） |
+
+### 物品与装备
+
+| 指令 | 权限 | 说明 |
+|------|------|------|
+| `/backpack` / `/背包` | `game.inventory.view` | 查看背包（物品名 + key） |
+| `/itemuse <物品>` / `/使用` | `game.item.use` | 使用物品（支持中文名/key） |
+| `/itemmap` / `/物品列表` | `game.player.info` | 查看物品中文名与 key 的映射表 |
+| `/equip <物品> <部位>` / `/装备` | `game.equipment.equip` | 装备物品（部位：weapon/armor/accessory） |
+| `/unequip <部位>` / `/卸下` | `game.equipment.equip` | 卸下装备 |
+| `/equipped` / `/已装备` | `game.inventory.view` | 查看已装备的物品 |
+
+### 技能
+
+| 指令 | 权限 | 说明 |
+|------|------|------|
+| `/skills` / `/技能` | `game.player.info` | 查看技能列表（含境界/金币要求） |
+| `/learn <技能ID或名称>` / `/学习` | `game.skill.learn` | 学习技能（支持中文名和ID） |
+
+### 坊市交易
+
+| 指令 | 权限 | 说明 |
+|------|------|------|
+| `/market` / `/坊市` | `game.player.info` | 查看坊市挂单（最多15条） |
+| `/list <物品> <数量> <灵石>` / `/上架` | `game.market.list` | 上架物品 |
+| `/buy <挂单ID>` / `/购买` | `game.market.buy` | 购买坊市物品 |
+| `/cancel <挂单ID>` / `/撤单` | `game.market.cancel` | 撤单 |
+| `/mylistings` / `/我的挂单` | `game.player.info` | 查看我的挂单 |
+
+### 社交与排行
+
+| 指令 | 权限 | 说明 |
+|------|------|------|
+| `/rank [类型]` / `/排行` | `game.rank.view` | 查看排行榜（realm/power/wealth） |
+| `/好友 <add\|accept\|remove\|list>` | `game.friend.manage` | 好友管理 |
+| `/msg <玩家名> <内容>` / `/私聊` | `game.chat.private` | 发送私聊消息 |
+| `/pvp <角色名>` / `/挑战` | `game.pvp.challenge` | PVP 挑战其他修士 |
+
+### 每日
+
+| 指令 | 权限 | 说明 |
+|------|------|------|
+| `/daily` / `/天象` | `game.player.info` | 查看今日天象与机缘 |
+| `/morning` / `/晨修` | `game.player.info` | 每日晨修（获取修炼加成） |
+
+### 管理（SUPER_ADMIN，仅私聊）
+
+| 指令 | 权限 | 说明 |
+|------|------|------|
+| `/cleardb_players` / `/清除玩家数据` | `admin.database.clear_players` | 清除所有玩家数据 |
+| `/cleardb_all` / `/重置全部数据` | `admin.database.reset_all` | 重置全部数据并重新初始化 |
 
 ---
 

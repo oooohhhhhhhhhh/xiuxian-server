@@ -41,7 +41,7 @@ public class SecretRealmService {
             return SecretRealmResult.failure("角色不存在，请先创建角色");
         }
 
-        SecretRealm area = SecretRealmRegistry.get(areaName);
+        SecretRealm area = SecretRealmRegistry.resolve(areaName);
 
         if (area == null) {
             return SecretRealmResult.failure("未知的秘境: " + areaName);

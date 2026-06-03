@@ -13,6 +13,7 @@ import com.mtxgdn.game.service.ItemService;
 import com.mtxgdn.game.service.PlayerService;
 import com.mtxgdn.game.service.SkillService;
 import com.mtxgdn.game.service.TechniqueService;
+import com.mtxgdn.common.service.ServiceRegistry;
 import com.mtxgdn.permission.PermissionCode;
 import com.mtxgdn.permission.PermissionService;
 import com.mtxgdn.util.GameLogger;
@@ -37,8 +38,8 @@ import java.util.Set;
 public class AdminResource {
 
     private static final Gson gson = new Gson();
-    private static final PlayerService playerService = new PlayerService();
-    private static final ItemService itemService = new ItemService();
+    private static final PlayerService playerService = ServiceRegistry.getPlayerService();
+    private static final ItemService itemService = ServiceRegistry.getItemService();
 
     @POST
     @Path("/login")

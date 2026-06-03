@@ -33,6 +33,7 @@ import com.mtxgdn.game.service.ChatService;
 import com.mtxgdn.game.service.FriendService;
 import com.mtxgdn.game.entity.Friend;
 import com.mtxgdn.game.entity.ChatMessage;
+import com.mtxgdn.common.service.ServiceRegistry;
 import com.mtxgdn.util.RateLimiter;
 import com.mtxgdn.game.secretrealm.SecretRealm;
 import com.mtxgdn.game.entity.SpiritualRoot;
@@ -54,21 +55,21 @@ public class GameResource {
 
     private static final Gson gson = new Gson();
     private static final PlayerActionLogger actionLog = PlayerActionLogger.getInstance();
-    private static final PlayerService playerService = new PlayerService();
-    private static final RealmService realmService = new RealmService(playerService);
-    private static final ItemService itemService = new ItemService();
-    private static final SkillService skillService = new SkillService();
-    private static final CombatService combatService = new CombatService();
-    private static final SecretRealmService secretRealmService = new SecretRealmService();
-    private static final ExplorationService explorationService = new ExplorationService();
-    private static final DailyService dailyService = new DailyService();
-    private static final TradeService tradeService = new TradeService();
-    private static final HeartDemonService heartDemonService = new HeartDemonService();
-    private static final TechniqueService techniqueService = new TechniqueService();
-    private static final CraftingService craftingService = new CraftingService();
-    private static final EnhanceService enhanceService = new EnhanceService();
-    private static final ChatService chatService = new ChatService();
-    private static final FriendService friendService = new FriendService();
+    private static final PlayerService playerService = ServiceRegistry.getPlayerService();
+    private static final RealmService realmService = ServiceRegistry.getRealmService();
+    private static final ItemService itemService = ServiceRegistry.getItemService();
+    private static final SkillService skillService = ServiceRegistry.getSkillService();
+    private static final CombatService combatService = ServiceRegistry.getCombatService();
+    private static final SecretRealmService secretRealmService = ServiceRegistry.getSecretRealmService();
+    private static final ExplorationService explorationService = ServiceRegistry.getExplorationService();
+    private static final DailyService dailyService = ServiceRegistry.getDailyService();
+    private static final TradeService tradeService = ServiceRegistry.getTradeService();
+    private static final HeartDemonService heartDemonService = ServiceRegistry.getHeartDemonService();
+    private static final TechniqueService techniqueService = ServiceRegistry.getTechniqueService();
+    private static final CraftingService craftingService = ServiceRegistry.getCraftingService();
+    private static final EnhanceService enhanceService = ServiceRegistry.getEnhanceService();
+    private static final ChatService chatService = ServiceRegistry.getChatService();
+    private static final FriendService friendService = ServiceRegistry.getFriendService();
 
     @Context
     private ContainerRequestContext requestContext;
@@ -769,6 +770,7 @@ public class GameResource {
     @GET
     @Path("/players")
     @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("game.player.info")
     public Response getAllPlayers(
             @QueryParam("limit") @DefaultValue("20") int limit,
             @QueryParam("offset") @DefaultValue("0") int offset) {
@@ -833,6 +835,7 @@ public class GameResource {
     @GET
     @Path("/spiritual_roots")
     @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("game.player.info")
     public Response getSpiritualRoots() {
         JsonArray arr = new JsonArray();
         for (SpiritualRoot root : SpiritualRoot.values()) {

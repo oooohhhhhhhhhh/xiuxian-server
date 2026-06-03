@@ -37,6 +37,15 @@ public class SkillService {
         return null;
     }
 
+    public Skill findSkillByName(String name) {
+        for (Skill skill : getAllSkills()) {
+            if (skill.getName().equals(name) || skill.getName().contains(name)) {
+                return skill;
+            }
+        }
+        return null;
+    }
+
     public List<Skill> getAllSkills() {
         String sql = "SELECT * FROM skills ORDER BY required_realm, id";
         List<Skill> result = new ArrayList<>();
