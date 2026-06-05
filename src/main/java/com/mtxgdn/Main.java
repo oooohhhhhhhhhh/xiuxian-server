@@ -40,6 +40,7 @@ public class Main {
     public static GameWebSocketApp gameWebSocketApp;
     public static OneBotWebSocketServer oneBotWebSocketServer;
     public static HttpServer oneBotServer;
+    public static HttpServer mainServer;
 
     public static void main(String[] args) throws Exception {
         Thread.setDefaultUncaughtExceptionHandler((t, e) -> {
@@ -111,6 +112,7 @@ public class Main {
 
         HttpServer server = GrizzlyHttpServerFactory.createHttpServer(
                 URI.create("http://0.0.0.0:8080/api/"), config);
+        mainServer = server;
 
         WebSocketAddOn wsAddOn = new WebSocketAddOn();
         server.getListeners().forEach(listener -> listener.registerAddOn(wsAddOn));
