@@ -494,6 +494,74 @@ public class AdminResource {
         return Response.ok(gson.toJson(result)).build();
     }
 
+    @POST
+    @Path("/players/{id}/spiritual-root")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response setSpiritualRoot(@PathParam("id") long playerId, String body) {
+        var p = playerService.getPlayerById(playerId);
+        if (p == null) {
+            JsonObject err = new JsonObject();
+            err.addProperty("code", 404);
+            err.addProperty("message", "玩家不存在");
+            return Response.ok(gson.toJson(err)).build();
+        }
+
+        JsonObject req = com.google.gson.JsonParser.parseString(body).getAsJsonObject();
+        String rootName = req.has("spiritualRoot") ? req.get("spiritualRoot").getAsString() : null;
+        if (rootName == null || rootName.isBlank()) {
+            JsonObject err = new JsonObject();
+            err.addProperty("code", 400);
+            err.addProperty("message", "请提供灵根名称");
+            return Response.ok(gson.toJson(err)).build();
+        }
+
+        try {
+            com.mtxgdn.game.entity.SpiritualRoot root =
+                    com.mtxgdn.game.entity.SpiritualRoot.valueOf(rootName.toUpperCase());
+            playerService.updateSpiritualRoot(playerId, root);
+
+            JsonObject result = new JsonObject();
+            result.addProperty("code", 200);
+            result.addProperty("message", "灵根已修改为 " + root.getDisplayName() + "（" + root.getTier().getDisplayName() + "）");
+            return Response.ok(gson.toJson(result)).build();
+        } catch (IllegalArgumentException e) {
+            JsonObject err = new JsonObject();
+            err.addProperty("code", 400);
+            err.addProperty("message", "无效的灵根名称: " + rootName + "，可用灵根: " +
+                    java.util.Arrays.stream(com.mtxgdn.game.entity.SpiritualRoot.values())
+                            .map(r -> r.name())
+                            .reduce((a, b) -> a + ", " + b).orElse(""));
+            return Response.ok(gson.toJson(err)).build();
+        }
+    }
+
+    @GET
+    @Path("/spiritual-roots")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response getSpiritualRoots() {
+        JsonArray arr = new JsonArray();
+        for (com.mtxgdn.game.entity.SpiritualRoot root : com.mtxgdn.game.entity.SpiritualRoot.values()) {
+            JsonObject obj = new JsonObject();
+            obj.addProperty("name", root.name());
+            obj.addProperty("displayName", root.getDisplayName());
+            obj.addProperty("tier", root.getTier().getDisplayName());
+            obj.addProperty("tierKey", root.getTier().name());
+            obj.addProperty("description", root.getDescription());
+            obj.addProperty("attackBonus", root.getAttackBonus());
+            obj.addProperty("hpBonus", root.getHpBonus());
+            obj.addProperty("mpBonus", root.getMpBonus());
+            obj.addProperty("defenseBonus", root.getDefenseBonus());
+            obj.addProperty("speedBonus", root.getSpeedBonus());
+            obj.addProperty("spiritBonus", root.getSpiritBonus());
+            arr.add(obj);
+        }
+        JsonObject result = new JsonObject();
+        result.addProperty("code", 200);
+        result.add("roots", arr);
+        return Response.ok(gson.toJson(result)).build();
+    }
+
     @GET
     @Path("/items")
     @Produces(MediaType.APPLICATION_JSON)

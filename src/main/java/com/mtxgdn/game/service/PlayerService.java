@@ -377,6 +377,32 @@ public class PlayerService {
         }
     }
 
+    public void updateSpiritualRoot(long playerId, SpiritualRoot newRoot) {
+        Player player = getPlayerById(playerId);
+        if (player == null) {
+            throw new RuntimeException("玩家不存在: " + playerId);
+        }
+
+        int baseHp = 100, baseMp = 50, baseAtk = 10, baseDef = 5, baseSpd = 5, baseSpi = 5;
+        String sql = "UPDATE players SET spiritual_root = ?, max_hp = ?, hp = LEAST(hp, ?), max_mp = ?, mp = LEAST(mp, ?), attack = ?, defense = ?, speed = ?, spirit = ? WHERE id = ?";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, newRoot.name());
+            ps.setInt(2, newRoot.applyHpBonus(baseHp));
+            ps.setInt(3, newRoot.applyHpBonus(baseHp));
+            ps.setInt(4, newRoot.applyMpBonus(baseMp));
+            ps.setInt(5, newRoot.applyMpBonus(baseMp));
+            ps.setInt(6, newRoot.applyAttackBonus(baseAtk));
+            ps.setInt(7, newRoot.applyDefenseBonus(baseDef));
+            ps.setInt(8, newRoot.applySpeedBonus(baseSpd));
+            ps.setInt(9, newRoot.applySpiritBonus(baseSpi));
+            ps.setLong(10, playerId);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException("更新灵根失败", e);
+        }
+    }
+
     public void updateLastSecretRealmTime(long playerId, long lastSecretRealmTime) {
         String sql = "UPDATE players SET last_secret_realm_time = ? WHERE id = ?";
         try (Connection conn = DatabaseManager.getConnection();
