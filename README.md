@@ -35,8 +35,9 @@
 - **PVE 战斗**：游历和秘境中随机遭遇妖兽，完整回合制战斗（技能、暴击、灵根特效全生效）；秘境含 Boss 战，各秘境专属守护者
 - **离线收益**：断线后修炼继续进行（50% 效率，上限 8 小时），上线时自动结算经验、HP/MP 恢复，心魔判定降频
 - **用户系统**：邮箱注册/验证码、JWT 双令牌认证、BCrypt 密码加密
-- **权限管理**：RBAC 角色权限系统，支持细粒度权限控制
+- **权限管理**：RBAC 角色权限系统，新增 `game.*`/`qq.*` 前缀权限码自动授予 PLAYER 角色，无需逐个加入角色定义
 - **QQ 机器人**：OneBot 协议集成，支持私聊和群聊指令操作
+- **指令即路由**：一套 API 搞定双端 — `addRoute(RouteDefinition.onebotOnly("xxx", handler))` 仅 OneBot，`addRoute(RouteDefinition.get("path", handler))` 仅 HTTP，`registerSub` + `addRoute` 双端注册；UnifiedRestResource 自动发现并分发 HTTP 请求
 - **Minecraft MOTD**：模拟 Minecraft 服务器 ping 响应（端口 25565），显示在线人数
 - **国际化 (i18n)**：JSON 语言的本地化系统，物品/秘境/事件/系统消息完整翻译，当前支持中文 (zh_cn)
 - **数据库**：MySQL / SQLite 双支持，HikariCP 连接池，一行配置切换
@@ -79,10 +80,11 @@ src/main/java/com/mtxgdn/
 │   ├── GameErrorCode.java       # 游戏错误码枚举
 │   ├── GameMessage.java         # WebSocket 消息协议
 │   ├── command/                 # 指令框架
-│   │   ├── Command.java         # 指令基类（自注册 + 权限 + 帮助信息）
+│   │   ├── Command.java         # 指令基类（自注册 + 权限 + 桶式分发 + REST 路由统管）
 │   │   ├── CommandContext.java  # 指令上下文（回复/权限校验/翻译名支持）
 │   │   ├── CommandRegistry.java # 指令注册中心
-│   │   └── CommandScanner.java  # 指令扫描器（classpath 递归扫描）
+│   │   ├── CommandScanner.java  # 指令扫描器（classpath 递归扫描）
+│   │   └── RouteDefinition.java # 路由定义（onebotOnly / GET / POST，附 RestContext + matchPath）
 │   └── service/
 │       └── ServiceRegistry.java # 服务统一注册中心
 │
@@ -195,9 +197,10 @@ src/main/java/com/mtxgdn/
 │   ├── Auth.java                   # 用户认证 API
 │   ├── EntityBufferFilter.java     # 响应缓冲过滤器
 │   ├── EofExceptionMapper.java     # 异常映射
-│   ├── GameResource.java           # 游戏 API（核心）
+│   ├── GameResource.java           # 游戏 API（显式路径）
 │   ├── JwtAuthFilter.java          # JWT 认证过滤器
-│   └── PermissionFilter.java       # 权限过滤器
+│   ├── PermissionFilter.java       # 权限过滤器
+│   └── UnifiedRestResource.java    # 统一 REST 分发器（Command 内联路由自动注册）
 │
 ├── service/                        # 通用服务
 │   ├── UserService.java            # 用户服务
@@ -909,6 +912,9 @@ Boss 拥有 3 倍以上属性，更高掉落率和更丰富的稀有物品掉落
 - **添加新游历事件**：在 `data/mtxgdn/explorationevent/` 下继承 `ExplorationEvent` 并设置权重
 - **添加新秘境**：在 `data/mtxgdn/secretrealm/` 下继承 `SecretRealm` 并指定需求境界和冷却时间
 - **添加翻译**：在 `zh_cn.json` 中添加对应的翻译键，新物品/事件/秘境即可获得中文显示
+- **添加游戏指令（+ 可选 HTTP API）**：在 `onebot/command/` 下新建 `XxxCommand extends Command`，构造函数内 `registerSub` 或 `addRoute` 即可自动注册为 OneBot 指令 + HTTP 路由，无需修改 `GameResource`
+- **添加权限码**：在 `PermissionCode` enum 加一行即可
+- **添加分类**：在 `Command.CATEGORY_ORDER` 加一行即可控制 `/帮助` 排序
 
 ---
 

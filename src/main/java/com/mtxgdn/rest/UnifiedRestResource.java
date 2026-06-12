@@ -119,7 +119,7 @@ public class UnifiedRestResource {
                     body != null ? body : "{}", params, queryParams, userId, playerId);
 
             try {
-                JsonObject result = entry.def.getHandler().handle(ctx);
+                JsonObject result = entry.def.getHttpHandler().handle(ctx);
                 return Response.ok(gson.toJson(result)).build();
             } catch (Exception e) {
                 JsonObject err = new JsonObject();
