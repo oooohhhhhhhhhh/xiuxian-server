@@ -10,6 +10,9 @@ import com.mtxgdn.game.item.ItemRegistry;
 import com.mtxgdn.game.secretrealm.SecretRealm;
 import com.mtxgdn.game.secretrealm.SecretRealmRegistry;
 import com.mtxgdn.game.service.*;
+import com.mtxgdn.plugin.event.PluginEvent;
+import com.mtxgdn.plugin.event.PluginEventHandler;
+import com.mtxgdn.plugin.event.PluginEventManager;
 import com.mtxgdn.util.GameLogger;
 
 import java.io.File;
@@ -100,6 +103,38 @@ public final class PluginContext {
     public void registerSecretRealm(SecretRealm realm) {
         SecretRealmRegistry.register(realm);
         log.debug("注册秘境: " + realm.getFullKey());
+    }
+
+    // ================ 事件处理器注册接口 =================
+
+    /**
+     * 注册一个事件处理器。
+     * @param type 事件类型（例如 COMMAND、PLAYER_LOGIN 等）
+     * @param condition 可选的触发条件表达式，格式如 "command=/你好"，为空表示始终触发
+     * @param handler 事件处理器（lambda）
+     */
+    public void registerHandler(PluginEvent.Type type, String condition, PluginEventHandler handler) {
+        PluginEventManager.getInstance().register(info.getName(), type, condition, handler);
+    }
+
+    /** 简化版：注册事件处理器，不设条件。 */
+    public void registerHandler(PluginEvent.Type type, PluginEventHandler handler) {
+        registerHandler(type, "", handler);
+    }
+
+    /** 注册自定义 key 的事件处理器（type 自动为 CUSTOM）。 */
+    public void registerCustomHandler(String customKey, String condition, PluginEventHandler handler) {
+        PluginEventManager.getInstance().registerCustom(info.getName(), customKey, condition, handler);
+    }
+
+    /** 切换本插件某类事件的启用状态。 */
+    public void setHandlersEnabled(PluginEvent.Type type, boolean enabled) {
+        PluginEventManager.getInstance().setEnabled(info.getName(), type, enabled);
+    }
+
+    /** 触发一个事件 —— 插件也可以主动触发事件供其他插件监听。 */
+    public void fireEvent(PluginEvent event) {
+        PluginEventManager.getInstance().fire(event);
     }
 
     // ================ 服务访问快捷方法 =================

@@ -1,32 +1,61 @@
-# V1.4.1-alpha1 更新日志（插件生成器发布）
+# V1.4.1-alpha1 更新日志（插件生成器 + GUI + 事件系统）
 
 ---
 
-## 🔧 插件生成器 PluginMaker
+## 🔧 插件生成器 PluginMaker（双模式）
 
-### 一键生成插件项目
-- 运行 `java -jar 服务端.jar --plugin-make` 即可启动交互式插件生成工具
-- **不会启动服务端** —— 直接进入交互式向导
+### 命令行模式
+- 运行 `java -jar 服务端.jar --plugin-make` 启动交互式命令行向导
 - 8 步参数配置：插件名 / 版本 / 作者 / 描述 / artifactId / groupId / 主类名 / 输出目录
-- 方括号内为默认值，直接回车即可使用
 
-### 内置 5 个模板文件
-- `pom.xml.template` —— Maven 构建配置（含服务端依赖注释说明）
-- `plugin.json.template` —— 插件元数据
-- `Main.java.template` —— 插件主类骨架（自动注入名称/版本/包名）
-- `HelloCommand.java.template` —— 示例命令（/你好，赠送灵石）
-- `DemoItem.java.template` —— 示例物品（演示物品注册 / 使用文本）
+### GUI 模式（新增）
+- 运行 `java -jar 服务端.jar --plugin-make-gui` 启动图形化插件制作工具
+- **不会启动服务端**，完全独立的工具界面
+- 现代 Swing 界面，三选项卡布局：①基础配置 / ②触发器管理 / ③预览生成
+- 顶部工具栏：保存配置 / 加载配置 / 刷新预览 / 生成插件项目
+- 支持 JSON 格式配置持久化，下次可直接加载
 
-### 占位符自动替换
-- `{{NAME}}` / `{{VERSION}}` / `{{AUTHOR}}` / `{{DESCRIPTION}}`
-- `{{PACKAGE}}` / `{{PACKAGE_PATH}}` / `{{MAIN_CLASS}}`
-- `{{ARTIFACT_ID}}` / `{{GROUP_ID}}` / `{{SERVER_VERSION}}`
-- 自动把 Java 包名转换为目录路径，确保 `src/main/java/com/xxx/...` 结构正确
+### ① 基础配置模块（GUI）
+- 插件信息表单：名称、版本号、作者、描述（多行文本）
+- Java 包信息：groupId / artifactId / 主类名，自动推导包名与目录结构
+- 输出目录选择器：支持浏览器目录选择
+- 功能开关：示例命令 / 示例物品 / 事件系统 / 示例秘境
 
-### 生成流程
-- 输出项目摘要供用户确认
-- 目标目录存在时询问是否覆盖
-- 生成完成后给出后续步骤提示（如何打包 / 如何放入 plugins 目录）
+### ② 触发器管理模块（GUI）
+- **事件类型选择**：COMMAND / PLAYER_LOGIN / PLAYER_LOGOUT / ITEM_USED / 
+  COMBAT_ENDED / EXPLORATION_START / EXPLORATION_END / SCHEDULED / 
+  SERVER_READY / CUSTOM
+- **触发条件设置**：支持简单格式 `key=value`，多条件逗号分隔
+- **事件响应动作**：发送消息 / 给予灵石 / 给予物品 / 执行 Java 代码 / 仅记录日志
+- **触发器启用/禁用**：表格中复选框一键切换
+- **增删改查**：新增 / 编辑（双击行）/ 删除 / 上移 / 下移
+- 自定义 key 输入框（当选择 CUSTOM 事件类型时激活）
+- Java 代码编辑器（当动作类型为 RUN_JAVA 时激活）
+
+### ③ 预览与生成
+- 实时显示配置摘要：插件信息 / 功能开关状态 / 触发器列表 / 预计生成文件列表
+- 一键生成：输出到指定目录
+- 成功后弹出提示，并在预览区显示完整文件清单和后续步骤
+
+### 事件系统（服务端扩展）
+- 新增 `com.mtxgdn.plugin.event.PluginEvent` —— 事件对象（类型 + 数据 Map）
+- 新增 `com.mtxgdn.plugin.event.PluginEventHandler` —— 事件处理器接口
+- 新增 `com.mtxgdn.plugin.event.PluginEventManager` —— 单例事件总线
+- 为 PluginContext 添加 `registerHandler()` / `registerCustomHandler()` / 
+  `setHandlersEnabled()` / `fireEvent()` 方法
+- 插件卸载时自动清理其注册的所有事件处理器
+
+### 模板与生成
+- 5 个代码模板：`pom.xml` / `plugin.json` / `Main.java` / 
+  `HelloCommand.java` / `DemoItem.java`
+- CodeGenerator 根据配置动态生成 Triggers.java 和 Realm.java
+- 自动处理 Java 包名到目录结构的转换
+- 自动对用户输入的字符串进行 Java 字面量转义，防止生成非法源代码
+
+### 配置持久化
+- `PluginConfig` 与 `TriggerConfig`：完整的配置模型
+- `MiniJson`：轻量级零依赖 JSON 读写工具
+- 支持保存 / 加载 `.plugin.json` 文件，可在团队间共享配置
 
 ---
 
@@ -34,12 +63,18 @@
 
 | 文件 | 描述 |
 |------|------|
-| `plugin/PluginMaker.java` | 交互式插件生成器（`--plugin-make` 启动） |
-| `plugin-template/pom.xml.template` | Maven 构建配置模板 |
-| `plugin-template/plugin.json.template` | 插件元数据模板 |
-| `plugin-template/Main.java.template` | 插件主类模板 |
-| `plugin-template/HelloCommand.java.template` | 示例命令模板 |
-| `plugin-template/DemoItem.java.template` | 示例物品模板 |
+| `plugin/event/PluginEvent.java` | 事件对象（类型 + 数据 + 构建器） |
+| `plugin/event/PluginEventHandler.java` | 事件处理器接口 |
+| `plugin/event/PluginEventManager.java` | 事件总线（注册 + 分发 + 清理） |
+| `plugin/gui/PluginMakerGUI.java` | GUI 主窗口（三选项卡布局） |
+| `plugin/gui/BasicConfigPanel.java` | 基础配置面板 |
+| `plugin/gui/TriggerPanel.java` | 触发器管理面板（表格 + 编辑器对话框） |
+| `plugin/gui/PluginConfig.java` | 插件配置模型（支持 JSON 序列化） |
+| `plugin/gui/TriggerConfig.java` | 触发器配置模型 |
+| `plugin/gui/CodeGenerator.java` | 代码生成器（读取模板 + 写入文件） |
+| `plugin/gui/MiniJson.java` | 轻量级 JSON 解析与序列化工具 |
+| `plugin/gui/CodeGeneratorTest.java` | 单元测试（验证生成流程） |
+| `plugin-template/*.template` | 5 个代码模板文件 |
 
 ---
 
