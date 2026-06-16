@@ -1,3 +1,63 @@
+# V1.4.0 更新日志（插件系统发布）
+
+---
+
+## 🔌 插件系统（核心特性）
+
+### 插件框架
+- 服务端启动时自动扫描 `./plugins/` 目录下所有 `.jar` 文件
+- 实现 `com.mtxgdn.plugin.Plugin` 接口即可成为插件
+- 三阶段生命周期：`onLoad(PluginContext)` → `onEnable(PluginContext)` → `onDisable(PluginContext)`
+- 自定义类加载器 `PluginClassLoader`，隔离插件依赖，避免版本冲突
+- 插件元数据支持两种方式：`plugin.json` 或 `@PluginMeta` 注解（二选一）
+- 服务器优雅关闭时自动回调所有插件的 `onDisable`
+
+### PluginContext（插件与服务端交互主入口）
+- `registerCommand(Command)` —— 注册自定义命令
+- `registerItem(Item)` —— 注册自定义物品
+- `registerExplorationEvent(ExplorationEvent)` —— 注册探索事件
+- `registerSecretRealm(SecretRealm)` —— 注册秘境
+- `getPlayerService()` / `getItemService()` / `getEconomyService()` 等 —— 快捷访问所有核心服务
+- `getLogger()` —— 插件专属日志记录器
+- `getDataFolder()` —— 插件专属数据目录（`./plugins/{名字}/`）
+- `loadConfig()` / `getResource()` —— 读取配置与内部资源
+
+### 启动日志
+- 新增"正在初始化插件系统..."阶段，位于命令扫描之后、HTTP 路由启动之前
+- 插件加载结果汇总输出"成功 N 个，失败 M 个"
+- 插件启动失败时打印完整异常栈，便于插件开发者调试
+
+### 示例插件项目
+- 新增 `examples/sample-plugin/` 完整示例项目
+- 示例命令：`/你好` / `/hello`（问候并赠送 100 灵石）
+- 示例物品：`示例插件:demo_talisman`（演示自定义物品注册）
+- 附带完整 `pom.xml` 与 `plugin.json`，可直接作为插件开发起点
+
+### 开发文档
+- 新增 `README_PLUGIN.md`，包含 15 个章节的完整开发指南
+- 内容覆盖：生命周期详解 / 从零创建插件 / 命令、物品、事件、秘境注册示例 / 所有服务 API 一览 / 命名规范 / 调试方法 / 常见问题解答
+
+---
+
+## 📁 新增文件
+
+| 文件 | 描述 |
+|------|------|
+| `plugin/Plugin.java` | 插件接口（生命周期） |
+| `plugin/PluginInfo.java` | 插件元数据封装 |
+| `plugin/PluginMeta.java` | `@PluginMeta` 注解（替代 plugin.json） |
+| `plugin/PluginContext.java` | 插件运行上下文（注册入口 + 服务访问） |
+| `plugin/PluginClassLoader.java` | 插件专用类加载器（隔离依赖） |
+| `plugin/PluginManager.java` | 插件管理器（扫描/加载/启用/停用） |
+| `examples/sample-plugin/pom.xml` | 示例插件 Maven 配置 |
+| `examples/sample-plugin/plugin.json` | 示例插件元数据 |
+| `examples/sample-plugin/.../MyPlugin.java` | 示例插件主类 |
+| `examples/sample-plugin/.../HelloCommand.java` | 示例命令 `/你好` |
+| `examples/sample-plugin/.../DemoItem.java` | 示例物品 |
+| `README_PLUGIN.md` | 完整插件开发文档 |
+
+---
+
 # V1.3.0 更新日志
 
 ---

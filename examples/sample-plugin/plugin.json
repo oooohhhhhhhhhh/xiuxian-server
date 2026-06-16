@@ -1,0 +1,7 @@
+﻿{
+  "name": "示例插件",
+  "version": "1.0.0",
+  "author": "开发者",
+  "description": "一个最简单的示例插件，演示如何注册命令与物品",
+  "main": "com.example.myplugin.MyPlugin"
+}

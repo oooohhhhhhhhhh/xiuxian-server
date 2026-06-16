@@ -6,6 +6,9 @@ import com.mtxgdn.game.item.ItemScanner;
 import com.mtxgdn.game.explorationevent.ExplorationEventScanner;
 import com.mtxgdn.game.secretrealm.SecretRealmScanner;
 import com.mtxgdn.common.command.CommandScanner;
+import com.mtxgdn.plugin.PluginManager;
+
+import java.io.File;
 
 import com.mtxgdn.game.service.CraftingService;
 import com.mtxgdn.game.service.SkillService;
@@ -49,6 +52,10 @@ public class Main {
 
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             LOG.info("服务器正在优雅关闭...");
+            try {
+                PluginManager.getInstance().disablePlugins();
+            } catch (Exception ignore) {
+            }
             if (gameWebSocketApp != null) {
                 try {
                     gameWebSocketApp.shutdownGracefully();
@@ -107,6 +114,13 @@ public class Main {
         LOG.info("正在扫描并注册命令...");
         CommandScanner.ScanResult cmdScanResult = CommandScanner.scanAndRegister("com.mtxgdn.onebot.command");
         LOG.info(cmdScanResult.toString());
+
+        LOG.info("正在初始化插件系统...");
+        PluginManager pm = PluginManager.getInstance();
+        pm.init(new File("plugins"));
+        PluginManager.LoadResult pluginLoadResult = pm.loadPlugins();
+        LOG.info(pluginLoadResult.toString());
+        pm.enablePlugins();
 
         ResourceConfig config = new ResourceConfig().packages("com.mtxgdn.rest");
 
