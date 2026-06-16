@@ -892,6 +892,165 @@ public class AdminResource {
         }
     }
 
+    // ========== 兑换码管理 API ==========
+
+    private static final com.mtxgdn.game.service.RedeemCodeService redeemCodeService =
+            new com.mtxgdn.game.service.RedeemCodeService();
+
+    @GET
+    @Path("/redeem-codes")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response getRedeemCodes() {
+        List<com.mtxgdn.game.entity.RedeemCode> codes = redeemCodeService.listAll();
+        JsonArray arr = new JsonArray();
+        for (com.mtxgdn.game.entity.RedeemCode rc : codes) {
+            arr.add(toRedeemCodeJson(rc));
+        }
+        JsonObject result = new JsonObject();
+        result.addProperty("code", 200);
+        result.add("codes", arr);
+        return Response.ok(gson.toJson(result)).build();
+    }
+
+    @POST
+    @Path("/redeem-codes")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response createRedeemCode(String body) {
+        try {
+            JsonObject req = com.google.gson.JsonParser.parseString(body).getAsJsonObject();
+            String code = req.has("code") ? req.get("code").getAsString() : "";
+            String name = req.has("name") ? req.get("name").getAsString() : "";
+            long gold = req.has("gold") ? req.get("gold").getAsLong() : 0;
+            long spiritStones = req.has("spiritStones") ? req.get("spiritStones").getAsLong() : 0;
+            long exp = req.has("exp") ? req.get("exp").getAsLong() : 0;
+            int maxUses = req.has("maxUses") ? req.get("maxUses").getAsInt() : 1;
+            String expiresAt = req.has("expiresAt") && !req.get("expiresAt").isJsonNull()
+                    ? req.get("expiresAt").getAsString() : null;
+            String createdBy = req.has("createdBy") ? req.get("createdBy").getAsString() : "admin";
+
+            if (code.isBlank()) {
+                JsonObject err = new JsonObject();
+                err.addProperty("code", 400);
+                err.addProperty("message", "兑换码不能为空");
+                return Response.ok(gson.toJson(err)).build();
+            }
+
+            Map<String, Integer> items = new LinkedHashMap<>();
+            if (req.has("items") && req.get("items").isJsonObject()) {
+                JsonObject itemsObj = req.getAsJsonObject("items");
+                for (String key : itemsObj.keySet()) {
+                    items.put(key, itemsObj.get(key).getAsInt());
+                }
+            }
+
+            com.mtxgdn.game.entity.RedeemCode rc = redeemCodeService.createCode(
+                    code, name, items, gold, spiritStones, exp, maxUses, expiresAt, createdBy);
+
+            JsonObject result = new JsonObject();
+            result.addProperty("code", 200);
+            result.addProperty("message", "兑换码创建成功");
+            result.add("codeInfo", toRedeemCodeJson(rc));
+            return Response.ok(gson.toJson(result)).build();
+        } catch (Exception e) {
+            JsonObject err = new JsonObject();
+            err.addProperty("code", 500);
+            err.addProperty("message", "创建失败: " + e.getMessage());
+            return Response.ok(gson.toJson(err)).build();
+        }
+    }
+
+    @POST
+    @Path("/redeem-codes/{id}")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response updateRedeemCode(@PathParam("id") long id, String body) {
+        try {
+            // 已兑换或已过期的码不允许编辑
+            com.mtxgdn.game.entity.RedeemCode existing = redeemCodeService.findById(id);
+            if (existing != null && (existing.isRedeemed() || existing.isExpired())) {
+                JsonObject err = new JsonObject();
+                err.addProperty("code", 400);
+                err.addProperty("message", "已兑换或已过期的兑换码不允许编辑，只能删除");
+                return Response.ok(gson.toJson(err)).build();
+            }
+
+            JsonObject req = com.google.gson.JsonParser.parseString(body).getAsJsonObject();
+            String name = req.has("name") ? req.get("name").getAsString() : "";
+            long gold = req.has("gold") ? req.get("gold").getAsLong() : 0;
+            long spiritStones = req.has("spiritStones") ? req.get("spiritStones").getAsLong() : 0;
+            long exp = req.has("exp") ? req.get("exp").getAsLong() : 0;
+            int maxUses = req.has("maxUses") ? req.get("maxUses").getAsInt() : 1;
+            String expiresAt = req.has("expiresAt") && !req.get("expiresAt").isJsonNull()
+                    ? req.get("expiresAt").getAsString() : null;
+
+            Map<String, Integer> items = new LinkedHashMap<>();
+            if (req.has("items") && req.get("items").isJsonObject()) {
+                JsonObject itemsObj = req.getAsJsonObject("items");
+                for (String key : itemsObj.keySet()) {
+                    items.put(key, itemsObj.get(key).getAsInt());
+                }
+            }
+
+            redeemCodeService.updateCode(id, name, items, gold, spiritStones, exp, maxUses, expiresAt);
+
+            JsonObject result = new JsonObject();
+            result.addProperty("code", 200);
+            result.addProperty("message", "兑换码更新成功");
+            return Response.ok(gson.toJson(result)).build();
+        } catch (Exception e) {
+            JsonObject err = new JsonObject();
+            err.addProperty("code", 500);
+            err.addProperty("message", "更新失败: " + e.getMessage());
+            return Response.ok(gson.toJson(err)).build();
+        }
+    }
+
+    @DELETE
+    @Path("/redeem-codes/{id}")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response deleteRedeemCode(@PathParam("id") long id) {
+        try {
+            redeemCodeService.deleteCode(id);
+            JsonObject result = new JsonObject();
+            result.addProperty("code", 200);
+            result.addProperty("message", "兑换码已删除");
+            return Response.ok(gson.toJson(result)).build();
+        } catch (Exception e) {
+            JsonObject err = new JsonObject();
+            err.addProperty("code", 500);
+            err.addProperty("message", "删除失败: " + e.getMessage());
+            return Response.ok(gson.toJson(err)).build();
+        }
+    }
+
+    private JsonObject toRedeemCodeJson(com.mtxgdn.game.entity.RedeemCode rc) {
+        JsonObject obj = new JsonObject();
+        obj.addProperty("id", rc.getId());
+        obj.addProperty("code", rc.getCode());
+        obj.addProperty("name", rc.getName());
+        obj.addProperty("gold", rc.getGold());
+        obj.addProperty("spiritStones", rc.getSpiritStones());
+        obj.addProperty("exp", rc.getExp());
+        obj.addProperty("maxUses", rc.getMaxUses());
+        obj.addProperty("currentUses", rc.getCurrentUses());
+        obj.addProperty("status", rc.getStatus());
+        obj.addProperty("isActive", rc.isActive());
+        obj.addProperty("expiresAt", rc.getExpiresAt());
+        obj.addProperty("createdBy", rc.getCreatedBy());
+        obj.addProperty("createdAt", rc.getCreatedAt());
+
+        Map<String, Integer> items = rc.getItems();
+        if (items != null && !items.isEmpty()) {
+            JsonObject itemsObj = new JsonObject();
+            for (Map.Entry<String, Integer> e : items.entrySet()) {
+                itemsObj.addProperty(e.getKey(), e.getValue());
+            }
+            obj.add("items", itemsObj);
+        }
+        return obj;
+    }
+
     private static String formatUptime(long millis) {
         long seconds = millis / 1000;
         long days = seconds / 86400;

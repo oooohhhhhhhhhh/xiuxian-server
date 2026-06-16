@@ -552,6 +552,9 @@ select option { background: var(--bg-panel); color: var(--text-primary); }
       <div class="nav-item" onclick="switchTab('traces')">
         <span class="nav-icon">👣</span> 玩家轨迹
       </div>
+      <div class="nav-item" onclick="switchTab('redeemCodes')">
+        <span class="nav-icon">🎫</span> 兑换码
+      </div>
     </div>
     <div class="sidebar-footer">
       <div style="display:flex;align-items:center;justify-content:space-between">
@@ -643,6 +646,20 @@ select option { background: var(--bg-panel); color: var(--text-primary); }
         </div>
         <div class="log-container" id="logContainer">
           <div class="empty">加载中...</div>
+        </div>
+      </div>
+
+      <div class="tab" id="tab-redeemCodes">
+        <div class="card">
+          <div class="card-title">🎫 兑换码管理</div>
+          <div class="row">
+            <button class="btn btn-primary" onclick="openCreateRedeemCode()">+ 创建兑换码</button>
+            <button class="btn-sm" onclick="loadRedeemCodes()">🔄 刷新</button>
+          </div>
+          <div id="redeemTable" class="table-wrap">
+            <div class="empty">加载中...</div>
+          </div>
+          <div id="redeemMsg"></div>
         </div>
       </div>
 
@@ -744,7 +761,7 @@ async function fetchStatus() {
   } catch (x) { document.getElementById('connDot').className = 'conn-dot off'; }
 }
 
-const TAB_TITLES = { overview:'📊 总览', players:'👥 玩家管理', database:'🗄️ 数据库', users:'🔑 用户/角色', logs:'📜 实时日志', traces:'👣 玩家轨迹' };
+const TAB_TITLES = { overview:'📊 总览', players:'👥 玩家管理', database:'🗄️ 数据库', users:'🔑 用户/角色', logs:'📜 实时日志', traces:'👣 玩家轨迹', redeemCodes:'🎫 兑换码' };
 
 function switchTab(name) {
   currentTab = name;
@@ -759,8 +776,9 @@ function switchTab(name) {
     document.getElementById('logContainer').innerHTML = '<div class="empty">加载中...</div>';
     fetchLogs();
     logsTimer = setInterval(fetchLogs, 500);
-  } else if (name === 'traces' || name === 'database') {
+  } else if (name === 'traces' || name === 'database' || name === 'redeemCodes') {
     if (logsTimer) { clearInterval(logsTimer); logsTimer = null; }
+    if (name === 'redeemCodes') loadRedeemCodes();
   } else {
     if (logsTimer) { clearInterval(logsTimer); logsTimer = null; }
     loadAllData();
@@ -1349,6 +1367,309 @@ function levelClass(level) {
     });
   }
 })();
+// ========== 兑换码管理 ==========
+
+// 缓存物品下拉选项 HTML
+let _itemOptionsHtml = null;
+
+async function loadItemOptions() {
+  if (_itemOptionsHtml) return _itemOptionsHtml;
+  try {
+    const d = await api('/items');
+    let h = '<option value="">-- 选择物品 --</option>';
+    if (d.items) {
+      for (const i of d.items) {
+        h += '<option value="' + $h(i.key) + '">' + $h(i.name) + ' (' + $h(i.key) + ')</option>';
+      }
+    }
+    _itemOptionsHtml = h;
+    return h;
+  } catch (x) {
+    return '<option value="">-- 加载失败 --</option>';
+  }
+}
+
+function itemSelectHtml(idx, selectedKey, prefix) {
+  prefix = prefix || 'rcItemKey';
+  // 用 data-options 占位，由调用方在插入 DOM 后填充 options
+  return '<select id="' + prefix + idx + '" style="flex:1" data-sel="' + $h(selectedKey || '') + '">' +
+    '<option value="">加载中...</option>' +
+    '</select>';
+}
+
+// 填充所有 item select 的 options
+async function fillItemSelects(prefix) {
+  prefix = prefix || 'rcItemKey';
+  const optionsHtml = await loadItemOptions();
+  const max = window._fillMax || 10;
+  for (let i = 0; i < max; i++) {
+    const sel = document.getElementById(prefix + i);
+    if (sel) {
+      const saved = sel.getAttribute('data-sel');
+      sel.innerHTML = optionsHtml;
+      if (saved) sel.value = saved;
+    }
+  }
+}
+
+function statusBadgeHtml(status) {
+  switch (status) {
+    case 'active':   return '<span class="badge badge-jade">生效</span>';
+    case 'redeemed': return '<span class="badge badge-gold">已兑换</span>';
+    case 'expired':  return '<span class="badge badge-gray">已过期</span>';
+    default:         return '<span class="badge badge-gray">已失效</span>';
+  }
+}
+
+async function loadRedeemCodes() {
+  try {
+    const d = await api('/redeem-codes');
+    if (!d.codes || d.codes.length === 0) {
+      document.getElementById('redeemTable').innerHTML = '<div class="empty">暂无兑换码</div>';
+      return;
+    }
+    let h = '<table><tr><th>ID</th><th>兑换码</th><th>名称</th><th>金币</th><th>灵石</th><th>灵力</th><th>物品</th><th>使用/上限</th><th>状态</th><th>过期</th><th>创建者</th><th>操作</th></tr>';
+    for (const c of d.codes) {
+      let itemsStr = '';
+      if (c.items) {
+        itemsStr = Object.entries(c.items).map(([k,v]) => $h(k) + 'x' + v).join(', ');
+      }
+      const statusBadge = statusBadgeHtml(c.status);
+      const canEdit = c.status !== 'redeemed' && c.status !== 'expired';
+      h += '<tr>' +
+        '<td style="color:var(--text-muted);font-size:11px">' + c.id + '</td>' +
+        '<td style="color:var(--gold);font-family:monospace">' + $h(c.code) + '</td>' +
+        '<td>' + $h(c.name||'') + '</td>' +
+        '<td>' + (c.gold||0) + '</td>' +
+        '<td>' + (c.spiritStones||0) + '</td>' +
+        '<td>' + (c.exp||0) + '</td>' +
+        '<td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + $h(itemsStr) + '">' + (itemsStr||'—') + '</td>' +
+        '<td>' + (c.currentUses||0) + '/' + (c.maxUses < 0 ? '∞' : c.maxUses) + '</td>' +
+        '<td>' + statusBadge + '</td>' +
+        '<td style="font-size:11px">' + (c.expiresAt ? $h(c.expiresAt.substring(0,10)) : '永不过期') + '</td>' +
+        '<td>' + $h(c.createdBy||'') + '</td>' +
+        '<td>' +
+          (canEdit ? '<button class="btn btn-action btn-sm" onclick="openEditRedeemCode(' + c.id + ')">编辑</button> ' : '') +
+          '<button class="btn btn-danger btn-sm" onclick="deleteRedeemCode(' + c.id + ',\'' + $h(c.code) + '\')">删除</button>' +
+        '</td>' +
+        '</tr>';
+    }
+    h += '</table>';
+    document.getElementById('redeemTable').innerHTML = h;
+  } catch (x) {
+    document.getElementById('redeemTable').innerHTML = '<div class="empty">加载失败: ' + $h(x.message||'') + '</div>';
+  }
+}
+
+function openCreateRedeemCode() {
+  const html =
+    '<button class="close" onclick="closeModal()">&times;</button>' +
+    '<h3>🎫 创建兑换码</h3>' +
+    '<div style="display:grid;grid-template-columns:120px 1fr;gap:10px;align-items:center">' +
+      '<label>兑换码 *</label><input id="rcCode" placeholder="如: XINCHUN2025" style="text-transform:uppercase">' +
+      '<label>名称</label><input id="rcName" placeholder="如: 新春礼包">' +
+      '<label>金币</label><input id="rcGold" type="number" value="0">' +
+      '<label>灵石</label><input id="rcSS" type="number" value="0">' +
+      '<label>灵力</label><input id="rcExp" type="number" value="0">' +
+      '<label>最大使用次数</label><input id="rcMaxUses" type="number" value="1">' +
+      '<label>过期时间</label><input id="rcExpires" type="datetime-local">' +
+      '<label>物品奖励</label>' +
+      '<div id="rcItems">' +
+        '<div class="row" style="margin-bottom:4px">' +
+          itemSelectHtml(0, '') +
+          '<input id="rcItemQty0" type="number" placeholder="数量" style="width:80px" value="1">' +
+        '</div>' +
+      '</div>' +
+      '<label></label><button class="btn-sm" onclick="addRcItem()">+ 添加物品</button>' +
+    '</div>' +
+    '<div class="actions">' +
+      '<button class="btn btn-primary" onclick="createRedeemCode()">创建</button>' +
+    '</div>';
+  document.getElementById('modalContent').innerHTML = html;
+  document.getElementById('modalOverlay').classList.add('show');
+  window._rcItemIdx = 1;
+  window._fillMax = 5;
+  fillItemSelects('rcItemKey');
+}
+
+function addRcItem() {
+  const idx = window._rcItemIdx || 1;
+  window._fillMax = Math.max(window._fillMax || 5, idx + 1);
+  const div = document.createElement('div');
+  div.className = 'row';
+  div.style.marginBottom = '4px';
+  div.innerHTML = itemSelectHtml(idx, '') +
+    '<input id="rcItemQty' + idx + '" type="number" placeholder="数量" style="width:80px" value="1">';
+  document.getElementById('rcItems').appendChild(div);
+  window._rcItemIdx = idx + 1;
+  fillItemSelects('rcItemKey');
+}
+
+function collectRcItems() {
+  const items = {};
+  const max = window._rcItemIdx || 5;
+  for (let i = 0; i < max; i++) {
+    const keyEl = document.getElementById('rcItemKey' + i);
+    const qtyEl = document.getElementById('rcItemQty' + i);
+    if (keyEl && keyEl.value.trim() && qtyEl && parseInt(qtyEl.value) > 0) {
+      items[keyEl.value.trim()] = parseInt(qtyEl.value);
+    }
+  }
+  return items;
+}
+
+async function createRedeemCode() {
+  const code = document.getElementById('rcCode').value.trim().toUpperCase();
+  if (!code) { alert('请输入兑换码'); return; }
+  const name = document.getElementById('rcName').value.trim();
+  const gold = parseInt(document.getElementById('rcGold').value) || 0;
+  const ss = parseInt(document.getElementById('rcSS').value) || 0;
+  const exp = parseInt(document.getElementById('rcExp').value) || 0;
+  const maxUses = parseInt(document.getElementById('rcMaxUses').value) || 1;
+  const expiresEl = document.getElementById('rcExpires');
+  const expiresAt = expiresEl && expiresEl.value ? expiresEl.value.replace('T',' ') + ':00' : null;
+  const items = collectRcItems();
+
+  try {
+    const d = await api('/redeem-codes', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ code, name, gold, spiritStones: ss, exp, maxUses, expiresAt, items, createdBy: 'admin' })
+    });
+    if (d.code === 200) {
+      document.getElementById('redeemMsg').innerHTML = '<div class="msg msg-ok">兑换码 <b>' + $h(code) + '</b> 创建成功！</div>';
+      closeModal();
+      loadRedeemCodes();
+    } else {
+      alert('创建失败: ' + (d.message || ''));
+    }
+  } catch (x) {
+    alert('创建失败: ' + (x.message || ''));
+  }
+}
+
+async function openEditRedeemCode(id) {
+  try {
+    const d = await api('/redeem-codes');
+    const code = (d.codes||[]).find(c => c.id === id);
+    if (!code) { alert('兑换码不存在'); return; }
+
+    let itemsHtml = '';
+    let itemIdx = 0;
+    if (code.items) {
+      for (const [key, qty] of Object.entries(code.items)) {
+        itemsHtml += '<div class="row" style="margin-bottom:4px">' +
+          itemSelectHtml(itemIdx, key, 'editItemKey') +
+          '<input id="editItemQty' + itemIdx + '" type="number" value="' + qty + '" style="width:80px">' +
+          '</div>';
+        itemIdx++;
+      }
+    }
+    // Add one empty row
+    itemsHtml += '<div class="row" style="margin-bottom:4px">' +
+      itemSelectHtml(itemIdx, '', 'editItemKey') +
+      '<input id="editItemQty' + itemIdx + '" type="number" placeholder="数量" style="width:80px">' +
+      '</div>';
+    window._editItemIdx = itemIdx + 1;
+
+    const expiresVal = code.expiresAt ? code.expiresAt.substring(0, 16) : '';
+    const html =
+      '<button class="close" onclick="closeModal()">&times;</button>' +
+      '<h3>✏️ 编辑兑换码 · ' + $h(code.code) + ' <span style="font-size:12px;color:var(--text-muted);font-weight:normal">ID:' + id + '</span></h3>' +
+      '<div style="display:grid;grid-template-columns:120px 1fr;gap:10px;align-items:center">' +
+        '<label>名称</label><input id="editRcName" value="' + $h(code.name||'') + '">' +
+        '<label>金币</label><input id="editRcGold" type="number" value="' + (code.gold||0) + '">' +
+        '<label>灵石</label><input id="editRcSS" type="number" value="' + (code.spiritStones||0) + '">' +
+        '<label>灵力</label><input id="editRcExp" type="number" value="' + (code.exp||0) + '">' +
+        '<label>最大使用次数</label><input id="editRcMaxUses" type="number" value="' + (code.maxUses||1) + '">' +
+        '<label>过期时间</label><input id="editRcExpires" type="datetime-local" value="' + expiresVal + '">' +
+        '<label>状态</label><span style="padding:8px 0;color:var(--text-primary)">' + statusBadgeHtml(code.status) + '</span>' +
+        '<label>物品奖励</label>' +
+        '<div id="editRcItems">' + itemsHtml + '</div>' +
+        '<label></label><button class="btn-sm" onclick="addEditRcItem()">+ 添加物品</button>' +
+      '</div>' +
+      '<div class="actions">' +
+        '<button class="btn btn-primary" onclick="saveEditRedeemCode(' + id + ')">保存修改</button>' +
+      '</div>';
+    document.getElementById('modalContent').innerHTML = html;
+    document.getElementById('modalOverlay').classList.add('show');
+    window._fillMax = window._editItemIdx || 5;
+    fillItemSelects('editItemKey');
+  } catch (x) {
+    alert('加载失败: ' + (x.message || ''));
+  }
+}
+
+function addEditRcItem() {
+  const idx = window._editItemIdx || 1;
+  window._fillMax = Math.max(window._fillMax || 5, idx + 1);
+  const div = document.createElement('div');
+  div.className = 'row';
+  div.style.marginBottom = '4px';
+  div.innerHTML = itemSelectHtml(idx, '', 'editItemKey') +
+    '<input id="editItemQty' + idx + '" type="number" placeholder="数量" style="width:80px">';
+  document.getElementById('editRcItems').appendChild(div);
+  window._editItemIdx = idx + 1;
+  fillItemSelects('editItemKey');
+}
+
+function collectEditRcItems() {
+  const items = {};
+  const max = window._editItemIdx || 5;
+  for (let i = 0; i < max; i++) {
+    const keyEl = document.getElementById('editItemKey' + i);
+    const qtyEl = document.getElementById('editItemQty' + i);
+    if (keyEl && keyEl.value.trim() && qtyEl && parseInt(qtyEl.value) > 0) {
+      items[keyEl.value.trim()] = parseInt(qtyEl.value);
+    }
+  }
+  return items;
+}
+
+async function saveEditRedeemCode(id) {
+  const name = document.getElementById('editRcName').value.trim();
+  const gold = parseInt(document.getElementById('editRcGold').value) || 0;
+  const ss = parseInt(document.getElementById('editRcSS').value) || 0;
+  const exp = parseInt(document.getElementById('editRcExp').value) || 0;
+  const maxUses = parseInt(document.getElementById('editRcMaxUses').value) || 1;
+  const expiresEl = document.getElementById('editRcExpires');
+  const expiresAt = expiresEl && expiresEl.value ? expiresEl.value.replace('T',' ') + ':00' : null;
+  const items = collectEditRcItems();
+
+  try {
+    const d = await api('/redeem-codes/' + id, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name, gold, spiritStones: ss, exp, maxUses, expiresAt, items })
+    });
+    if (d.code === 200) {
+      document.getElementById('redeemMsg').innerHTML = '<div class="msg msg-ok">更新成功</div>';
+      closeModal();
+      loadRedeemCodes();
+    } else {
+      alert('更新失败: ' + (d.message || ''));
+    }
+  } catch (x) {
+    alert('更新失败: ' + (x.message || ''));
+  }
+}
+
+async function deleteRedeemCode(id, code) {
+  if (!confirm('确定删除兑换码【' + code + '】吗？此操作不可撤销！')) return;
+  try {
+    const d = await api('/redeem-codes/' + id, { method: 'DELETE' });
+    if (d.code === 200) {
+      document.getElementById('redeemMsg').innerHTML = '<div class="msg msg-ok">兑换码已删除</div>';
+      loadRedeemCodes();
+    } else {
+      alert('删除失败: ' + (d.message || ''));
+    }
+  } catch (x) {
+    alert('删除失败: ' + (x.message || ''));
+  }
+}
+
+// ========== 玩家操作轨迹 ==========
   let tracePage = 0;
   const TRACE_PAGE_SIZE = 30;
 

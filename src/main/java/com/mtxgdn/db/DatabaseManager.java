@@ -437,6 +437,36 @@ public class DatabaseManager {
         }
         sectWarehouseTableSql += ")";
 
+        String redeemCodesTableSql = "CREATE TABLE IF NOT EXISTS redeem_codes (" +
+                "id " + pk + ", " +
+                "code VARCHAR(32) NOT NULL UNIQUE, " +
+                "name VARCHAR(64) DEFAULT '', " +
+                "items_json TEXT, " +
+                "gold BIGINT DEFAULT 0, " +
+                "spirit_stones BIGINT DEFAULT 0, " +
+                "exp BIGINT DEFAULT 0, " +
+                "max_uses INT DEFAULT 1, " +
+                "current_uses INT DEFAULT 0, " +
+                "status VARCHAR(16) DEFAULT 'active', " +
+                "expires_at TIMESTAMP NULL, " +
+                "created_by VARCHAR(64) DEFAULT '', " +
+                "created_at " + tsDefault + ", " +
+                "updated_at " + tsUpdate +
+                ")";
+
+        String redeemedCodesTableSql = "CREATE TABLE IF NOT EXISTS redeemed_codes (" +
+                "id " + pk + ", " +
+                "code_id BIGINT NOT NULL, " +
+                "player_id BIGINT NOT NULL, " +
+                "redeemed_at " + tsDefault;
+
+        if (!IS_SQLITE) {
+            redeemedCodesTableSql += ", FOREIGN KEY (code_id) REFERENCES redeem_codes(id) ON DELETE CASCADE, FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE, UNIQUE (code_id, player_id)";
+        } else {
+            redeemedCodesTableSql += ", UNIQUE (code_id, player_id)";
+        }
+        redeemedCodesTableSql += ")";
+
         try (Connection conn = getConnection();
              Statement stmt = conn.createStatement()) {
             stmt.execute(userTableSql);
@@ -463,6 +493,8 @@ public class DatabaseManager {
             stmt.execute(sectMembersTableSql);
             stmt.execute(sectApplicationsTableSql);
             stmt.execute(sectWarehouseTableSql);
+            stmt.execute(redeemCodesTableSql);
+            stmt.execute(redeemedCodesTableSql);
         } catch (SQLException e) {
             throw new RuntimeException("创建数据库表失败", e);
         }
@@ -476,6 +508,19 @@ public class DatabaseManager {
              Statement stmt = conn.createStatement()) {
             try {
                 stmt.execute("ALTER TABLE players_equipment ADD COLUMN enhance_level INT DEFAULT 0");
+            } catch (SQLException ignored) {
+            }
+            // 兑换码 is_active -> status 迁移
+            try {
+                stmt.execute("ALTER TABLE redeem_codes ADD COLUMN status VARCHAR(16) DEFAULT 'active'");
+            } catch (SQLException ignored) {
+            }
+            // 尝试把旧 is_active 数据迁移到 status（仅 SQLite 不支持的 ALTER DROP 忽略即可）
+            try {
+                if (!IS_SQLITE) {
+                    stmt.execute("UPDATE redeem_codes SET status = CASE WHEN is_active THEN 'active' ELSE 'disabled' END WHERE status = 'active'");
+                    stmt.execute("ALTER TABLE redeem_codes DROP COLUMN is_active");
+                }
             } catch (SQLException ignored) {
             }
         } catch (SQLException e) {
