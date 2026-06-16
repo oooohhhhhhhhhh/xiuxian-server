@@ -6,7 +6,7 @@
 
     <groupId>com.mtxgdn</groupId>
     <artifactId>main</artifactId>
-    <version>V1.3.0</version>
+    <version>V1.4.0</version>
 
     <properties>
         <maven.compiler.source>23</maven.compiler.source>
