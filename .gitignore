@@ -4,6 +4,10 @@ target/
 !**/src/test/**/target/
 .kotlin
 
+# JVM 崩溃日志
+hs_err_pid*.log
+replay_pid*.log
+
 .env
 .docs/
 
