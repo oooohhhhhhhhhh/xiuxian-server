@@ -10,12 +10,10 @@ public class RateLimiter {
     private static class RateWindow {
         final AtomicLong counter = new AtomicLong(0);
         final long windowStart;
-        volatile int limit;
         volatile int windowSeconds;
 
         RateWindow(long windowStart, int limit, int windowSeconds) {
             this.windowStart = windowStart;
-            this.limit = limit;
             this.windowSeconds = windowSeconds;
         }
     }

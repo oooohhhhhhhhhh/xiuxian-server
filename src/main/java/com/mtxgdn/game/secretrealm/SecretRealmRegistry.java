@@ -1,7 +1,6 @@
 package com.mtxgdn.game.secretrealm;
 
 import com.mtxgdn.util.GameLogger;
-import com.mtxgdn.util.LangManager;
 
 import java.util.ArrayList;
 import java.util.Collection;

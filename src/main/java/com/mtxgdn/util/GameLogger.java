@@ -45,8 +45,8 @@ public class GameLogger {
     private static String logDir = "log";
     private static boolean useAnsiColor = true;
 
-    private static final int MAX_MEMORY_LOG_ENTRIES = 500;
-    private static final List<LogEntry> memoryLog = Collections.synchronizedList(new ArrayList<>());
+    private static final int MAX_MEMORY_LOG_ENTRIES = AppConfig.getInt("performance.memory_log_entries", 200);
+    private static final List<LogEntry> memoryLog = Collections.synchronizedList(new ArrayList<>(MAX_MEMORY_LOG_ENTRIES + 10));
     private static final AtomicLong logSequence = new AtomicLong(0);
 
     private static PrintWriter sharedFileWriter;

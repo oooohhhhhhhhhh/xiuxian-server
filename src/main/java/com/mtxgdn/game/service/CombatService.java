@@ -6,7 +6,6 @@ import com.mtxgdn.game.entity.PveCombatResult;
 import com.mtxgdn.game.entity.Skill;
 import com.mtxgdn.game.entity.SpiritualRoot;
 import com.mtxgdn.game.item.ItemRegistry;
-import com.mtxgdn.game.service.ItemService;
 
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;

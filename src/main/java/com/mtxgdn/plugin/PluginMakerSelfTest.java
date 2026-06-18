@@ -4,12 +4,8 @@ import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.io.BufferedReader;
 import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
 import java.util.LinkedHashMap;
 import java.util.Map;
-import java.util.stream.Stream;
 
 /**
  * 独立测试程序 —— 直接验证模板加载和替换，不依赖 Grizzly/WebSocket。
@@ -72,16 +68,11 @@ public final class PluginMakerSelfTest {
                 }
 
                 // 检查替换后是否还有残留占位符
-                long remaining = content.chars().filter(c -> c == '{').count();
                 boolean hasUnreplaced = content.contains("{{");
 
                 if (hasUnreplaced) {
                     System.out.println("  [WARN] " + t + " —— 可能仍有未替换的 {{ 占位符");
                 }
-
-                // 检查关键字段是否被正确替换
-                String sanityCheck = "{{NAME}}";
-                boolean ok = !content.contains(sanityCheck);
 
                 // 检查 Java 文件是否包含正确的 package 声明
                 if (t.endsWith("java.template") && !content.contains("package com.example")) {

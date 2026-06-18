@@ -441,7 +441,7 @@ public class GameWebSocketApp extends WebSocketApplication {
             return;
         }
 
-        ChatMessage msg = chatService.sendPrivateMessage(player.getId(), player.getName(), targetId, content);
+        chatService.sendPrivateMessage(player.getId(), player.getName(), targetId, content);
         actionLog.logChat(userId, player.getName(), "[私聊→" + target.getName() + "] " + content);
 
         JsonObject chatData = new JsonObject();

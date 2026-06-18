@@ -41,6 +41,7 @@ public final class Theme {
 
     /** 缓存检测到的中文字体名——无需每次都扫描 */
     private static Font cachedCjkFont;
+    @SuppressWarnings("unused")
     private static String cachedCjkFamily;
 
     /**
@@ -105,7 +106,6 @@ public final class Theme {
     public static Font fontMono(float pt) {
         String testText = "中文测试";
         try {
-            GraphicsEnvironment ge = GraphicsEnvironment.getLocalGraphicsEnvironment();
             String[] preferred = { "Consolas", "JetBrains Mono", "Menlo", "Monaco", "Courier New" };
             for (String name : preferred) {
                 Font f = new Font(name, Font.PLAIN, Math.round(pt));

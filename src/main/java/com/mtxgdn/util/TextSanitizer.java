@@ -1,16 +1,6 @@
 package com.mtxgdn.util;
 
-import java.util.Arrays;
-import java.util.HashSet;
-import java.util.Set;
-
 public class TextSanitizer {
-
-    private static final Set<String> HTML_TAGS = new HashSet<>(Arrays.asList(
-            "script", "iframe", "img", "onload", "onerror", "onclick",
-            "onmouseover", "onfocus", "onblur", "style", "link", "object",
-            "embed", "form", "input", "button", "svg", "math"
-    ));
 
     public static String sanitizeContent(String input) {
         if (input == null) return "";

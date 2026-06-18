@@ -9,7 +9,6 @@ import com.mtxgdn.onebot.QqBinding;
 import com.mtxgdn.onebot.QqBindingService;
 
 import java.util.ArrayList;
-import java.util.Collection;
 import java.util.List;
 
 public class ItemsQueryCommand extends Command {

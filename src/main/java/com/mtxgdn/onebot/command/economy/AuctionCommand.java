@@ -4,12 +4,6 @@ import com.mtxgdn.common.command.Command;
 import com.mtxgdn.common.command.CommandContext;
 import com.mtxgdn.game.entity.PlayerInfo;
 import com.mtxgdn.common.service.ServiceRegistry;
-import com.mtxgdn.game.item.ItemRegistry;
-import com.mtxgdn.game.service.EconomyService;
-import com.mtxgdn.game.service.ItemService;
-import com.mtxgdn.onebot.command.OneBotCommandContext;
-
-import java.util.concurrent.ConcurrentHashMap;
 
 /**
  * 竞拍行 — 限时竞价交易。
@@ -19,9 +13,6 @@ import java.util.concurrent.ConcurrentHashMap;
  * /拍卖 我的 — 查看我的拍卖
  */
 public class AuctionCommand extends Command {
-
-    // 记录谁创建了哪个拍卖（用于结束后通知）
-    private static final ConcurrentHashMap<Long, Long> auctionCreators = new ConcurrentHashMap<>();
 
     public AuctionCommand() {
         super(new String[]{"拍卖", "auction"}, "竞拍行 — 限时竞价交易", "/拍卖 [出售|出价|我的]", "经济", null);

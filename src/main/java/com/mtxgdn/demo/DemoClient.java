@@ -1,6 +1,5 @@
 package com.mtxgdn.demo;
 
-import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.mtxgdn.client.ApiClient;
@@ -8,7 +7,6 @@ import com.mtxgdn.client.AuthApi;
 import com.mtxgdn.client.GameApi;
 import com.mtxgdn.client.GameWebSocketClient;
 import com.mtxgdn.common.ApiResponse;
-import com.mtxgdn.common.GameMessage;
 
 import java.util.Scanner;
 import java.util.concurrent.CountDownLatch;
@@ -16,7 +14,6 @@ import java.util.concurrent.TimeUnit;
 
 public class DemoClient {
 
-    private static final Gson gson = new Gson();
     private static final Scanner scanner = new Scanner(System.in);
 
     private final ApiClient apiClient;

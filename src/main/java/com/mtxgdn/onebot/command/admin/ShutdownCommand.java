@@ -1,6 +1,5 @@
 package com.mtxgdn.onebot.command.admin;
 
-import com.mtxgdn.Main;
 import com.mtxgdn.common.command.Command;
 import com.mtxgdn.common.command.CommandContext;
 import com.mtxgdn.permission.PermissionService;

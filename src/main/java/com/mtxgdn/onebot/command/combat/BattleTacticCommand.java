@@ -9,7 +9,6 @@ import java.util.Set;
 
 public class BattleTacticCommand extends Command {
 
-    private static final Set<String> VALID_TACTICS = Set.of("aggressive", "balanced", "defensive");
     private static final Set<String> AGGRESSIVE_ALIASES = Set.of("猛攻", "aggressive", "进攻", "猛");
     private static final Set<String> BALANCED_ALIASES = Set.of("均衡", "balanced", "平衡", "均");
     private static final Set<String> DEFENSIVE_ALIASES = Set.of("防守", "defensive", "防御", "守");

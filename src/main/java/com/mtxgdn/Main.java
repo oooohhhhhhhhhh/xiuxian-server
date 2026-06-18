@@ -16,6 +16,7 @@ import com.mtxgdn.game.service.CraftingService;
 import com.mtxgdn.game.service.SkillService;
 import com.mtxgdn.game.service.TechniqueService;
 import com.mtxgdn.minecraft.MinecraftMotdServer;
+import com.mtxgdn.onebot.OneBotScreenshotBot;
 import com.mtxgdn.onebot.OneBotWebSocketServer;
 import com.mtxgdn.util.AppConfig;
 import com.mtxgdn.util.GameLogger;
@@ -24,6 +25,7 @@ import com.mtxgdn.websocket.GameWebSocketApp;
 import org.glassfish.grizzly.http.server.CLStaticHttpHandler;
 import org.glassfish.grizzly.http.server.HttpServer;
 import org.glassfish.grizzly.http.server.NetworkListener;
+import org.glassfish.grizzly.threadpool.ThreadPoolConfig;
 import org.glassfish.grizzly.websockets.WebSocketAddOn;
 import org.glassfish.grizzly.websockets.WebSocketEngine;
 import org.glassfish.jersey.grizzly2.httpserver.GrizzlyHttpServerFactory;
@@ -35,7 +37,6 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
-import java.util.concurrent.Executors;
 
 public class Main {
 
@@ -44,6 +45,7 @@ public class Main {
     public static long serverStartTime;
     public static GameWebSocketApp gameWebSocketApp;
     public static OneBotWebSocketServer oneBotWebSocketServer;
+    public static OneBotScreenshotBot screenshotBot;
     public static HttpServer oneBotServer;
     public static HttpServer mainServer;
 
@@ -71,6 +73,9 @@ public class Main {
             try {
                 PluginManager.getInstance().disablePlugins();
             } catch (Exception ignore) {
+            }
+            if (screenshotBot != null) {
+                screenshotBot.stop();
             }
             if (gameWebSocketApp != null) {
                 try {
@@ -144,6 +149,28 @@ public class Main {
                 URI.create("http://0.0.0.0:8080/api/"), config);
         mainServer = server;
 
+        // 低内存模式：缩小 Grizzly 线程池和缓冲区
+        if (AppConfig.getBoolean("performance.low_memory", true)) {
+            int grizzlyIoThreads = AppConfig.getInt("performance.grizzly_io_threads", 1);
+            int grizzlyWorkerCore = AppConfig.getInt("performance.grizzly_worker_cores", 1);
+            int grizzlyWorkerMax = AppConfig.getInt("performance.grizzly_worker_max", 2);
+            ThreadPoolConfig workerConfig = ThreadPoolConfig.defaultConfig()
+                    .setCorePoolSize(grizzlyWorkerCore)
+                    .setMaxPoolSize(grizzlyWorkerMax)
+                    .setQueueLimit(50)
+                    .setPoolName("grizzly-worker");
+            for (NetworkListener listener : server.getListeners()) {
+                listener.getTransport().setSelectorRunnersCount(grizzlyIoThreads);
+                listener.getTransport().setWorkerThreadPoolConfig(workerConfig);
+                // 缩小 IO 缓冲区 (默认 64KB → 16KB)
+                listener.getTransport().setReadBufferSize(16384);
+                listener.getTransport().setWriteBufferSize(16384);
+            }
+            LOG.info("低内存模式: Grizzly IO线程=" + grizzlyIoThreads +
+                    " 工作线程(" + grizzlyWorkerCore + "/" + grizzlyWorkerMax +
+                    ") 缓冲区=16KB");
+        }
+
         WebSocketAddOn wsAddOn = new WebSocketAddOn();
         server.getListeners().forEach(listener -> listener.registerAddOn(wsAddOn));
 
@@ -156,23 +183,31 @@ public class Main {
 
         int oneBotPort = AppConfig.getInt("onebot.port", 6700);
         boolean oneBotEnabled = AppConfig.getBoolean("onebot.enabled", true);
+        String oneBotMode = AppConfig.get("onebot.mode", "ws_server");
 
         if (oneBotEnabled) {
-            try {
-                LOG.info("正在启动 OneBot WebSocket 服务...");
+            if ("screenshot".equalsIgnoreCase(oneBotMode)) {
+                LOG.info("正在启动 OneBot 截图模式...");
+                screenshotBot = new OneBotScreenshotBot();
+                screenshotBot.start();
+                LOG.info("OneBot 截图模式已启动");
+            } else {
+                try {
+                    LOG.info("正在启动 OneBot WebSocket 服务...");
 
-                oneBotServer = new HttpServer();
-                NetworkListener oneBotListener = new NetworkListener("onebot", "0.0.0.0", oneBotPort);
-                oneBotListener.registerAddOn(new WebSocketAddOn());
-                oneBotServer.addListener(oneBotListener);
+                    oneBotServer = new HttpServer();
+                    NetworkListener oneBotListener = new NetworkListener("onebot", "0.0.0.0", oneBotPort);
+                    oneBotListener.registerAddOn(new WebSocketAddOn());
+                    oneBotServer.addListener(oneBotListener);
 
-                oneBotWebSocketServer = new OneBotWebSocketServer();
-                WebSocketEngine.getEngine().register("", "/onebot", oneBotWebSocketServer);
+                    oneBotWebSocketServer = new OneBotWebSocketServer();
+                    WebSocketEngine.getEngine().register("", "/onebot", oneBotWebSocketServer);
 
-                oneBotServer.start();
-                LOG.info("OneBot WebSocket 服务启动在 ws://127.0.0.1:" + oneBotPort + "/onebot");
-            } catch (Exception e) {
-                LOG.error("OneBot WebSocket 服务启动失败", e);
+                    oneBotServer.start();
+                    LOG.info("OneBot WebSocket 服务启动在 ws://127.0.0.1:" + oneBotPort + "/onebot");
+                } catch (Exception e) {
+                    LOG.error("OneBot WebSocket 服务启动失败", e);
+                }
             }
         }
 
@@ -195,6 +230,7 @@ public class Main {
             LOG.info("服务就绪，启动交互式客户端...");
             DemoClient.main(new String[0]);
             motdServer.stop();
+            if (screenshotBot != null) screenshotBot.stop();
             if (oneBotServer != null) oneBotServer.shutdownNow();
             server.shutdownNow();
             return;
@@ -204,6 +240,7 @@ public class Main {
             LOG.info("无GUI模式，按 Enter 键关闭服务器...");
             System.in.read();
             motdServer.stop();
+            if (screenshotBot != null) screenshotBot.stop();
             if (oneBotServer != null) oneBotServer.shutdownNow();
             server.shutdownNow();
             return;
@@ -213,6 +250,7 @@ public class Main {
         LOG.info("按 Enter 键关闭服务器...");
         System.in.read();
         motdServer.stop();
+        if (screenshotBot != null) screenshotBot.stop();
         if (oneBotServer != null) oneBotServer.shutdownNow();
         server.shutdownNow();
     }

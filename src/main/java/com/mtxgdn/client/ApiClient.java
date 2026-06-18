@@ -1,6 +1,5 @@
 package com.mtxgdn.client;
 
-import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.mtxgdn.common.ApiResponse;
 
@@ -11,8 +10,6 @@ import java.net.http.HttpResponse;
 import java.time.Duration;
 
 public class ApiClient {
-
-    private static final Gson gson = new Gson();
 
     private final HttpClient httpClient;
     private final ApiConfig config;
@@ -103,12 +100,7 @@ public class ApiClient {
         String method = request.method();
         String url = request.uri().toString();
         String body = request.bodyPublisher().map(p -> {
-            try {
-                var buf = java.io.ByteArrayOutputStream.class.getDeclaredConstructor().newInstance();
-                return "(body)";
-            } catch (Exception ex) {
-                return "(body)";
-            }
+            return "(body)";
         }).orElse("(nobody)");
 
         long start = System.currentTimeMillis();

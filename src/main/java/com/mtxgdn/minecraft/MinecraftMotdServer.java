@@ -101,6 +101,7 @@ public class MinecraftMotdServer {
                 return;
             }
 
+            @SuppressWarnings("unused")
             int clientProtocol = VarInt.readVarInt(in);
             readServerAddress(in);
             int nextState = VarInt.readVarInt(in);
@@ -132,7 +133,7 @@ public class MinecraftMotdServer {
     }
 
     private void handleStatusSequence(Socket socket, DataInputStream in, DataOutputStream out) throws IOException {
-        int packetLength = VarInt.readVarInt(in);
+        VarInt.readVarInt(in);
         int packetId = VarInt.readVarInt(in);
 
         if (packetId != 0x00) {
@@ -158,7 +159,7 @@ public class MinecraftMotdServer {
     }
 
     private void handlePingRequest(DataInputStream in, DataOutputStream out) throws IOException {
-        int packetLength = VarInt.readVarInt(in);
+        VarInt.readVarInt(in);
         int packetId = VarInt.readVarInt(in);
 
         if (packetId == 0x01) {

@@ -474,7 +474,9 @@ public class EconomyService {
     }
 
     private static class BankDeposit {
-        long id, playerId, principal, depositedAt, maturesAt;
+        @SuppressWarnings("unused")
+        long id;
+        long playerId, principal, depositedAt, maturesAt;
         String depositType, status;
         double rate;
     }
@@ -513,8 +515,6 @@ public class EconomyService {
     }
 
     private long estimate24hVolume(Connection conn) {
-        // MySQL 兼容：使用时间戳比较
-        long dayAgo = System.currentTimeMillis() - 24 * 3600000;
         try (PreparedStatement ps = conn.prepareStatement(
                 "SELECT COUNT(*) FROM trade_listings WHERE status = 'sold'");
              ResultSet rs = ps.executeQuery()) {
@@ -722,10 +722,15 @@ public class EconomyService {
     }
 
     private static class AuctionListing {
-        long id, sellerPlayerId, startPrice;
+        @SuppressWarnings("unused")
+        long id;
+        long sellerPlayerId, startPrice;
+        @SuppressWarnings("unused")
         int quantity;
+        @SuppressWarnings("unused")
         String itemKey;
         Long currentBid, currentBidderId;
+        @SuppressWarnings("unused")
         double feeRate;
     }
 

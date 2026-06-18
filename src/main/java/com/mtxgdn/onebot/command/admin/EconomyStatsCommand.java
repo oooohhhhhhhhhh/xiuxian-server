@@ -3,7 +3,6 @@ package com.mtxgdn.onebot.command.admin;
 import com.mtxgdn.common.command.Command;
 import com.mtxgdn.common.command.CommandContext;
 import com.mtxgdn.common.service.ServiceRegistry;
-import com.mtxgdn.game.entity.PlayerInfo;
 
 import java.util.Map;
 

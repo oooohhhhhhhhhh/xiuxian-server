@@ -1,7 +1,5 @@
 package com.mtxgdn.game.entity;
 
-import java.util.List;
-
 public class Sect {
 
     private long id;

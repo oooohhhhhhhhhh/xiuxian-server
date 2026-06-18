@@ -92,7 +92,6 @@ public class Monster {
     }
 
     public static Monster createBoss(String name, int realm, String description, Random random) {
-        int bonusMultiplier = 3 + realm;
 
         int hp = 80 + realm * 120 + random.nextInt(realm * 60 + 30);
         int atk = 15 + realm * 30 + random.nextInt(realm * 15 + 10);

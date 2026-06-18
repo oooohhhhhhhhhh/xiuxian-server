@@ -9,9 +9,6 @@ import com.mtxgdn.permission.PermissionService;
 import com.mtxgdn.onebot.QqBinding;
 import com.mtxgdn.onebot.QqBindingService;
 
-import java.util.Arrays;
-import java.util.stream.Collectors;
-
 public class SetRootCommand extends Command {
     public SetRootCommand() {
         super(new String[]{"修改灵根", "setroot", "设置灵根", "灵根"},

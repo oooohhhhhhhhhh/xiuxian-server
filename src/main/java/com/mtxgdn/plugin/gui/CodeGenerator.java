@@ -35,8 +35,6 @@ public final class CodeGenerator {
         if (!outDir.exists() && !outDir.mkdirs()) {
             throw new IOException("无法创建输出目录: " + outDir.getAbsolutePath());
         }
-        String pkg = config.getPackageName();
-        String pkgPath = config.getPackagePath();
 
         // ========== 基础文件 ==========
         generatedPaths.add(writeTemplated(outDir, "pom.xml", "pom.xml.template"));

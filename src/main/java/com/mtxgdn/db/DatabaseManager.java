@@ -44,13 +44,15 @@ public class DatabaseManager {
                     } else {
                         config.setUsername(DB_USER);
                         config.setPassword(DB_PASSWORD);
-                        config.setMaximumPoolSize(10);
-                        config.setMinimumIdle(2);
-                        config.setIdleTimeout(30000);
+                        int maxPool = AppConfig.getInt("performance.db_pool_max", 4);
+                        config.setMaximumPoolSize(maxPool);
+                        config.setMinimumIdle(Math.min(1, maxPool));
+                        config.setIdleTimeout(20000);
+                        config.setMaxLifetime(600000);
                         config.setConnectionTimeout(10000);
                         config.addDataSourceProperty("cachePrepStmts", "true");
-                        config.addDataSourceProperty("prepStmtCacheSize", "250");
-                        config.addDataSourceProperty("prepStmtCacheSqlLimit", "2048");
+                        config.addDataSourceProperty("prepStmtCacheSize", "50");
+                        config.addDataSourceProperty("prepStmtCacheSqlLimit", "1024");
                         config.addDataSourceProperty("useUnicode", "true");
                         config.addDataSourceProperty("characterEncoding", "UTF-8");
                         config.setConnectionInitSql("SET NAMES utf8mb4");
@@ -1176,7 +1178,6 @@ public class DatabaseManager {
      */
     public static Map<String, Integer> importData(String json) {
         Map<String, Integer> result = new LinkedHashMap<>();
-        com.google.gson.Gson gson = new com.google.gson.Gson();
         com.google.gson.JsonObject root = com.google.gson.JsonParser.parseString(json).getAsJsonObject();
 
         if (!root.has("tables")) {

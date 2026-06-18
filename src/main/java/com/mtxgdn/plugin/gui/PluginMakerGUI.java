@@ -350,7 +350,7 @@ public class PluginMakerGUI extends JFrame {
     /** 从文件载入后，重建各注册项面板（因为 list 引用已改变）。 */
     private void rebuildAllEntriesPanels() {
         // 找到当前 tabbed pane，替换各 tab 内容
-        if (!(getContentPane().getComponent(0) instanceof JPanel root)) return;
+        if (!(getContentPane().getComponent(0) instanceof JPanel)) return;
         // 简单策略：重新构造整个内容区域。为简单起见，直接 dispose 并打开新窗口。
         // 但更友好的做法是在 Preview 页的组件上做动态刷新。
         // 为稳定起见，这里弹出提示并仅刷新 basicPanel。

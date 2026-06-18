@@ -1,25 +1,19 @@
 package com.mtxgdn.game.service;
 
 import com.google.gson.Gson;
-import com.google.gson.reflect.TypeToken;
 import com.mtxgdn.db.DatabaseManager;
 import com.mtxgdn.game.entity.RedeemCode;
 import com.mtxgdn.game.item.ItemRegistry;
-import com.mtxgdn.game.service.ItemService;
-import com.mtxgdn.game.service.PlayerService;
 import com.mtxgdn.common.service.ServiceRegistry;
 
-import java.lang.reflect.Type;
 import java.sql.*;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
 public class RedeemCodeService {
 
     private static final Gson gson = new Gson();
-    private static final Type ITEMS_MAP_TYPE = new TypeToken<Map<String, Integer>>() {}.getType();
     private final PlayerService playerService = ServiceRegistry.getPlayerService();
     private final ItemService itemService = ServiceRegistry.getItemService();
 

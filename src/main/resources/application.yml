@@ -43,11 +43,37 @@ smtp:
 onebot:
   enabled: true
   port: 6700
+  # 运行模式: ws_server(WebSocket服务端) / screenshot(截图模拟真人操作)
+  mode: ws_server
   # 消息发送方式: text(普通文字) / chat_record(聊天记录/合并转发)
+  # 注意: screenshot 模式只使用 text 方式
   send_mode: text
+  # 截图模式配置 (仅 mode=screenshot 时生效)
+  screenshot:
+    # 目标窗口标题匹配关键词 (如 "QQ")
+    window_title: ""
+    # 截图轮询间隔 (毫秒)
+    poll_interval: 2000
 
 # ---- 日志 ----
 logging:
   level: DEBUG
   dir: log
   color: true
+
+# ---- 性能 / 低内存优化 ----
+performance:
+  # JVM 启动参数建议 (java -Xms128m -Xmx256m -XX:+UseSerialGC ...)
+  # 可用 start-low-memory.bat 一键启动低内存模式
+  # 低内存模式: 启用后自动缩小连接池、线程池、缓冲区
+  low_memory: true
+  # HikariCP 连接池最大连接数 (MySQL 默认用此值; SQLite 固定为 1)
+  db_pool_max: 4
+  # 内存日志最大保留条数
+  memory_log_entries: 200
+  # Grizzly IO 工作线程数 (0 = CPU 核心数)
+  grizzly_io_threads: 1
+  # Grizzly 核心工作线程数
+  grizzly_worker_cores: 1
+  # Grizzly 最大工作线程数
+  grizzly_worker_max: 2

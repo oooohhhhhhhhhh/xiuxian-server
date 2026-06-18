@@ -308,6 +308,7 @@ public class SecretRealmService {
         return result;
     }
 
+    @SuppressWarnings("unused")
     private String generateMonsterName() {
         String[] prefixes = {"烈焰", "冰霜", "暗影", "血牙", "铁甲", "疾风", "毒雾", "岩石", "幽冥", "金翅"};
         String[] names = {"妖狼", "巨蟒", "魔蛛", "赤虎", "黑熊", "妖鹰", "石魔", "蛇妖", "蝎王", "魅狐"};

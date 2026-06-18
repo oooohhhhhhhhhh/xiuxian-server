@@ -205,7 +205,6 @@ public class EnhanceService {
     }
 
     private void unequipItem(long playerId, String slot) {
-        String itemKey = getEquippedItemKey(playerId, slot);
         String sql = "DELETE FROM players_equipment WHERE player_id = ? AND slot = ?";
         try (Connection conn = DatabaseManager.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {

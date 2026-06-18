@@ -9,7 +9,6 @@ import com.mtxgdn.game.entity.SectMember;
 import com.mtxgdn.game.entity.SectWarehouseItem;
 import com.mtxgdn.game.item.Item;
 import com.mtxgdn.game.item.ItemRegistry;
-import com.mtxgdn.util.GameLogger;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -23,7 +22,6 @@ import java.util.Map;
 
 public class SectService {
 
-    private static final GameLogger LOG = GameLogger.getLogger(SectService.class);
     private final PlayerService playerService = new PlayerService();
     private final ItemService itemService = new ItemService();
 

@@ -44,23 +44,18 @@ public class OneBotWebSocketServer extends WebSocketApplication
     private final Map<String, PendingSession> pendingSessions = new ConcurrentHashMap<>();
 
     private static class PendingSession {
-        final String qqNumber;
-        String selfId;
         Long sourceGroupId;
         String type;
         String state;
         String username;
 
-        PendingSession(String qqNumber, String type, String selfId, Long sourceGroupId) {
-            this.qqNumber = qqNumber;
+        PendingSession(String type, Long sourceGroupId) {
             this.type = type;
-            this.selfId = selfId;
             this.sourceGroupId = sourceGroupId;
             this.state = "WAITING_PASSWORD";
         }
 
-        PendingSession(String qqNumber) {
-            this.qqNumber = qqNumber;
+        PendingSession() {
             this.type = "bind";
             this.state = "WAITING_USERNAME";
         }
@@ -170,15 +165,13 @@ public class OneBotWebSocketServer extends WebSocketApplication
 
         String[] parsed = parseCommand(trimmed);
         if (!RateLimiter.allow("qq:" + senderQq, 10, 60)) {
-            sendGroupMsg(socket, selfId, groupId,
-                    "[CQ:at,qq=" + senderQq + "] 操作太频繁，请稍后再试");
+            replyToSource(socket, selfId, senderQq, groupId, "操作太频繁，请稍后再试");
             return;
         }
 
         Command command = CommandRegistry.get(parsed[0]);
         if (command != null && command.isPrivateOnly()) {
-            sendGroupMsg(socket, selfId, groupId,
-                    "[CQ:at,qq=" + senderQq + "] 请私聊机器人使用此指令，保护您的账户安全。");
+            replyToSource(socket, selfId, senderQq, groupId, "请私聊机器人使用此指令，保护您的账户安全。");
             return;
         }
         dispatchCommand(socket, selfId, senderQq, senderNickname, groupId, parsed[0], parsed[1]);
@@ -189,12 +182,7 @@ public class OneBotWebSocketServer extends WebSocketApplication
         Command command = CommandRegistry.get(cmd);
         if (command == null) {
             String msg = "未知指令，请输入 /help 查看可用指令";
-            if (groupId != null) {
-                sendGroupMsg(socket, selfId, groupId,
-                        "[CQ:at,qq=" + senderQq + "] " + msg);
-            } else {
-                sendPrivateMsg(socket, selfId, senderQq, msg);
-            }
+            replyToSource(socket, selfId, senderQq, groupId, msg);
             return;
         }
 
@@ -348,7 +336,7 @@ public class OneBotWebSocketServer extends WebSocketApplication
             replyToSource(socket, selfId, senderQq, sourceGroupId, "角色名已被占用，请换一个。");
             return;
         }
-        PendingSession session = new PendingSession(senderQq, "register", selfId, sourceGroupId);
+        PendingSession session = new PendingSession("register", sourceGroupId);
         session.username = name;
         pendingSessions.put(senderQq, session);
         replyToSource(socket, selfId, senderQq, sourceGroupId,
@@ -363,7 +351,7 @@ public class OneBotWebSocketServer extends WebSocketApplication
                     "你已绑定账号 (用户ID: " + b.getUserId() + ")，/unbind 可解绑。");
             return;
         }
-        PendingSession session = new PendingSession(senderQq);
+        PendingSession session = new PendingSession();
         pendingSessions.put(senderQq, session);
         sendPrivateMsg(socket, selfId, senderQq,
                 "===== 账号绑定 =====\n请输入游戏用户名：\n(输入 /cancel 取消)");

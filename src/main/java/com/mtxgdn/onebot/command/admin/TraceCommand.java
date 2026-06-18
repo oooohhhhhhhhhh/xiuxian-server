@@ -6,7 +6,6 @@ import com.mtxgdn.db.DatabaseManager;
 import com.mtxgdn.permission.PermissionService;
 import com.mtxgdn.onebot.QqBinding;
 import com.mtxgdn.onebot.QqBindingService;
-import com.mtxgdn.onebot.command.OneBotCommandContext;
 
 import java.util.List;
 import java.util.Map;
@@ -21,7 +20,6 @@ public class TraceCommand extends Command {
 
     @Override
     public void execute(CommandContext ctx) {
-        OneBotCommandContext octx = (OneBotCommandContext) ctx;
         QqBinding b = new QqBindingService().findByQq(ctx.getSenderId());
         if (b == null) {
             ctx.reply("请先绑定账号。\n私聊使用 /bind");

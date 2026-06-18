@@ -1,6 +1,5 @@
 package com.mtxgdn.onebot;
 
-import com.google.gson.JsonObject;
 import org.glassfish.grizzly.websockets.WebSocket;
 
 public interface OneBotMessageSender {

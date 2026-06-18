@@ -51,7 +51,7 @@ public class GameConfigLoader {
     }
 
     public static RealmConfig getNextRealmConfig(int currentRealmId, int currentSubRealm) {
-        List<RealmConfig> configs = getRealmConfigs();
+        getRealmConfigs();
 
         RealmConfig nextSub = getRealmConfig(currentRealmId, currentSubRealm + 1);
         if (nextSub != null) {

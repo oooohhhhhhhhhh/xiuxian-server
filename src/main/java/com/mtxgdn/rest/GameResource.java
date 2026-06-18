@@ -51,7 +51,6 @@ import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 
-import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
 
@@ -126,7 +125,6 @@ public class GameResource {
 
         JsonObject data = gson.toJsonTree(player).getAsJsonObject();
 
-        RealmConfig current = GameConfigLoader.getRealmConfig(player.getRealm(), player.getSubRealm());
         RealmConfig next = GameConfigLoader.getNextRealmConfig(player.getRealm(), player.getSubRealm());
         if (next != null) {
             data.addProperty("nextRealmName", next.getFullName());
@@ -1778,6 +1776,7 @@ public class GameResource {
         return Response.ok(GameMessage.restOk("获取成功", data).toString()).build();
     }
 
+    @SuppressWarnings("unused")
     private Response buildSectResponse(Sect sect, int playerId) {
         JsonObject data = gson.toJsonTree(sect).getAsJsonObject();
         data.addProperty("maxMembers", Sect.getMaxMembersForLevel(sect.getLevel()));
