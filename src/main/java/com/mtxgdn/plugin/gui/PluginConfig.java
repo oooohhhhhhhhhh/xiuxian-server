@@ -12,12 +12,14 @@ import java.util.Map;
 /**
  * 插件制作配置 —— GUI 中用户设置的全部内容。
  * <p>
- * 支持：
+ * 包含：
  * <ul>
- *   <li>基础信息（插件名、版本、作者、描述、包名、主类名）</li>
- *   <li>功能开关（是否注册命令/物品/事件/秘境）</li>
- *   <li>事件触发器列表（用户在触发器面板中配置的条目）</li>
- *   <li>JSON 格式持久化（保存/加载到文件）</li>
+ *   <li>基础信息（插件名、版本、作者、描述、包名、主类名、输出目录）</li>
+ *   <li>物品列表（List&lt;RegistrableEntry&gt;）—— 每个物品可含触发器</li>
+ *   <li>事件列表（List&lt;RegistrableEntry&gt;）—— 每个事件可含触发器</li>
+ *   <li>指令列表（List&lt;RegistrableEntry&gt;）—— 每个指令可含触发器</li>
+ *   <li>秘境列表（List&lt;RegistrableEntry&gt;）—— 每个秘境可含触发器</li>
+ *   <li>JSON 格式持久化</li>
  * </ul>
  */
 public final class PluginConfig {
@@ -32,14 +34,11 @@ public final class PluginConfig {
     private String mainClass;
     private String outputDir;
 
-    // ===== 功能开关
-    private boolean includeCommand;
-    private boolean includeItem;
-    private boolean includeEvent;
-    private boolean includeSecretRealm;
-
-    // ===== 触发器列表
-    private final List<TriggerConfig> triggers;
+    // ===== 注册项列表（触发器是每个注册项的属性，不再是顶层）
+    private final List<RegistrableEntry> items;
+    private final List<RegistrableEntry> events;
+    private final List<RegistrableEntry> commands;
+    private final List<RegistrableEntry> secretRealms;
 
     public PluginConfig() {
         this.pluginName = "我的插件";
@@ -50,11 +49,15 @@ public final class PluginConfig {
         this.groupId = "com.example";
         this.mainClass = "MyPlugin";
         this.outputDir = "./my-plugin";
-        this.includeCommand = true;
-        this.includeItem = true;
-        this.includeEvent = false;
-        this.includeSecretRealm = false;
-        this.triggers = new ArrayList<>();
+
+        this.items = new ArrayList<>();
+        this.events = new ArrayList<>();
+        this.commands = new ArrayList<>();
+        this.secretRealms = new ArrayList<>();
+
+        // 默认示例，便于用户理解结构
+        this.items.add(RegistrableEntry.newItem("demo_talisman", "示例符箓"));
+        this.commands.add(RegistrableEntry.newCommand("/你好", "打招呼指令"));
     }
 
     // ==================== 访问器 ====================
@@ -75,21 +78,30 @@ public final class PluginConfig {
     public void setMainClass(String v) { this.mainClass = nullToEmpty(v); }
     public String getOutputDir() { return outputDir; }
     public void setOutputDir(String v) { this.outputDir = nullToEmpty(v); }
-    public boolean isIncludeCommand() { return includeCommand; }
-    public void setIncludeCommand(boolean b) { this.includeCommand = b; }
-    public boolean isIncludeItem() { return includeItem; }
-    public void setIncludeItem(boolean b) { this.includeItem = b; }
-    public boolean isIncludeEvent() { return includeEvent; }
-    public void setIncludeEvent(boolean b) { this.includeEvent = b; }
-    public boolean isIncludeSecretRealm() { return includeSecretRealm; }
-    public void setIncludeSecretRealm(boolean b) { this.includeSecretRealm = b; }
 
-    public List<TriggerConfig> getTriggers() { return triggers; }
+    public List<RegistrableEntry> getItems() { return items; }
+    public List<RegistrableEntry> getEvents() { return events; }
+    public List<RegistrableEntry> getCommands() { return commands; }
+    public List<RegistrableEntry> getSecretRealms() { return secretRealms; }
 
     /** 合成的 Java 包名（groupId.artifactId）。 */
     public String getPackageName() { return groupId + (artifactId.isEmpty() ? "" : "." + artifactId); }
     /** 合成的目录路径（相对 src/main/java）。 */
     public String getPackagePath() { return getPackageName().replace('.', '/'); }
+
+    /** 返回注册项总数（用于 UI 统计）。 */
+    public int totalEntries() {
+        return items.size() + events.size() + commands.size() + secretRealms.size();
+    }
+    /** 返回所有注册项的触发器总数（用于 UI 统计）。 */
+    public int totalTriggers() {
+        int total = 0;
+        for (RegistrableEntry e : items) total += e.getTriggers().size();
+        for (RegistrableEntry e : events) total += e.getTriggers().size();
+        for (RegistrableEntry e : commands) total += e.getTriggers().size();
+        for (RegistrableEntry e : secretRealms) total += e.getTriggers().size();
+        return total;
+    }
 
     private static String nullToEmpty(String s) { return s == null ? "" : s; }
 
@@ -105,11 +117,11 @@ public final class PluginConfig {
         m.put("groupId", groupId);
         m.put("mainClass", mainClass);
         m.put("outputDir", outputDir);
-        m.put("includeCommand", includeCommand);
-        m.put("includeItem", includeItem);
-        m.put("includeEvent", includeEvent);
-        m.put("includeSecretRealm", includeSecretRealm);
-        m.put("triggers", TriggerConfig.listToMap(triggers));
+
+        m.put("items", RegistrableEntry.listToMap(items));
+        m.put("events", RegistrableEntry.listToMap(events));
+        m.put("commands", RegistrableEntry.listToMap(commands));
+        m.put("secretRealms", RegistrableEntry.listToMap(secretRealms));
         return m;
     }
 
@@ -123,12 +135,15 @@ public final class PluginConfig {
         c.groupId = MiniJson.getString(m, "groupId", c.groupId);
         c.mainClass = MiniJson.getString(m, "mainClass", c.mainClass);
         c.outputDir = MiniJson.getString(m, "outputDir", c.outputDir);
-        c.includeCommand = MiniJson.getBoolean(m, "includeCommand", c.includeCommand);
-        c.includeItem = MiniJson.getBoolean(m, "includeItem", c.includeItem);
-        c.includeEvent = MiniJson.getBoolean(m, "includeEvent", c.includeEvent);
-        c.includeSecretRealm = MiniJson.getBoolean(m, "includeSecretRealm", c.includeSecretRealm);
-        c.triggers.clear();
-        c.triggers.addAll(TriggerConfig.listFromMap(MiniJson.getListOfObjects(m, "triggers")));
+
+        c.items.clear();
+        c.items.addAll(RegistrableEntry.listFromMap(MiniJson.getListOfObjects(m, "items")));
+        c.events.clear();
+        c.events.addAll(RegistrableEntry.listFromMap(MiniJson.getListOfObjects(m, "events")));
+        c.commands.clear();
+        c.commands.addAll(RegistrableEntry.listFromMap(MiniJson.getListOfObjects(m, "commands")));
+        c.secretRealms.clear();
+        c.secretRealms.addAll(RegistrableEntry.listFromMap(MiniJson.getListOfObjects(m, "secretRealms")));
         return c;
     }
 

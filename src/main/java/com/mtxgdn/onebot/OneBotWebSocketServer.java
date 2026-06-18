@@ -1,7 +1,9 @@
 package com.mtxgdn.onebot;
 
 import com.google.gson.Gson;
+import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import com.mtxgdn.util.AppConfig;
 import com.mtxgdn.common.command.Command;
 import com.mtxgdn.common.command.CommandRegistry;
 import com.mtxgdn.common.service.ServiceRegistry;
@@ -225,11 +227,33 @@ public class OneBotWebSocketServer extends WebSocketApplication
 
     // ==================== OneBotMessageSender ====================
 
+    private static final String SEND_MODE = AppConfig.get("onebot.send_mode", "text");
+
+    private boolean isChatRecordMode() {
+        return "chat_record".equalsIgnoreCase(SEND_MODE);
+    }
+
+    private JsonArray buildForwardMessages(String name, String content) {
+        JsonArray messages = new JsonArray();
+        JsonObject node = new JsonObject();
+        node.addProperty("type", "node");
+        JsonObject data = new JsonObject();
+        data.addProperty("name", name);
+        data.addProperty("content", content);
+        node.add("data", data);
+        messages.add(node);
+        return messages;
+    }
+
     @Override
     public void replyToSource(WebSocket socket, String selfId, String senderQq, Long groupId, String message) {
         if (groupId != null) {
-            sendGroupMsg(socket, selfId, groupId,
-                    "[CQ:at,qq=" + senderQq + "]\n" + message);
+            if (isChatRecordMode()) {
+                sendGroupForwardMsg(socket, selfId, groupId, "系统消息", message);
+            } else {
+                sendGroupMsg(socket, selfId, groupId,
+                        "[CQ:at,qq=" + senderQq + "]\n" + message);
+            }
         } else {
             sendPrivateMsg(socket, selfId, senderQq, message);
         }
@@ -237,6 +261,10 @@ public class OneBotWebSocketServer extends WebSocketApplication
 
     @Override
     public void sendPrivateMsg(WebSocket socket, String selfId, String targetQq, String message) {
+        if (isChatRecordMode()) {
+            sendPrivateForwardMsg(socket, selfId, targetQq, "系统消息", message);
+            return;
+        }
         JsonObject api = new JsonObject();
         api.addProperty("action", "send_private_msg");
         JsonObject params = new JsonObject();
@@ -251,11 +279,43 @@ public class OneBotWebSocketServer extends WebSocketApplication
 
     @Override
     public void sendGroupMsg(WebSocket socket, String selfId, Long groupId, String message) {
+        if (isChatRecordMode()) {
+            sendGroupForwardMsg(socket, selfId, groupId, "系统消息", message);
+            return;
+        }
         JsonObject api = new JsonObject();
         api.addProperty("action", "send_group_msg");
         JsonObject params = new JsonObject();
         params.addProperty("group_id", groupId);
         params.addProperty("message", message);
+        api.add("params", params);
+        api.addProperty("echo", UUID.randomUUID().toString());
+        String jsonStr = gson.toJson(api);
+        botLog.logSendToGroup(groupId, jsonStr);
+        socket.send(jsonStr);
+    }
+
+    private void sendPrivateForwardMsg(WebSocket socket, String selfId, String targetQq,
+                                       String senderName, String content) {
+        JsonObject api = new JsonObject();
+        api.addProperty("action", "send_private_forward_msg");
+        JsonObject params = new JsonObject();
+        params.addProperty("user_id", targetQq);
+        params.add("messages", buildForwardMessages(senderName, content));
+        api.add("params", params);
+        api.addProperty("echo", UUID.randomUUID().toString());
+        String jsonStr = gson.toJson(api);
+        botLog.logSend(targetQq, jsonStr);
+        socket.send(jsonStr);
+    }
+
+    private void sendGroupForwardMsg(WebSocket socket, String selfId, Long groupId,
+                                     String senderName, String content) {
+        JsonObject api = new JsonObject();
+        api.addProperty("action", "send_group_forward_msg");
+        JsonObject params = new JsonObject();
+        params.addProperty("group_id", groupId);
+        params.add("messages", buildForwardMessages(senderName, content));
         api.add("params", params);
         api.addProperty("echo", UUID.randomUUID().toString());
         String jsonStr = gson.toJson(api);

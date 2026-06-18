@@ -43,6 +43,8 @@ smtp:
 onebot:
   enabled: true
   port: 6700
+  # 消息发送方式: text(普通文字) / chat_record(聊天记录/合并转发)
+  send_mode: text
 
 # ---- 日志 ----
 logging:

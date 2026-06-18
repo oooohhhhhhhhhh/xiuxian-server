@@ -18,24 +18,54 @@ public final class CodeGeneratorTest {
         cfg.setGroupId("com.example");
         cfg.setMainClass("TestPlugin");
         cfg.setOutputDir("./target/test-plugin-gen");
-        cfg.setIncludeCommand(true);
-        cfg.setIncludeItem(true);
-        cfg.setIncludeEvent(true);
 
-        // 添加 2 个触发器
-        TriggerConfig t1 = new TriggerConfig();
-        t1.setEventType(com.mtxgdn.plugin.event.PluginEvent.Type.COMMAND);
-        t1.setCondition("command=/你好");
-        t1.setAction(TriggerConfig.Action.SEND_MESSAGE);
-        t1.setActionParam("道友安好！");
-        t1.setDescription("玩家发送 /你好 时回复问候");
-        cfg.getTriggers().add(t1);
+        // ===== 物品 1：示例符箓 =====
+        RegistrableEntry item = RegistrableEntry.newItem("demo_talisman", "示例符箓");
+        item.setDescription("测试物品，使用时触发消息");
+        Trigger itemUse = new Trigger();
+        itemUse.setTriggerWhen(Trigger.When.ITEM_ON_USE);
+        itemUse.setAction(Trigger.Action.SEND_MESSAGE);
+        itemUse.setActionParam("道友安好！");
+        itemUse.setDescription("玩家使用物品时回复问候");
+        item.getTriggers().add(itemUse);
 
-        TriggerConfig t2 = new TriggerConfig();
-        t2.setEventType(com.mtxgdn.plugin.event.PluginEvent.Type.PLAYER_LOGIN);
-        t2.setAction(TriggerConfig.Action.LOG_ONLY);
-        t2.setDescription("记录玩家登录");
-        cfg.getTriggers().add(t2);
+        Trigger itemObtain = new Trigger();
+        itemObtain.setTriggerWhen(Trigger.When.ITEM_ON_OBTAIN);
+        itemObtain.setAction(Trigger.Action.GIVE_SPIRIT_STONES);
+        itemObtain.setActionParam("100");
+        itemObtain.setDescription("获得物品时给予 100 灵石");
+        item.getTriggers().add(itemObtain);
+        cfg.getItems().add(item);
+
+        // ===== 指令 1：/你好 =====
+        RegistrableEntry cmd = RegistrableEntry.newCommand("/你好", "打招呼");
+        cmd.setDescription("玩家发送 /你好 时回复问候");
+        Trigger cmdExec = new Trigger();
+        cmdExec.setTriggerWhen(Trigger.When.COMMAND_ON_EXECUTE);
+        cmdExec.setAction(Trigger.Action.SEND_MESSAGE);
+        cmdExec.setActionParam("你好，欢迎来到修仙世界！");
+        cmdExec.setDescription("玩家执行 /你好 时回复消息");
+        cmd.getTriggers().add(cmdExec);
+        cfg.getCommands().add(cmd);
+
+        // ===== 事件：玩家登录 =====
+        RegistrableEntry ev = RegistrableEntry.newEvent("player_login", "玩家登录");
+        Trigger evFire = new Trigger();
+        evFire.setTriggerWhen(Trigger.When.EVENT_ON_FIRE);
+        evFire.setAction(Trigger.Action.LOG_ONLY);
+        evFire.setDescription("记录玩家登录事件");
+        ev.getTriggers().add(evFire);
+        cfg.getEvents().add(ev);
+
+        // ===== 秘境：新手秘境 =====
+        RegistrableEntry realm = RegistrableEntry.newSecretRealm("beginner", "新手秘境");
+        realm.setExtraInfo("最低等级: 1 | 体力消耗: 10");
+        Trigger realmEnter = new Trigger();
+        realmEnter.setTriggerWhen(Trigger.When.REALM_ON_ENTER);
+        realmEnter.setAction(Trigger.Action.LOG_ONLY);
+        realmEnter.setDescription("进入秘境时记录日志");
+        realm.getTriggers().add(realmEnter);
+        cfg.getSecretRealms().add(realm);
 
         System.out.println("==== 生成测试插件项目 ====");
         List<String> files = new CodeGenerator(cfg).generateAll();
@@ -50,21 +80,22 @@ public final class CodeGeneratorTest {
             }
         }
 
-        // 验证 Triggers.java 文件内容检查
+        // 验证主类文件内容
         System.out.println();
-        System.out.println("==== 验证 Triggers.java 内容摘要:");
-        File triggersJava = new File(cfg.getOutputDir() + "/src/main/java/" + cfg.getPackageName().replace('.', '/') + "/" + cfg.getMainClass() + "Triggers.java");
-        if (triggersJava.exists()) {
-            byte[] data = java.nio.file.Files.readAllBytes(triggersJava.toPath());
+        System.out.println("==== 验证主类内容摘要:");
+        File mainJava = new File(cfg.getOutputDir() + "/src/main/java/" +
+                cfg.getPackagePath() + "/" + cfg.getMainClass() + ".java");
+        if (mainJava.exists()) {
+            byte[] data = java.nio.file.Files.readAllBytes(mainJava.toPath());
             String content = new String(data, java.nio.charset.StandardCharsets.UTF_8);
             String[] lines = content.split("\n");
             int shown = 0;
             for (String line : lines) {
-                if (shown >= 25) break;
+                if (shown >= 30) break;
                 System.out.println("  " + line);
                 shown++;
             }
-            if (lines.length > 25) System.out.println("  ... (" + lines.length + " 行)");
+            if (lines.length > 30) System.out.println("  ... (" + lines.length + " 行)");
         }
 
         System.out.println();

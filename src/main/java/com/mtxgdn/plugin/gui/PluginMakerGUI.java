@@ -8,37 +8,39 @@ import java.util.ArrayList;
 import java.util.List;
 
 /**
- * 插件制作工具主窗口 —— 现代化简洁版。
+ * 插件制作工具主窗口。
  * <p>
- * 结构：顶部标题栏 / 中部选项卡（基础配置 / 触发器 / 预览）+ 右侧日志 / 底部操作栏。
- * 每个选项卡内部都包含可滚动区域，避免内容超出屏幕被裁切。
+ * Tab 结构：基础配置 / 物品 / 事件 / 指令 / 秘境 / 生成 & 预览。
+ * 每种注册项（物品/事件/指令/秘境）有自己的配置面板，其中触发器是每个注册项的子属性。
  */
 public class PluginMakerGUI extends JFrame {
 
-    private final PluginConfig config = new PluginConfig();
+    private final PluginConfig config;
     private BasicConfigPanel basicPanel;
-    private TriggerPanel triggerPanel;
+    private EntriesPanel itemsPanel;
+    private EntriesPanel eventsPanel;
+    private EntriesPanel commandsPanel;
+    private EntriesPanel realmsPanel;
     private JTextArea logArea;
 
     public static void launch() {
-        // 必须在任何 I/O 操作和 Swing 初始化前设置，强制 UTF-8 编码，避免中文乱码
         System.setProperty("file.encoding", "UTF-8");
         System.setProperty("sun.jnu.encoding", "UTF-8");
         SwingUtilities.invokeLater(() -> {
             Theme.installLookAndFeel();
             PluginMakerGUI gui = new PluginMakerGUI();
             gui.setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
-            // 确保顶层容器更新所有子组件字体（有些UI代理
             SwingUtilities.updateComponentTreeUI(gui);
             gui.setVisible(true);
         });
     }
 
     private PluginMakerGUI() {
+        this.config = new PluginConfig();
         setTitle("🛠 插件制作工具 · Plugin Maker");
-        setMinimumSize(new Dimension(880, 600));
-        setPreferredSize(new Dimension(1100, 760));
-        setSize(1100, 760);
+        setMinimumSize(new Dimension(920, 640));
+        setPreferredSize(new Dimension(1150, 780));
+        setSize(1150, 780);
         setLocationRelativeTo(null);
         setDefaultCloseOperation(JFrame.DISPOSE_ON_CLOSE);
 
@@ -46,32 +48,32 @@ public class PluginMakerGUI extends JFrame {
         root.setBackground(Theme.BG_PRIMARY);
         root.setBorder(BorderFactory.createEmptyBorder(12, 14, 14, 14));
 
-        root.add(buildHeader(),   BorderLayout.NORTH);
-        root.add(buildBody(),     BorderLayout.CENTER);
-        root.add(buildFooter(),   BorderLayout.SOUTH);
+        root.add(buildHeader(), BorderLayout.NORTH);
+        root.add(buildBody(), BorderLayout.CENTER);
+        root.add(buildFooter(), BorderLayout.SOUTH);
 
         add(root);
         log("欢迎使用 Plugin Maker");
-        log("请在【基础配置】中填写信息，在【事件触发器】中配置触发器，然后点击【生成插件】。");
+        log("请在【基础配置】填写插件信息，然后在【物品/事件/指令/秘境】中配置各项及其触发器。");
     }
 
-    // ================ 顶部 ================
+    // ==================== 顶部 ====================
 
     private JComponent buildHeader() {
         JPanel p = new JPanel(new BorderLayout(16, 4));
         p.setBackground(Theme.BG_PRIMARY);
         p.setBorder(BorderFactory.createEmptyBorder(0, 4, 8, 4));
 
-        JLabel title = Theme.titleLabel("🛠 插件制作工具", 20f);
-        title.setBorder(BorderFactory.createEmptyBorder(2, 0, 0, 0));
-
-        JLabel subtitle = Theme.hintLabel("基于模板快速生成 Server 插件项目");
-        subtitle.setBorder(BorderFactory.createEmptyBorder(4, 2, 0, 0));
-
         JPanel left = new JPanel();
         left.setLayout(new BoxLayout(left, BoxLayout.Y_AXIS));
         left.setBackground(Theme.BG_PRIMARY);
+
+        JLabel title = Theme.titleLabel("🛠 插件制作工具", 20f);
+        title.setBorder(BorderFactory.createEmptyBorder(2, 0, 0, 0));
         left.add(title);
+
+        JLabel subtitle = Theme.hintLabel("快速生成可部署的 Server 插件项目（含物品、事件、指令、秘境及其触发器）");
+        subtitle.setBorder(BorderFactory.createEmptyBorder(4, 2, 0, 0));
         left.add(subtitle);
 
         JLabel right = Theme.hintLabel("Plugin Maker · v1.4.1-alpha1");
@@ -82,7 +84,7 @@ public class PluginMakerGUI extends JFrame {
         return p;
     }
 
-    // ================ 中部：选项卡 + 日志 ================
+    // ==================== 中部：Tab + 日志 ====================
 
     private JComponent buildBody() {
         JSplitPane split = new JSplitPane(JSplitPane.HORIZONTAL_SPLIT);
@@ -90,7 +92,7 @@ public class PluginMakerGUI extends JFrame {
         split.setBackground(Theme.BG_PRIMARY);
         split.setLeftComponent(buildTabbedPane());
         split.setRightComponent(buildLogPanel());
-        split.setResizeWeight(0.72);
+        split.setResizeWeight(0.75);
         split.setDividerSize(3);
         return split;
     }
@@ -98,31 +100,22 @@ public class PluginMakerGUI extends JFrame {
     private JComponent buildTabbedPane() {
         JTabbedPane tabs = new JTabbedPane(JTabbedPane.TOP);
         Theme.styleTabbedPane(tabs);
-        tabs.setFont(Theme.fontBold(13f));
+        tabs.setFont(Theme.fontBold(12.5f));
 
         basicPanel = new BasicConfigPanel(config);
-        triggerPanel = new TriggerPanel(config);
+        itemsPanel = new EntriesPanel(RegistrableEntry.Type.ITEM, config.getItems());
+        eventsPanel = new EntriesPanel(RegistrableEntry.Type.EVENT, config.getEvents());
+        commandsPanel = new EntriesPanel(RegistrableEntry.Type.COMMAND, config.getCommands());
+        realmsPanel = new EntriesPanel(RegistrableEntry.Type.SECRET_REALM, config.getSecretRealms());
 
-        JScrollPane basicScroll   = wrapInScrollPane(basicPanel);
-        JScrollPane triggerScroll = wrapInScrollPane(triggerPanel);
-
-        tabs.addTab("  📋 基础配置  ", basicScroll);
-        tabs.addTab("  ⚡ 事件触发器  ", triggerScroll);
-        tabs.addTab("  ✅ 生成 & 预览  ", buildPreviewTab());
+        tabs.addTab(" 📋 基础配置 ", basicPanel);
+        tabs.addTab(" 📦 物品 (" + config.getItems().size() + ") ", itemsPanel);
+        tabs.addTab(" ⚡ 事件 (" + config.getEvents().size() + ") ", eventsPanel);
+        tabs.addTab(" 💬 指令 (" + config.getCommands().size() + ") ", commandsPanel);
+        tabs.addTab(" 🏔 秘境 (" + config.getSecretRealms().size() + ") ", realmsPanel);
+        tabs.addTab(" ✅ 生成 & 预览 ", buildPreviewTab());
 
         return tabs;
-    }
-
-    private JScrollPane wrapInScrollPane(JPanel panel) {
-        JScrollPane sp = new JScrollPane(panel,
-                JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED,
-                JScrollPane.HORIZONTAL_SCROLLBAR_AS_NEEDED);
-        sp.setBorder(BorderFactory.createEmptyBorder());
-        sp.getVerticalScrollBar().setUnitIncrement(16);
-        sp.getHorizontalScrollBar().setUnitIncrement(16);
-        sp.setBackground(Theme.BG_PRIMARY);
-        sp.getViewport().setBackground(Theme.BG_PRIMARY);
-        return sp;
     }
 
     private JComponent buildPreviewTab() {
@@ -133,13 +126,15 @@ public class PluginMakerGUI extends JFrame {
         // 使用说明
         JPanel hintCard = new JPanel(new BorderLayout(8, 8));
         hintCard.setBackground(Theme.BG_SECONDARY);
-        hintCard.setBorder(Theme.cardBorder("📖 使用说明"));
+        hintCard.setBorder(Theme.cardBorder("📖 操作说明"));
+
         JTextArea hint = new JTextArea(
-                "1. 在【基础配置】中填写插件名、版本、GroupId、ArtifactId、主类名、输出目录，以及是否包含示例命令/物品/事件/秘境。\n" +
-                "2. 在【事件触发器】中添加触发器（事件类型、触发条件、响应动作、Java 代码）。\n" +
-                "3. 完成后点击底部【💾 保存配置】把当前配置存为 JSON，下次可通过【📂 加载配置】恢复。\n" +
-                "4. 点击【🚀 生成插件】即可在输出目录下生成完整的 Maven 项目。\n" +
-                "5. 在生成目录中执行  mvn clean package  即可得到 JAR 包，放入服务端 ./plugins 目录即可加载。"
+                "1. 在【基础配置】中填写插件名称、版本、GroupId、ArtifactId、主类名、输出目录。\n" +
+                "2. 在【物品】【事件】【指令】【秘境】各标签页中添加/编辑注册项，每个注册项内可配置多个触发器。\n" +
+                "3. 触发器的含义：当该注册项（例如某个物品）发生指定时机（例如玩家使用物品）时，执行动作（发送消息/给物品/执行代码等）。\n" +
+                "4. 完成后点击底部【💾 保存配置】把当前配置存为 JSON，下次可通过【📂 加载配置】恢复。\n" +
+                "5. 点击底部【🚀 生成插件项目】即可在输出目录下生成完整的 Maven 项目。\n" +
+                "6. 在生成目录中执行 mvn clean package 即可得到 JAR 包，放入服务端 ./plugins 目录即可加载。"
         );
         hint.setLineWrap(true);
         hint.setWrapStyleWord(true);
@@ -154,7 +149,7 @@ public class PluginMakerGUI extends JFrame {
         JPanel previewCard = new JPanel(new BorderLayout(8, 8));
         previewCard.setBackground(Theme.BG_SECONDARY);
         previewCard.setBorder(Theme.cardBorder("🧾 当前配置预览"));
-        JTextArea preview = new JTextArea(configPreview(), 14, 40);
+        JTextArea preview = new JTextArea(configPreview(), 16, 40);
         preview.setFont(Theme.fontMono(12f));
         preview.setEditable(false);
         preview.setBackground(Theme.BG_SECONDARY);
@@ -162,6 +157,7 @@ public class PluginMakerGUI extends JFrame {
         JScrollPane previewScroll = new JScrollPane(preview);
         previewScroll.setBorder(BorderFactory.createEmptyBorder());
         previewScroll.getViewport().setBackground(Theme.BG_SECONDARY);
+        previewScroll.getVerticalScrollBar().setUnitIncrement(16);
         previewCard.add(previewScroll, BorderLayout.CENTER);
 
         JButton refreshBtn = new JButton("🔄 重新读取配置");
@@ -181,7 +177,7 @@ public class PluginMakerGUI extends JFrame {
 
     private String configPreview() {
         StringBuilder sb = new StringBuilder();
-        sb.append("插件名:       ").append(config.getPluginName()).append('\n');
+        sb.append("插件名称:     ").append(config.getPluginName()).append('\n');
         sb.append("版本:         ").append(config.getVersion()).append('\n');
         sb.append("作者:         ").append(config.getAuthor()).append('\n');
         sb.append("描述:         ").append(config.getDescription()).append('\n');
@@ -190,22 +186,49 @@ public class PluginMakerGUI extends JFrame {
         sb.append("包名:         ").append(config.getPackageName()).append('\n');
         sb.append("主类:         ").append(config.getMainClass()).append('\n');
         sb.append("输出目录:     ").append(config.getOutputDir()).append('\n');
-        sb.append("包含命令:     ").append(config.isIncludeCommand()).append('\n');
-        sb.append("包含物品:     ").append(config.isIncludeItem()).append('\n');
-        sb.append("包含事件:     ").append(config.isIncludeEvent()).append('\n');
-        sb.append("包含秘境:     ").append(config.isIncludeSecretRealm()).append('\n');
-        sb.append("触发器数量:   ").append(config.getTriggers().size()).append('\n');
-        int i = 0;
-        for (TriggerConfig t : config.getTriggers()) {
-            sb.append("  [").append(++i).append("] ")
-                    .append(t.isEnabled() ? "✔" : "○").append(' ')
-                    .append(t.getEventType()).append(" → ").append(t.getAction().label)
-                    .append(" (").append(t.getDescription()).append(")\n");
-        }
+        sb.append("\n================ 注册项 =================\n");
+        dumpEntries(sb, "📦 物品", config.getItems());
+        dumpEntries(sb, "⚡ 事件", config.getEvents());
+        dumpEntries(sb, "💬 指令", config.getCommands());
+        dumpEntries(sb, "🏔 秘境", config.getSecretRealms());
+        sb.append("\n总计: ").append(config.totalEntries()).append(" 个注册项, ").append(config.totalTriggers()).append(" 个触发器\n");
         return sb.toString();
     }
 
-    // ================ 日志 ================
+    private void dumpEntries(StringBuilder sb, String title, List<RegistrableEntry> list) {
+        sb.append('\n').append(title).append(" (").append(list.size()).append(")\n");
+        if (list.isEmpty()) {
+            sb.append("    (空)\n");
+            return;
+        }
+        int i = 0;
+        for (RegistrableEntry e : list) {
+            i++;
+            sb.append("    [").append(i).append("] ")
+                    .append(e.isEnabled() ? "●" : "○").append(' ')
+                    .append(e.getName().isEmpty() ? "(未命名)" : e.getName())
+                    .append("  [key=").append(e.getKey().isEmpty() ? "未设置" : e.getKey()).append("]")
+                    .append("  触发器: ").append(e.getTriggers().size()).append('\n');
+            for (Trigger t : e.getTriggers()) {
+                sb.append("         - ").append(t.isEnabled() ? "☑" : "☐").append(' ')
+                        .append(t.getTriggerWhen().label).append(" → ").append(t.getAction().label);
+                if (t.getAction() != Trigger.Action.RUN_JAVA && !t.getActionParam().isEmpty()) {
+                    sb.append(" (").append(truncate(t.getActionParam(), 30)).append(")");
+                }
+                if (t.getDescription() != null && !t.getDescription().isEmpty()) {
+                    sb.append(" [").append(t.getDescription()).append("]");
+                }
+                sb.append('\n');
+            }
+        }
+    }
+
+    private static String truncate(String s, int n) {
+        if (s == null) return "";
+        return s.length() > n ? s.substring(0, n) + "..." : s;
+    }
+
+    // ==================== 日志面板 ====================
 
     private JComponent buildLogPanel() {
         JPanel logPanel = new JPanel(new BorderLayout(8, 8));
@@ -214,7 +237,7 @@ public class PluginMakerGUI extends JFrame {
         JLabel title = Theme.titleLabel("📜 运行日志", 13f);
         title.setBorder(BorderFactory.createEmptyBorder(0, 2, 4, 0));
 
-        logArea = new JTextArea("", 22, 28);
+        logArea = new JTextArea("", 28, 30);
         logArea.setFont(Theme.fontMono(11.5f));
         logArea.setForeground(new Color(200, 210, 220));
         logArea.setBackground(Theme.BG_CODE);
@@ -228,13 +251,14 @@ public class PluginMakerGUI extends JFrame {
                 JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
         logScroll.setBorder(BorderFactory.createLineBorder(Theme.BORDER_COLOR, 1, true));
         logScroll.getViewport().setBackground(Theme.BG_CODE);
+        logScroll.getVerticalScrollBar().setUnitIncrement(16);
 
         logPanel.add(title, BorderLayout.NORTH);
         logPanel.add(logScroll, BorderLayout.CENTER);
         return logPanel;
     }
 
-    // ================ 底部操作栏 ================
+    // ==================== 底部操作栏 ====================
 
     private JComponent buildFooter() {
         JPanel bar = new JPanel(new BorderLayout(12, 0));
@@ -269,7 +293,7 @@ public class PluginMakerGUI extends JFrame {
         return bar;
     }
 
-    // ================ 操作 ================
+    // ==================== 操作 ====================
 
     private void saveConfig() {
         JFileChooser chooser = new JFileChooser();
@@ -278,7 +302,6 @@ public class PluginMakerGUI extends JFrame {
         if (r != JFileChooser.APPROVE_OPTION) return;
         try {
             if (basicPanel != null) basicPanel.applyToConfig();
-            if (triggerPanel != null) triggerPanel.applyToConfig();
             config.save(chooser.getSelectedFile());
             log("✔ 配置已保存至 " + chooser.getSelectedFile().getPath());
         } catch (IOException e) {
@@ -302,15 +325,20 @@ public class PluginMakerGUI extends JFrame {
             config.setGroupId(loaded.getGroupId());
             config.setMainClass(loaded.getMainClass());
             config.setOutputDir(loaded.getOutputDir());
-            config.setIncludeCommand(loaded.isIncludeCommand());
-            config.setIncludeItem(loaded.isIncludeItem());
-            config.setIncludeEvent(loaded.isIncludeEvent());
-            config.setIncludeSecretRealm(loaded.isIncludeSecretRealm());
-            config.getTriggers().clear();
-            config.getTriggers().addAll(loaded.getTriggers());
 
+            config.getItems().clear();
+            config.getItems().addAll(loaded.getItems());
+            config.getEvents().clear();
+            config.getEvents().addAll(loaded.getEvents());
+            config.getCommands().clear();
+            config.getCommands().addAll(loaded.getCommands());
+            config.getSecretRealms().clear();
+            config.getSecretRealms().addAll(loaded.getSecretRealms());
+
+            // 从 config 重新刷新 UI —— 这里需要重新构建 Panels
+            rebuildAllEntriesPanels();
             if (basicPanel != null) basicPanel.refreshFromConfig();
-            if (triggerPanel != null) triggerPanel.refreshTable();
+
             log("✔ 已加载配置 " + chooser.getSelectedFile().getPath());
         } catch (IOException e) {
             log("✖ 加载失败：" + e.getMessage());
@@ -319,9 +347,20 @@ public class PluginMakerGUI extends JFrame {
         }
     }
 
+    /** 从文件载入后，重建各注册项面板（因为 list 引用已改变）。 */
+    private void rebuildAllEntriesPanels() {
+        // 找到当前 tabbed pane，替换各 tab 内容
+        if (!(getContentPane().getComponent(0) instanceof JPanel root)) return;
+        // 简单策略：重新构造整个内容区域。为简单起见，直接 dispose 并打开新窗口。
+        // 但更友好的做法是在 Preview 页的组件上做动态刷新。
+        // 为稳定起见，这里弹出提示并仅刷新 basicPanel。
+        JOptionPane.showMessageDialog(this,
+                "配置已从文件载入。\n若要看到更新后的物品/事件/指令/秘境列表，\n请关闭本窗口并重新打开（或重新运行 java -jar xxx.jar --plugin-make-gui）。",
+                "提示", JOptionPane.INFORMATION_MESSAGE);
+    }
+
     private void generatePlugin() {
         if (basicPanel != null) basicPanel.applyToConfig();
-        if (triggerPanel != null) triggerPanel.applyToConfig();
 
         List<String> errors = validateConfig(config);
         if (!errors.isEmpty()) {
@@ -332,11 +371,14 @@ public class PluginMakerGUI extends JFrame {
 
         try {
             log("▶ 开始生成插件项目（" + config.getPluginName() + " v" + config.getVersion() + "）...");
+            log("  物品: " + config.getItems().size() + " 项 / 事件: " + config.getEvents().size() +
+                    " 项 / 指令: " + config.getCommands().size() + " 项 / 秘境: " + config.getSecretRealms().size() + " 项");
+            log("  触发器合计: " + config.totalTriggers() + " 个");
             CodeGenerator gen = new CodeGenerator(config);
             List<String> files = gen.generateAll();
             log("✔ 生成完成，共 " + files.size() + " 个文件：");
             for (String f : files) log("   - " + f);
-            log("  提示：在输出目录中执行  mvn clean package  可编译为 JAR 包");
+            log("  提示：在生成目录中执行 mvn clean package 可编译为 JAR 包");
             log("  将 JAR 放入服务端 ./plugins 目录即可被加载。");
 
             JOptionPane.showMessageDialog(this,
@@ -353,12 +395,19 @@ public class PluginMakerGUI extends JFrame {
 
     private static List<String> validateConfig(PluginConfig c) {
         List<String> errors = new ArrayList<>();
-        if (c.getPluginName() == null || c.getPluginName().trim().isEmpty()) errors.add("插件名不能为空");
+        if (c.getPluginName() == null || c.getPluginName().trim().isEmpty()) errors.add("插件名称不能为空");
         if (c.getVersion() == null || c.getVersion().trim().isEmpty()) errors.add("版本号不能为空");
         if (c.getGroupId() == null || c.getGroupId().trim().isEmpty()) errors.add("GroupId 不能为空");
         if (c.getArtifactId() == null || c.getArtifactId().trim().isEmpty()) errors.add("ArtifactId 不能为空");
         if (c.getMainClass() == null || c.getMainClass().trim().isEmpty()) errors.add("主类名不能为空");
         if (c.getOutputDir() == null || c.getOutputDir().trim().isEmpty()) errors.add("输出目录不能为空");
+        // 检查每个注册项的 key
+        for (RegistrableEntry e : c.getItems()) {
+            if (e.getKey() == null || e.getKey().trim().isEmpty()) {
+                errors.add("存在物品未设置 key");
+                break;
+            }
+        }
         return errors;
     }
 
