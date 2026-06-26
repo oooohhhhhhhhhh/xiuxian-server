@@ -71,8 +71,8 @@ public class PlayerService {
         String sql = """
             INSERT INTO players (user_id, name, spiritual_root, level, experience, realm, sub_realm,
                 hp, max_hp, mp, max_mp, attack, defense, speed, spirit,
-                gold, cultivation_progress, is_cultivating, cultivation_start_time, last_secret_realm_time, last_exploration_time, tutorial_step, tutorial_tips)
-            VALUES (?, ?, ?, 1, 0, 0, 0, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, 0, 0, 1, 0)
+                gold, cultivation_progress, is_cultivating, cultivation_start_time, last_secret_realm_time, last_exploration_time, tutorial_step, tutorial_tips, current_location_id)
+            VALUES (?, ?, ?, 1, 0, 0, 0, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, 0, 0, 1, 0, 1)
             """;
         try (Connection conn = DatabaseManager.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -647,6 +647,8 @@ public class PlayerService {
         p.setTutorialTips(rs.getInt("tutorial_tips"));
         p.setLastOfflineTime(rs.getLong("last_offline_time"));
         try { p.setBattleStrategy(rs.getString("battle_strategy")); } catch (Exception ignored) {}
+        try { p.setCurrentLocationId(rs.getLong("current_location_id")); } catch (Exception ignored) {}
+        try { p.setLastTravelTime(rs.getLong("last_travel_time")); } catch (Exception ignored) {}
         p.setCreatedAt(rs.getString("created_at"));
         p.setUpdatedAt(rs.getString("updated_at"));
         return p;

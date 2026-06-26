@@ -29,6 +29,8 @@ public class Player {
     private int tutorialTips;
     private long lastOfflineTime;
     private String battleStrategy = "balanced";
+    private long currentLocationId = 1;
+    private long lastTravelTime;
     private String createdAt;
     private String updatedAt;
 
@@ -214,6 +216,12 @@ public class Player {
 
     public String getBattleStrategy() { return battleStrategy; }
     public void setBattleStrategy(String battleStrategy) { this.battleStrategy = battleStrategy; }
+
+    public long getCurrentLocationId() { return currentLocationId; }
+    public void setCurrentLocationId(long currentLocationId) { this.currentLocationId = currentLocationId; }
+
+    public long getLastTravelTime() { return lastTravelTime; }
+    public void setLastTravelTime(long lastTravelTime) { this.lastTravelTime = lastTravelTime; }
 
     public String getCreatedAt() {
         return createdAt;

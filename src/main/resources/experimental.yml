@@ -1,0 +1,5 @@
+# 实验性功能开关
+# 所有功能默认关闭，设置为 true 即可启用
+experimental:
+  map: false           # 游戏地图系统
+  sect_war: false      # 宗门战（暂未启用开关）

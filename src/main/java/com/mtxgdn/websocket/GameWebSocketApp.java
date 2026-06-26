@@ -3,6 +3,7 @@ package com.mtxgdn.websocket;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
+import com.mtxgdn.common.ExperimentalConfig;
 import com.mtxgdn.common.GameErrorCode;
 import com.mtxgdn.common.GameMessage;
 import com.mtxgdn.game.entity.SecretRealmResult;
@@ -27,6 +28,8 @@ import com.mtxgdn.game.service.EnhanceService;
 import com.mtxgdn.game.service.ChatService;
 import com.mtxgdn.game.service.FriendService;
 import com.mtxgdn.game.service.SectService;
+import com.mtxgdn.game.service.MapService;
+import com.mtxgdn.game.entity.MapLocation;
 import com.mtxgdn.game.entity.Friend;
 import com.mtxgdn.game.entity.ChatMessage;
 import com.mtxgdn.game.entity.SpiritualRoot;
@@ -60,6 +63,7 @@ public class GameWebSocketApp extends WebSocketApplication {
     private static final ChatService chatService = new ChatService();
     private static final FriendService friendService = new FriendService();
     private static final SectService sectService = new SectService();
+    private static final MapService mapService = new MapService();
 
     private final Map<WebSocket, Long> sessionUsers = new ConcurrentHashMap<>();
     private final Map<Long, WebSocket> userSessions = new ConcurrentHashMap<>();
@@ -389,6 +393,18 @@ public class GameWebSocketApp extends WebSocketApplication {
             case "sect_top":
                 if (!checkWsPermission(socket, msgId, userId, "game.sect.manage")) break;
                 handleSectTop(socket, msgId);
+                break;
+            case "map_surroundings":
+                if (!checkWsPermission(socket, msgId, userId, "game.player.info")) break;
+                handleMapSurroundings(socket, msgId, userId);
+                break;
+            case "map_travel":
+                if (!checkWsPermission(socket, msgId, userId, "game.player.info")) break;
+                handleMapTravel(socket, msgId, userId, data);
+                break;
+            case "map_locations":
+                if (!checkWsPermission(socket, msgId, userId, "game.player.info")) break;
+                handleMapLocations(socket, msgId);
                 break;
             default:
                 GameMessage err = GameMessage.error(msgId, type, GameErrorCode.UNKNOWN_TYPE);
@@ -1602,6 +1618,99 @@ public class GameWebSocketApp extends WebSocketApplication {
         JsonObject resp = new JsonObject();
         resp.add("top", arr);
         socket.send(GameMessage.ok(msgId, "sect_top", resp).toJson());
+    }
+
+    private void handleMapSurroundings(WebSocket socket, long msgId, Long userId) {
+        if (!ExperimentalConfig.isEnabled("map")) {
+            socket.send(GameMessage.error(msgId, "map_surroundings", 403, "地图系统尚未开放").toJson());
+            return;
+        }
+        PlayerInfo player = playerService.getPlayerByUserId(userId);
+        if (player == null) {
+            socket.send(GameMessage.error(msgId, "map_surroundings", GameErrorCode.PLAYER_NOT_FOUND).toJson());
+            return;
+        }
+        Map<String, Object> result = mapService.getPlayerSurroundings(player.getId());
+        if (Boolean.TRUE.equals(result.get("success"))) {
+            JsonObject resp = new JsonObject();
+            @SuppressWarnings("unchecked")
+            var current = (Map<String, Object>) result.get("current");
+            JsonObject cur = new JsonObject();
+            cur.addProperty("id", (long) current.get("id"));
+            cur.addProperty("name", (String) current.get("name"));
+            cur.addProperty("description", (String) current.get("description"));
+            cur.addProperty("region", (String) current.get("region"));
+            cur.addProperty("safeZone", (boolean) current.get("safeZone"));
+            resp.add("current", cur);
+
+            JsonArray neighbors = new JsonArray();
+            @SuppressWarnings("unchecked")
+            var nbs = (List<Map<String, Object>>) result.get("neighbors");
+            for (var nb : nbs) {
+                JsonObject n = new JsonObject();
+                n.addProperty("id", (long) nb.get("id"));
+                n.addProperty("name", (String) nb.get("name"));
+                n.addProperty("region", (String) nb.get("region"));
+                n.addProperty("safeZone", (boolean) nb.get("safeZone"));
+                n.addProperty("accessible", (boolean) nb.get("accessible"));
+                neighbors.add(n);
+            }
+            resp.add("neighbors", neighbors);
+            socket.send(GameMessage.ok(msgId, "map_surroundings", resp).toJson());
+        } else {
+            socket.send(GameMessage.error(msgId, "map_surroundings", 400, (String) result.get("message")).toJson());
+        }
+    }
+
+    private void handleMapTravel(WebSocket socket, long msgId, Long userId, JsonObject data) {
+        if (!ExperimentalConfig.isEnabled("map")) {
+            socket.send(GameMessage.error(msgId, "map_travel", 403, "地图系统尚未开放").toJson());
+            return;
+        }
+        PlayerInfo player = playerService.getPlayerByUserId(userId);
+        if (player == null) {
+            socket.send(GameMessage.error(msgId, "map_travel", GameErrorCode.PLAYER_NOT_FOUND).toJson());
+            return;
+        }
+        if (!data.has("locationId") || data.get("locationId").getAsLong() == 0) {
+            socket.send(GameMessage.error(msgId, "map_travel", GameErrorCode.PARAM_MISSING).toJson());
+            return;
+        }
+        long locationId = data.get("locationId").getAsLong();
+        Map<String, Object> result = mapService.travel(player.getId(), locationId);
+        if (Boolean.TRUE.equals(result.get("success"))) {
+            JsonObject resp = new JsonObject();
+            resp.addProperty("from", (String) result.get("from"));
+            resp.addProperty("to", (String) result.get("to"));
+            resp.addProperty("toRegion", (String) result.get("toRegion"));
+            resp.addProperty("safeZone", (boolean) result.get("safeZone"));
+            socket.send(GameMessage.ok(msgId, "map_travel", (String) result.get("message"), resp).toJson());
+        } else {
+            socket.send(GameMessage.error(msgId, "map_travel", 400, (String) result.get("message")).toJson());
+        }
+    }
+
+    private void handleMapLocations(WebSocket socket, long msgId) {
+        if (!ExperimentalConfig.isEnabled("map")) {
+            socket.send(GameMessage.error(msgId, "map_locations", 403, "地图系统尚未开放").toJson());
+            return;
+        }
+        mapService.ensureInitialized();
+        List<MapLocation> locations = mapService.getAllLocations();
+        JsonArray arr = new JsonArray();
+        for (MapLocation loc : locations) {
+            JsonObject o = new JsonObject();
+            o.addProperty("id", loc.getId());
+            o.addProperty("name", loc.getName());
+            o.addProperty("description", loc.getDescription());
+            o.addProperty("region", loc.getRegion());
+            o.addProperty("minRealm", loc.getMinRealm());
+            o.addProperty("safeZone", loc.isSafeZone());
+            arr.add(o);
+        }
+        JsonObject resp = new JsonObject();
+        resp.add("locations", arr);
+        socket.send(GameMessage.ok(msgId, "map_locations", resp).toJson());
     }
 
     public void shutdownGracefully() {

@@ -4,6 +4,7 @@ import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.mtxgdn.Main;
+import com.mtxgdn.common.ExperimentalConfig;
 import com.mtxgdn.common.GameErrorCode;
 import com.mtxgdn.common.GameMessage;
 import com.mtxgdn.game.config.GameConfigLoader;
@@ -37,6 +38,8 @@ import com.mtxgdn.common.service.ServiceRegistry;
 import com.mtxgdn.util.RateLimiter;
 import com.mtxgdn.game.secretrealm.SecretRealm;
 import com.mtxgdn.game.service.SectService;
+import com.mtxgdn.game.service.MapService;
+import com.mtxgdn.game.entity.MapLocation;
 import com.mtxgdn.game.entity.Sect;
 import com.mtxgdn.game.entity.SectMember;
 import com.mtxgdn.game.entity.SectApplication;
@@ -75,6 +78,7 @@ public class GameResource {
     private static final ChatService chatService = ServiceRegistry.getChatService();
     private static final FriendService friendService = ServiceRegistry.getFriendService();
     private static final SectService sectService = ServiceRegistry.getSectService();
+    private static final MapService mapService = new MapService();
 
     @Context
     private ContainerRequestContext requestContext;
@@ -1820,6 +1824,60 @@ public class GameResource {
         }
         JsonObject data = new JsonObject();
         data.add("top", arr);
+        return Response.ok(GameMessage.restOk("获取成功", data).toString()).build();
+    }
+
+    @GET
+    @Path("/map")
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("game.player.info")
+    public Response getMapSurroundings() {
+        if (!ExperimentalConfig.isEnabled("map"))
+            return Response.ok(GameMessage.restError(403, "地图系统尚未开放").toString()).build();
+        Long userId = getCurrentUserId();
+        int playerId = getPlayerIdByUserId(userId);
+        Map<String, Object> result = mapService.getPlayerSurroundings(playerId);
+        return Response.ok(GameMessage.restOk("获取成功", gson.toJsonTree(result).getAsJsonObject()).toString()).build();
+    }
+
+    @POST
+    @Path("/map/travel/{locationId}")
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("game.player.info")
+    public Response travelTo(@PathParam("locationId") long locationId) {
+        if (!ExperimentalConfig.isEnabled("map"))
+            return Response.ok(GameMessage.restError(403, "地图系统尚未开放").toString()).build();
+        Long userId = getCurrentUserId();
+        int playerId = getPlayerIdByUserId(userId);
+        Map<String, Object> result = mapService.travel(playerId, locationId);
+        if ((boolean) result.get("success")) {
+            return Response.ok(GameMessage.restOk((String) result.get("message"), null).toString()).build();
+        }
+        return Response.ok(GameMessage.restError(400, (String) result.get("message")).toString()).build();
+    }
+
+    @GET
+    @Path("/map/locations")
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("game.player.info")
+    public Response getMapLocations() {
+        if (!ExperimentalConfig.isEnabled("map"))
+            return Response.ok(GameMessage.restError(403, "地图系统尚未开放").toString()).build();
+        mapService.ensureInitialized();
+        List<MapLocation> locations = mapService.getAllLocations();
+        JsonArray arr = new JsonArray();
+        for (MapLocation loc : locations) {
+            JsonObject o = new JsonObject();
+            o.addProperty("id", loc.getId());
+            o.addProperty("name", loc.getName());
+            o.addProperty("description", loc.getDescription());
+            o.addProperty("region", loc.getRegion());
+            o.addProperty("minRealm", loc.getMinRealm());
+            o.addProperty("safeZone", loc.isSafeZone());
+            arr.add(o);
+        }
+        JsonObject data = new JsonObject();
+        data.add("locations", arr);
         return Response.ok(GameMessage.restOk("获取成功", data).toString()).build();
     }
 

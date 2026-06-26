@@ -465,6 +465,28 @@ public class DatabaseManager {
         }
         sectWarsTableSql += ")";
 
+        String mapLocationsTableSql = "CREATE TABLE IF NOT EXISTS map_locations (" +
+                "id BIGINT PRIMARY KEY, " +
+                "name VARCHAR(64) NOT NULL, " +
+                "description TEXT, " +
+                "region VARCHAR(32) DEFAULT '未知', " +
+                "min_realm INT DEFAULT 0, " +
+                "is_safe_zone " + boolType + ", " +
+                "created_at " + tsDefault + ")";
+
+        String mapConnectionsTableSql = "CREATE TABLE IF NOT EXISTS map_connections (" +
+                "id " + pk + ", " +
+                "from_location_id BIGINT NOT NULL, " +
+                "to_location_id BIGINT NOT NULL, " +
+                "travel_time_seconds INT DEFAULT 5, " +
+                "created_at " + tsDefault;
+
+        if (!IS_SQLITE) {
+            mapConnectionsTableSql += ", FOREIGN KEY (from_location_id) REFERENCES map_locations(id) ON DELETE CASCADE, " +
+                    "FOREIGN KEY (to_location_id) REFERENCES map_locations(id) ON DELETE CASCADE";
+        }
+        mapConnectionsTableSql += ")";
+
         String redeemCodesTableSql = "CREATE TABLE IF NOT EXISTS redeem_codes (" +
                 "id " + pk + ", " +
                 "code VARCHAR(32) NOT NULL UNIQUE, " +
@@ -523,11 +545,17 @@ public class DatabaseManager {
             stmt.execute(sectApplicationsTableSql);
             stmt.execute(sectWarehouseTableSql);
             stmt.execute(sectWarsTableSql);
+            stmt.execute(mapLocationsTableSql);
+            stmt.execute(mapConnectionsTableSql);
             stmt.execute(redeemCodesTableSql);
             stmt.execute(redeemedCodesTableSql);
 
             // 迁移：为旧表添加 battle_strategy 列
             try { stmt.execute("ALTER TABLE players ADD COLUMN battle_strategy VARCHAR(16) DEFAULT 'balanced'"); } catch (SQLException ignored) {}
+
+            // 迁移：添加地图位置相关列
+            try { stmt.execute("ALTER TABLE players ADD COLUMN current_location_id BIGINT DEFAULT 1"); } catch (SQLException ignored) {}
+            try { stmt.execute("ALTER TABLE players ADD COLUMN last_travel_time BIGINT DEFAULT 0"); } catch (SQLException ignored) {}
 
             // 经济系统表
             String playerEconomyTableSql = "CREATE TABLE IF NOT EXISTS player_economy (" +
