@@ -26,7 +26,8 @@ public abstract class Command {
             Map.entry("宗门", 8),
             Map.entry("经济", 9),
             Map.entry("社交", 10),
-            Map.entry("管理", 11)
+            Map.entry("管理", 11),
+            Map.entry("实用功能", 12)
     );
 
     private final String[] names;

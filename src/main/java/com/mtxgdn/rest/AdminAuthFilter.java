@@ -61,8 +61,14 @@ public class AdminAuthFilter implements ContainerRequestFilter {
             return;
         }
 
+        // admin/energy/* 路径支持双鉴权（admin JWT 或 用户 JWT + admin.status 权限）
+        boolean isDualAuthPath = path.startsWith("admin/energy/");
+
         String authHeader = ctx.getHeaderString("Authorization");
         if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            if (isDualAuthPath) {
+                return; // 放行给 JwtAuthFilter / UnifiedRestResource 处理
+            }
             ctx.abortWith(Response.status(Response.Status.UNAUTHORIZED)
                     .entity("{\"code\":401,\"message\":\"请先登录管理后台\"}")
                     .build());
@@ -85,7 +91,12 @@ public class AdminAuthFilter implements ContainerRequestFilter {
                         .build());
                 return;
             }
+            // 标记 admin JWT 鉴权成功
+            ctx.setProperty("adminAuthenticated", true);
         } catch (Exception e) {
+            if (isDualAuthPath) {
+                return; // admin JWT 无效，放行给 JwtAuthFilter 尝试用户 JWT
+            }
             ctx.abortWith(Response.status(Response.Status.UNAUTHORIZED)
                     .entity("{\"code\":401,\"message\":\"管理Token无效或已过期\"}")
                     .build());

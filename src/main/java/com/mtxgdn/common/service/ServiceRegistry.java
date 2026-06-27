@@ -22,6 +22,7 @@ public class ServiceRegistry {
     private static final TechniqueService techniqueService = new TechniqueService();
     private static final SectService sectService = new SectService();
     private static final EconomyService economyService = new EconomyService();
+    private static final EnergyService energyService = new EnergyService();
 
     private ServiceRegistry() {
     }
@@ -96,5 +97,9 @@ public class ServiceRegistry {
 
     public static EconomyService getEconomyService() {
         return economyService;
+    }
+
+    public static EnergyService getEnergyService() {
+        return energyService;
     }
 }

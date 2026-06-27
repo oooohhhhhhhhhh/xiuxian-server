@@ -86,6 +86,8 @@ public class UnifiedRestResource {
         List<RouteDefEntry> candidates = routesByMethod.getOrDefault(httpMethod, List.of());
         if (path == null) path = "";
 
+        boolean isAdminPath = path.startsWith("admin/");
+
         for (RouteDefEntry entry : candidates) {
             Map<String, String> params = RouteDefinition.matchPath(entry.def.getPath(), path);
             if (params == null) continue;
@@ -98,16 +100,27 @@ public class UnifiedRestResource {
                             .entity("{\"code\":403,\"message\":\"无权限\"}")
                             .build();
                 }
+                // 如果 userId 为 null 但在 admin 路径上已有 admin JWT 鉴权，跳过用户权限检查
             }
 
             Long userId = getCurrentUserIdQuietly();
             if (userId == null) {
-                return Response.status(401)
-                        .entity("{\"code\":401,\"message\":\"未登录\"}")
-                        .build();
+                // admin 路径：检查是否已通过 AdminAuthFilter 的 JWT 鉴权
+                if (isAdminPath && isAdminAuthenticated()) {
+                    userId = 0L; // admin JWT 鉴权通过，使用哨兵 userId
+                } else {
+                    return Response.status(401)
+                            .entity("{\"code\":401,\"message\":\"未登录\"}")
+                            .build();
+                }
             }
 
-            int playerId = getPlayerIdByUserId(userId);
+            int playerId;
+            if (userId == 0L && isAdminPath) {
+                playerId = 0; // admin JWT 无玩家上下文
+            } else {
+                playerId = getPlayerIdByUserId(userId);
+            }
 
             // 获取 query 参数
             Map<String, String> queryParams = new LinkedHashMap<>();
@@ -131,6 +144,14 @@ public class UnifiedRestResource {
 
         // 没有路由匹配——返回 404 让 Jersey 尝试其他资源（如 GameResource）
         return null;
+    }
+
+    private boolean isAdminAuthenticated() {
+        try {
+            Object val = requestContext.getProperty("adminAuthenticated");
+            return val instanceof Boolean && (Boolean) val;
+        } catch (Exception ignored) {}
+        return false;
     }
 
     private Long getCurrentUserIdQuietly() {

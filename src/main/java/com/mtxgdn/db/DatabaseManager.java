@@ -630,6 +630,13 @@ public class DatabaseManager {
                     "updated_at " + tsUpdate +
                     ")";
             stmt.execute(onebotGroupConfigTableSql);
+
+            String playerEnergyTableSql = "CREATE TABLE IF NOT EXISTS player_energy (" +
+                    "player_id BIGINT PRIMARY KEY, " +
+                    "energy BIGINT DEFAULT 0" +
+                    (IS_SQLITE ? "" : ", FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE") +
+                    ")";
+            stmt.execute(playerEnergyTableSql);
         } catch (SQLException e) {
             throw new RuntimeException("创建数据库表失败", e);
         }
@@ -684,6 +691,7 @@ public class DatabaseManager {
             int sa = stmt.executeUpdate("DELETE FROM sect_applications");
             int sw = stmt.executeUpdate("DELETE FROM sect_warehouse");
             int sc = stmt.executeUpdate("DELETE FROM sects");
+            int pegy = stmt.executeUpdate("DELETE FROM player_energy");
             int pl = stmt.executeUpdate("DELETE FROM players");
             if (!IS_SQLITE) {
                 stmt.execute("SET FOREIGN_KEY_CHECKS = 1");
@@ -702,6 +710,7 @@ public class DatabaseManager {
             result.put("sect_applications", sa);
             result.put("sect_warehouse", sw);
             result.put("sects", sc);
+            result.put("player_energy", pegy);
             result.put("players", pl);
         } catch (SQLException e) {
             throw new RuntimeException("清除玩家数据失败", e);
