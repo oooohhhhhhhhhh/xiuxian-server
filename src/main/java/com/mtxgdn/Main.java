@@ -1,7 +1,9 @@
 package com.mtxgdn;
 
+import com.mtxgdn.common.ExperimentalConfig;
 import com.mtxgdn.db.DatabaseManager;
 import com.mtxgdn.demo.DemoClient;
+import com.mtxgdn.game.config.GameConfigLoader;
 import com.mtxgdn.game.item.ItemScanner;
 import com.mtxgdn.game.explorationevent.ExplorationEventScanner;
 import com.mtxgdn.game.secretrealm.SecretRealmScanner;
@@ -25,15 +27,19 @@ import com.mtxgdn.util.AppConfig;
 import com.mtxgdn.util.GameLogger;
 import com.mtxgdn.util.MySqlLauncher;
 import com.mtxgdn.websocket.GameWebSocketApp;
-import org.glassfish.grizzly.http.server.CLStaticHttpHandler;
+import org.glassfish.grizzly.http.server.HttpHandler;
 import org.glassfish.grizzly.http.server.HttpServer;
 import org.glassfish.grizzly.http.server.NetworkListener;
+import org.glassfish.grizzly.http.server.Request;
+import org.glassfish.grizzly.http.server.Response;
 import org.glassfish.grizzly.threadpool.ThreadPoolConfig;
 import org.glassfish.grizzly.websockets.WebSocketAddOn;
 import org.glassfish.grizzly.websockets.WebSocketEngine;
 import org.glassfish.jersey.grizzly2.httpserver.GrizzlyHttpServerFactory;
 import org.glassfish.jersey.server.ResourceConfig;
 
+import java.io.InputStream;
+import java.io.OutputStream;
 import java.net.URI;
 import java.net.ConnectException;
 import java.net.http.HttpClient;
@@ -191,6 +197,21 @@ public class Main {
         LOG.info("API路由启动在 http://127.0.0.1:8080/api/");
         LOG.info("WebSocket路由启动在 ws://127.0.0.1:8080");
 
+        // 服务器启动后，主动释放配置文件到 jar 所在目录的 config/ 下
+        LOG.info("正在释放配置文件到 " + AppConfig.getJarDir().resolve("config").toAbsolutePath() + " ...");
+        try {
+            ExperimentalConfig.get("_dummy", "");
+            LOG.info("  experimental.yml 已加载");
+        } catch (Exception ignored) {
+            LOG.warn("  experimental.yml 加载失败");
+        }
+        try {
+            GameConfigLoader.extractConfigs();
+            LOG.info("  realm_config.json 已释放");
+        } catch (Exception ignored) {
+            LOG.warn("  realm_config.json 释放失败");
+        }
+
         int oneBotPort = AppConfig.getInt("onebot.port", 6700);
         boolean oneBotEnabled = AppConfig.getBoolean("onebot.enabled", true);
         String oneBotMode = AppConfig.get("onebot.mode", "ws_server");
@@ -237,7 +258,51 @@ public class Main {
             }
         }
 
-        CLStaticHttpHandler adminHandler = new CLStaticHttpHandler(Main.class.getClassLoader(), "/webadmin/");
+        // 自定义静态文件处理器，确保 index.html 能正常访问
+        HttpHandler adminHandler = new HttpHandler() {
+            @Override
+            public void service(Request request, Response response) throws Exception {
+                String path = request.getHttpHandlerPath();
+                if (path == null || path.isEmpty() || path.equals("/")) {
+                    path = "/index.html";
+                }
+                String resourcePath = "webadmin" + path;
+                InputStream in = Main.class.getClassLoader().getResourceAsStream(resourcePath);
+                if (in == null) {
+                    response.setStatus(404);
+                    response.setContentType("text/plain; charset=UTF-8");
+                    response.setHeader("Cache-Control", "no-cache");
+                    response.getWriter().write("404 Not Found");
+                    return;
+                }
+                // 根据扩展名设置 Content-Type
+                if (path.endsWith(".html") || path.endsWith(".htm")) {
+                    response.setContentType("text/html; charset=UTF-8");
+                } else if (path.endsWith(".css")) {
+                    response.setContentType("text/css; charset=UTF-8");
+                } else if (path.endsWith(".js")) {
+                    response.setContentType("application/javascript; charset=UTF-8");
+                } else if (path.endsWith(".json")) {
+                    response.setContentType("application/json; charset=UTF-8");
+                } else if (path.endsWith(".png")) {
+                    response.setContentType("image/png");
+                } else if (path.endsWith(".svg")) {
+                    response.setContentType("image/svg+xml");
+                } else {
+                    response.setContentType("text/plain; charset=UTF-8");
+                }
+                response.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+                response.setCharacterEncoding("UTF-8");
+                OutputStream os = response.getOutputStream();
+                byte[] buf = new byte[8192];
+                int n;
+                while ((n = in.read(buf)) != -1) {
+                    os.write(buf, 0, n);
+                }
+                in.close();
+                os.flush();
+            }
+        };
         server.getServerConfiguration().addHttpHandler(adminHandler, "/admin");
         LOG.info("管理控制台启动在 http://127.0.0.1:8080/admin/");
 
@@ -266,6 +331,7 @@ public class Main {
         if (nogui) {
             LOG.info("无GUI模式，按 Enter 键关闭服务器...");
             waitForEnter();
+            if (oneBotWebSocketServer != null) oneBotWebSocketServer.shutdown();
             motdServer.stop();
             if (screenshotBot != null) screenshotBot.stop();
             if (minecraftAdapter != null) minecraftAdapter.stop();
@@ -277,6 +343,7 @@ public class Main {
         LOG.info("Web 管理控制台: http://127.0.0.1:8080/admin/");
         LOG.info("按 Enter 键关闭服务器...");
         waitForEnter();
+        if (oneBotWebSocketServer != null) oneBotWebSocketServer.shutdown();
         motdServer.stop();
         if (screenshotBot != null) screenshotBot.stop();
         if (minecraftAdapter != null) minecraftAdapter.stop();

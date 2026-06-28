@@ -37,6 +37,16 @@ public class RedeemCommand extends Command {
     // ===== OneBot 处理 =====
     @Override
     public void execute(CommandContext ctx) {
+        try {
+            doExecute(ctx);
+        } catch (Exception e) {
+            ctx.reply("兑换系统暂时不可用，请稍后重试。");
+            System.err.println("[RedeemCommand] 执行异常: " + e.getMessage());
+            e.printStackTrace();
+        }
+    }
+
+    private void doExecute(CommandContext ctx) {
         QqBinding b = new QqBindingService().findByQq(ctx.getSenderId());
         if (b == null) {
             ctx.reply("请先绑定账号。");

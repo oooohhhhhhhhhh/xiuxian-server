@@ -310,7 +310,7 @@ public class PermissionService {
              Statement stmt = conn.createStatement()) {
             stmt.executeUpdate("CREATE TABLE IF NOT EXISTS user_permissions (" +
                     "user_id INTEGER NOT NULL, " +
-                    "permission_code TEXT NOT NULL, " +
+                    "permission_code VARCHAR(255) NOT NULL, " +
                     "UNIQUE(user_id, permission_code)" +
                     ")");
         } catch (SQLException e) {

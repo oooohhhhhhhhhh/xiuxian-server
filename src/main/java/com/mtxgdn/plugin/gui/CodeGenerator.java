@@ -87,7 +87,7 @@ public final class CodeGenerator {
         m.put("{{PACKAGE}}", cfg.getPackageName());
         m.put("{{PACKAGE_PATH}}", cfg.getPackagePath());
         m.put("{{MAIN_CLASS}}", cfg.getMainClass());
-        m.put("{{SERVER_VERSION}}", "V1.4.1-alpha3");
+        m.put("{{SERVER_VERSION}}", "V1.4.1-beta1");
         m.put("{{TOTAL_ENTRIES}}", String.valueOf(cfg.totalEntries()));
         m.put("{{TOTAL_TRIGGERS}}", String.valueOf(cfg.totalTriggers()));
         return m;

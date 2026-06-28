@@ -62,8 +62,23 @@ public class AdminResource {
             return Response.status(401).entity(gson.toJson(err)).build();
         }
 
+        // 优先使用 application.yml 中配置的管理员账号（与玩家账号完全分离）
+        if (AdminAuthFilter.validateCredentials(username, password)) {
+            String token = AdminAuthFilter.generateAdminToken(username);
+            JsonObject result = new JsonObject();
+            result.addProperty("code", 200);
+            result.addProperty("token", token);
+            result.addProperty("username", username);
+            result.addProperty("userId", 0);
+            result.addProperty("highestRole", "admin");
+            result.add("permissions", new JsonArray());
+            return Response.ok(gson.toJson(result)).build();
+        }
+
+        // 非 yml 管理员，尝试玩家账号（需有 admin.login 权限）
         UserService userService = new UserService();
         User user = userService.authenticate(username, password);
+
         if (user == null) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 401);

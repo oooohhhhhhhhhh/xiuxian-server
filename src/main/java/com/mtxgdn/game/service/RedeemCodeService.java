@@ -222,6 +222,47 @@ public class RedeemCodeService {
             }
         }
 
+        // 提前查找玩家并构建奖励消息（避免在事务内调用 getConnection 导致 SQLite 死锁）
+        var p = playerService.getPlayerById(playerId);
+        if (p == null) return "玩家不存在";
+
+        StringBuilder rewardMsg = new StringBuilder();
+        int rewardCount = 0;
+
+        if (rc.getGold() > 0) {
+            rewardMsg.append("金币+" + rc.getGold());
+            rewardCount++;
+        }
+        if (rc.getSpiritStones() > 0) {
+            if (rewardCount > 0) rewardMsg.append(", ");
+            rewardMsg.append("灵石+" + rc.getSpiritStones());
+            rewardCount++;
+        }
+        if (rc.getExp() > 0) {
+            if (rewardCount > 0) rewardMsg.append(", ");
+            rewardMsg.append("灵力+" + rc.getExp());
+            rewardCount++;
+        }
+
+        Map<String, Integer> items = rc.getItems();
+        if (items != null) {
+            for (Map.Entry<String, Integer> entry : items.entrySet()) {
+                String itemKey = entry.getKey();
+                int qty = entry.getValue();
+                if (!ItemRegistry.contains(itemKey)) {
+                    continue;
+                }
+                if (rewardCount > 0) rewardMsg.append(", ");
+                String itemName = com.mtxgdn.util.LangManager.get("item." + itemKey + ".name");
+                rewardMsg.append(itemName + "x" + qty);
+                rewardCount++;
+            }
+        }
+
+        if (rewardCount == 0) {
+            return "兑换码配置为空";
+        }
+
         // 执行事务
         return DatabaseManager.runTransaction(conn -> {
             // 重复检查
@@ -238,32 +279,17 @@ public class RedeemCodeService {
                 return "更新兑换码状态失败";
             }
 
-            // 发放奖励
-            var p = playerService.getPlayerById(playerId);
-            if (p == null) return "玩家不存在";
-
-            StringBuilder result = new StringBuilder();
-            int count = 0;
-
+            // 发放奖励（使用事务连接，避免跨连接死锁）
             if (rc.getGold() > 0) {
-                playerService.addGold(playerId, rc.getGold());
-                result.append("金币+" + rc.getGold());
-                count++;
+                playerService.addGold(conn, playerId, rc.getGold());
             }
             if (rc.getSpiritStones() > 0) {
-                itemService.addSpiritStones(playerId, rc.getSpiritStones());
-                if (count > 0) result.append(", ");
-                result.append("灵石+" + rc.getSpiritStones());
-                count++;
+                itemService.addSpiritStones(conn, playerId, rc.getSpiritStones());
             }
             if (rc.getExp() > 0) {
-                playerService.addExperience(playerId, rc.getExp());
-                if (count > 0) result.append(", ");
-                result.append("灵力+" + rc.getExp());
-                count++;
+                playerService.addExperience(conn, playerId, rc.getExp());
             }
 
-            Map<String, Integer> items = rc.getItems();
             if (items != null) {
                 for (Map.Entry<String, Integer> entry : items.entrySet()) {
                     String itemKey = entry.getKey();
@@ -271,19 +297,11 @@ public class RedeemCodeService {
                     if (!ItemRegistry.contains(itemKey)) {
                         continue;
                     }
-                    itemService.addItem(playerId, itemKey, qty);
-                    if (count > 0) result.append(", ");
-                    String itemName = com.mtxgdn.util.LangManager.get("item." + itemKey + ".name");
-                    result.append(itemName + "x" + qty);
-                    count++;
+                    itemService.addItem(conn, playerId, itemKey, qty);
                 }
             }
 
-            if (count == 0) {
-                return "兑换码配置为空";
-            }
-
-            return "SUCCESS:" + result.toString();
+            return "SUCCESS:" + rewardMsg.toString();
         });
     }
 

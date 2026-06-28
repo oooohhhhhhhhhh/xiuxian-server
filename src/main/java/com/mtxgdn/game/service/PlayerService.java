@@ -132,14 +132,19 @@ public class PlayerService {
     }
 
     public void addExperience(long playerId, long exp) {
+        try (Connection conn = DatabaseManager.getConnection()) {
+            addExperience(conn, playerId, exp);
+        } catch (SQLException e) {
+            throw new RuntimeException("增加经验失败", e);
+        }
+    }
+
+    public void addExperience(Connection conn, long playerId, long exp) throws SQLException {
         String sql = "UPDATE players SET experience = experience + ? WHERE id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, exp);
             ps.setLong(2, playerId);
             ps.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("增加经验失败", e);
         }
     }
 
@@ -318,14 +323,19 @@ public class PlayerService {
     }
 
     public void addGold(long playerId, long amount) {
+        try (Connection conn = DatabaseManager.getConnection()) {
+            addGold(conn, playerId, amount);
+        } catch (SQLException e) {
+            throw new RuntimeException("增加金币失败", e);
+        }
+    }
+
+    public void addGold(Connection conn, long playerId, long amount) throws SQLException {
         String sql = "UPDATE players SET gold = gold + ? WHERE id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, amount);
             ps.setLong(2, playerId);
             ps.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("增加金币失败", e);
         }
     }
 

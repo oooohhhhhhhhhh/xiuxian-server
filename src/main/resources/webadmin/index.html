@@ -775,6 +775,7 @@ let statusTimer, logsTimer, currentTab = 'overview';
 
 function $h(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function hdrs() { return token ? { 'Authorization': 'Bearer ' + token } : {}; }
+function hasPerm(perm) { return !!token; }
 
 async function api(path, opts) {
   opts = opts || {};

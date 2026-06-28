@@ -1,5 +1,6 @@
 package com.mtxgdn.common;
 
+import com.mtxgdn.util.AppConfig;
 import org.yaml.snakeyaml.Yaml;
 
 import java.io.FileInputStream;
@@ -21,7 +22,9 @@ public class ExperimentalConfig {
     private static final Map<String, String> config;
 
     static {
-        Path externalPath = Paths.get("config", CONFIG_FILE);
+        // 使用 AppConfig 统一的 jar 目录基准
+        Path jarDir = AppConfig.getJarDir();
+        Path externalPath = jarDir.resolve("config").resolve(CONFIG_FILE);
 
         if (!Files.exists(externalPath)) {
             extractConfigFromClasspath(externalPath);

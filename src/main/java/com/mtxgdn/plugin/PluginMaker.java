@@ -37,7 +37,7 @@ public final class PluginMaker {
     };
 
     /** 服务端版本号 —— 用于在模板 pom.xml 的注释中提示依赖版本 */
-    private static final String SERVER_VERSION = "V1.4.1-alpha3";
+    private static final String SERVER_VERSION = "V1.4.1-beta1";
 
     private final BufferedReader in;
     private final PrintStream out;

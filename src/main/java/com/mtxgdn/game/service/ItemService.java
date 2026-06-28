@@ -24,6 +24,17 @@ public class ItemService {
         if (!ItemRegistry.contains(itemKey)) {
             return false;
         }
+        try (Connection conn = DatabaseManager.getConnection()) {
+            return addItem(conn, playerId, itemKey, quantity);
+        } catch (SQLException e) {
+            throw new RuntimeException("添加物品失败", e);
+        }
+    }
+
+    public boolean addItem(Connection conn, long playerId, String itemKey, int quantity) throws SQLException {
+        if (!ItemRegistry.contains(itemKey)) {
+            return false;
+        }
         String sql;
         if (DatabaseManager.isSqlite()) {
             sql = """
@@ -38,14 +49,11 @@ public class ItemService {
                 ON DUPLICATE KEY UPDATE quantity = quantity + VALUES(quantity)
                 """;
         }
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, playerId);
             ps.setString(2, itemKey);
             ps.setInt(3, quantity);
             return ps.executeUpdate() > 0;
-        } catch (SQLException e) {
-            throw new RuntimeException("添加物品失败", e);
         }
     }
 
@@ -139,6 +147,10 @@ public class ItemService {
 
     public boolean addSpiritStones(long playerId, long amount) {
         return addItem(playerId, CurrencyEffect.SPIRIT_STONE_KEY, (int) amount);
+    }
+
+    public boolean addSpiritStones(Connection conn, long playerId, long amount) throws SQLException {
+        return addItem(conn, playerId, CurrencyEffect.SPIRIT_STONE_KEY, (int) amount);
     }
 
     public Map<String, Object> equipItem(long playerId, String itemKey, String slot) {

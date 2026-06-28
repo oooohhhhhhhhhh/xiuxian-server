@@ -36,7 +36,7 @@ public class DatabaseManager {
                     config.setJdbcUrl(DB_URL);
 
                     if (IS_SQLITE) {
-                        config.setMaximumPoolSize(1);
+                        config.setMaximumPoolSize(3);
                         config.setMinimumIdle(1);
                         config.setConnectionTimeout(10000);
                         config.addDataSourceProperty("journal_mode", "WAL");

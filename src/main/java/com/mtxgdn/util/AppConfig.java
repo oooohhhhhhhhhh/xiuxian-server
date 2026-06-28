@@ -2,8 +2,10 @@ package com.mtxgdn.util;
 
 import org.yaml.snakeyaml.Yaml;
 
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStream;
+import java.net.URISyntaxException;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -18,8 +20,20 @@ public class AppConfig {
     private static final String CONFIG_DIR = "config";
     private static final Map<String, Object> config;
 
+    public static Path getJarDir() {
+        try {
+            String jarPath = AppConfig.class.getProtectionDomain().getCodeSource().getLocation().toURI().getPath();
+            File jarFile = new File(jarPath);
+            File parent = jarFile.isDirectory() ? jarFile : jarFile.getParentFile();
+            return parent != null ? parent.toPath() : Paths.get("").toAbsolutePath();
+        } catch (URISyntaxException e) {
+            return Paths.get("").toAbsolutePath();
+        }
+    }
+
     static {
-        Path externalPath = Paths.get(CONFIG_DIR, CONFIG_FILE);
+        Path jarDir = getJarDir();
+        Path externalPath = jarDir.resolve(CONFIG_DIR).resolve(CONFIG_FILE);
 
         if (!Files.exists(externalPath)) {
             extractConfigFromClasspath(externalPath);

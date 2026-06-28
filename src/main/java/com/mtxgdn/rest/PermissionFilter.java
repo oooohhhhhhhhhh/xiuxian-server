@@ -45,6 +45,12 @@ public class PermissionFilter implements ContainerRequestFilter {
             return;
         }
 
+        // admin JWT 鉴权通过（AdminAuthFilter 设置），超级管理员拥有所有权限
+        Object adminAuthObj = requestContext.getProperty("adminAuthenticated");
+        if (Boolean.TRUE.equals(adminAuthObj)) {
+            return;
+        }
+
         Object userIdObj = requestContext.getProperty("userId");
         if (userIdObj == null) {
             requestContext.abortWith(Response.status(Response.Status.UNAUTHORIZED)
