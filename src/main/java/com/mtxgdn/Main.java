@@ -10,6 +10,7 @@ import com.mtxgdn.game.secretrealm.SecretRealmScanner;
 import com.mtxgdn.common.command.CommandScanner;
 import com.mtxgdn.plugin.PluginManager;
 import com.mtxgdn.plugin.PluginMaker;
+import com.mtxgdn.plugin.PluginWebManager;
 import com.mtxgdn.plugin.gui.PluginMakerGUI;
 
 import java.io.File;
@@ -157,13 +158,18 @@ public class Main {
         pm.init(new File("plugins"));
         PluginManager.LoadResult pluginLoadResult = pm.loadPlugins();
         LOG.info(pluginLoadResult.toString());
-        pm.enablePlugins();
 
         ResourceConfig config = new ResourceConfig().packages("com.mtxgdn.rest");
 
         HttpServer server = GrizzlyHttpServerFactory.createHttpServer(
                 URI.create("http://0.0.0.0:8080/api/"), config);
         mainServer = server;
+
+        // 初始化插件 Web 管理器（必须在插件启用之前完成）
+        PluginWebManager.getInstance().init(server, config);
+
+        // 在 Web 基础设施就绪后再启用插件（插件在 onEnable 中注册 Web 资源）
+        pm.enablePlugins();
 
         // 低内存模式：缩小 Grizzly 线程池和缓冲区
         if (AppConfig.getBoolean("performance.low_memory", true)) {

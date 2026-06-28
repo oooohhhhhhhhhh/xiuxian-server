@@ -407,6 +407,11 @@ public class GameWebSocketApp extends WebSocketApplication {
                 handleMapLocations(socket, msgId);
                 break;
             default:
+                // 先尝试插件 WebSocket 处理器
+                if (com.mtxgdn.plugin.PluginWebManager.getInstance()
+                        .handleWsMessage(socket, type, data)) {
+                    break;
+                }
                 GameMessage err = GameMessage.error(msgId, type, GameErrorCode.UNKNOWN_TYPE);
                 socket.send(err.toJson());
                 break;

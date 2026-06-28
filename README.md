@@ -43,6 +43,7 @@
 - **国际化 (i18n)**：JSON 语言的本地化系统，物品/秘境/事件/系统消息完整翻译，当前支持中文 (zh_cn)
 - **数据库**：MySQL / SQLite 双支持，HikariCP 连接池，一行配置切换
 - **Web 管理控制台**：修仙风主题面板，侧边栏导航，实时日志，玩家管理，用户角色管理，数据发放
+- **插件系统**：完整的生命周期管理（onLoad/onEnable/onDisable），独立类加载器隔离；插件可注册命令/物品/游历事件/秘境/能量值；事件总线（10 种事件类型）；访问全部 19 个游戏服务 API；暴露底层接口（数据库连接/服务端配置/频率限制/JWT/行为日志/统计收集器）；支持插件添加 REST API 端点、Web 管理页面和 WebSocket 消息处理器
 
 ---
 
@@ -175,19 +176,22 @@ src/main/java/com/mtxgdn/
 │   ├── QqBinding.java              # QQ 绑定实体
 │   ├── QqBindingService.java       # QQ 绑定服务
 │   └── command/                    # QQ 机器人指令（按功能模块化）
-│       ├── OneBotCommandContext.java  # OneBot 指令上下文
-│       ├── account/                   # 账号指令（Help/Register/Bind/Unbind）
-│       ├── cultivation/               # 修炼指令（Cultivate/CultivateStop/Breakthrough）
-│       ├── exploration/               # 探索指令（Explore/SecretAreas/SecretEnter）
-│       ├── item/                      # 物品指令（Backpack/ItemUse/ItemMap/Equip/Unequip/Equipped）
-│       ├── market/                    # 坊市指令（Market/ListItem/BuyItem/CancelListing/MyListings）
-│       ├── economy/                   # 经济指令（ExchangeCommand）
-│       ├── social/                    # 社交指令（Friend/PrivateMessage/Rank）
-│       ├── combat/                    # 战斗指令（Pvp/Skills/LearnSkill）
-│       ├── daily/                     # 每日指令（Daily/Morning）
-│       ├── player/                    # 角色指令（Status/Heal）
-│       ├── sect/                      # 宗门指令（SectCommand）
-│       └── admin/                     # 管理指令（ClearPlayersDb/ResetAllDb/Give/EditPlayer/Trace...）
+│       ├── OneBotCommandContext.java
+│       └── ...
+│
+├── plugin/                         # 插件系统
+│   ├── Plugin.java                 # 插件接口（onLoad/onEnable/onDisable 生命周期）
+│   ├── PluginContext.java          # 插件上下文（服务访问/注册接口/底层API/Web UI）
+│   ├── PluginInfo.java             # 插件元数据
+│   ├── PluginMeta.java             # @PluginMeta 注解
+│   ├── PluginManager.java          # 插件管理器（扫描/加载/生命周期管理）
+│   ├── PluginClassLoader.java      # 插件类加载器（隔离 + 包委托）
+│   ├── PluginWebManager.java       # 插件 Web 管理器（REST/页面/WebSocket 注册）
+│   ├── PluginMaker.java            # 插件生成器（交互式向导）
+│   └── event/                      # 插件事件系统
+│       ├── PluginEvent.java        # 事件定义与构建器
+│       ├── PluginEventHandler.java # 事件处理器接口
+│       └── PluginEventManager.java # 事件总线
 │
 ├── permission/                     # 权限系统
 │   ├── PermissionCode.java         # 权限码定义
@@ -468,6 +472,7 @@ java -jar target/main-V0.0.0-alpha.jar
 | POST | `/api/admin/energy/set` | `admin.status` | 覆盖玩家能量值 |
 | POST | `/api/admin/energy/add` | `admin.status` | 增加玩家能量值 |
 | POST | `/api/admin/energy/remove` | `admin.status` | 减少玩家能量值 |
+| GET | `/api/admin/plugins` | - | 获取已注册的插件 Web 页面列表 |
 
 ---
 
@@ -930,6 +935,180 @@ Boss 拥有 3 倍以上属性，更高掉落率和更丰富的稀有物品掉落
 - **翻译键格式**：`item.<key>.name` / `item.<key>.desc` / `secretrealm.<key>.name` 等
 - **物品使用**：玩家可以通过**中文名称**使用物品（如 `/使用 回血丹`），系统自动解析到对应物品
 - **添加语言**：在 `data/mtxgdn/lang/` 下新建 `<lang>.json`，调用 `LangManager.setLanguage("new_lang")` 即可切换
+
+---
+
+## 插件系统
+
+项目内置完整的插件框架，允许开发者通过 jar 包扩展游戏功能，无需修改主程序代码。
+
+### 插件生命周期
+
+```
+PluginManager 扫描 plugins/*.jar
+    → onLoad(context)    — 加载阶段：读取配置、准备数据
+    → onEnable(context)  — 启用阶段：注册命令/物品/事件/秘境/Web路由
+    → [服务器运行中...]
+    → onDisable(context) — 停用阶段：释放资源（按加载逆序调用）
+```
+
+### 创建插件
+
+插件入口类需实现 `Plugin` 接口：
+
+```java
+@PluginMeta(name = "我的插件", version = "1.0.0", author = "作者", description = "示例插件")
+public class MyPlugin implements Plugin {
+    @Override
+    public void onEnable(PluginContext context) {
+        context.getLogger().info("插件已启用！");
+        // 在此注册扩展内容
+    }
+}
+```
+
+插件 jar 根目录或 `META-INF/` 下需放置 `plugin.json`（也可用 `@PluginMeta` 注解替代）：
+
+```json
+{
+  "name": "示例插件",
+  "version": "1.0.0",
+  "author": "开发者",
+  "description": "一个示例插件",
+  "main": "com.example.MyPlugin"
+}
+```
+
+将打包好的 jar 放入 `./plugins/` 目录，启动服务器即自动加载。
+
+> 也可使用交互式向导创建插件项目骨架：`java -jar main.jar --plugin-make`
+
+### PluginContext 完整 API
+
+`PluginContext` 是插件与服务器交互的唯一入口，提供以下接口：
+
+#### 基础信息
+| 方法 | 返回类型 | 说明 |
+|------|----------|------|
+| `getInfo()` | `PluginInfo` | 插件元数据（名称/版本/作者） |
+| `getLogger()` | `GameLogger` | 插件专属日志记录器 |
+| `getDataFolder()` | `File` | 插件数据目录（`./plugins/插件名/`） |
+| `getClassLoader()` | `ClassLoader` | 插件类加载器 |
+| `getResource(path)` | `InputStream` | 从 jar 内读取资源文件 |
+| `loadConfig(fileName)` | `Properties` | 加载插件数据目录中的 .properties 配置文件 |
+
+#### 游戏服务（19 项）
+`getPlayerService()` `getItemService()` `getEconomyService()` `getCombatService()` `getSkillService()` `getDailyService()` `getExplorationService()` `getSecretRealmService()` `getSectService()` `getTechniqueService()` `getCraftingService()` `getEnhanceService()` `getChatService()` `getFriendService()` `getHeartDemonService()` `getTradeService()` `getGuideService()` `getRealmService()` `getEnergyService()`
+
+#### 内容注册
+| 方法 | 说明 |
+|------|------|
+| `registerCommand(Command)` | 注册游戏命令（自动注册 OneBot + REST 路由） |
+| `registerItem(Item)` | 注册新物品 |
+| `registerItemEnergy(key, value)` | 注册物品能量值（供能量转化系统使用） |
+| `registerExplorationEvent(ExplorationEvent)` | 注册游历事件 |
+| `registerSecretRealm(SecretRealm)` | 注册秘境 |
+
+#### 事件总线
+| 方法 | 说明 |
+|------|------|
+| `registerHandler(type, condition, handler)` | 注册事件处理器（条件过滤可选） |
+| `registerCustomHandler(key, condition, handler)` | 注册自定义事件处理器 |
+| `fireEvent(event)` | 触发事件（供其他插件监听） |
+
+内置事件类型：`COMMAND` `PLAYER_LOGIN` `PLAYER_LOGOUT` `ITEM_USED` `COMBAT_ENDED` `EXPLORATION_START` `EXPLORATION_END` `SCHEDULED` `SERVER_READY` `CUSTOM`
+
+#### 底层接口（新增）
+| 方法 | 说明 |
+|------|------|
+| `getDatabaseConnection()` | 获取 HikariCP 数据库连接（可执行原生 SQL） |
+| `getServerConfig(key, default)` | 读取 `application.yml` 配置 |
+| `getServerConfigBoolean(key, default)` | 读取布尔型配置 |
+| `getServerConfigInt(key, default)` | 读取整数型配置 |
+| `checkRateLimit(key, limit, seconds)` | API 频率限制（滑动窗口） |
+| `getRateLimitRemaining(key, limit, seconds)` | 查询剩余调用次数 |
+| `isExperimentalFeatureEnabled(key)` | 检查实验性功能开关 |
+| `getExperimentalFeatureValue(key, default)` | 读取实验性功能配置值 |
+| `getJwtUtil()` | JWT 生成/验证工具 |
+| `getPlayerActionLogger()` | 玩家行为日志记录器 |
+| `getStatsCollector()` | 全局统计收集器 |
+
+#### Web UI 接口（新增）
+| 方法 | 说明 |
+|------|------|
+| `registerRestResource(Class)` | 注册 JAX-RS REST 端点类 |
+| `registerWebPage(path, title, html)` | 注册 HTML 页面（挂载到 `/admin/plugins/插件名/`） |
+| `registerWebResources(resourceDir)` | 从 jar 中注册完整静态资源目录 |
+| `registerWebSocketHandler(type, handler)` | 注册 WebSocket 消息处理器 |
+
+#### Web UI 使用示例
+
+**注册 REST API 端点：**
+
+```java
+// 插件 jar 中定义 REST 资源类
+@Path("/game/myplugin")
+public class MyPluginResource {
+    @GET @Path("/info")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response getInfo() {
+        return Response.ok("{\"status\":\"ok\"}").build();
+    }
+}
+
+// 在 onEnable 中注册
+public void onEnable(PluginContext context) {
+    context.registerRestResource(MyPluginResource.class);
+}
+// 访问: GET http://127.0.0.1:8080/api/game/myplugin/info
+```
+
+**添加管理后台页面：**
+
+```java
+public void onEnable(PluginContext context) {
+    String html = "<!DOCTYPE html><html><head><meta charset='UTF-8'>"
+        + "<title>我的插件</title></head>"
+        + "<body><h1>插件管理面板</h1><p>Hello from plugin!</p></body></html>";
+    context.registerWebPage("", "插件面板", html.getBytes(StandardCharsets.UTF_8));
+}
+// 访问: http://127.0.0.1:8080/admin/plugins/MyPlugin/
+```
+
+**注册 Web 资源目录：**
+
+```java
+public void onEnable(PluginContext context) {
+    // 将 jar 中 webadmin/ 目录下的所有文件映射到 /admin/plugins/MyPlugin/
+    context.registerWebResources("webadmin");
+}
+```
+
+**注册 WebSocket 消息处理器：**
+
+```java
+public void onEnable(PluginContext context) {
+    context.registerWebSocketHandler("myplugin_action", (socket, data) -> {
+        String userId = data.get("userId").getAsString();
+        context.getLogger().info("收到插件消息: userId=" + userId);
+        // 处理自定义 WebSocket 消息...
+    });
+}
+```
+
+### 插件 Web 管理
+
+- **页面列表**：访问 `http://127.0.0.1:8080/admin/plugins/` 查看所有已注册的插件页面
+- **API 查询**：`GET /api/admin/plugins` 返回插件页面 JSON 列表
+- 管理后台会从该 API 获取插件页面列表并渲染在导航栏中
+
+### 插件开发最佳实践
+
+1. **数据隔离**：使用 `getDataFolder()` 存放插件私有数据，不要修改服务端文件
+2. **日志规范**：使用 `getLogger()` 输出日志，带上插件名前缀
+3. **资源释放**：在 `onDisable()` 中释放数据库连接、定时任务等资源
+4. **频率限制**：对插件自定义的 API 使用 `checkRateLimit()` 防止滥用
+5. **线程安全**：操作共享服务时注意并发安全，必要时使用粗粒度同步
 
 ---
 

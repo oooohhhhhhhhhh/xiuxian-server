@@ -18,6 +18,7 @@ import com.mtxgdn.entity.User;
 import com.mtxgdn.permission.PermissionCode;
 import com.mtxgdn.permission.PermissionService;
 import com.mtxgdn.permission.RequirePermission;
+import com.mtxgdn.plugin.PluginWebManager;
 import com.mtxgdn.service.UserService;
 import com.mtxgdn.util.JwtUtil;
 import com.mtxgdn.util.GameLogger;
@@ -133,6 +134,17 @@ public class AdminResource {
         data.addProperty("maxMemoryMB", maxMB);
 
         return Response.ok(gson.toJson(data)).build();
+    }
+
+    @GET
+    @Path("/plugins")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response getPluginPages() {
+        com.google.gson.JsonArray plugins = PluginWebManager.getInstance().getPluginPagesJson();
+        JsonObject result = new JsonObject();
+        result.addProperty("code", 200);
+        result.add("plugins", plugins);
+        return Response.ok(gson.toJson(result)).build();
     }
 
     @GET

@@ -1,8 +1,10 @@
 package com.mtxgdn.plugin;
 
+import com.mtxgdn.common.ExperimentalConfig;
 import com.mtxgdn.common.command.Command;
 import com.mtxgdn.common.command.CommandRegistry;
 import com.mtxgdn.common.service.ServiceRegistry;
+import com.mtxgdn.db.DatabaseManager;
 import com.mtxgdn.game.explorationevent.ExplorationEvent;
 import com.mtxgdn.game.explorationevent.ExplorationEventRegistry;
 import com.mtxgdn.game.item.Item;
@@ -13,12 +15,12 @@ import com.mtxgdn.game.service.*;
 import com.mtxgdn.plugin.event.PluginEvent;
 import com.mtxgdn.plugin.event.PluginEventHandler;
 import com.mtxgdn.plugin.event.PluginEventManager;
-import com.mtxgdn.util.GameLogger;
-import com.mtxgdn.util.LangManager;
+import com.mtxgdn.util.*;
 
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStream;
+import java.sql.Connection;
 import java.util.Properties;
 
 /**
@@ -195,4 +197,149 @@ public final class PluginContext {
     public NewbieGuideService getGuideService() { return ServiceRegistry.getGuideService(); }
     public RealmService getRealmService() { return ServiceRegistry.getRealmService(); }
     public EnergyService getEnergyService() { return ServiceRegistry.getEnergyService(); }
+
+    // ================ 底层接口（供插件访问服务端基础设施） =================
+
+    /**
+     * 获取数据库连接（HikariCP 连接池）。
+     * 插件可以使用此连接执行原生 SQL 查询。
+     * 注意：用完后必须在 finally 块中 close() 归还连接。
+     */
+    public Connection getDatabaseConnection() throws java.sql.SQLException {
+        return DatabaseManager.getConnection();
+    }
+
+    /** 获取服务端配置（application.yml）。 */
+    public String getServerConfig(String key, String defaultValue) {
+        return AppConfig.get(key, defaultValue);
+    }
+
+    /** 获取服务端配置（布尔值）。 */
+    public boolean getServerConfigBoolean(String key, boolean defaultValue) {
+        return AppConfig.getBoolean(key, defaultValue);
+    }
+
+    /** 获取服务端配置（整数值）。 */
+    public int getServerConfigInt(String key, int defaultValue) {
+        return AppConfig.getInt(key, defaultValue);
+    }
+
+    /**
+     * 检查 API 调用频率限制。
+     * @param key          频率限制的 key（建议使用 "plugin:<插件名>:<action>" 格式）
+     * @param limit        时间窗口内允许的次数
+     * @param windowSeconds 时间窗口（秒）
+     * @return true 表示允许本次请求
+     */
+    public boolean checkRateLimit(String key, int limit, int windowSeconds) {
+        return RateLimiter.allow(key, limit, windowSeconds);
+    }
+
+    /** 获取频率限制剩余次数。 */
+    public long getRateLimitRemaining(String key, int limit, int windowSeconds) {
+        return RateLimiter.getRemaining(key, limit, windowSeconds);
+    }
+
+    /**
+     * 获取实验性功能配置。
+     * @param key 功能键名（在 experimental.yml 中定义）
+     * @return true 表示该功能已启用
+     */
+    public boolean isExperimentalFeatureEnabled(String key) {
+        return ExperimentalConfig.isEnabled(key);
+    }
+
+    /** 获取实验性功能配置的值。 */
+    public String getExperimentalFeatureValue(String key, String defaultValue) {
+        return ExperimentalConfig.get(key, defaultValue);
+    }
+
+    /**
+     * 获取 JWT 工具类实例，用于生成或验证 JWT token。
+     */
+    public JwtUtil getJwtUtil() {
+        return new JwtUtil();
+    }
+
+    /** 获取玩家行为日志记录器。 */
+    public PlayerActionLogger getPlayerActionLogger() {
+        return PlayerActionLogger.getInstance();
+    }
+
+    /** 获取服务端全局统计收集器。 */
+    public StatsCollector getStatsCollector() {
+        return StatsCollector.getInstance();
+    }
+
+    /** 获取服务端日志记录器。 */
+    public GameLogger getGlobalLogger() {
+        return GameLogger.getLogger("Plugin[" + info.getName() + "]");
+    }
+
+    // ================ Web UI 接口（供插件添加管理界面） =================
+
+    /**
+     * 注册一个 JAX-RS REST 资源类。
+     * 插件可以在自己的 jar 中定义带有 @Path 注解的 REST 资源类，
+     * 通过此方法注册后即可通过 HTTP 访问。
+     *
+     * <pre>{@code
+     * // 在插件 jar 中定义
+     * // @Path("/game/myplugin")
+     * // public class MyPluginResource { ... }
+     *
+     * // 在 onEnable 中注册
+     * context.registerRestResource(MyPluginResource.class);
+     * }</pre>
+     */
+    public void registerRestResource(Class<?> resourceClass) {
+        PluginWebManager.getInstance().registerRestResource(info.getName(), resourceClass);
+    }
+
+    /**
+     * 注册一个 HTML 页面到管理后台。
+     * 页面将挂载在 /admin/plugins/{插件名}/{path} 下。
+     *
+     * @param path       页面路径，例如 "settings" 或 ""（首页）
+     * @param title      页面标题，会在管理后台导航中显示
+     * @param htmlContent HTML 页面内容
+     */
+    public void registerWebPage(String path, String title, byte[] htmlContent) {
+        PluginWebManager.getInstance().registerWebPage(info.getName(), path, title, htmlContent);
+    }
+
+    /**
+     * 从插件 jar 中注册一个完整的 Web 资源目录。
+     * jar 内 resourceDir 下的所有文件（HTML/CSS/JS/图片等）
+     * 都会被映射到 /admin/plugins/{插件名}/。
+     *
+     * 示例：插件 jar 中包含 webadmin/index.html，调用
+     * registerWebResources("webadmin") 后，
+     * 访问 http://127.0.0.1:8080/admin/plugins/MyPlugin/ 即可看到该页面。
+     *
+     * @param resourceDir jar 内的资源目录路径，如 "webadmin/"
+     */
+    public void registerWebResources(String resourceDir) {
+        PluginWebManager.getInstance().registerWebResources(
+                info.getName(), resourceDir, this.classLoader);
+    }
+
+    /**
+     * 注册一个 WebSocket 消息处理器。
+     * 当游戏客户端发送指定消息类型时，会调用此处理器。
+     *
+     * <pre>{@code
+     * context.registerWebSocketHandler("myplugin_action", (socket, data) -> {
+     *     String userId = data.get("userId").getAsString();
+     *     // 处理消息...
+     * });
+     * }</pre>
+     *
+     * @param messageType 消息类型（JSON 中的 type 字段值）
+     * @param handler     处理器 lambda
+     */
+    public void registerWebSocketHandler(String messageType,
+                                          PluginWebManager.PluginWsHandler handler) {
+        PluginWebManager.getInstance().registerWsHandler(info.getName(), messageType, handler);
+    }
 }
