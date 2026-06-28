@@ -611,26 +611,6 @@ public class DatabaseManager {
                     ")";
             stmt.execute(auctionBidsTableSql);
 
-            String blacklistTableSql = "CREATE TABLE IF NOT EXISTS blacklist (" +
-                    "id " + pk + ", " +
-                    "qq_number VARCHAR(32) NOT NULL UNIQUE, " +
-                    "user_id BIGINT DEFAULT NULL, " +
-                    "reason VARCHAR(256) DEFAULT '', " +
-                    "banned_by BIGINT DEFAULT NULL, " +
-                    "created_at " + tsDefault +
-                    ")";
-            stmt.execute(blacklistTableSql);
-
-            String onebotGroupConfigTableSql = "CREATE TABLE IF NOT EXISTS onebot_group_config (" +
-                    "id " + pk + ", " +
-                    "group_id BIGINT NOT NULL UNIQUE, " +
-                    "auto_mute_enabled " + boolType + ", " +
-                    "mute_duration_days INT DEFAULT 29, " +
-                    "created_at " + tsDefault + ", " +
-                    "updated_at " + tsUpdate +
-                    ")";
-            stmt.execute(onebotGroupConfigTableSql);
-
             String playerEnergyTableSql = "CREATE TABLE IF NOT EXISTS player_energy (" +
                     "player_id BIGINT PRIMARY KEY, " +
                     "energy BIGINT DEFAULT 0" +

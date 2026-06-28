@@ -1177,14 +1177,45 @@ public void onEnable(PluginContext context) {
 | `player_daily` | 每日数据（晨修时间、机缘进度、活跃天数） |
 | `player_energy` | 玩家能量值（能量转化系统） |
 | `qq_bindings` | QQ 与游戏账号绑定 |
-| `blacklist` | 黑名单记录（QQ号、关联用户、封禁原因、封禁者） |
-| `onebot_group_config` | OneBot 群组配置（自动禁言开关、禁言天数） |
 | `roles` | 角色定义（名称、显示名、等级） |
 | `permissions` | 权限码定义 |
 | `role_permissions` | 角色-权限关联 |
 | `user_roles` | 用户-角色关联 |
 
 > SQLite 模式下，`AUTO_INCREMENT` 和 `FOREIGN KEY` 会被自动适配为 SQLite 兼容语法。
+
+## YAML 配置文件
+
+黑名单和 OneBot 群组配置使用 YAML 文件存储（非数据库），位于项目根目录：
+
+| 文件名 | 说明 |
+|------|------|
+| `blacklist.yml` | 黑名单列表（QQ号、关联用户、封禁原因、封禁者、创建时间） |
+| `onebot_group_config.yml` | OneBot 群组配置（群组ID、自动禁言开关、禁言天数、时间戳） |
+
+### blacklist.yml 格式
+
+```yaml
+entries:
+  - qqNumber: "123456789"
+    userId: 1001
+    reason: "违规发言"
+    bannedBy: null
+    createdAt: "2026-06-25 12:00:00"
+```
+
+### onebot_group_config.yml 格式
+
+```yaml
+groups:
+  - groupId: 987654321
+    autoMuteEnabled: true
+    muteDurationDays: 29
+    createdAt: "2026-06-25 12:00:00"
+    updatedAt: "2026-06-25 12:00:00"
+```
+
+> 文件不存在时服务端会自动创建空配置，无需手动新建。支持运行时通过 API 动态修改并持久化。
 
 ---
 

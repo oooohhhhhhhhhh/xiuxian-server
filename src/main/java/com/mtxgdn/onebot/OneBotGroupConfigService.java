@@ -1,57 +1,90 @@
 package com.mtxgdn.onebot;
 
-import com.mtxgdn.db.DatabaseManager;
+import org.yaml.snakeyaml.Yaml;
+import org.yaml.snakeyaml.DumperOptions;
+import org.yaml.snakeyaml.representer.Representer;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.util.ArrayList;
-import java.util.List;
+import java.io.*;
+import java.nio.charset.StandardCharsets;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.nio.file.Paths;
+import java.time.LocalDateTime;
+import java.time.format.DateTimeFormatter;
+import java.util.*;
+import java.util.concurrent.locks.ReadWriteLock;
+import java.util.concurrent.locks.ReentrantReadWriteLock;
 
 public class OneBotGroupConfigService {
 
-    public OneBotGroupConfig findByGroupId(Long groupId) {
-        String sql = "SELECT id, group_id, auto_mute_enabled, mute_duration_days, created_at, updated_at FROM onebot_group_config WHERE group_id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setLong(1, groupId);
-            try (ResultSet rs = stmt.executeQuery()) {
-                if (rs.next()) {
-                    OneBotGroupConfig config = new OneBotGroupConfig();
-                    config.setId(rs.getLong("id"));
-                    config.setGroupId(rs.getLong("group_id"));
-                    config.setAutoMuteEnabled(rs.getBoolean("auto_mute_enabled"));
-                    config.setMuteDurationDays(rs.getInt("mute_duration_days"));
-                    config.setCreatedAt(rs.getString("created_at"));
-                    config.setUpdatedAt(rs.getString("updated_at"));
-                    return config;
-                }
+    private static final String CONFIG_FILE = "onebot_group_config.yml";
+    private static final DateTimeFormatter DTF = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss");
+
+    private final Path configPath;
+    private final ReadWriteLock lock = new ReentrantReadWriteLock();
+    private final Yaml yaml;
+
+    public OneBotGroupConfigService() {
+        this.configPath = Paths.get(CONFIG_FILE);
+        DumperOptions options = new DumperOptions();
+        options.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK);
+        options.setPrettyFlow(true);
+        Representer representer = new Representer(options);
+        representer.getPropertyUtils().setSkipMissingProperties(true);
+        this.yaml = new Yaml(representer, options);
+    }
+
+    @SuppressWarnings("unchecked")
+    private List<Map<String, Object>> loadRawList() {
+        lock.readLock().lock();
+        try {
+            if (!Files.exists(configPath)) {
+                return new ArrayList<>();
             }
-        } catch (SQLException e) {
-            throw new RuntimeException("查询群组配置失败", e);
+            Map<String, Object> data = yaml.load(Files.newInputStream(configPath));
+            if (data == null || data.get("groups") == null) {
+                return new ArrayList<>();
+            }
+            return (List<Map<String, Object>>) data.get("groups");
+        } catch (IOException e) {
+            throw new RuntimeException("读取群组配置文件失败", e);
+        } finally {
+            lock.readLock().unlock();
+        }
+    }
+
+    private void saveRawList(List<Map<String, Object>> entries) {
+        lock.writeLock().lock();
+        try {
+            Files.createDirectories(configPath.getParent());
+            Map<String, Object> root = new LinkedHashMap<>();
+            root.put("groups", entries);
+            try (Writer writer = new OutputStreamWriter(Files.newOutputStream(configPath), StandardCharsets.UTF_8)) {
+                yaml.dump(root, writer);
+            }
+        } catch (IOException e) {
+            throw new RuntimeException("写入群组配置文件失败", e);
+        } finally {
+            lock.writeLock().unlock();
+        }
+    }
+
+    public OneBotGroupConfig findByGroupId(Long groupId) {
+        List<Map<String, Object>> list = loadRawList();
+        for (Map<String, Object> entry : list) {
+            Object gid = entry.get("groupId");
+            if (gid != null && String.valueOf(groupId).equals(String.valueOf(gid))) {
+                return fromMap(entry);
+            }
         }
         return null;
     }
 
     public List<OneBotGroupConfig> getAllConfigs() {
-        String sql = "SELECT id, group_id, auto_mute_enabled, mute_duration_days, created_at, updated_at FROM onebot_group_config ORDER BY id DESC";
+        List<Map<String, Object>> rawList = loadRawList();
         List<OneBotGroupConfig> list = new ArrayList<>();
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql);
-             ResultSet rs = stmt.executeQuery()) {
-            while (rs.next()) {
-                OneBotGroupConfig config = new OneBotGroupConfig();
-                config.setId(rs.getLong("id"));
-                config.setGroupId(rs.getLong("group_id"));
-                config.setAutoMuteEnabled(rs.getBoolean("auto_mute_enabled"));
-                config.setMuteDurationDays(rs.getInt("mute_duration_days"));
-                config.setCreatedAt(rs.getString("created_at"));
-                config.setUpdatedAt(rs.getString("updated_at"));
-                list.add(config);
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("查询群组配置列表失败", e);
+        for (Map<String, Object> entry : rawList) {
+            list.add(fromMap(entry));
         }
         return list;
     }
@@ -66,42 +99,32 @@ public class OneBotGroupConfigService {
     }
 
     public void saveConfig(OneBotGroupConfig config) {
-        if (config.getId() == null) {
-            insertConfig(config);
-        } else {
-            updateConfig(config);
-        }
-    }
-
-    private void insertConfig(OneBotGroupConfig config) {
-        String sql = "INSERT INTO onebot_group_config (group_id, auto_mute_enabled, mute_duration_days) VALUES (?, ?, ?)";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql, PreparedStatement.RETURN_GENERATED_KEYS)) {
-            stmt.setLong(1, config.getGroupId());
-            stmt.setBoolean(2, config.isAutoMuteEnabled());
-            stmt.setInt(3, config.getMuteDurationDays());
-            stmt.executeUpdate();
-            try (ResultSet rs = stmt.getGeneratedKeys()) {
-                if (rs.next()) {
-                    config.setId(rs.getLong(1));
-                }
+        List<Map<String, Object>> list = loadRawList();
+        Iterator<Map<String, Object>> it = list.iterator();
+        boolean found = false;
+        while (it.hasNext()) {
+            Map<String, Object> entry = it.next();
+            Object gid = entry.get("groupId");
+            if (gid != null && String.valueOf(config.getGroupId()).equals(String.valueOf(gid))) {
+                // 更新
+                entry.put("autoMuteEnabled", config.isAutoMuteEnabled());
+                entry.put("muteDurationDays", config.getMuteDurationDays());
+                entry.put("updatedAt", LocalDateTime.now().format(DTF));
+                found = true;
+                break;
             }
-        } catch (SQLException e) {
-            throw new RuntimeException("插入群组配置失败", e);
         }
-    }
-
-    private void updateConfig(OneBotGroupConfig config) {
-        String sql = "UPDATE onebot_group_config SET auto_mute_enabled = ?, mute_duration_days = ? WHERE group_id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setBoolean(1, config.isAutoMuteEnabled());
-            stmt.setInt(2, config.getMuteDurationDays());
-            stmt.setLong(3, config.getGroupId());
-            stmt.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("更新群组配置失败", e);
+        if (!found) {
+            Map<String, Object> entry = new LinkedHashMap<>();
+            entry.put("groupId", config.getGroupId());
+            entry.put("autoMuteEnabled", config.isAutoMuteEnabled());
+            entry.put("muteDurationDays", config.getMuteDurationDays());
+            String now = LocalDateTime.now().format(DTF);
+            entry.put("createdAt", now);
+            entry.put("updatedAt", now);
+            list.add(entry);
         }
+        saveRawList(list);
     }
 
     public void setAutoMute(Long groupId, boolean enabled) {
@@ -117,17 +140,15 @@ public class OneBotGroupConfigService {
     }
 
     public void deleteConfig(Long groupId) {
-        String sql = "DELETE FROM onebot_group_config WHERE group_id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setLong(1, groupId);
-            int affected = stmt.executeUpdate();
-            if (affected == 0) {
-                throw new RuntimeException("群组配置不存在");
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("删除群组配置失败", e);
+        List<Map<String, Object>> list = loadRawList();
+        boolean removed = list.removeIf(e -> {
+            Object gid = e.get("groupId");
+            return gid != null && String.valueOf(groupId).equals(String.valueOf(gid));
+        });
+        if (!removed) {
+            throw new RuntimeException("群组配置不存在");
         }
+        saveRawList(list);
     }
 
     public boolean isAutoMuteEnabled(Long groupId) {
@@ -138,5 +159,18 @@ public class OneBotGroupConfigService {
     public int getMuteDuration(Long groupId) {
         OneBotGroupConfig config = findByGroupId(groupId);
         return config != null ? config.getMuteDurationDays() : 29;
+    }
+
+    private OneBotGroupConfig fromMap(Map<String, Object> map) {
+        OneBotGroupConfig c = new OneBotGroupConfig();
+        Object gid = map.get("groupId");
+        c.setGroupId(gid != null ? Long.valueOf(String.valueOf(gid)) : null);
+        Object ame = map.get("autoMuteEnabled");
+        c.setAutoMuteEnabled(ame instanceof Boolean ? (Boolean) ame : Boolean.parseBoolean(String.valueOf(ame)));
+        Object mdd = map.get("muteDurationDays");
+        c.setMuteDurationDays(mdd != null ? Integer.parseInt(String.valueOf(mdd)) : 29);
+        c.setCreatedAt(map.get("createdAt") != null ? String.valueOf(map.get("createdAt")) : "");
+        c.setUpdatedAt(map.get("updatedAt") != null ? String.valueOf(map.get("updatedAt")) : "");
+        return c;
     }
 }
