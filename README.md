@@ -37,7 +37,7 @@
 - **离线收益**：断线后修炼继续进行（50% 效率，上限 8 小时），上线时自动结算经验、HP/MP 恢复，心魔判定降频
 - **用户系统**：邮箱注册/验证码、JWT 双令牌认证、BCrypt 密码加密
 - **权限管理**：RBAC 角色权限系统，新增 `game.*`/`qq.*` 前缀权限码自动授予 PLAYER 角色，无需逐个加入角色定义
-- **QQ 机器人**：OneBot 协议集成，支持私聊和群聊指令操作
+- **QQ 机器人**：OneBot 协议集成，支持私聊和群聊指令操作；黑名单系统 + 自动禁言（群组级别开关、29天循环禁言、管理员权限检测）
 - **指令即路由**：一套 API 搞定双端 — `addRoute(RouteDefinition.onebotOnly("xxx", handler))` 仅 OneBot，`addRoute(RouteDefinition.get("path", handler))` 仅 HTTP，`registerSub` + `addRoute` 双端注册；UnifiedRestResource 自动发现并分发 HTTP 请求
 - **Minecraft MOTD**：模拟 Minecraft 服务器 ping 响应（端口 25565），显示在线人数
 - **国际化 (i18n)**：JSON 语言的本地化系统，物品/秘境/事件/系统消息完整翻译，当前支持中文 (zh_cn)
@@ -171,10 +171,14 @@ src/main/java/com/mtxgdn/
 │
 ├── onebot/                         # QQ 机器人集成
 │   ├── OneBotAccountFlow.java      # OneBot 账号流程（注册/绑定/解绑）
-│   ├── OneBotWebSocketServer.java  # OneBot WebSocket 服务端 + 消息发送
+│   ├── OneBotWebSocketServer.java  # OneBot WebSocket 服务端 + 消息发送 + 黑名单禁言
 │   ├── OneBotMessageSender.java    # OneBot 消息发送接口
 │   ├── QqBinding.java              # QQ 绑定实体
 │   ├── QqBindingService.java       # QQ 绑定服务
+│   ├── Blacklist.java              # 黑名单实体
+│   ├── BlacklistService.java       # 黑名单服务
+│   ├── OneBotGroupConfig.java      # 群组配置实体
+│   ├── OneBotGroupConfigService.java # 群组配置服务
 │   └── command/                    # QQ 机器人指令（按功能模块化）
 │       ├── OneBotCommandContext.java
 │       └── ...
@@ -335,7 +339,7 @@ mvn clean package -DskipTests
 ### 4. 运行
 
 ```bash
-java -jar target/main-V0.0.0-alpha.jar
+java -jar target/main-V1.4.1-alpha2.jar
 ```
 
 启动后会自动初始化数据库表结构、扫描并注册游戏数据。
@@ -472,6 +476,13 @@ java -jar target/main-V0.0.0-alpha.jar
 | POST | `/api/admin/energy/set` | `admin.status` | 覆盖玩家能量值 |
 | POST | `/api/admin/energy/add` | `admin.status` | 增加玩家能量值 |
 | POST | `/api/admin/energy/remove` | `admin.status` | 减少玩家能量值 |
+| GET | `/api/admin/blacklist` | `admin.blacklist.view` | 查看黑名单列表 |
+| POST | `/api/admin/blacklist` | `admin.blacklist.manage` | 添加黑名单（body: `{qqNumber, reason}`） |
+| DELETE | `/api/admin/blacklist/{qqNumber}` | `admin.blacklist.manage` | 移除黑名单 |
+| GET | `/api/admin/onebot/groups` | `admin.onebot.group.config` | 查看所有群组配置 |
+| POST | `/api/admin/onebot/groups/{groupId}/autoMute` | `admin.onebot.group.config` | 设置自动禁言开关（body: `{enabled}`） |
+| POST | `/api/admin/onebot/groups/{groupId}/muteDuration` | `admin.onebot.group.config` | 设置禁言天数（body: `{days}`，1-30） |
+| DELETE | `/api/admin/onebot/groups/{groupId}` | `admin.onebot.group.config` | 删除群组配置 |
 | GET | `/api/admin/plugins` | - | 获取已注册的插件 Web 页面列表 |
 
 ---
@@ -501,7 +512,7 @@ java -jar target/main-V0.0.0-alpha.jar
 |------|------|------|------|
 | 游戏功能 | `game.*` | 29+ | `game.cultivate`, `game.explore`, `game.technique.learn`, `game.chat.world`, `game.rank.view`, `game.friend.manage` |
 | QQ 指令 | `qq.*` | 5 | `qq.bind`, `qq.command.admin` |
-| 管理后台 | `admin.*` | 8 | `admin.shutdown`, `admin.database.reset_all` |
+| 管理后台 | `admin.*` | 14 | `admin.shutdown`, `admin.database.reset_all`, `admin.blacklist.manage`, `admin.onebot.group.config` |
 
 ---
 
@@ -681,6 +692,21 @@ java -jar target/main-V0.0.0-alpha.jar
 | `/能量管理 <玩家ID> 设置 <值>` | `admin.status` | 设置玩家能量值 |
 | `/能量管理 <玩家ID> 增加 <值>` | `admin.status` | 增加玩家能量值 |
 | `/能量管理 <玩家ID> 减少 <值>` | `admin.status` | 减少玩家能量值 |
+
+### 黑名单系统
+
+| 指令 | 权限 | 说明 |
+|------|------|------|
+| `/ban <QQ号> <原因>` | `admin.blacklist.manage` | 将QQ号加入黑名单（自动禁言） |
+| `/unban <QQ号>` | `admin.blacklist.manage` | 将QQ号移出黑名单（取消禁言） |
+| `/blacklist` / `/黑名单` | `admin.blacklist.view` | 查看当前黑名单列表 |
+
+> 黑名单功能说明：
+> - 黑名单作用于 QQ 号绑定的游戏账号
+> - 默认不开启自动禁言，需在后台单独为每个群组启用
+> - 开启自动禁言后，机器人在群内需有管理员权限才能执行禁言
+> - 默认禁言 29 天，到期自动续期
+> - 从黑名单移除即取消禁言
 
 ### 实用功能
 
@@ -1151,6 +1177,8 @@ public void onEnable(PluginContext context) {
 | `player_daily` | 每日数据（晨修时间、机缘进度、活跃天数） |
 | `player_energy` | 玩家能量值（能量转化系统） |
 | `qq_bindings` | QQ 与游戏账号绑定 |
+| `blacklist` | 黑名单记录（QQ号、关联用户、封禁原因、封禁者） |
+| `onebot_group_config` | OneBot 群组配置（自动禁言开关、禁言天数） |
 | `roles` | 角色定义（名称、显示名、等级） |
 | `permissions` | 权限码定义 |
 | `role_permissions` | 角色-权限关联 |
