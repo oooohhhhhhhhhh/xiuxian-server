@@ -42,7 +42,7 @@ public class CurrencyEffect extends ItemEffect {
             sb.append("获得了 ").append(goldGain).append(" 金币，");
         }
         if (spiritStoneGain > 0) {
-            itemService.addItem(playerId, SPIRIT_STONE_KEY, (int) spiritStoneGain);
+            itemService.addItem(playerId, SPIRIT_STONE_KEY, spiritStoneGain);
             sb.append("获得了 ").append(spiritStoneGain).append(" 灵石，");
         }
         return sb.toString();

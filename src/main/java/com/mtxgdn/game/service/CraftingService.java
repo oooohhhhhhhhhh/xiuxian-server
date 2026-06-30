@@ -74,7 +74,7 @@ public class CraftingService {
             String key = entry.getKey();
             int needed = entry.getValue();
             if (key == null || key.isEmpty() || needed <= 0) continue;
-            int has = itemService.getItemCount(playerId, key);
+            long has = itemService.getItemCount(playerId, key);
             if (has < needed) {
                 Item item = ItemRegistry.get(key);
                 String itemName = item != null ? item.getName() : key;
@@ -92,40 +92,54 @@ public class CraftingService {
             result.put("success", false); result.put("message", "灵石不足，制造需要 " + recipe.getCostSpiritStones() + " 灵石"); return result;
         }
 
-        for (Map.Entry<String, Integer> entry : requiredMaterials.entrySet()) {
-            String key = entry.getKey();
-            int needed = entry.getValue();
-            if (key == null || key.isEmpty() || needed <= 0) continue;
-            itemService.removeItem(playerId, key, needed);
+        try {
+            return DatabaseManager.runTransaction(conn -> {
+                Map<String, Object> txResult = new LinkedHashMap<>();
+
+                // 扣除材料
+                for (Map.Entry<String, Integer> entry : requiredMaterials.entrySet()) {
+                    String key = entry.getKey();
+                    int needed = entry.getValue();
+                    if (key == null || key.isEmpty() || needed <= 0) continue;
+                    if (!itemService.removeItem(conn, playerId, key, needed)) {
+                        throw new SQLException("材料扣除失败: " + key);
+                    }
+                }
+
+                // 扣除金币和灵石
+                playerService.addGold(conn, playerId, -recipe.getCostGold());
+                itemService.removeItem(conn, playerId, com.mtxgdn.game.item.CurrencyEffect.SPIRIT_STONE_KEY, recipe.getCostSpiritStones());
+
+                boolean success = random.nextDouble() < recipe.getSuccessRate();
+
+                if (success) {
+                    itemService.addItem(conn, playerId, recipe.getResultItemKey(), recipe.getResultQuantity());
+                    long expGain = recipe.getMinExpGain() + random.nextLong(recipe.getMaxExpGain() - recipe.getMinExpGain() + 1);
+                    playerService.addExperience(conn, playerId, expGain);
+
+                    Item resultItem = ItemRegistry.get(recipe.getResultItemKey());
+                    String resultName = resultItem != null ? resultItem.getName() : recipe.getResultItemKey();
+                    txResult.put("success", true);
+                    txResult.put("message", "制造成功！获得了 " + resultName + " x" + recipe.getResultQuantity() + "，" + expGain + " 经验");
+                    txResult.put("expGained", expGain);
+                    txResult.put("itemGained", recipe.getResultItemKey());
+                    txResult.put("itemQuantity", recipe.getResultQuantity());
+                } else {
+                    long pityExp = recipe.getMinExpGain() / 3;
+                    playerService.addExperience(conn, playerId, pityExp);
+                    txResult.put("success", true);
+                    txResult.put("message", "制造失败...材料已消耗，但参悟中获得了 " + pityExp + " 点经验");
+                    txResult.put("craftSuccess", false);
+                    txResult.put("expGained", pityExp);
+                }
+
+                return txResult;
+            });
+        } catch (Exception e) {
+            result.put("success", false);
+            result.put("message", "制造失败: " + e.getMessage());
+            return result;
         }
-
-        playerService.addGold(playerId, -recipe.getCostGold());
-        itemService.addSpiritStones(playerId, -recipe.getCostSpiritStones());
-
-        boolean success = random.nextDouble() < recipe.getSuccessRate();
-
-        if (success) {
-            itemService.addItem(playerId, recipe.getResultItemKey(), recipe.getResultQuantity());
-            long expGain = recipe.getMinExpGain() + random.nextLong(recipe.getMaxExpGain() - recipe.getMinExpGain() + 1);
-            playerService.addExperience(playerId, expGain);
-
-            Item resultItem = ItemRegistry.get(recipe.getResultItemKey());
-            String resultName = resultItem != null ? resultItem.getName() : recipe.getResultItemKey();
-            result.put("success", true);
-            result.put("message", "制造成功！获得了 " + resultName + " x" + recipe.getResultQuantity() + "，" + expGain + " 经验");
-            result.put("expGained", expGain);
-            result.put("itemGained", recipe.getResultItemKey());
-            result.put("itemQuantity", recipe.getResultQuantity());
-        } else {
-            long pityExp = recipe.getMinExpGain() / 3;
-            playerService.addExperience(playerId, pityExp);
-            result.put("success", true);
-            result.put("message", "制造失败...材料已消耗，但参悟中获得了 " + pityExp + " 点经验");
-            result.put("craftSuccess", false);
-            result.put("expGained", pityExp);
-        }
-
-        return result;
     }
 
     private Map<String, Integer> getRequiredMaterials(Recipe recipe) {

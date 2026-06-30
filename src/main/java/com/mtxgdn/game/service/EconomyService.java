@@ -100,7 +100,7 @@ public class EconomyService {
             result.put("success", false); result.put("message", "该物品不可交易，无法回收"); return result;
         }
 
-        int owned = itemService.getItemCount(playerId, fullKey);
+        long owned = itemService.getItemCount(playerId, fullKey);
         if (owned < quantity) {
             result.put("success", false); result.put("message", "背包中只有 " + owned + " 个【" + item.getName() + "】"); return result;
         }
@@ -151,7 +151,7 @@ public class EconomyService {
             return result;
         }
 
-        itemService.addSpiritStones(playerId, -price);
+        itemService.removeSpiritStones(playerId, price);
         itemService.addItem(playerId, itemKey, 1);
 
         result.put("success", true);
@@ -189,7 +189,7 @@ public class EconomyService {
         int boostHours = stonesToBurn / STONES_PER_BOOST;
         stonesToBurn = boostHours * STONES_PER_BOOST;
 
-        itemService.addSpiritStones(playerId, -stonesToBurn);
+        itemService.removeSpiritStones(playerId, stonesToBurn);
 
         // 直接结算加速经验：按玩家境界计算 boostHours 时间的修炼收益，叠 1.5 倍
         int realmId = player.getRealm();
@@ -246,7 +246,7 @@ public class EconomyService {
         }
 
         long gold = stoneAmount * STONE_TO_GOLD_RATE;
-        itemService.addSpiritStones(playerId, -stoneAmount);
+        itemService.removeSpiritStones(playerId, stoneAmount);
         playerService.addGold(playerId, gold);
 
         result.put("success", true);
@@ -286,11 +286,12 @@ public class EconomyService {
         double rate;
         int days = 0;
         String typeName;
-        long maturesAt = 0;
+        long maturesAt;
 
         if ("current".equals(type)) {
             rate = CURRENT_DAILY_RATE;
             typeName = "活期";
+            maturesAt = 0;
         } else {
             int planIdx = switch (type) {
                 case "fixed_7" -> 0; case "fixed_30" -> 1; case "fixed_90" -> 2;
@@ -305,20 +306,23 @@ public class EconomyService {
             maturesAt = System.currentTimeMillis() + days * 86400000L;
         }
 
-        itemService.addSpiritStones(playerId, -amount);
+        try {
+            DatabaseManager.runTransaction(conn -> {
+                itemService.removeItem(conn, playerId, com.mtxgdn.game.item.CurrencyEffect.SPIRIT_STONE_KEY, amount);
 
-        String sql = "INSERT INTO player_bank (player_id, deposit_type, principal, rate, deposited_at, matures_at) VALUES (?, ?, ?, ?, ?, ?)";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            ps.setString(2, type);
-            ps.setLong(3, amount);
-            ps.setDouble(4, rate);
-            ps.setLong(5, System.currentTimeMillis());
-            ps.setLong(6, maturesAt);
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            itemService.addSpiritStones(playerId, amount);
+                String sql = "INSERT INTO player_bank (player_id, deposit_type, principal, rate, deposited_at, matures_at) VALUES (?, ?, ?, ?, ?, ?)";
+                try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                    ps.setLong(1, playerId);
+                    ps.setString(2, type);
+                    ps.setLong(3, amount);
+                    ps.setDouble(4, rate);
+                    ps.setLong(5, System.currentTimeMillis());
+                    ps.setLong(6, maturesAt);
+                    ps.executeUpdate();
+                }
+                return null;
+            });
+        } catch (Exception e) {
             throw new RuntimeException("灵庄存入失败", e);
         }
 
@@ -357,8 +361,7 @@ public class EconomyService {
             long now = System.currentTimeMillis();
             long elapsedMs = now - dep.depositedAt;
             int elapsedDays = (int)(elapsedMs / 86400000L);
-            interest = (long)(dep.principal * Math.pow(1 + dep.rate, elapsedDays) - dep.principal);
-            if (interest < 0) interest = 0;
+            interest = Math.max(0, (long)(dep.principal * Math.pow(1 + dep.rate, elapsedDays) - dep.principal));
         } else {
             // 定期：到期才有利息，提前取出无利息
             long now = System.currentTimeMillis();
@@ -371,8 +374,15 @@ public class EconomyService {
             }
         }
 
-        markBankDepositDone(depositId, interest);
-        itemService.addSpiritStones(playerId, dep.principal + interest);
+        try {
+            DatabaseManager.runTransaction(conn -> {
+                markBankDepositDone(conn, depositId, interest);
+                itemService.addItem(conn, playerId, com.mtxgdn.game.item.CurrencyEffect.SPIRIT_STONE_KEY, dep.principal + interest);
+                return null;
+            });
+        } catch (Exception e) {
+            throw new RuntimeException("取款失败", e);
+        }
 
         result.put("success", true);
         result.put("principal", dep.principal);
@@ -464,13 +474,20 @@ public class EconomyService {
     }
 
     private void markBankDepositDone(long depositId, long interest) {
+        try (Connection conn = DatabaseManager.getConnection()) {
+            markBankDepositDone(conn, depositId, interest);
+        } catch (SQLException e) {
+            throw new RuntimeException("取款失败", e);
+        }
+    }
+
+    private void markBankDepositDone(Connection conn, long depositId, long interest) throws SQLException {
         String sql = "UPDATE player_bank SET status = 'withdrawn', interest_earned = ? WHERE id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, interest);
             ps.setLong(2, depositId);
             ps.executeUpdate();
-        } catch (SQLException e) { throw new RuntimeException("取款失败", e); }
+        }
     }
 
     private static class BankDeposit {
@@ -581,7 +598,7 @@ public class EconomyService {
             itemService.addSpiritStones(listing.currentBidderId, listing.currentBid);
         }
 
-        itemService.addSpiritStones(bidderPlayerId, -amount);
+        itemService.removeSpiritStones(bidderPlayerId, amount);
 
         // 记录出价
         String bidSql = "INSERT INTO auction_bids (listing_id, bidder_player_id, amount) VALUES (?, ?, ?)";
@@ -669,6 +686,14 @@ public class EconomyService {
                 Long bidderId = rs.getObject("current_bidder_id") != null ? rs.getLong("current_bidder_id") : null;
                 double feeRate = rs.getDouble("fee_rate");
 
+                // 原子标记为已结算，防止并发重复结算
+                try (PreparedStatement claimPs = conn.prepareStatement(
+                        "UPDATE auction_listings SET status = 'ended' WHERE id = ? AND status = 'active'")) {
+                    claimPs.setLong(1, listingId);
+                    int claimed = claimPs.executeUpdate();
+                    if (claimed == 0) continue; // 已被其他线程结算
+                }
+
                 if (bidderId != null && currentBid > 0) {
                     long fee = Math.max(1, (long)(currentBid * feeRate));
                     itemService.addSpiritStones(sellerId, currentBid - fee);
@@ -676,11 +701,6 @@ public class EconomyService {
                 } else {
                     // 无人出价，退回物品
                     itemService.addItem(sellerId, itemKey, qty);
-                }
-
-                try (PreparedStatement updPs = conn.prepareStatement("UPDATE auction_listings SET status = 'ended' WHERE id = ?")) {
-                    updPs.setLong(1, listingId);
-                    updPs.executeUpdate();
                 }
             }
         } catch (SQLException e) { /* 结算失败不影响正常查询 */ }

@@ -21,6 +21,9 @@ public class TradeService {
     private final ItemService itemService = new ItemService();
     private final PlayerService playerService = new PlayerService();
 
+    /**
+     * 上架物品。使用事务确保物品扣除与挂单创建原子性。
+     */
     public Map<String, Object> listItem(long playerId, String itemKey, int quantity, long priceSpiritStones) {
         Map<String, Object> result = new LinkedHashMap<>();
         if (quantity <= 0 || priceSpiritStones <= 0) {
@@ -40,38 +43,50 @@ public class TradeService {
             result.put("message", "背包中没有足够的【" + item.getName() + "】");
             return result;
         }
-        long fee = (long)(priceSpiritStones * TRADE_FEE_RATE);
-        if (fee < 1) fee = 1;
+        long fee;
+        long baseRate = (long)(priceSpiritStones * TRADE_FEE_RATE);
 
         Player seller = playerService.getPlayerById(playerId);
-        if (seller != null && seller.getSpiritualRoot() != null
-                && seller.getSpiritualRoot().hasEffect(SpiritualRoot.SpecialEffect.TRADE_FEE_HALF)) {
-            fee = fee / 2;
-            if (fee < 1) fee = 1;
+        boolean halfFee = seller != null && seller.getSpiritualRoot() != null
+                && seller.getSpiritualRoot().hasEffect(SpiritualRoot.SpecialEffect.TRADE_FEE_HALF);
+
+        if (halfFee) {
+            fee = Math.max(1, baseRate / 2);
+        } else {
+            fee = Math.max(1, baseRate);
         }
 
-        itemService.removeItem(playerId, itemKey, quantity);
+        try {
+            DatabaseManager.runTransaction(conn -> {
+                if (!itemService.removeItem(conn, playerId, fullKey, quantity)) {
+                    throw new SQLException("物品扣除失败: " + fullKey);
+                }
 
-        String sql = "INSERT INTO trade_listings (seller_player_id, item_key, quantity, price_spirit_stones, fee) VALUES (?, ?, ?, ?, ?)";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            ps.setString(2, fullKey);
-            ps.setInt(3, quantity);
-            ps.setLong(4, priceSpiritStones);
-            ps.setLong(5, fee);
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            itemService.addItem(playerId, fullKey, quantity);
-            throw new RuntimeException("上架物品失败", e);
+                String sql = "INSERT INTO trade_listings (seller_player_id, item_key, quantity, price_spirit_stones, fee) VALUES (?, ?, ?, ?, ?)";
+                try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                    ps.setLong(1, playerId);
+                    ps.setString(2, fullKey);
+                    ps.setInt(3, quantity);
+                    ps.setLong(4, priceSpiritStones);
+                    ps.setLong(5, fee);
+                    ps.executeUpdate();
+                }
+                return null;
+            });
+
+            result.put("success", true);
+            result.put("message", "已将【" + item.getName() + " (" + fullKey + ")】×" + quantity + " 挂入坊市，售价 " + priceSpiritStones + " 灵石（坊市抽成 " + fee + " 灵石）");
+            result.put("fee", fee);
+        } catch (Exception e) {
+            result.put("success", false);
+            result.put("message", "上架失败: " + e.getMessage());
         }
-
-        result.put("success", true);
-        result.put("message", "已将【" + item.getName() + " (" + fullKey + ")】×" + quantity + " 挂入坊市，售价 " + priceSpiritStones + " 灵石（坊市抽成 " + fee + " 灵石）");
-        result.put("fee", fee);
         return result;
     }
 
+    /**
+     * 购买物品。使用事务确保灵石转移与物品转移原子性。
+     */
     public Map<String, Object> buyItem(long buyerPlayerId, long listingId) {
         Map<String, Object> result = new LinkedHashMap<>();
         TradeListing listing = getListing(listingId);
@@ -94,22 +109,41 @@ public class TradeService {
             return result;
         }
 
-        removeListing(listingId);
-        itemService.removeSpiritStones(buyerPlayerId, totalCost);
-        itemService.addItem(buyerPlayerId, listing.itemKey, listing.quantity);
+        try {
+            DatabaseManager.runTransaction(conn -> {
+                // 先标记挂单为已售（防止并发重复购买）
+                int removed = removeListing(conn, listingId);
+                if (removed == 0) {
+                    throw new SQLException("挂单已失效");
+                }
 
-        long sellerReceive = totalCost - listing.fee;
-        itemService.addSpiritStones(listing.sellerPlayerId, sellerReceive);
+                // 灵石转移
+                if (!itemService.removeItem(conn, buyerPlayerId, com.mtxgdn.game.item.CurrencyEffect.SPIRIT_STONE_KEY, totalCost)) {
+                    throw new SQLException("灵石扣除失败");
+                }
+                itemService.addItem(conn, buyerPlayerId, listing.itemKey, listing.quantity);
 
-        Item item = ItemRegistry.get(listing.itemKey);
-        result.put("success", true);
-        result.put("message", "在坊市中购得【" + (item != null ? item.getName() : listing.itemKey) + "】×" + listing.quantity
-                + "，花费 " + totalCost + " 灵石（坊主抽成 " + listing.fee + " 灵石）");
-        result.put("cost", totalCost);
-        result.put("fee", listing.fee);
+                long sellerReceive = totalCost - listing.fee;
+                itemService.addItem(conn, listing.sellerPlayerId, com.mtxgdn.game.item.CurrencyEffect.SPIRIT_STONE_KEY, sellerReceive);
+                return null;
+            });
+
+            Item item = ItemRegistry.get(listing.itemKey);
+            result.put("success", true);
+            result.put("message", "在坊市中购得【" + (item != null ? item.getName() : listing.itemKey) + "】×" + listing.quantity
+                    + "，花费 " + totalCost + " 灵石（坊主抽成 " + listing.fee + " 灵石）");
+            result.put("cost", totalCost);
+            result.put("fee", listing.fee);
+        } catch (Exception e) {
+            result.put("success", false);
+            result.put("message", "购买失败: " + e.getMessage());
+        }
         return result;
     }
 
+    /**
+     * 撤回挂单。使用事务确保挂单删除与物品返还原子性。
+     */
     public Map<String, Object> cancelListing(long playerId, long listingId) {
         Map<String, Object> result = new LinkedHashMap<>();
         TradeListing listing = getListing(listingId);
@@ -124,12 +158,23 @@ public class TradeService {
             return result;
         }
 
-        removeListing(listingId);
-        itemService.addItem(playerId, listing.itemKey, listing.quantity);
+        try {
+            DatabaseManager.runTransaction(conn -> {
+                int removed = removeListing(conn, listingId);
+                if (removed == 0) {
+                    throw new SQLException("挂单已失效");
+                }
+                itemService.addItem(conn, playerId, listing.itemKey, listing.quantity);
+                return null;
+            });
 
-        Item item = ItemRegistry.get(listing.itemKey);
-        result.put("success", true);
-        result.put("message", "撤回了坊市挂单【" + (item != null ? item.getName() : listing.itemKey) + "】×" + listing.quantity + "（坊市抽成不退还）");
+            Item item = ItemRegistry.get(listing.itemKey);
+            result.put("success", true);
+            result.put("message", "撤回了坊市挂单【" + (item != null ? item.getName() : listing.itemKey) + "】×" + listing.quantity + "（坊市抽成不退还）");
+        } catch (Exception e) {
+            result.put("success", false);
+            result.put("message", "撤回失败: " + e.getMessage());
+        }
         return result;
     }
 
@@ -181,14 +226,14 @@ public class TradeService {
         return null;
     }
 
-    private void removeListing(long listingId) {
-        String sql = "UPDATE trade_listings SET status = 'sold' WHERE id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+    /**
+     * 原子标记挂单状态，返回受影响行数（0 表示已被其他人购买）。
+     */
+    private int removeListing(Connection conn, long listingId) throws SQLException {
+        String sql = "UPDATE trade_listings SET status = 'sold' WHERE id = ? AND status = 'active'";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, listingId);
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("移除挂单失败", e);
+            return ps.executeUpdate();
         }
     }
 

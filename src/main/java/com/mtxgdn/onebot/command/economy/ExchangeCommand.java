@@ -78,7 +78,7 @@ public class ExchangeCommand extends Command {
 
         String fullKey = item.getFullKey();
         if (!itemService.hasItem(p.getId(), fullKey, quantity)) {
-            int have = itemService.getItemCount(p.getId(), fullKey);
+            long have = itemService.getItemCount(p.getId(), fullKey);
             ctx.reply("背包中【" + item.getName() + "】数量不足，需要 " + quantity + " 个，当前拥有 " + have + " 个。");
             return;
         }
@@ -258,7 +258,7 @@ public class ExchangeCommand extends Command {
 
             String fullKey = item.getFullKey();
             if (!itemService.hasItem(playerId, fullKey, quantity)) {
-                int have = itemService.getItemCount(playerId, fullKey);
+                long have = itemService.getItemCount(playerId, fullKey);
                 result.addProperty("code", 400);
                 result.addProperty("message", "物品数量不足，需要 " + quantity + " 个，拥有 " + have + " 个");
                 return result;

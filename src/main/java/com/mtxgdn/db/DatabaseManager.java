@@ -227,7 +227,7 @@ public class DatabaseManager {
                 "id " + pk + ", " +
                 "player_id BIGINT NOT NULL, " +
                 "item_key VARCHAR(128) NOT NULL, " +
-                "quantity INT NOT NULL DEFAULT 1, " +
+                "quantity BIGINT NOT NULL DEFAULT 1, " +
                 "created_at " + tsDefault + ", " +
                 "updated_at " + tsUpdate + ", " +
                 (IS_SQLITE ? "" : "FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE, ") +
@@ -642,6 +642,13 @@ public class DatabaseManager {
                 if (!IS_SQLITE) {
                     stmt.execute("UPDATE redeem_codes SET status = CASE WHEN is_active THEN 'active' ELSE 'disabled' END WHERE status = 'active'");
                     stmt.execute("ALTER TABLE redeem_codes DROP COLUMN is_active");
+                }
+            } catch (SQLException ignored) {
+            }
+            // 迁移：players_items.quantity INT → BIGINT（SQLite 无需迁移，动态类型自动兼容）
+            try {
+                if (!IS_SQLITE) {
+                    stmt.execute("ALTER TABLE players_items MODIFY COLUMN quantity BIGINT NOT NULL DEFAULT 1");
                 }
             } catch (SQLException ignored) {
             }

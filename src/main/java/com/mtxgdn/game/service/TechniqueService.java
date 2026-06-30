@@ -117,7 +117,7 @@ public class TechniqueService {
         }
 
         playerService.addGold(playerId, -technique.getLearnCostGold());
-        new ItemService().addSpiritStones(playerId, -technique.getLearnCostSpiritStones());
+        new ItemService().removeSpiritStones(playerId, technique.getLearnCostSpiritStones());
 
         String sql = "INSERT INTO players_techniques (player_id, technique_id, level, proficiency, is_equipped) VALUES (?, ?, 1, 0, 0)";
         try (Connection conn = DatabaseManager.getConnection();
@@ -206,7 +206,7 @@ public class TechniqueService {
         }
 
         playerService.addGold(playerId, -costGold);
-        new ItemService().addSpiritStones(playerId, -costSS);
+        new ItemService().removeSpiritStones(playerId, costSS);
 
         String sql = "UPDATE players_techniques SET level = level + 1, proficiency = 0 WHERE player_id = ? AND technique_id = ?";
         try (Connection conn = DatabaseManager.getConnection();
