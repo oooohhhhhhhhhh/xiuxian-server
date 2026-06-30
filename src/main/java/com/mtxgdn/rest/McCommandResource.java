@@ -58,7 +58,7 @@ public class McCommandResource {
 
         McCommandResult result = adapter.handleMcCommand(mcName, mcUuid, cmd, args);
         if (result == null) {
-            return error("未知指令: /" + cmd + "，输入 /xiuxian help 查看可用指令");
+            return ok("");
         }
 
         if (result.isOk()) {

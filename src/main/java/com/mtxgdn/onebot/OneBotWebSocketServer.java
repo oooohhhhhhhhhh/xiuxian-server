@@ -308,8 +308,6 @@ public class OneBotWebSocketServer extends WebSocketApplication
         StatsCollector.getInstance().recordCommand(cmd, groupId);
         Command command = CommandRegistry.get(cmd);
         if (command == null) {
-            String msg = "未知指令，请输入 /help 查看可用指令";
-            replyToSource(socket, selfId, senderQq, groupId, msg);
             return;
         }
 
