@@ -43,7 +43,7 @@
 - **国际化 (i18n)**：JSON 语言的本地化系统，物品/秘境/事件/系统消息完整翻译，当前支持中文 (zh_cn)
 - **数据库**：MySQL / SQLite 双支持，HikariCP 连接池，一行配置切换
 - **Web 管理控制台**：修仙风主题面板，侧边栏导航，实时日志，玩家管理，用户角色管理，数据发放
-- **插件系统**：完整的生命周期管理（onLoad/onEnable/onDisable），独立类加载器隔离；插件可注册命令/物品/游历事件/秘境/能量值；事件总线（10 种事件类型）；访问全部 19 个游戏服务 API；暴露底层接口（数据库连接/服务端配置/频率限制/JWT/行为日志/统计收集器）；支持插件添加 REST API 端点、Web 管理页面和 WebSocket 消息处理器
+- **插件系统**：完整的生命周期管理（onLoad/onEnable/onDisable），独立类加载器隔离；插件可注册命令/物品/游历事件/秘境/能量值/自定义权限码；事件总线（10 种事件类型，支持优先级和取消）；支持热重载（reloadPlugin）；访问全部 19 个游戏服务 API；暴露底层接口（数据库连接/服务端配置/频率限制/JWT/行为日志/统计收集器）；支持插件添加 REST API 端点、Web 管理页面和 WebSocket 消息处理器
 
 ---
 
@@ -513,6 +513,7 @@ java -jar target/main-V1.4.1-alpha2.jar
 | 游戏功能 | `game.*` | 29+ | `game.cultivate`, `game.explore`, `game.technique.learn`, `game.chat.world`, `game.rank.view`, `game.friend.manage` |
 | QQ 指令 | `qq.*` | 5 | `qq.bind`, `qq.command.admin` |
 | 管理后台 | `admin.*` | 14 | `admin.shutdown`, `admin.database.reset_all`, `admin.blacklist.manage`, `admin.onebot.group.config` |
+| 插件扩展 | `plugin.*` | 动态 | 由插件通过 `registerPermission()` 注册（如 `plugin.shop.admin`） |
 
 ---
 
@@ -972,10 +973,14 @@ Boss 拥有 3 倍以上属性，更高掉落率和更丰富的稀有物品掉落
 
 ```
 PluginManager 扫描 plugins/*.jar
-    → onLoad(context)    — 加载阶段：读取配置、准备数据
+    → onLoad(context)    — 加载阶段：读取配置、注册权限码
     → onEnable(context)  — 启用阶段：注册命令/物品/事件/秘境/Web路由
     → [服务器运行中...]
-    → onDisable(context) — 停用阶段：释放资源（按加载逆序调用）
+    → onDisable(context) — 停用阶段：释放资源（自动清理事件/Web/ClassLoader）
+
+# 运行时管理
+PluginManager.getInstance().unloadPlugin("插件名")   — 卸载单个插件
+PluginManager.getInstance().reloadPlugin("插件名")  — 热重载单个插件
 ```
 
 ### 创建插件
@@ -1030,19 +1035,37 @@ public class MyPlugin implements Plugin {
 | 方法 | 说明 |
 |------|------|
 | `registerCommand(Command)` | 注册游戏命令（自动注册 OneBot + REST 路由） |
+| `unregisterCommand(Command)` | 取消注册命令 |
 | `registerItem(Item)` | 注册新物品 |
+| `unregisterItem(Item)` | 取消注册物品 |
 | `registerItemEnergy(key, value)` | 注册物品能量值（供能量转化系统使用） |
+| `unregisterItemEnergy(key)` | 取消注册物品能量值 |
 | `registerExplorationEvent(ExplorationEvent)` | 注册游历事件 |
+| `unregisterExplorationEvent(ExplorationEvent)` | 取消注册游历事件 |
 | `registerSecretRealm(SecretRealm)` | 注册秘境 |
+| `unregisterSecretRealm(SecretRealm)` | 取消注册秘境 |
+
+#### 权限注册
+| 方法 | 说明 |
+|------|------|
+| `registerPermission(code, name, category)` | 注册插件自定义权限码（写入 DB 并可用于 hasPermission） |
+| `registerPermissions(codes[], names[], category)` | 批量注册插件自定义权限码 |
+
+> 插件权限不会自动分配给任何角色，需管理员通过后台手动为用户分配。建议使用 `plugin.{插件名}.{功能}` 格式（如 `plugin.shop.admin`）。
 
 #### 事件总线
 | 方法 | 说明 |
 |------|------|
-| `registerHandler(type, condition, handler)` | 注册事件处理器（条件过滤可选） |
-| `registerCustomHandler(key, condition, handler)` | 注册自定义事件处理器 |
+| `registerHandler(type, condition, handler)` | 注册事件处理器（默认优先级 0） |
+| `registerHandler(type, condition, priority, handler)` | 注册事件处理器并设置优先级（数值越大越先执行） |
+| `registerCustomHandler(key, condition, handler)` | 注册自定义事件处理器（默认优先级 0） |
+| `registerCustomHandler(key, condition, priority, handler)` | 注册自定义事件处理器并设置优先级 |
+| `setHandlersEnabled(type, enabled)` | 启用/禁用本插件某类事件的处理器 |
 | `fireEvent(event)` | 触发事件（供其他插件监听） |
 
 内置事件类型：`COMMAND` `PLAYER_LOGIN` `PLAYER_LOGOUT` `ITEM_USED` `COMBAT_ENDED` `EXPLORATION_START` `EXPLORATION_END` `SCHEDULED` `SERVER_READY` `CUSTOM`
+
+> 事件处理器可通过 `event.cancel()` 阻止后续处理器执行，通过 `event.set(key, value)` 向后续处理器传递数据。
 
 #### 底层接口（新增）
 | 方法 | 说明 |
@@ -1132,9 +1155,11 @@ public void onEnable(PluginContext context) {
 
 1. **数据隔离**：使用 `getDataFolder()` 存放插件私有数据，不要修改服务端文件
 2. **日志规范**：使用 `getLogger()` 输出日志，带上插件名前缀
-3. **资源释放**：在 `onDisable()` 中释放数据库连接、定时任务等资源
+3. **资源释放**：在 `onDisable()` 中释放数据库连接、定时任务等资源（事件处理器和 Web 资源由框架自动清理）
 4. **频率限制**：对插件自定义的 API 使用 `checkRateLimit()` 防止滥用
 5. **线程安全**：操作共享服务时注意并发安全，必要时使用粗粒度同步
+6. **权限注册**：在 `onLoad()` 阶段注册自定义权限码（`registerPermission`），在 `@RequirePermission` 注解或 `Command.permission` 中使用已注册的权限码
+7. **事件优先级**：需要最先/最后处理某事件时，使用带 `priority` 参数的 `registerHandler` 重载
 
 ---
 
@@ -1147,7 +1172,7 @@ public void onEnable(PluginContext context) {
 - **添加新秘境**：在 `data/mtxgdn/secretrealm/` 下继承 `SecretRealm` 并指定需求境界和冷却时间
 - **添加翻译**：在 `zh_cn.json` 中添加对应的翻译键，新物品/事件/秘境即可获得中文显示
 - **添加游戏指令（+ 可选 HTTP API）**：在 `onebot/command/` 下新建 `XxxCommand extends Command`，构造函数内 `registerSub` 或 `addRoute` 即可自动注册为 OneBot 指令 + HTTP 路由，无需修改 `GameResource`
-- **添加权限码**：在 `PermissionCode` enum 加一行即可
+- **添加权限码**：在 `PermissionCode` enum 加一行即可（插件权限可用 `registerPermission()` 注册，无需修改核心代码）
 - **添加分类**：在 `Command.CATEGORY_ORDER` 加一行即可控制 `/帮助` 排序
 
 ---
