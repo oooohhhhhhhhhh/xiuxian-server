@@ -171,21 +171,31 @@ public class SkillService {
             }
         }
 
-        String insertSql = "INSERT INTO players_skills (player_id, skill_id, level, proficiency) VALUES (?, ?, 1, 0)";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(insertSql)) {
-            ps.setLong(1, playerId);
-            ps.setLong(2, skillId);
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("学习技能失败", e);
-        }
-
-        if (skill.getLearnCostGold() > 0) {
-            playerService.addGold(playerId, -skill.getLearnCostGold());
-        }
-        if (skill.getLearnCostSpiritStones() > 0) {
-            itemService.removeSpiritStones(playerId, skill.getLearnCostSpiritStones());
+        try {
+            DatabaseManager.runTransaction(conn -> {
+                // 先扣除成本
+                if (skill.getLearnCostGold() > 0) {
+                    playerService.addGold(conn, playerId, -skill.getLearnCostGold());
+                }
+                if (skill.getLearnCostSpiritStones() > 0) {
+                    if (!itemService.removeItem(conn, playerId, com.mtxgdn.game.item.CurrencyEffect.SPIRIT_STONE_KEY, skill.getLearnCostSpiritStones())) {
+                        throw new SQLException("灵石扣除失败");
+                    }
+                }
+                // 再插入技能记录
+                String insertSql = "INSERT INTO players_skills (player_id, skill_id, level, proficiency) VALUES (?, ?, 1, 0)";
+                try (PreparedStatement ps = conn.prepareStatement(insertSql)) {
+                    ps.setLong(1, playerId);
+                    ps.setLong(2, skillId);
+                    ps.executeUpdate();
+                }
+                return null;
+            });
+        } catch (Exception e) {
+            result.put("success", false);
+            result.put("message", "学习技能失败: " + e.getMessage());
+            result.put("code", 6106);
+            return result;
         }
 
         result.put("success", true);

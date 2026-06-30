@@ -316,20 +316,20 @@ public class SecretRealmService {
     }
 
     private String getRandomLootItem() {
-        String[] commonItems = {"spirit_grass", "iron_ore", "healing_pill", "mana_pill", "spirit_recovery_pill"};
+        String[] commonItems = {"mtxgdn:spirit_grass", "mtxgdn:iron_ore", "mtxgdn:healing_pill", "mtxgdn:mana_pill", "mtxgdn:spirit_recovery_pill"};
         return commonItems[random.nextInt(commonItems.length)];
     }
 
     private String getHerbItem() {
-        String[] herbs = {"spirit_grass", "healing_pill", "mana_pill", "spirit_spring_water", "beast_core"};
+        String[] herbs = {"mtxgdn:spirit_grass", "mtxgdn:healing_pill", "mtxgdn:mana_pill", "mtxgdn:spirit_spring_water", "mtxgdn:beast_core"};
         return herbs[random.nextInt(herbs.length)];
     }
 
     private String getRareItem() {
-        String[] rareItems = {"cultivation_elixir", "scripture_page", "spirit_sword", "guardian_jade",
-                "basic_sword_manual", "fire_dragon_art", "jade_armor", "power_buff_pill",
-                "speed_talisman", "thunder_bolt_talisman", "dragon_blood_crystal", "spirit_stone_pouch",
-                "heavenly_jade", "enhance_stone", "protect_charm", "tribulation_pill"};
+        String[] rareItems = {"mtxgdn:cultivation_elixir", "mtxgdn:scripture_page", "mtxgdn:spirit_sword", "mtxgdn:guardian_jade",
+                "mtxgdn:basic_sword_manual", "mtxgdn:fire_dragon_art", "mtxgdn:jade_armor", "mtxgdn:power_buff_pill",
+                "mtxgdn:speed_talisman", "mtxgdn:thunder_bolt_talisman", "mtxgdn:dragon_blood_crystal", "mtxgdn:spirit_stone_pouch",
+                "mtxgdn:heavenly_jade", "mtxgdn:enhance_stone", "mtxgdn:protect_charm", "mtxgdn:tribulation_pill"};
         return rareItems[random.nextInt(rareItems.length)];
     }
 

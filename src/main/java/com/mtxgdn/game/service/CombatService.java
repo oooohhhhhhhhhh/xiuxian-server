@@ -82,15 +82,15 @@ public class CombatService {
     }
 
     /**
-     * 接受切磋挑战，执行战斗。
+     * 接受切磋挑战，执行战斗。playerId 必须是挑战目标。
      */
-    public CombatResult acceptChallenge(long targetPlayerId) {
-        PendingChallenge challenge = pendingChallenges.remove(targetPlayerId);
+    public CombatResult acceptChallenge(long playerId) {
+        PendingChallenge challenge = pendingChallenges.remove(playerId);
         if (challenge == null || challenge.isExpired()) {
             return CombatResult.failure("没有待接受的挑战，可能已超时");
         }
-        if (challenge.targetPlayerId != targetPlayerId) {
-            return CombatResult.failure("挑战对象不匹配");
+        if (challenge.targetPlayerId != playerId) {
+            return CombatResult.failure("你无法接受此挑战");
         }
         return executePvp(challenge.challengerPlayerId, challenge.targetPlayerId);
     }
@@ -200,7 +200,8 @@ public class CombatService {
         }
 
         boolean challengerWon = winner.equals(challenger.getName());
-        long expReward = challengerWon ? calculateExpReward(challenger, target) : calculateExpReward(target, challenger) / 3;
+        boolean isTie = winner.equals("平局");
+        long expReward = challengerWon ? calculateExpReward(challenger, target) : (isTie ? 0 : calculateExpReward(target, challenger) / 3);
         long goldReward = challengerWon ? random.nextLong(50, 200) : 0;
 
         if (challengerWon && expReward > 0) playerService.addExperience(challenger.getId(), expReward);

@@ -138,14 +138,11 @@ public class SectService {
             return result;
         }
 
-        boolean ok = itemService.removeSpiritStones(playerId, Sect.CREATE_COST_SPIRIT_STONES);
-        if (!ok) {
-            result.put("success", false);
-            result.put("message", "扣除灵石失败");
-            return result;
-        }
-
         Sect sect = DatabaseManager.runTransaction(conn -> {
+            // 扣除灵石（在事务内）
+            if (!itemService.removeItem(conn, playerId, com.mtxgdn.game.item.CurrencyEffect.SPIRIT_STONE_KEY, Sect.CREATE_COST_SPIRIT_STONES)) {
+                throw new SQLException("灵石扣除失败");
+            }
             String sql = "INSERT INTO sects (name, description, leader_player_id) VALUES (?, ?, ?)";
             try (PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
                 ps.setString(1, name);
@@ -796,18 +793,25 @@ public class SectService {
             result.put("message", "灵石不足，宣战需要 " + Sect.DECLARE_WAR_SPIRIT_STONE_COST + " 灵石（你目前有 " + spiritStones + " 灵石）");
             return result;
         }
-        if (!itemService.removeSpiritStones(attackerPlayerId, Sect.DECLARE_WAR_SPIRIT_STONE_COST)) {
-            result.put("success", false); result.put("message", "扣除灵石失败"); return result;
+        // 扣除灵石和声望（事务包裹）
+        try {
+            DatabaseManager.runTransaction(conn -> {
+                if (!itemService.removeItem(conn, attackerPlayerId, com.mtxgdn.game.item.CurrencyEffect.SPIRIT_STONE_KEY, Sect.DECLARE_WAR_SPIRIT_STONE_COST)) {
+                    throw new SQLException("扣除灵石失败");
+                }
+                String deductPrestigeSql = "UPDATE sects SET prestige = prestige - ? WHERE id = ?";
+                try (PreparedStatement ps = conn.prepareStatement(deductPrestigeSql)) {
+                    ps.setLong(1, Sect.DECLARE_WAR_PRESTIGE_COST);
+                    ps.setLong(2, attackerSect.getId());
+                    ps.executeUpdate();
+                }
+                return null;
+            });
+        } catch (Exception e) {
+            result.put("success", false);
+            result.put("message", "宣战失败: " + e.getMessage());
+            return result;
         }
-
-        // 扣除声望
-        String deductPrestigeSql = "UPDATE sects SET prestige = prestige - ? WHERE id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(deductPrestigeSql)) {
-            ps.setLong(1, Sect.DECLARE_WAR_PRESTIGE_COST);
-            ps.setLong(2, attackerSect.getId());
-            ps.executeUpdate();
-        } catch (SQLException e) { throw new RuntimeException("扣除声望失败", e); }
 
         // 选出战成员：按境界和攻击力排序取前N名
         List<SectMember> attackerMembers = getSectMembers(attackerSect.getId());

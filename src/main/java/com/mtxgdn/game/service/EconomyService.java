@@ -593,30 +593,41 @@ public class EconomyService {
         long currentStones = itemService.getSpiritStoneCount(bidderPlayerId);
         if (currentStones < amount) { result.put("success", false); result.put("message", "灵石不足，需要 " + amount + "（当前: " + currentStones + "）"); return result; }
 
-        // 退还前一个出价人
-        if (listing.currentBidderId != null && listing.currentBid != null) {
-            itemService.addSpiritStones(listing.currentBidderId, listing.currentBid);
+        try {
+            DatabaseManager.runTransaction(conn -> {
+                // 退还前一个出价人
+                if (listing.currentBidderId != null && listing.currentBid != null) {
+                    itemService.addSpiritStones(conn, listing.currentBidderId, listing.currentBid);
+                }
+
+                // 扣除当前出价人灵石
+                if (!itemService.removeItem(conn, bidderPlayerId, com.mtxgdn.game.item.CurrencyEffect.SPIRIT_STONE_KEY, amount)) {
+                    throw new SQLException("灵石扣除失败");
+                }
+
+                // 记录出价
+                String bidSql = "INSERT INTO auction_bids (listing_id, bidder_player_id, amount) VALUES (?, ?, ?)";
+                try (PreparedStatement ps = conn.prepareStatement(bidSql)) {
+                    ps.setLong(1, listingId);
+                    ps.setLong(2, bidderPlayerId);
+                    ps.setLong(3, amount);
+                    ps.executeUpdate();
+                }
+                // 更新当前出价
+                String updSql = "UPDATE auction_listings SET current_bid = ?, current_bidder_id = ? WHERE id = ?";
+                try (PreparedStatement ps = conn.prepareStatement(updSql)) {
+                    ps.setLong(1, amount);
+                    ps.setLong(2, bidderPlayerId);
+                    ps.setLong(3, listingId);
+                    ps.executeUpdate();
+                }
+                return null;
+            });
+        } catch (Exception e) {
+            result.put("success", false);
+            result.put("message", "出价失败: " + e.getMessage());
+            return result;
         }
-
-        itemService.removeSpiritStones(bidderPlayerId, amount);
-
-        // 记录出价
-        String bidSql = "INSERT INTO auction_bids (listing_id, bidder_player_id, amount) VALUES (?, ?, ?)";
-        String updSql = "UPDATE auction_listings SET current_bid = ?, current_bidder_id = ? WHERE id = ?";
-        try (Connection conn = DatabaseManager.getConnection()) {
-            try (PreparedStatement ps = conn.prepareStatement(bidSql)) {
-                ps.setLong(1, listingId);
-                ps.setLong(2, bidderPlayerId);
-                ps.setLong(3, amount);
-                ps.executeUpdate();
-            }
-            try (PreparedStatement ps = conn.prepareStatement(updSql)) {
-                ps.setLong(1, amount);
-                ps.setLong(2, bidderPlayerId);
-                ps.setLong(3, listingId);
-                ps.executeUpdate();
-            }
-        } catch (SQLException e) { throw new RuntimeException("出价失败", e); }
 
         result.put("success", true);
         result.put("message", "出价成功！以 " + amount + " 灵石竞拍 #" + listingId);

@@ -126,14 +126,12 @@ public class EnhanceService {
             return result;
         }
 
-        if (!itemService.hasItem(playerId, "enhance_stone", stoneCost)) {
+        boolean hasStones = itemService.hasItem(playerId, "enhance_stone", stoneCost);
+        if (!hasStones) {
             result.put("success", false);
             result.put("message", "强化石不足，需要 " + stoneCost + " 个强化石");
             return result;
         }
-
-        playerService.addGold(playerId, -goldCost);
-        itemService.removeItem(playerId, "enhance_stone", stoneCost);
 
         int successRate = ENHANCE_SUCCESS_RATE[currentLevel];
         int breakRate = ENHANCE_BREAK_RATE[currentLevel];
@@ -149,8 +147,32 @@ public class EnhanceService {
 
         int roll = random.nextInt(100);
 
+        try {
+            DatabaseManager.runTransaction(conn -> {
+                // 扣材料
+                playerService.addGold(conn, playerId, -goldCost);
+                itemService.removeItem(conn, playerId, "enhance_stone", stoneCost);
+
+                if (roll < successRate) {
+                    setEnhanceLevel(conn, playerId, slot, currentLevel + 1);
+                } else {
+                    int failRoll = roll - successRate;
+                    if (failRoll < breakRate && currentLevel >= 5) {
+                        unequipItem(conn, playerId, slot);
+                    } else if (failRoll < breakRate + degradeRate && currentLevel > 0) {
+                        setEnhanceLevel(conn, playerId, slot, currentLevel - 1);
+                    }
+                }
+                return null;
+            });
+        } catch (Exception e) {
+            result.put("success", false);
+            result.put("enhanceSuccess", false);
+            result.put("message", "强化失败，系统异常: " + e.getMessage());
+            return result;
+        }
+
         if (roll < successRate) {
-            setEnhanceLevel(playerId, slot, currentLevel + 1);
             result.put("success", true);
             result.put("enhanceSuccess", true);
             result.put("newLevel", currentLevel + 1);
@@ -158,14 +180,12 @@ public class EnhanceService {
         } else {
             int failRoll = roll - successRate;
             if (failRoll < breakRate && currentLevel >= 5) {
-                unequipItem(playerId, slot);
                 result.put("success", false);
                 result.put("enhanceSuccess", false);
                 result.put("broken", true);
                 result.put("brokenItem", item.getName());
                 result.put("message", "强化失败！" + item.getName() + " 承受不住力量，碎裂了...");
             } else if (failRoll < breakRate + degradeRate && currentLevel > 0) {
-                setEnhanceLevel(playerId, slot, currentLevel - 1);
                 result.put("success", false);
                 result.put("enhanceSuccess", false);
                 result.put("degraded", true);
@@ -191,28 +211,22 @@ public class EnhanceService {
         };
     }
 
-    private void setEnhanceLevel(long playerId, String slot, int level) {
+    private void setEnhanceLevel(Connection conn, long playerId, String slot, int level) throws SQLException {
         String sql = "UPDATE players_equipment SET enhance_level = ? WHERE player_id = ? AND slot = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, level);
             ps.setLong(2, playerId);
             ps.setString(3, slot);
             ps.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("更新强化等级失败", e);
         }
     }
 
-    private void unequipItem(long playerId, String slot) {
+    private void unequipItem(Connection conn, long playerId, String slot) throws SQLException {
         String sql = "DELETE FROM players_equipment WHERE player_id = ? AND slot = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, playerId);
             ps.setString(2, slot);
             ps.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("卸下装备失败", e);
         }
     }
 }

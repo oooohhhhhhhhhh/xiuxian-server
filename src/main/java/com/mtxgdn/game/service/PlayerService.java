@@ -96,7 +96,7 @@ public class PlayerService {
 
     public void updatePlayer(long playerId, Player player) {
         String sql = """
-            UPDATE players SET level = ?, experience = ?, realm = ?, sub_realm = ?,
+            UPDATE players SET level = ?, experience = ?, realm = ?,
                 hp = ?, max_hp = ?, mp = ?, max_mp = ?, attack = ?, defense = ?,
                 speed = ?, spirit = ?, gold = ?,
                 cultivation_progress = ?, is_cultivating = ?, cultivation_start_time = ?,
@@ -108,23 +108,22 @@ public class PlayerService {
             ps.setInt(1, player.getLevel());
             ps.setLong(2, player.getExperience());
             ps.setInt(3, player.getRealm());
-            ps.setInt(4, 0);
-            ps.setInt(5, player.getHp());
-            ps.setInt(6, player.getMaxHp());
-            ps.setInt(7, player.getMp());
-            ps.setInt(8, player.getMaxMp());
-            ps.setInt(9, player.getAttack());
-            ps.setInt(10, player.getDefense());
-            ps.setInt(11, player.getSpeed());
-            ps.setInt(12, player.getSpirit());
-            ps.setLong(13, player.getGold());
-            ps.setInt(14, player.getCultivationProgress());
-            ps.setBoolean(15, player.isCultivating());
-            ps.setLong(16, player.getCultivationStartTime());
-            ps.setLong(17, player.getLastSecretRealmTime());
-            ps.setLong(18, player.getLastExplorationTime());
-            ps.setLong(19, player.getLastOfflineTime());
-            ps.setLong(20, playerId);
+            ps.setInt(4, player.getHp());
+            ps.setInt(5, player.getMaxHp());
+            ps.setInt(6, player.getMp());
+            ps.setInt(7, player.getMaxMp());
+            ps.setInt(8, player.getAttack());
+            ps.setInt(9, player.getDefense());
+            ps.setInt(10, player.getSpeed());
+            ps.setInt(11, player.getSpirit());
+            ps.setLong(12, player.getGold());
+            ps.setInt(13, player.getCultivationProgress());
+            ps.setBoolean(14, player.isCultivating());
+            ps.setLong(15, player.getCultivationStartTime());
+            ps.setLong(16, player.getLastSecretRealmTime());
+            ps.setLong(17, player.getLastExplorationTime());
+            ps.setLong(18, player.getLastOfflineTime());
+            ps.setLong(19, playerId);
             ps.executeUpdate();
         } catch (SQLException e) {
             throw new RuntimeException("更新玩家失败", e);
@@ -299,12 +298,24 @@ public class PlayerService {
     }
 
     private boolean removeSpiritStoneRaw(long playerId, long amount) {
-        String sql = "UPDATE players_items SET quantity = quantity - ? WHERE player_id = ? AND item_key = 'spirit_stone'";
+        String sql = "UPDATE players_items SET quantity = quantity - ? WHERE player_id = ? AND item_key = ? AND quantity >= ?";
         try (Connection conn = DatabaseManager.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, amount);
             ps.setLong(2, playerId);
-            return ps.executeUpdate() > 0;
+            ps.setString(3, com.mtxgdn.game.item.CurrencyEffect.SPIRIT_STONE_KEY);
+            ps.setLong(4, amount);
+            int affected = ps.executeUpdate();
+            // 清理零值行
+            if (affected > 0) {
+                String cleanSql = "DELETE FROM players_items WHERE player_id = ? AND item_key = ? AND quantity <= 0";
+                try (PreparedStatement cps = conn.prepareStatement(cleanSql)) {
+                    cps.setLong(1, playerId);
+                    cps.setString(2, com.mtxgdn.game.item.CurrencyEffect.SPIRIT_STONE_KEY);
+                    cps.executeUpdate();
+                }
+            }
+            return affected > 0;
         } catch (SQLException e) {
             throw new RuntimeException("扣除灵石失败", e);
         }

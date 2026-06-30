@@ -19,6 +19,7 @@ public class TechniqueService {
     private static final GameLogger LOG = GameLogger.getLogger(TechniqueService.class);
     private static final int MAX_EQUIPPED = 3;
     private final PlayerService playerService = new PlayerService();
+    private final ItemService itemService = new ItemService();
 
     public Technique getTechniqueById(long techniqueId) {
         String sql = "SELECT * FROM techniques WHERE id = ?";
@@ -111,21 +112,31 @@ public class TechniqueService {
         if (player.getGold() < technique.getLearnCostGold()) {
             result.put("success", false); result.put("message", "金币不足，需要 " + technique.getLearnCostGold() + " 金币"); return result;
         }
-        long ssCount = new ItemService().getSpiritStoneCount(playerId);
+        long ssCount = itemService.getSpiritStoneCount(playerId);
         if (ssCount < technique.getLearnCostSpiritStones()) {
             result.put("success", false); result.put("message", "灵石不足，需要 " + technique.getLearnCostSpiritStones() + " 灵石"); return result;
         }
 
-        playerService.addGold(playerId, -technique.getLearnCostGold());
-        new ItemService().removeSpiritStones(playerId, technique.getLearnCostSpiritStones());
+        try {
+            DatabaseManager.runTransaction(conn -> {
+                playerService.addGold(conn, playerId, -technique.getLearnCostGold());
+                if (!itemService.removeItem(conn, playerId, com.mtxgdn.game.item.CurrencyEffect.SPIRIT_STONE_KEY, technique.getLearnCostSpiritStones())) {
+                    throw new SQLException("灵石扣除失败");
+                }
 
-        String sql = "INSERT INTO players_techniques (player_id, technique_id, level, proficiency, is_equipped) VALUES (?, ?, 1, 0, 0)";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            ps.setLong(2, techniqueId);
-            ps.executeUpdate();
-        } catch (SQLException e) { throw new RuntimeException("学习功法失败", e); }
+                String sql = "INSERT INTO players_techniques (player_id, technique_id, level, proficiency, is_equipped) VALUES (?, ?, 1, 0, 0)";
+                try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                    ps.setLong(1, playerId);
+                    ps.setLong(2, techniqueId);
+                    ps.executeUpdate();
+                }
+                return null;
+            });
+        } catch (Exception e) {
+            result.put("success", false);
+            result.put("message", "学习功法失败: " + e.getMessage());
+            return result;
+        }
 
         applyTechniqueBonuses(player, technique);
         playerService.updatePlayer(playerId, player);
@@ -200,21 +211,31 @@ public class TechniqueService {
         if (player.getGold() < costGold) {
             result.put("success", false); result.put("message", "金币不足，升级需要 " + costGold + " 金币"); return result;
         }
-        long ssCount = new ItemService().getSpiritStoneCount(playerId);
+        long ssCount = itemService.getSpiritStoneCount(playerId);
         if (ssCount < costSS) {
             result.put("success", false); result.put("message", "灵石不足，升级需要 " + costSS + " 灵石"); return result;
         }
 
-        playerService.addGold(playerId, -costGold);
-        new ItemService().removeSpiritStones(playerId, costSS);
+        try {
+            DatabaseManager.runTransaction(conn -> {
+                playerService.addGold(conn, playerId, -costGold);
+                if (!itemService.removeItem(conn, playerId, com.mtxgdn.game.item.CurrencyEffect.SPIRIT_STONE_KEY, costSS)) {
+                    throw new SQLException("灵石扣除失败");
+                }
 
-        String sql = "UPDATE players_techniques SET level = level + 1, proficiency = 0 WHERE player_id = ? AND technique_id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            ps.setLong(2, techniqueId);
-            ps.executeUpdate();
-        } catch (SQLException e) { throw new RuntimeException("升级功法失败", e); }
+                String sql = "UPDATE players_techniques SET level = level + 1, proficiency = 0 WHERE player_id = ? AND technique_id = ?";
+                try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                    ps.setLong(1, playerId);
+                    ps.setLong(2, techniqueId);
+                    ps.executeUpdate();
+                }
+                return null;
+            });
+        } catch (Exception e) {
+            result.put("success", false);
+            result.put("message", "升级功法失败: " + e.getMessage());
+            return result;
+        }
 
         result.put("success", true);
         result.put("message", "功法【" + tech.getName() + "】升至 Lv." + (tech.getLevel() + 1));
