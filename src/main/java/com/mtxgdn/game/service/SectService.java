@@ -625,8 +625,8 @@ public class SectService {
     public Map<String, Object> withdrawFromWarehouse(long playerId, long sectId, String itemKey, int quantity) {
         Map<String, Object> result = new LinkedHashMap<>();
         SectMember member = getMember(sectId, playerId);
-        if (member == null || !member.canManage()) {
-            result.put("success", false); result.put("message", "只有宗主和长老才能从仓库取出物品"); return result;
+        if (member == null) {
+            result.put("success", false); result.put("message", "你不是该宗门成员"); return result;
         }
         if (quantity <= 0) {
             result.put("success", false); result.put("message", "数量必须大于 0"); return result;
@@ -644,6 +644,26 @@ public class SectService {
             result.put("message", "宗门仓库中【" + item.getName() + "】数量不足（当前：" + available + "）"); return result;
         }
 
+        // 弟子需消耗贡献值
+        if (!member.canManage()) {
+            long costPerItem = getItemContributionCost(item);
+            long totalCost = costPerItem * quantity;
+            if (member.getContribution() < totalCost) {
+                result.put("success", false);
+                result.put("message", "贡献值不足，取出【" + item.getName() + "】×" + quantity
+                        + " 需要 " + totalCost + " 贡献值（当前：" + member.getContribution() + "）");
+                return result;
+            }
+            // 扣除贡献值
+            String costSql = "UPDATE sect_members SET contribution = contribution - ? WHERE id = ?";
+            try (Connection conn = DatabaseManager.getConnection();
+                 PreparedStatement ps = conn.prepareStatement(costSql)) {
+                ps.setLong(1, totalCost);
+                ps.setLong(2, member.getId());
+                ps.executeUpdate();
+            } catch (SQLException e) { throw new RuntimeException("扣除贡献值失败", e); }
+        }
+
         String deductSql = "UPDATE sect_warehouse SET quantity = quantity - ? WHERE sect_id = ? AND item_key = ?";
         try (Connection conn = DatabaseManager.getConnection();
              PreparedStatement ps = conn.prepareStatement(deductSql)) {
@@ -655,9 +675,22 @@ public class SectService {
 
         itemService.addItem(playerId, fullKey, quantity);
 
+        String msg;
+        if (member.canManage()) {
+            msg = "已从宗门仓库取出【" + item.getName() + "】×" + quantity;
+        } else {
+            long cost = getItemContributionCost(item) * quantity;
+            msg = "已从宗门仓库取出【" + item.getName() + "】×" + quantity + "，消耗贡献值 " + cost;
+        }
         result.put("success", true);
-        result.put("message", "已从宗门仓库取出【" + item.getName() + "】×" + quantity);
+        result.put("message", msg);
         return result;
+    }
+
+    /** 物品兑换贡献值（取价格/10，最低50） */
+    public long getItemContributionCost(Item item) {
+        int price = item.getPrice();
+        return Math.max(50, price / 10);
     }
 
     private int getWarehouseItemCount(long sectId, String itemKey) {

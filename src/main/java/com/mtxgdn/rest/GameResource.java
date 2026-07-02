@@ -1695,6 +1695,9 @@ public class GameResource {
             o.addProperty("quantity", item.getQuantity());
             o.addProperty("donatedByPlayerId", item.getDonatedByPlayerId());
             o.addProperty("donatedByName", item.getDonatedByName());
+            com.mtxgdn.game.item.Item it = com.mtxgdn.game.item.ItemRegistry.get(item.getItemKey());
+            long contributionCost = it != null ? sectService.getItemContributionCost(it) : 50;
+            o.addProperty("contributionCost", contributionCost);
             arr.add(o);
         }
         JsonObject data = new JsonObject();

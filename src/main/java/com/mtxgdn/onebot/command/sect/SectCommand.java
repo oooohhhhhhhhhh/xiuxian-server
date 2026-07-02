@@ -273,15 +273,25 @@ public class SectCommand extends Command {
         List<SectWarehouseItem> items = sectService.getWarehouse(me.getSectId());
         if (items.isEmpty()) { ctx.reply("宗门仓库空空如也。\n使用 /宗门 donate <物品key> <数量> 捐献物品"); return; }
         StringBuilder sb = new StringBuilder("===== 宗门仓库 =====\n");
+        if (!me.canManage()) {
+            sb.append("提示：你取出物品需要消耗贡献值\n\n");
+        }
         int i = 1;
         for (SectWarehouseItem item : items) {
             Item it = ItemRegistry.get(item.getItemKey());
             String name = it != null ? it.getName() : item.getItemKey();
+            long cost = it != null ? sectService.getItemContributionCost(it) : 50;
             sb.append(String.format("%d. %s x%d", i++, name, item.getQuantity()));
             if (item.getDonatedByName() != null) {
                 sb.append(" (捐赠:").append(item.getDonatedByName()).append(")");
             }
+            if (!me.canManage()) {
+                sb.append(" [贡献值:").append(cost).append("/个]");
+            }
             sb.append("\n");
+        }
+        if (!me.canManage()) {
+            sb.append("\n使用 /宗门 take <物品key> <数量> 用贡献值兑换");
         }
         ctx.reply(sb.toString());
     }
@@ -412,8 +422,12 @@ public class SectCommand extends Command {
             if (me != null && me.canManage()) {
                 sb.append("  /\u5b97\u95e8 pending     \u5ba1\u6279\u7533\u8bf7\n");
                 sb.append("  /\u5b97\u95e8 kick        \u7ba1\u7406\u6210\u5458\n");
-                sb.append("  /\u5b97\u95e8 take        \u53d6\u51fa\u7269\u54c1\n");
             }
+            sb.append("  /\u5b97\u95e8 take        \u53d6\u51fa\u7269\u54c1");
+            if (me != null && !me.canManage()) {
+                sb.append("(\u6d88\u8017\u8d21\u732e\u503c)");
+            }
+            sb.append("\n");
             if (me != null && me.isLeader()) {
                 sb.append("  /\u5b97\u95e8 levelup     \u5347\u7ea7\u5b97\u95e8\n");
                 sb.append("  /\u5b97\u95e8 transfer    \u8f6c\u8ba9\u5b97\u4e3b\n");
