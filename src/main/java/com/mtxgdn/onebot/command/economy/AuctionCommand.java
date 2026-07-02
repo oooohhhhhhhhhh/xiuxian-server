@@ -1,9 +1,15 @@
 package com.mtxgdn.onebot.command.economy;
 
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
 import com.mtxgdn.common.command.Command;
 import com.mtxgdn.common.command.CommandContext;
+import com.mtxgdn.common.command.RouteDefinition;
 import com.mtxgdn.game.entity.PlayerInfo;
 import com.mtxgdn.common.service.ServiceRegistry;
+
+import java.util.List;
+import java.util.Map;
 
 /**
  * 竞拍行 — 限时竞价交易。
@@ -20,6 +26,11 @@ public class AuctionCommand extends Command {
         registerSub("出售", (ctx, p, parts) -> createAuction(ctx, p, parts));
         registerSub("出价", (ctx, p, parts) -> placeBid(ctx, p, parts));
         registerSub("我的", (ctx, p, parts) -> myAuctions(ctx, p));
+
+        addRoute(RouteDefinition.get("economy/auction/items", this::handleAuctionListHttp));
+        addRoute(RouteDefinition.get("economy/auction/my", this::handleAuctionMyHttp));
+        addRoute(RouteDefinition.post("economy/auction/create", this::handleAuctionCreateHttp));
+        addRoute(RouteDefinition.post("economy/auction/bid", this::handleAuctionBidHttp));
     }
 
     @Override
@@ -120,5 +131,105 @@ public class AuctionCommand extends Command {
         }
         sb.append("\n注意: 竞拍结束后物品自动发放给出价最高者");
         ctx.reply(sb.toString());
+    }
+
+    // ==================== REST API ====================
+
+    private JsonObject handleAuctionListHttp(RouteDefinition.RestContext ctx) {
+        JsonObject result = new JsonObject();
+        try {
+            var eco = ServiceRegistry.getEconomyService();
+            List<Map<String, Object>> items = eco.getActiveAuctionItems();
+            JsonArray arr = new JsonArray();
+            for (var row : items) {
+                JsonObject io = new JsonObject();
+                io.addProperty("id", (long) row.get("id"));
+                io.addProperty("itemName", (String) row.get("itemName"));
+                io.addProperty("quantity", (int) row.get("quantity"));
+                io.addProperty("startPrice", (long) row.get("startPrice"));
+                io.addProperty("currentBid", row.get("currentBid") != null ? (long) row.get("currentBid") : 0);
+                io.addProperty("remaining", (String) row.get("remaining"));
+                arr.add(io);
+            }
+            result.addProperty("code", 200);
+            result.add("items", arr);
+        } catch (Exception e) {
+            result.addProperty("code", 500);
+            result.addProperty("message", "服务器错误: " + e.getMessage());
+        }
+        return result;
+    }
+
+    private JsonObject handleAuctionMyHttp(RouteDefinition.RestContext ctx) {
+        JsonObject result = new JsonObject();
+        try {
+            var eco = ServiceRegistry.getEconomyService();
+            List<Map<String, Object>> items = eco.getPlayerAuctionItems(ctx.playerId());
+            JsonArray arr = new JsonArray();
+            for (var row : items) {
+                JsonObject io = new JsonObject();
+                io.addProperty("id", (long) row.get("id"));
+                io.addProperty("itemName", (String) row.get("itemName"));
+                io.addProperty("quantity", (int) row.get("quantity"));
+                io.addProperty("currentBid", row.get("currentBid") != null ? (long) row.get("currentBid") : 0);
+                io.addProperty("status", (String) row.get("status"));
+                arr.add(io);
+            }
+            result.addProperty("code", 200);
+            result.add("items", arr);
+        } catch (Exception e) {
+            result.addProperty("code", 500);
+            result.addProperty("message", "服务器错误: " + e.getMessage());
+        }
+        return result;
+    }
+
+    private JsonObject handleAuctionCreateHttp(RouteDefinition.RestContext ctx) {
+        JsonObject result = new JsonObject();
+        try {
+            JsonObject req = ctx.bodyJson();
+            String itemKey = req.has("itemKey") ? req.get("itemKey").getAsString() : "";
+            int quantity = req.has("quantity") ? req.get("quantity").getAsInt() : 1;
+            long startPrice = req.has("startPrice") ? req.get("startPrice").getAsLong() : 0;
+            int hours = req.has("hours") ? req.get("hours").getAsInt() : 24;
+            if (itemKey.isBlank()) {
+                result.addProperty("code", 400);
+                result.addProperty("message", "请提供物品键(itemKey)");
+                return result;
+            }
+            var eco = ServiceRegistry.getEconomyService();
+            var data = eco.createAuction(ctx.playerId(), itemKey, quantity, startPrice, hours);
+            result.addProperty("code", (boolean) data.get("success") ? 200 : 400);
+            result.addProperty("success", (boolean) data.get("success"));
+            result.addProperty("message", (String) data.get("message"));
+            if (data.containsKey("listingId")) result.addProperty("listingId", (long) data.get("listingId"));
+        } catch (Exception e) {
+            result.addProperty("code", 500);
+            result.addProperty("message", "服务器错误: " + e.getMessage());
+        }
+        return result;
+    }
+
+    private JsonObject handleAuctionBidHttp(RouteDefinition.RestContext ctx) {
+        JsonObject result = new JsonObject();
+        try {
+            JsonObject req = ctx.bodyJson();
+            long listingId = req.has("listingId") ? req.get("listingId").getAsLong() : 0;
+            long amount = req.has("amount") ? req.get("amount").getAsLong() : 0;
+            if (listingId <= 0 || amount <= 0) {
+                result.addProperty("code", 400);
+                result.addProperty("message", "请提供有效的拍卖编号(listingId)和出价金额(amount)");
+                return result;
+            }
+            var eco = ServiceRegistry.getEconomyService();
+            var data = eco.placeBid(ctx.playerId(), listingId, amount);
+            result.addProperty("code", (boolean) data.get("success") ? 200 : 400);
+            result.addProperty("success", (boolean) data.get("success"));
+            result.addProperty("message", (String) data.get("message"));
+        } catch (Exception e) {
+            result.addProperty("code", 500);
+            result.addProperty("message", "服务器错误: " + e.getMessage());
+        }
+        return result;
     }
 }

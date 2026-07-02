@@ -1,7 +1,10 @@
 package com.mtxgdn.onebot.command.economy;
 
+import com.google.gson.JsonArray;
+import com.google.gson.JsonObject;
 import com.mtxgdn.common.command.Command;
 import com.mtxgdn.common.command.CommandContext;
+import com.mtxgdn.common.command.RouteDefinition;
 import com.mtxgdn.game.entity.PlayerInfo;
 import com.mtxgdn.common.service.ServiceRegistry;
 
@@ -23,6 +26,10 @@ public class BankCommand extends Command {
         registerSub("存入", (ctx, p, parts) -> doDeposit(ctx, p, parts));
         registerSub("取出", (ctx, p, parts) -> doWithdraw(ctx, p, parts));
         registerSub("利率", (ctx, p, parts) -> showRates(ctx, p, parts));
+
+        addRoute(RouteDefinition.get("economy/bank/info", this::handleBankInfoHttp));
+        addRoute(RouteDefinition.post("economy/bank/deposit", this::handleDepositHttp));
+        addRoute(RouteDefinition.post("economy/bank/withdraw", this::handleWithdrawHttp));
     }
 
     @Override
@@ -137,6 +144,88 @@ public class BankCommand extends Command {
               例: 存 1000→到期 1250
             ────────
             ⚠ 定期提前取出损失全部利息！
-             起存 100 灵石""");
+            起存 100 灵石""");
+    }
+
+    // ==================== REST API ====================
+
+    private JsonObject handleBankInfoHttp(RouteDefinition.RestContext ctx) {
+        JsonObject result = new JsonObject();
+        try {
+            var eco = ServiceRegistry.getEconomyService();
+            var info = eco.getBankInfo(ctx.playerId());
+            long stones = ServiceRegistry.getItemService().getSpiritStoneCount(ctx.playerId());
+
+            @SuppressWarnings("unchecked")
+            List<Map<String, Object>> deposits = (List<Map<String, Object>>) info.get("deposits");
+            JsonArray arr = new JsonArray();
+            if (deposits != null) {
+                for (var dep : deposits) {
+                    JsonObject io = new JsonObject();
+                    io.addProperty("id", (long) dep.get("id"));
+                    io.addProperty("type", (String) dep.get("type"));
+                    io.addProperty("principal", (long) dep.get("principal"));
+                    io.addProperty("estimatedInterest", (long) dep.get("estimatedInterest"));
+                    io.addProperty("note", (String) dep.get("note"));
+                    arr.add(io);
+                }
+            }
+            result.addProperty("code", 200);
+            result.addProperty("spiritStones", stones);
+            result.addProperty("totalPrincipal", (long) info.get("totalPrincipal"));
+            result.addProperty("totalPendingInterest", (long) info.get("totalPendingInterest"));
+            result.add("deposits", arr);
+        } catch (Exception e) {
+            result.addProperty("code", 500);
+            result.addProperty("message", "服务器错误: " + e.getMessage());
+        }
+        return result;
+    }
+
+    private JsonObject handleDepositHttp(RouteDefinition.RestContext ctx) {
+        JsonObject result = new JsonObject();
+        try {
+            JsonObject req = ctx.bodyJson();
+            String type = req.has("type") ? req.get("type").getAsString() : "";
+            long amount = req.has("amount") ? req.get("amount").getAsLong() : 0;
+            if (type.isBlank() || amount <= 0) {
+                result.addProperty("code", 400);
+                result.addProperty("message", "请提供存款类型(type: current/fixed_7/fixed_30/fixed_90)和金额(amount)");
+                return result;
+            }
+            var eco = ServiceRegistry.getEconomyService();
+            var data = eco.bankDeposit(ctx.playerId(), type, amount);
+            result.addProperty("code", (boolean) data.get("success") ? 200 : 400);
+            result.addProperty("success", (boolean) data.get("success"));
+            result.addProperty("message", (String) data.get("message"));
+        } catch (Exception e) {
+            result.addProperty("code", 500);
+            result.addProperty("message", "服务器错误: " + e.getMessage());
+        }
+        return result;
+    }
+
+    private JsonObject handleWithdrawHttp(RouteDefinition.RestContext ctx) {
+        JsonObject result = new JsonObject();
+        try {
+            JsonObject req = ctx.bodyJson();
+            long depositId = req.has("depositId") ? req.get("depositId").getAsLong() : 0;
+            if (depositId <= 0) {
+                result.addProperty("code", 400);
+                result.addProperty("message", "请提供有效的存款编号(depositId)");
+                return result;
+            }
+            var eco = ServiceRegistry.getEconomyService();
+            var data = eco.bankWithdraw(ctx.playerId(), depositId);
+            result.addProperty("code", (boolean) data.get("success") ? 200 : 400);
+            result.addProperty("success", (boolean) data.get("success"));
+            result.addProperty("message", (String) data.get("message"));
+            if (data.containsKey("interest")) result.addProperty("interest", (long) data.get("interest"));
+            if (data.containsKey("principal")) result.addProperty("principal", (long) data.get("principal"));
+        } catch (Exception e) {
+            result.addProperty("code", 500);
+            result.addProperty("message", "服务器错误: " + e.getMessage());
+        }
+        return result;
     }
 }
