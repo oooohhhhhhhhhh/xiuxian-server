@@ -284,10 +284,11 @@ public class PlayerService {
     }
 
     private long getSpiritStoneCount(long playerId) {
-        String sql = "SELECT quantity FROM players_items WHERE player_id = ? AND item_key = 'spirit_stone'";
+        String sql = "SELECT quantity FROM players_items WHERE player_id = ? AND item_key = ?";
         try (Connection conn = DatabaseManager.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, playerId);
+            ps.setString(2, com.mtxgdn.game.item.CurrencyEffect.SPIRIT_STONE_KEY);
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) return rs.getLong("quantity");
             }
@@ -692,5 +693,57 @@ public class PlayerService {
                 catch (Exception e) { yield SpiritualRoot.CHAOS_MIXED; }
             }
         };
+    }
+
+    public boolean deletePlayer(long playerId) {
+        Player player = getPlayerById(playerId);
+        if (player == null) {
+            return false;
+        }
+
+        String[] tables = {
+            "players_items", "players_equipment", "players_skills", "players_techniques",
+            "player_daily", "player_economy", "player_bank", "player_titles", "player_energy",
+            "sect_members", "sect_applications", "auction_listings", "auction_bids",
+            "trade_listings", "redeemed_codes", "chat_messages", "player_action_logs"
+        };
+
+        try (Connection conn = DatabaseManager.getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                for (String table : tables) {
+                    String sql = "DELETE FROM " + table + " WHERE player_id = ?";
+                    try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                        ps.setLong(1, playerId);
+                        ps.executeUpdate();
+                    }
+                }
+
+                String deleteFriendSql = "DELETE FROM friends WHERE player_id = ? OR friend_id = ?";
+                try (PreparedStatement ps = conn.prepareStatement(deleteFriendSql)) {
+                    ps.setLong(1, playerId);
+                    ps.setLong(2, playerId);
+                    ps.executeUpdate();
+                }
+
+                String deletePlayerSql = "DELETE FROM players WHERE id = ?";
+                try (PreparedStatement ps = conn.prepareStatement(deletePlayerSql)) {
+                    ps.setLong(1, playerId);
+                    int affected = ps.executeUpdate();
+                    if (affected == 0) {
+                        conn.rollback();
+                        return false;
+                    }
+                }
+
+                conn.commit();
+                return true;
+            } catch (SQLException e) {
+                conn.rollback();
+                throw new RuntimeException("删除玩家失败", e);
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("删除玩家失败", e);
+        }
     }
 }

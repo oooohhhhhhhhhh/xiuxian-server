@@ -1031,6 +1031,33 @@ public class AdminResource {
         return Response.ok(gson.toJson(result)).build();
     }
 
+    @DELETE
+    @Path("/players/{id}")
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("admin.users.manage")
+    public Response deletePlayer(@PathParam("id") long playerId) {
+        var p = playerService.getPlayerById(playerId);
+        if (p == null) {
+            JsonObject err = new JsonObject();
+            err.addProperty("code", 404);
+            err.addProperty("message", "玩家不存在");
+            return Response.ok(gson.toJson(err)).build();
+        }
+
+        boolean success = playerService.deletePlayer(playerId);
+        if (success) {
+            JsonObject result = new JsonObject();
+            result.addProperty("code", 200);
+            result.addProperty("message", "删除成功");
+            return Response.ok(gson.toJson(result)).build();
+        } else {
+            JsonObject err = new JsonObject();
+            err.addProperty("code", 500);
+            err.addProperty("message", "删除失败");
+            return Response.ok(gson.toJson(err)).build();
+        }
+    }
+
     @POST
     @Path("/players/{id}/spiritual-root")
     @Consumes(MediaType.APPLICATION_JSON)
@@ -1317,6 +1344,7 @@ public class AdminResource {
     @Path("/db/tables/{tableName}")
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("admin.database.reset_all")
     public Response insertTableRow(
             @PathParam("tableName") String tableName,
             String body) {

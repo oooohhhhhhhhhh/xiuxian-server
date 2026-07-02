@@ -158,4 +158,62 @@ public class UserService {
         JsonObject body = GameMessage.restError(httpStatus, message);
         return Response.status(httpStatus).entity(body.toString()).build();
     }
+
+    public Response changePassword(long userId, String oldPassword, String newPassword) {
+        if (oldPassword == null || oldPassword.isEmpty()) {
+            return buildError(400, "原密码不能为空");
+        }
+        if (newPassword == null || newPassword.length() < 6) {
+            return buildError(400, "新密码长度不能少于6位");
+        }
+        if (oldPassword.equals(newPassword)) {
+            return buildError(400, "新密码不能与原密码相同");
+        }
+
+        String sql = "SELECT id, password FROM users WHERE id = ?";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setLong(1, userId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) {
+                    return buildError(404, "用户不存在");
+                }
+                String hashedPassword = rs.getString("password");
+                if (!BCrypt.checkpw(oldPassword, hashedPassword)) {
+                    return buildError(401, "原密码错误");
+                }
+            }
+
+            String newHashedPassword = BCrypt.hashpw(newPassword, BCrypt.gensalt());
+            String updateSql = "UPDATE users SET password = ? WHERE id = ?";
+            try (PreparedStatement ups = conn.prepareStatement(updateSql)) {
+                ups.setString(1, newHashedPassword);
+                ups.setLong(2, userId);
+                ups.executeUpdate();
+            }
+
+            JsonObject data = new JsonObject();
+            data.addProperty("message", "密码修改成功");
+            return Response.ok(GameMessage.restOk("密码修改成功", data).toString()).build();
+        } catch (SQLException e) {
+            throw new RuntimeException("修改密码失败", e);
+        }
+    }
+
+    public Response deleteUser(long userId) {
+        String sql = "DELETE FROM users WHERE id = ?";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setLong(1, userId);
+            int affected = ps.executeUpdate();
+            if (affected == 0) {
+                return buildError(404, "用户不存在");
+            }
+            JsonObject data = new JsonObject();
+            data.addProperty("message", "账户注销成功");
+            return Response.ok(GameMessage.restOk("账户注销成功", data).toString()).build();
+        } catch (SQLException e) {
+            throw new RuntimeException("注销账户失败", e);
+        }
+    }
 }
