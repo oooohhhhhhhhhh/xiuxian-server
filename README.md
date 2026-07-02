@@ -23,7 +23,7 @@
 - **游历探索**：随机事件系统，权重抽奖机制，巽风灵根可缩减冷却时间
 - **秘境探索**：8 个秘境区域，随机遭遇宝藏/妖兽/Boss/灵草/陷阱/古修/遗迹等事件
 - **坊市交易**：玩家间物品交易，使用灵石结算，5% 手续费（土金灵根减半），挂单/购买/撤单完整流程
-- **宗门系统**：创建宗门/申请加入/审批/任命/捐献/仓库存取/踢出/解散/宗门升级/宗主转让/宗门战，金丹期以上消耗 500 灵石创建，声望排行，宗门仓库共享物品
+- **宗门系统**：创建宗门/申请加入/审批/任命/捐献/仓库存取/踢出/解散/宗门升级/宗主转让/宗门战，金丹期以上消耗 500 灵石创建，声望排行，宗门仓库共享物品；**5级角色**（宗主>副宗主>长老>内门弟子>外门弟子），内门/外门可消耗贡献值兑换仓库物品
 - **物品系统**：7 种类型、6 种稀有度，组件化效果（经验/回血/货币/buff/技能书），支持按中文名称/key 使用物品
 - **能量转化系统**：等价交换式物品能量互转，物品→能量→物品闭环；支持主程序物品和插件物品，插件可通过 `PluginContext.registerItemEnergy()` 注册自定义能量值；管理员可管理玩家能量；REST API 接口开放外部调用
 - **技能系统**：攻击技能和辅助技能，熟练度升级（使用获得熟练度，技能书 +1 级），等级越高蓝耗越大，金水木灵根熟练度 +30%
@@ -31,7 +31,7 @@
 - **聊天系统**：世界频道（全服广播）+ 私聊（点对点消息），消息持久化存储，WebSocket 实时推送
 - **排行榜**：境界榜/战力榜/财富榜，支持 REST/WebSocket/QQ 三种方式查看
 - **好友系统**：好友申请/接受/删除/列表，双向确认机制，支持跨端操作
-- **重伤疗伤**：战败重伤（HP≤0）后可用灵石瞬间疗伤（境界越高花费越多）+ 法力一并恢复；也可服用回血丹等消耗品回复；离线自然恢复兜底
+- **称号系统**：18个预设称号（普通/稀有/珍贵/史诗/传说/特殊），含攻击/防御/生命/法力/速度/神识/修炼速度/经验/掉落加成；查看/装备/卸下称号，管理员可授予/撤销
 - **PVP 对战**：回合制玩家对战，支持技能施放、暴击、灵根特效（回血/增伤/减伤/暴击/MP减免等）
 - **PVE 战斗**：游历和秘境中随机遭遇妖兽，完整回合制战斗（技能、暴击、灵根特效全生效）；秘境含 Boss 战，各秘境专属守护者
 - **离线收益**：断线后修炼继续进行（50% 效率，上限 8 小时），上线时自动结算经验、HP/MP 恢复，心魔判定降频
@@ -454,6 +454,23 @@ java -jar target/main-V1.4.1-alpha2.jar
 | GET | `/api/game/energy/list` | - | 可转化物品列表（含能量价值） |
 | POST | `/api/game/energy/convert` | - | 物品转化为能量 |
 | POST | `/api/game/energy/exchange` | - | 能量兑换为物品 |
+| POST | `/api/game/economy/signin` | `game.economy.signin` | 签到 |
+| GET | `/api/game/economy/shop/items` | `game.economy.shop` | 商店商品列表 |
+| POST | `/api/game/economy/shop/buy` | `game.economy.shop` | 购买商品 |
+| POST | `/api/game/economy/recycle` | `game.economy.recycle` | 物品回收 |
+| GET | `/api/game/economy/bank/info` | `game.economy.bank` | 灵庄账户信息 |
+| POST | `/api/game/economy/bank/deposit` | `game.economy.bank` | 存款 |
+| POST | `/api/game/economy/bank/withdraw` | `game.economy.bank` | 取款 |
+| GET | `/api/game/economy/auction/items` | `game.economy.auction` | 竞拍列表 |
+| GET | `/api/game/economy/auction/my` | `game.economy.auction` | 我的拍卖 |
+| POST | `/api/game/economy/auction/create` | `game.economy.auction` | 发布竞拍 |
+| POST | `/api/game/economy/auction/bid` | `game.economy.auction` | 出价 |
+| POST | `/api/game/economy/cultivate-boost` | `game.economy.cultivate` | 修炼加速 |
+| GET | `/api/game/title/all` | `game.title.view` | 称号大全 |
+| GET | `/api/game/title/my` | `game.title.view` | 我的称号 |
+| GET | `/api/game/title/active` | `game.title.view` | 当前装备称号 |
+| POST | `/api/game/title/equip` | `game.title.equip` | 装备称号 |
+| POST | `/api/game/title/unequip` | `game.title.equip` | 卸下称号 |
 
 ### 管理后台 API（需管理员 Token）
 
@@ -631,6 +648,24 @@ java -jar target/main-V1.4.1-alpha2.jar
 | `/skills` / `/技能` | `game.player.info` | 查看技能列表（含境界/金币要求） |
 | `/learn <技能ID或名称>` / `/学习` | `game.skill.learn` | 学习技能（支持中文名和ID） |
 
+### 功法系统
+
+| 指令 | 权限 | 说明 |
+|------|------|------|
+| `/technique` / `/功法` | `game.technique.learn` | 查看功法列表 |
+| `/technique my` / `/我的功法` | `game.technique.learn` | 查看已学习的功法 |
+| `/technique learn <名称>` / `/学习功法` | `game.technique.learn` | 学习功法 |
+| `/technique equip <名称>` / `/装备功法` | `game.technique.equip` | 装备功法（最多3门） |
+| `/technique unequip <名称>` / `/卸下功法` | `game.technique.equip` | 卸下功法 |
+| `/technique upgrade <名称>` / `/升级功法` | `game.technique.upgrade` | 升级功法 |
+
+### 合成制造
+
+| 指令 | 权限 | 说明 |
+|------|------|------|
+| `/craft` / `/合成` | `game.crafting.recipes` | 查看所有配方 |
+| `/craft <物品>` / `/制作` | `game.crafting.craft` | 制造物品（支持中文名） |
+
 ### 坊市交易
 
 | 指令 | 权限 | 说明 |
@@ -656,13 +691,13 @@ java -jar target/main-V1.4.1-alpha2.jar
 | `/宗门 reject <玩家名>` | `game.sect.manage` | 拒绝入宗申请 |
 | `/宗门 leave` | `game.sect.manage` | 退出宗门 |
 | `/宗门 kick <玩家名>` | `game.sect.manage` | 踢出成员（宗主/长老） |
-| `/宗门 appoint <玩家名> <长老\|弟子>` | `game.sect.manage` | 任命职位（宗主） |
+| `/宗门 appoint <玩家名> <副宗主\|长老\|内门弟子\|外门弟子>` | `game.sect.manage` | 任命职位（宗主可任命所有，副宗主可任命长老及以下，长老可任命内门外门） |
 | `/宗门 levelup` | `game.sect.manage` | 宗门升级（宗主，消耗声望） |
 | `/宗门 transfer <玩家名>` | `game.sect.manage` | 转让宗主（宗主，200灵石） |
 | `/宗门 war <宗门名>` | `game.sect.manage` | 宗门战宣战（宗主，1000声望+300灵石） |
 | `/宗门 donate <物品key> <数量>` | `game.sect.donate` | 向宗门仓库捐献物品 |
 | `/宗门 warehouse` | `game.sect.manage` | 查看宗门仓库 |
-| `/宗门 take <物品key> <数量>` | `game.sect.warehouse` | 从仓库取出（宗主/长老） |
+| `/宗门 take <物品key> <数量>` | `game.sect.warehouse` | 从仓库取出（宗主/副宗主/长老免费，内门/外门需消耗贡献值） |
 | `/宗门 disband` | `game.sect.manage` | 解散宗门（宗主） |
 | `/宗门 top` | `game.sect.manage` | 宗门声望排行榜 |
 | `/宗门 help` | `game.sect.manage` | 查看宗门帮助 |
@@ -682,6 +717,39 @@ java -jar target/main-V1.4.1-alpha2.jar
 |------|------|------|
 | `/daily` / `/天象` | `game.player.info` | 查看今日天象与机缘 |
 | `/morning` / `/晨修` | `game.player.info` | 每日晨修（获取修炼加成） |
+
+### 经济系统
+
+| 指令 | 权限 | 说明 |
+|------|------|------|
+| `/qd` / `/签到` | `game.economy.signin` | 每日签到（获得灵石） |
+| `/shop` / `/商店` | `game.economy.shop` | 查看商店商品 |
+| `/buy <物品> <数量>` / `/购买` | `game.economy.shop` | 购买商店物品 |
+| `/recycle <物品> <数量>` / `/回收` | `game.economy.recycle` | 回收物品获得灵石 |
+| `/bank` / `/灵庄` | `game.economy.bank` | 查看灵庄账户 |
+| `/bank deposit <数量>` / `/存钱` | `game.economy.bank` | 存入灵石 |
+| `/bank withdraw <数量>` / `/取钱` | `game.economy.bank` | 取出灵石 |
+| `/auction` / `/拍卖` | `game.economy.auction` | 查看竞拍列表 |
+| `/auction my` / `/我的拍卖` | `game.economy.auction` | 查看我的拍卖 |
+| `/auction create <物品> <数量> <起始价>` / `/发布拍卖` | `game.economy.auction` | 发布竞拍 |
+| `/auction bid <拍卖ID> <价格>` / `/出价` | `game.economy.auction` | 出价竞拍 |
+| `/cultivate_boost` / `/修炼加速` | `game.economy.cultivate` | 消耗灵石加速修炼 |
+
+### 称号系统
+
+| 指令 | 权限 | 说明 |
+|------|------|------|
+| `/称号` | `game.title.view` | 查看已拥有的称号 |
+| `/称号 列表` | `game.title.view` | 浏览全部称号大全 |
+| `/称号 装备 <名称>` | `game.title.equip` | 装备称号 |
+| `/称号 卸下` | `game.title.equip` | 卸下称号 |
+
+### 玩家查询
+
+| 指令 | 权限 | 说明 |
+|------|------|------|
+| `/查人 <玩家名>` | - | 搜索玩家（模糊匹配） |
+| `/灵根` | `game.player.info` | 查看灵根详情与属性加成 |
 
 ### 管理（SUPER_ADMIN，仅私聊）
 
