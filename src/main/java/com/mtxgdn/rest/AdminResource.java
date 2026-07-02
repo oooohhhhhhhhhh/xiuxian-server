@@ -36,9 +36,11 @@ import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 
+import java.io.File;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 @Path("/admin")
 public class AdminResource {
@@ -97,8 +99,8 @@ public class AdminResource {
         String token = JwtUtil.generateToken(user.getId(), user.getUsername());
         String highestRole = PermissionService.getHighestRole(user.getId());
         JsonArray perms = new JsonArray();
-        for (PermissionCode pc : PermissionService.getUserPermissions(user.getId())) {
-            perms.add(pc.getCode());
+        for (String code : PermissionService.getAllUserPermissionCodes(user.getId())) {
+            perms.add(code);
         }
 
         JsonObject result = new JsonObject();
@@ -136,6 +138,8 @@ public class AdminResource {
         return Response.ok(gson.toJson(data)).build();
     }
 
+    // ========== 插件管理 API ==========
+
     @GET
     @Path("/plugins")
     @Produces(MediaType.APPLICATION_JSON)
@@ -144,6 +148,128 @@ public class AdminResource {
         JsonObject result = new JsonObject();
         result.addProperty("code", 200);
         result.add("plugins", plugins);
+        return Response.ok(gson.toJson(result)).build();
+    }
+
+    @GET
+    @Path("/plugins/list")
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("admin.plugins.manage")
+    public Response getPluginList() {
+        List<Map<String, Object>> statuses = com.mtxgdn.plugin.PluginManager.getInstance().getPluginStatuses();
+        JsonArray arr = new JsonArray();
+        for (Map<String, Object> s : statuses) {
+            JsonObject obj = new JsonObject();
+            for (Map.Entry<String, Object> entry : s.entrySet()) {
+                Object val = entry.getValue();
+                if (val == null) {
+                    obj.add(entry.getKey(), null);
+                } else if (val instanceof Boolean) {
+                    obj.addProperty(entry.getKey(), (Boolean) val);
+                } else if (val instanceof Number) {
+                    obj.addProperty(entry.getKey(), (Number) val);
+                } else {
+                    obj.addProperty(entry.getKey(), String.valueOf(val));
+                }
+            }
+            arr.add(obj);
+        }
+        JsonObject result = new JsonObject();
+        result.addProperty("code", 200);
+        result.add("plugins", arr);
+        result.addProperty("watcherRunning", com.mtxgdn.plugin.PluginManager.getInstance().isFileWatcherRunning());
+        return Response.ok(gson.toJson(result)).build();
+    }
+
+    @POST
+    @Path("/plugins/reload/{name}")
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("admin.plugins.manage")
+    public Response reloadPlugin(@PathParam("name") String name) {
+        boolean ok = com.mtxgdn.plugin.PluginManager.getInstance().reloadPlugin(name);
+        JsonObject result = new JsonObject();
+        result.addProperty("code", ok ? 200 : 404);
+        result.addProperty("message", ok ? "插件已重载: " + name : "插件不存在: " + name);
+        return Response.ok(gson.toJson(result)).build();
+    }
+
+    @POST
+    @Path("/plugins/unload/{name}")
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("admin.plugins.manage")
+    public Response unloadPlugin(@PathParam("name") String name) {
+        boolean ok = com.mtxgdn.plugin.PluginManager.getInstance().unloadPlugin(name);
+        JsonObject result = new JsonObject();
+        result.addProperty("code", ok ? 200 : 404);
+        result.addProperty("message", ok ? "插件已卸载: " + name : "插件不存在: " + name);
+        return Response.ok(gson.toJson(result)).build();
+    }
+
+    @POST
+    @Path("/plugins/enable/{name}")
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("admin.plugins.manage")
+    public Response enablePlugin(@PathParam("name") String name) {
+        boolean ok = com.mtxgdn.plugin.PluginManager.getInstance().enablePlugin(name);
+        JsonObject result = new JsonObject();
+        result.addProperty("code", ok ? 200 : 400);
+        result.addProperty("message", ok ? "插件已启用: " + name : "启用失败: " + name);
+        return Response.ok(gson.toJson(result)).build();
+    }
+
+    @POST
+    @Path("/plugins/disable/{name}")
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("admin.plugins.manage")
+    public Response disablePlugin(@PathParam("name") String name) {
+        boolean ok = com.mtxgdn.plugin.PluginManager.getInstance().disablePlugin(name);
+        JsonObject result = new JsonObject();
+        result.addProperty("code", ok ? 200 : 400);
+        result.addProperty("message", ok ? "插件已停用: " + name : "停用失败: " + name);
+        return Response.ok(gson.toJson(result)).build();
+    }
+
+    @POST
+    @Path("/plugins/load/{jarName}")
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("admin.plugins.manage")
+    public Response loadPlugin(@PathParam("jarName") String jarName) {
+        File pluginsDir = new File("plugins");
+        File jarFile = new File(pluginsDir, jarName);
+        if (!jarFile.exists()) {
+            JsonObject err = new JsonObject();
+            err.addProperty("code", 404);
+            err.addProperty("message", "插件文件不存在: " + jarName);
+            return Response.ok(gson.toJson(err)).build();
+        }
+        boolean ok = com.mtxgdn.plugin.PluginManager.getInstance().loadPlugin(jarFile);
+        JsonObject result = new JsonObject();
+        result.addProperty("code", ok ? 200 : 500);
+        result.addProperty("message", ok ? "插件加载成功: " + jarName : "插件加载失败: " + jarName);
+        return Response.ok(gson.toJson(result)).build();
+    }
+
+    @POST
+    @Path("/plugins/watcher/start")
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("admin.plugins.manage")
+    public Response startFileWatcher() {
+        com.mtxgdn.plugin.PluginManager.getInstance().startFileWatcher();
+        JsonObject result = new JsonObject();
+        result.addProperty("code", 200);
+        result.addProperty("message", "文件监听已启动");
+        return Response.ok(gson.toJson(result)).build();
+    }
+
+    @POST
+    @Path("/plugins/watcher/stop")
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("admin.plugins.manage")
+    public Response stopFileWatcher() {
+        com.mtxgdn.plugin.PluginManager.getInstance().stopFileWatcher();
+        JsonObject result = new JsonObject();
+        result.addProperty("code", 200);
+        result.addProperty("message", "文件监听已停止");
         return Response.ok(gson.toJson(result)).build();
     }
 
@@ -199,13 +325,24 @@ public class AdminResource {
             JsonObject role = new JsonObject();
             role.addProperty("name", entry.getKey());
             role.addProperty("level", entry.getValue());
+            role.addProperty("displayName", PermissionService.getGroupDisplayName(entry.getKey()));
 
             JsonArray perms = new JsonArray();
-            for (PermissionCode pc : PermissionService.getRoleDefaultPermissions(entry.getKey())) {
+            for (String permCode : PermissionService.getGroupPermissionCodes(entry.getKey())) {
                 JsonObject perm = new JsonObject();
-                perm.addProperty("code", pc.getCode());
-                perm.addProperty("name", pc.getName());
-                perm.addProperty("category", pc.getCategory());
+                perm.addProperty("code", permCode);
+                PermissionCode pc = PermissionCode.fromCode(permCode);
+                if (pc != null) {
+                    perm.addProperty("name", pc.getName());
+                    perm.addProperty("category", pc.getCategory());
+                } else if (PermissionService.isPluginPermission(permCode)) {
+                    PermissionService.PluginPermissionInfo info = PermissionService.getPluginPermissions().get(permCode);
+                    perm.addProperty("name", info.name);
+                    perm.addProperty("category", info.category);
+                } else {
+                    perm.addProperty("name", permCode);
+                    perm.addProperty("category", "");
+                }
                 perms.add(perm);
             }
             role.add("permissions", perms);
@@ -231,11 +368,227 @@ public class AdminResource {
             perm.addProperty("category", pc.getCategory());
             perms.add(perm);
         }
+        // 也列出插件权限
+        for (PermissionService.PluginPermissionInfo info : PermissionService.getPluginPermissions().values()) {
+            JsonObject perm = new JsonObject();
+            perm.addProperty("code", info.code);
+            perm.addProperty("name", info.name);
+            perm.addProperty("category", info.category);
+            perms.add(perm);
+        }
 
         JsonObject result = new JsonObject();
         result.addProperty("code", 200);
         result.add("permissions", perms);
         return Response.ok(gson.toJson(result)).build();
+    }
+
+    // ========== 权限组管理 API ==========
+
+    @GET
+    @Path("/groups")
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("admin.roles.manage")
+    public Response getGroups() {
+        List<Map<String, Object>> groups = PermissionService.getAllGroups();
+        JsonArray arr = new JsonArray();
+        for (Map<String, Object> g : groups) {
+            JsonObject obj = new JsonObject();
+            obj.addProperty("name", (String) g.get("name"));
+            obj.addProperty("displayName", (String) g.get("displayName"));
+            obj.addProperty("level", (Integer) g.get("level"));
+            obj.addProperty("permissionCount", (Integer) g.get("permissionCount"));
+            obj.addProperty("system", (Boolean) g.get("system"));
+
+            JsonArray permsArr = new JsonArray();
+            @SuppressWarnings("unchecked")
+            List<String> permList = (List<String>) g.get("permissions");
+            if (permList != null) {
+                for (String code : permList) {
+                    JsonObject po = new JsonObject();
+                    po.addProperty("code", code);
+                    PermissionCode pc = PermissionCode.fromCode(code);
+                    if (pc != null) {
+                        po.addProperty("name", pc.getName());
+                        po.addProperty("category", pc.getCategory());
+                    } else if (PermissionService.isPluginPermission(code)) {
+                        PermissionService.PluginPermissionInfo info = PermissionService.getPluginPermissions().get(code);
+                        po.addProperty("name", info.name);
+                        po.addProperty("category", info.category);
+                    } else {
+                        po.addProperty("name", code);
+                        po.addProperty("category", "");
+                    }
+                    permsArr.add(po);
+                }
+            }
+            obj.add("permissions", permsArr);
+            arr.add(obj);
+        }
+
+        JsonObject result = new JsonObject();
+        result.addProperty("code", 200);
+        result.add("groups", arr);
+        return Response.ok(gson.toJson(result)).build();
+    }
+
+    @POST
+    @Path("/groups")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("admin.roles.manage")
+    public Response createGroup(String body) {
+        JsonObject req = com.google.gson.JsonParser.parseString(body).getAsJsonObject();
+        String name = req.has("name") ? req.get("name").getAsString() : null;
+        String displayName = req.has("displayName") ? req.get("displayName").getAsString() : null;
+        int level = req.has("level") ? req.get("level").getAsInt() : 10;
+
+        if (name == null || name.isBlank()) {
+            JsonObject err = new JsonObject();
+            err.addProperty("code", 400);
+            err.addProperty("message", "权限组名称不能为空");
+            return Response.status(400).entity(gson.toJson(err)).build();
+        }
+
+        try {
+            PermissionService.createGroup(name, displayName, level);
+            JsonObject result = new JsonObject();
+            result.addProperty("code", 200);
+            result.addProperty("message", "权限组创建成功");
+            return Response.ok(gson.toJson(result)).build();
+        } catch (Exception e) {
+            JsonObject err = new JsonObject();
+            err.addProperty("code", 400);
+            err.addProperty("message", e.getMessage());
+            return Response.status(400).entity(gson.toJson(err)).build();
+        }
+    }
+
+    @POST
+    @Path("/groups/{name}")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("admin.roles.manage")
+    public Response updateGroup(@PathParam("name") String groupName, String body) {
+        JsonObject req = com.google.gson.JsonParser.parseString(body).getAsJsonObject();
+        String displayName = req.has("displayName") ? req.get("displayName").getAsString() : null;
+        int level = req.has("level") ? req.get("level").getAsInt() : -1;
+
+        try {
+            // 如果 level 没传，保持现有等级
+            if (level < 0) {
+                Integer existingLevel = PermissionService.getRoleHierarchy().get(groupName);
+                if (existingLevel != null) level = existingLevel;
+            }
+            PermissionService.updateGroup(groupName, displayName, level);
+            JsonObject result = new JsonObject();
+            result.addProperty("code", 200);
+            result.addProperty("message", "权限组更新成功");
+            return Response.ok(gson.toJson(result)).build();
+        } catch (Exception e) {
+            JsonObject err = new JsonObject();
+            err.addProperty("code", 400);
+            err.addProperty("message", e.getMessage());
+            return Response.status(400).entity(gson.toJson(err)).build();
+        }
+    }
+
+    @DELETE
+    @Path("/groups/{name}")
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("admin.roles.manage")
+    public Response deleteGroup(@PathParam("name") String groupName) {
+        try {
+            PermissionService.deleteGroup(groupName);
+            JsonObject result = new JsonObject();
+            result.addProperty("code", 200);
+            result.addProperty("message", "权限组已删除");
+            return Response.ok(gson.toJson(result)).build();
+        } catch (Exception e) {
+            JsonObject err = new JsonObject();
+            err.addProperty("code", 400);
+            err.addProperty("message", e.getMessage());
+            return Response.status(400).entity(gson.toJson(err)).build();
+        }
+    }
+
+    @POST
+    @Path("/groups/{name}/permissions")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("admin.roles.manage")
+    public Response addGroupPermission(@PathParam("name") String groupName, String body) {
+        JsonObject req = com.google.gson.JsonParser.parseString(body).getAsJsonObject();
+        String permissionCode = req.has("permission") ? req.get("permission").getAsString() : null;
+
+        if (permissionCode == null || permissionCode.isBlank()) {
+            JsonObject err = new JsonObject();
+            err.addProperty("code", 400);
+            err.addProperty("message", "权限码不能为空");
+            return Response.status(400).entity(gson.toJson(err)).build();
+        }
+
+        try {
+            PermissionService.addGroupPermission(groupName, permissionCode);
+            JsonObject result = new JsonObject();
+            result.addProperty("code", 200);
+            result.addProperty("message", "权限已添加到权限组");
+            return Response.ok(gson.toJson(result)).build();
+        } catch (Exception e) {
+            JsonObject err = new JsonObject();
+            err.addProperty("code", 400);
+            err.addProperty("message", e.getMessage());
+            return Response.status(400).entity(gson.toJson(err)).build();
+        }
+    }
+
+    @DELETE
+    @Path("/groups/{name}/permissions/{permissionCode}")
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("admin.roles.manage")
+    public Response removeGroupPermission(
+            @PathParam("name") String groupName,
+            @PathParam("permissionCode") String permissionCode) {
+        try {
+            PermissionService.removeGroupPermission(groupName, permissionCode);
+            JsonObject result = new JsonObject();
+            result.addProperty("code", 200);
+            result.addProperty("message", "权限已从权限组移除");
+            return Response.ok(gson.toJson(result)).build();
+        } catch (Exception e) {
+            JsonObject err = new JsonObject();
+            err.addProperty("code", 400);
+            err.addProperty("message", e.getMessage());
+            return Response.status(400).entity(gson.toJson(err)).build();
+        }
+    }
+
+    @POST
+    @Path("/groups/{name}/permissions/set")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("admin.roles.manage")
+    public Response setGroupPermissions(@PathParam("name") String groupName, String body) {
+        JsonObject req = com.google.gson.JsonParser.parseString(body).getAsJsonObject();
+        JsonArray permArr = req.has("permissions") ? req.getAsJsonArray("permissions") : new JsonArray();
+
+        Set<String> permissionCodes = new java.util.HashSet<>();
+        for (int i = 0; i < permArr.size(); i++) {
+            permissionCodes.add(permArr.get(i).getAsString());
+        }
+
+        try {
+            PermissionService.setGroupPermissions(groupName, permissionCodes);
+            JsonObject result = new JsonObject();
+            result.addProperty("code", 200);
+            result.addProperty("message", "权限组权限已更新");
+            return Response.ok(gson.toJson(result)).build();
+        } catch (Exception e) {
+            JsonObject err = new JsonObject();
+            err.addProperty("code", 400);
+            err.addProperty("message", e.getMessage());
+            return Response.status(400).entity(gson.toJson(err)).build();
+        }
     }
 
     @GET
@@ -271,8 +624,8 @@ public class AdminResource {
             obj.add("directPermissions", directPerms);
             // 全部有效权限
             JsonArray allPerms = new JsonArray();
-            for (PermissionCode pc : PermissionService.getUserPermissions(((Number) user.get("id")).longValue())) {
-                allPerms.add(pc.getCode());
+            for (String code : PermissionService.getAllUserPermissionCodes(((Number) user.get("id")).longValue())) {
+                allPerms.add(code);
             }
             obj.add("allPermissions", allPerms);
             arr.add(obj);
@@ -352,8 +705,8 @@ public class AdminResource {
         result.add("directPermissions", perms);
 
         JsonArray effectivePerms = new JsonArray();
-        for (PermissionCode pc : PermissionService.getUserPermissions(userId)) {
-            effectivePerms.add(pc.getCode());
+        for (String code : PermissionService.getAllUserPermissionCodes(userId)) {
+            effectivePerms.add(code);
         }
         result.add("allPermissions", effectivePerms);
         return Response.ok(gson.toJson(result)).build();
@@ -375,7 +728,7 @@ public class AdminResource {
             return Response.status(400).entity(gson.toJson(err)).build();
         }
 
-        if (PermissionCode.fromCode(permissionCode) == null) {
+        if (!PermissionService.isValidPermissionCode(permissionCode)) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 400);
             err.addProperty("message", "无效的权限码: " + permissionCode);

@@ -171,6 +171,11 @@ public class Main {
         // 在 Web 基础设施就绪后再启用插件（插件在 onEnable 中注册 Web 资源）
         pm.enablePlugins();
 
+        // 启动插件文件监听（热替换），可通过 application.yml 配置 plugins.hot_swap 关闭
+        if (AppConfig.getBoolean("plugins.hot_swap", false)) {
+            pm.startFileWatcher();
+        }
+
         // 低内存模式：缩小 Grizzly 线程池和缓冲区
         if (AppConfig.getBoolean("performance.low_memory", true)) {
             int grizzlyIoThreads = AppConfig.getInt("performance.grizzly_io_threads", 1);

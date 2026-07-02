@@ -556,6 +556,9 @@ select option { background: var(--bg-panel); color: var(--text-primary); }
       <div class="nav-item" onclick="switchTab('users')">
         <span class="nav-icon">🔑</span> 用户/角色
       </div>
+      <div class="nav-item" onclick="switchTab('groups')">
+        <span class="nav-icon">🏷️</span> 权限组管理
+      </div>
       <div class="nav-item" onclick="switchTab('logs')">
         <span class="nav-icon">📜</span> 实时日志
       </div>
@@ -564,6 +567,9 @@ select option { background: var(--bg-panel); color: var(--text-primary); }
       </div>
       <div class="nav-item" onclick="switchTab('redeemCodes')">
         <span class="nav-icon">🎫</span> 兑换码
+      </div>
+      <div class="nav-item" onclick="switchTab('plugins')">
+        <span class="nav-icon">🔌</span> 插件管理
       </div>
     </div>
     <div class="sidebar-footer">
@@ -650,6 +656,28 @@ select option { background: var(--bg-panel); color: var(--text-primary); }
         </div>
       </div>
 
+      <div class="tab" id="tab-groups">
+        <div class="card" style="margin-bottom:12px">
+          <div class="card-title">权限组管理</div>
+          <div class="row" style="margin-bottom:10px">
+            <button class="btn btn-primary" onclick="openCreateGroup()">+ 创建权限组</button>
+            <button class="btn-sm" onclick="loadGroups()">🔄 刷新</button>
+          </div>
+          <div id="groupMsg"></div>
+          <div id="groupsTable" class="table-wrap">
+            <div class="empty">加载中...</div>
+          </div>
+        </div>
+        <div class="card" id="groupPermCard" style="display:none">
+          <div class="card-title" id="groupPermTitle">权限组详情</div>
+          <div class="row" style="margin-bottom:8px">
+            <select id="groupPermSel" style="width:200px"><option value="">--选择权限--</option></select>
+            <button class="btn btn-action" onclick="addPermToGroup()">+ 添加权限</button>
+          </div>
+          <div id="groupPermList" class="table-wrap"></div>
+        </div>
+      </div>
+
       <div class="tab" id="tab-logs">
         <div class="card">
           <div class="row">
@@ -673,6 +701,23 @@ select option { background: var(--bg-panel); color: var(--text-primary); }
             <div class="empty">加载中...</div>
           </div>
           <div id="redeemMsg"></div>
+        </div>
+      </div>
+
+      <div class="tab" id="tab-plugins">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">🔌 插件管理</div>
+            <div style="display:flex;gap:8px;align-items:center">
+              <span style="font-size:12px;color:var(--text-muted)" id="watcherStatus">文件监听: --</span>
+              <button class="btn-sm" id="btnToggleWatcher" onclick="toggleFileWatcher()">启动监听</button>
+              <button class="btn btn-primary" onclick="loadPlugins()">🔄 刷新</button>
+            </div>
+          </div>
+          <div id="pluginMsg"></div>
+          <div id="pluginTable" class="table-wrap">
+            <div class="empty">加载中...</div>
+          </div>
         </div>
       </div>
 
@@ -825,7 +870,7 @@ async function fetchStatus() {
   } catch (x) { document.getElementById('connDot').className = 'conn-dot off'; }
 }
 
-const TAB_TITLES = { overview:'📊 总览', players:'👥 玩家管理', database:'🗄️ 数据库', users:'🔑 用户/角色', logs:'📜 实时日志', traces:'👣 玩家轨迹', redeemCodes:'🎫 兑换码', statsMessages:'💬 消息统计', statsCommands:'⚡ 指令统计' };
+const TAB_TITLES = { overview:'📊 总览', players:'👥 玩家管理', database:'🗄️ 数据库', users:'🔑 用户/角色', groups:'🏷️ 权限组管理', logs:'📜 实时日志', traces:'👣 玩家轨迹', redeemCodes:'🎫 兑换码', statsMessages:'💬 消息统计', statsCommands:'⚡ 指令统计', plugins:'🔌 插件管理' };
 
 function switchTab(name) {
   currentTab = name;
@@ -840,9 +885,10 @@ function switchTab(name) {
     document.getElementById('logContainer').innerHTML = '<div class="empty">加载中...</div>';
     fetchLogs();
     logsTimer = setInterval(fetchLogs, 500);
-  } else if (name === 'traces' || name === 'database' || name === 'redeemCodes') {
+  } else if (name === 'traces' || name === 'database' || name === 'redeemCodes' || name === 'plugins' || name === 'groups') {
     if (logsTimer) { clearInterval(logsTimer); logsTimer = null; }
     if (name === 'redeemCodes') loadRedeemCodes();
+    if (name === 'plugins') loadPlugins();
   } else if (name === 'statsMessages') {
     if (logsTimer) { clearInterval(logsTimer); logsTimer = null; }
     loadMessageStats();
@@ -860,6 +906,7 @@ function loadAllData() {
   if (currentTab === 'players') loadPlayers();
   if (currentTab === 'database') loadDbTables();
   if (currentTab === 'users') loadUsers();
+  if (currentTab === 'groups') loadGroups();
 }
 
 async function loadOverview() {
@@ -1481,6 +1528,168 @@ async function removeRole(uid, roleName) {
   } catch (x) { alert('移除失败'); }
 }
 
+// ========== 权限组管理 ==========
+
+let currentGroupName = null;
+let allPermCodes = [];
+
+async function loadGroups() {
+  try {
+    const d = await api('/groups');
+    if (!d.groups || d.groups.length === 0) {
+      document.getElementById('groupsTable').innerHTML = '<div class="empty">暂无权限组</div>';
+      return;
+    }
+    // 缓存所有权限码供选择
+    try {
+      const pd = await api('/permissions');
+      allPermCodes = pd.permissions || [];
+    } catch (x) { allPermCodes = []; }
+
+    let h = '<table><tr><th>名称</th><th>显示名</th><th>等级</th><th>权限数</th><th>类型</th><th>操作</th></tr>';
+    for (const g of d.groups) {
+      const sysTag = g.system ? '<span class="badge badge-gold">系统</span>' : '<span class="badge badge-jade">自定义</span>';
+      const delBtn = g.system ? '' : '<button class="btn btn-danger btn-sm" onclick="deleteGroup(\'' + $h(g.name) + '\')">删除</button>';
+      h += '<tr>' +
+        '<td style="font-weight:600">' + $h(g.name) + '</td>' +
+        '<td>' + $h(g.displayName) + '</td>' +
+        '<td>' + g.level + '</td>' +
+        '<td>' + g.permissionCount + '</td>' +
+        '<td>' + sysTag + '</td>' +
+        '<td>' +
+          '<button class="btn btn-action btn-sm" onclick="viewGroupPerms(\'' + $h(g.name) + '\')">权限详情</button> ' +
+          '<button class="btn btn-action btn-sm" onclick="openEditGroup(\'' + $h(g.name) + '\',\'' + $h(g.displayName) + '\',' + g.level + ')">编辑</button> ' +
+          delBtn +
+        '</td>' +
+        '</tr>';
+    }
+    h += '</table>';
+    document.getElementById('groupsTable').innerHTML = h;
+  } catch (x) { document.getElementById('groupsTable').innerHTML = '<div class="empty">加载失败: ' + $h(x.message||'') + '</div>'; }
+}
+
+async function viewGroupPerms(groupName) {
+  currentGroupName = groupName;
+  document.getElementById('groupPermCard').style.display = '';
+  document.getElementById('groupPermTitle').textContent = '权限组【' + groupName + '】的权限列表';
+
+  // 填充权限选择器
+  try {
+    const d = await api('/groups');
+    const group = (d.groups||[]).find(g => g.name === groupName);
+    if (!group) { document.getElementById('groupPermList').innerHTML = '<div class="empty">权限组不存在</div>'; return; }
+
+    const assignedCodes = new Set(group.permissions.map(p => p.code));
+    let selHtml = '<option value="">--选择权限--</option>';
+    for (const p of allPermCodes) {
+      if (!assignedCodes.has(p.code)) {
+        selHtml += '<option value="' + p.code + '">' + $h(p.code) + ' (' + $h(p.category) + ')</option>';
+      }
+    }
+    document.getElementById('groupPermSel').innerHTML = selHtml;
+
+    // 显示已分配的权限
+    if (group.permissions.length === 0) {
+      document.getElementById('groupPermList').innerHTML = '<div class="empty">该权限组暂无权限</div>';
+    } else {
+      let ph = '<table><tr><th>权限码</th><th>名称</th><th>分类</th><th>操作</th></tr>';
+      for (const p of group.permissions) {
+        ph += '<tr>' +
+          '<td style="font-family:monospace">' + $h(p.code) + '</td>' +
+          '<td>' + $h(p.name) + '</td>' +
+          '<td>' + $h(p.category) + '</td>' +
+          '<td><button class="btn btn-danger btn-sm" onclick="removePermFromGroup(\'' + $h(groupName) + '\',\'' + $h(p.code) + '\')">移除</button></td>' +
+          '</tr>';
+      }
+      ph += '</table>';
+      document.getElementById('groupPermList').innerHTML = ph;
+    }
+  } catch (x) {
+    document.getElementById('groupPermList').innerHTML = '<div class="empty">加载失败</div>';
+  }
+}
+
+async function addPermToGroup() {
+  const perm = document.getElementById('groupPermSel').value;
+  if (!perm) { alert('请选择权限'); return; }
+  try {
+    const r = await api('/groups/' + encodeURIComponent(currentGroupName) + '/permissions', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body:JSON.stringify({permission:perm})
+    });
+    document.getElementById('groupMsg').innerHTML = '<div class="msg msg-ok">' + $h(r.message) + '</div>';
+    loadGroups();
+    viewGroupPerms(currentGroupName);
+  } catch (x) {
+    document.getElementById('groupMsg').innerHTML = '<div class="msg msg-err">添加失败: ' + $h(x.message||'') + '</div>';
+  }
+}
+
+async function removePermFromGroup(groupName, permCode) {
+  if (!confirm('确定从权限组【' + groupName + '】中移除权限【' + permCode + '】吗？')) return;
+  try {
+    await api('/groups/' + encodeURIComponent(groupName) + '/permissions/' + encodeURIComponent(permCode), { method:'DELETE' });
+    document.getElementById('groupMsg').innerHTML = '<div class="msg msg-ok">权限已移除</div>';
+    loadGroups();
+    viewGroupPerms(groupName);
+  } catch (x) {
+    document.getElementById('groupMsg').innerHTML = '<div class="msg msg-err">移除失败: ' + $h(x.message||'') + '</div>';
+  }
+}
+
+function openCreateGroup() {
+  const name = prompt('请输入权限组名称（英文标识）:');
+  if (!name) return;
+  const displayName = prompt('请输入显示名称:');
+  if (displayName === null) return;
+  const levelStr = prompt('请输入等级数值（越大权限越高，如 10、20、50）:', '10');
+  if (levelStr === null) return;
+  const level = parseInt(levelStr) || 10;
+
+  api('/groups', {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({name:name, displayName:displayName||name, level:level})
+  }).then(r => {
+    document.getElementById('groupMsg').innerHTML = '<div class="msg msg-ok">' + $h(r.message) + '</div>';
+    loadGroups();
+  }).catch(x => {
+    document.getElementById('groupMsg').innerHTML = '<div class="msg msg-err">创建失败: ' + $h(x.message||'') + '</div>';
+  });
+}
+
+function openEditGroup(name, displayName, level) {
+  const newDisplay = prompt('修改显示名称:', displayName);
+  if (newDisplay === null) return;
+  const newLevelStr = prompt('修改等级数值:', level);
+  if (newLevelStr === null) return;
+  const newLevel = parseInt(newLevelStr) || level;
+
+  api('/groups/' + encodeURIComponent(name), {
+    method:'POST',
+    headers:{'Content-Type':'application/json'},
+    body:JSON.stringify({displayName:newDisplay||name, level:newLevel})
+  }).then(r => {
+    document.getElementById('groupMsg').innerHTML = '<div class="msg msg-ok">' + $h(r.message) + '</div>';
+    loadGroups();
+  }).catch(x => {
+    document.getElementById('groupMsg').innerHTML = '<div class="msg msg-err">更新失败: ' + $h(x.message||'') + '</div>';
+  });
+}
+
+async function deleteGroup(name) {
+  if (!confirm('确定删除权限组【' + name + '】吗？\n该操作将同时移除所有用户与该组的关联。')) return;
+  try {
+    const r = await api('/groups/' + encodeURIComponent(name), { method:'DELETE' });
+    document.getElementById('groupMsg').innerHTML = '<div class="msg msg-ok">' + $h(r.message) + '</div>';
+    loadGroups();
+    document.getElementById('groupPermCard').style.display = 'none';
+  } catch (x) {
+    document.getElementById('groupMsg').innerHTML = '<div class="msg msg-err">删除失败: ' + $h(x.message||'') + '</div>';
+  }
+}
+
 function togglePause() {
   paused = !paused;
   const btn = document.getElementById('btnPause');
@@ -2007,6 +2216,159 @@ async function loadCommandStats() {
   } catch (x) {
     document.getElementById('cmdStatsCards').innerHTML = '<div class="empty">加载失败</div>';
   }
+}
+
+// ========== 插件管理 ==========
+
+let watcherRunning = false;
+
+async function loadPlugins() {
+  try {
+    const d = await api('/plugins/list');
+    if (!d.plugins) {
+      document.getElementById('pluginTable').innerHTML = '<div class="empty">暂无插件数据</div>';
+      return;
+    }
+
+    watcherRunning = d.watcherRunning || false;
+    updateWatcherUI();
+
+    if (d.plugins.length === 0) {
+      document.getElementById('pluginTable').innerHTML = '<div class="empty"><div class="empty-icon">📦</div>plugins 目录下没有插件 jar 文件<br><small style="color:var(--text-muted)">将 .jar 插件文件放入 plugins/ 目录后刷新</small></div>';
+      return;
+    }
+
+    let h = '<table><tr><th>插件名</th><th>版本</th><th>作者</th><th>Jar 文件</th><th>状态</th><th>操作</th></tr>';
+    for (const p of d.plugins) {
+      const loaded = p.loaded;
+      const enabled = p.enabled;
+      let statusHtml = '';
+      if (loaded && enabled) {
+        statusHtml = '<span class="badge badge-jade">运行中</span>';
+      } else if (loaded && !enabled) {
+        statusHtml = '<span class="badge badge-gray">已停用</span>';
+      } else {
+        statusHtml = '<span class="badge badge-gray">未加载</span>';
+      }
+
+      let actions = '';
+      if (loaded) {
+        actions += '<button class="btn btn-action btn-sm" onclick="reloadPlugin(\'' + $h(p.name) + '\')" title="热重载">🔄 重载</button> ';
+        if (enabled) {
+          actions += '<button class="btn-sm" onclick="disablePlugin(\'' + $h(p.name) + '\')" title="停用">⏸ 停用</button> ';
+        } else {
+          actions += '<button class="btn btn-action btn-sm" onclick="enablePlugin(\'' + $h(p.name) + '\')" title="启用">▶ 启用</button> ';
+        }
+        actions += '<button class="btn btn-danger btn-sm" onclick="unloadPlugin(\'' + $h(p.name) + '\')" title="卸载">✕ 卸载</button>';
+      } else {
+        actions += '<button class="btn btn-primary btn-sm" onclick="loadPluginJar(\'' + $h(p.jarFile) + '\')" title="加载插件">📥 加载</button>';
+      }
+
+      h += '<tr>' +
+        '<td style="color:var(--gold);font-weight:500">' + $h(p.name||'?') + '</td>' +
+        '<td>' + $h(p.version||'') + '</td>' +
+        '<td>' + $h(p.author||'') + '</td>' +
+        '<td style="font-size:11px;color:var(--text-muted);font-family:monospace">' + $h(p.jarFile||'') + '</td>' +
+        '<td>' + statusHtml + '</td>' +
+        '<td>' + actions + '</td>' +
+        '</tr>';
+    }
+    h += '</table>';
+    document.getElementById('pluginTable').innerHTML = h;
+    document.getElementById('pluginMsg').innerHTML = '';
+  } catch (x) {
+    document.getElementById('pluginTable').innerHTML = '<div class="empty">加载失败: ' + $h(x.message||'') + '</div>';
+  }
+}
+
+async function reloadPlugin(name) {
+  if (!confirm('确定要重载插件 "' + name + '" 吗？\n\n这将先卸载再重新加载插件，插件状态将被重置。')) return;
+  try {
+    const d = await api('/plugins/reload/' + encodeURIComponent(name), { method: 'POST' });
+    showPluginMsg(d.message, d.code === 200);
+    loadPlugins();
+  } catch (x) {
+    showPluginMsg('重载失败: ' + (x.message||''), false);
+  }
+}
+
+async function unloadPlugin(name) {
+  if (!confirm('确定要卸载插件 "' + name + '" 吗？\n\n卸载后插件将从系统中移除，需要重新加载才能使用。')) return;
+  try {
+    const d = await api('/plugins/unload/' + encodeURIComponent(name), { method: 'POST' });
+    showPluginMsg(d.message, d.code === 200);
+    loadPlugins();
+  } catch (x) {
+    showPluginMsg('卸载失败: ' + (x.message||''), false);
+  }
+}
+
+async function enablePlugin(name) {
+  try {
+    const d = await api('/plugins/enable/' + encodeURIComponent(name), { method: 'POST' });
+    showPluginMsg(d.message, d.code === 200);
+    loadPlugins();
+  } catch (x) {
+    showPluginMsg('启用失败: ' + (x.message||''), false);
+  }
+}
+
+async function disablePlugin(name) {
+  try {
+    const d = await api('/plugins/disable/' + encodeURIComponent(name), { method: 'POST' });
+    showPluginMsg(d.message, d.code === 200);
+    loadPlugins();
+  } catch (x) {
+    showPluginMsg('停用失败: ' + (x.message||''), false);
+  }
+}
+
+async function loadPluginJar(jarName) {
+  try {
+    const d = await api('/plugins/load/' + encodeURIComponent(jarName), { method: 'POST' });
+    showPluginMsg(d.message, d.code === 200);
+    loadPlugins();
+  } catch (x) {
+    showPluginMsg('加载失败: ' + (x.message||''), false);
+  }
+}
+
+async function toggleFileWatcher() {
+  try {
+    const endpoint = watcherRunning ? '/plugins/watcher/stop' : '/plugins/watcher/start';
+    const d = await api(endpoint, { method: 'POST' });
+    watcherRunning = !watcherRunning;
+    updateWatcherUI();
+    showPluginMsg(d.message, d.code === 200);
+  } catch (x) {
+    showPluginMsg('操作失败: ' + (x.message||''), false);
+  }
+}
+
+function updateWatcherUI() {
+  const el = document.getElementById('watcherStatus');
+  const btn = document.getElementById('btnToggleWatcher');
+  if (watcherRunning) {
+    el.innerHTML = '文件监听: <span style="color:var(--jade)">运行中</span> (3s)';
+    btn.textContent = '⏹ 停止监听';
+    btn.className = 'btn-sm';
+    btn.style.borderColor = 'var(--crimson)';
+    btn.style.color = 'var(--crimson)';
+  } else {
+    el.innerHTML = '文件监听: <span style="color:var(--text-muted)">已停止</span>';
+    btn.textContent = '▶ 启动监听';
+    btn.className = 'btn btn-action btn-sm';
+    btn.style.borderColor = '';
+    btn.style.color = '';
+  }
+}
+
+function showPluginMsg(msg, ok) {
+  document.getElementById('pluginMsg').innerHTML = '<div class="msg ' + (ok ? 'msg-ok' : 'msg-err') + '">' + $h(msg) + '</div>';
+  setTimeout(() => {
+    const el = document.getElementById('pluginMsg');
+    if (el) el.innerHTML = '';
+  }, 5000);
 }
 
 </script>

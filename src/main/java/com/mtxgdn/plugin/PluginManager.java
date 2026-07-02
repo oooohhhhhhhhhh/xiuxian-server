@@ -8,12 +8,13 @@ import java.io.File;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.nio.charset.StandardCharsets;
-import java.util.ArrayList;
-import java.util.Collections;
-import java.util.LinkedHashMap;
-import java.util.List;
-import java.util.Map;
+import java.nio.file.*;
+import java.util.*;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import java.util.jar.JarFile;
+import java.util.stream.Collectors;
 
 /**
  * 插件管理器。负责扫描 ./plugins 目录、加载 jar、初始化插件，并管理插件生命周期。
@@ -96,12 +97,48 @@ public final class PluginManager {
     /** 启用所有已加载的插件（调用 onEnable 生命周期）。 */
     public synchronized void enablePlugins() {
         for (LoadedPlugin lp : loaded.values()) {
-            try {
-                lp.instance.onEnable(lp.context);
-                LOG.info("插件已启用: " + lp.info);
-            } catch (Throwable t) {
-                LOG.error("插件 onEnable 异常: " + lp.info.getName(), t);
-            }
+            enableSingle(lp);
+        }
+    }
+
+    /** 启用单个已加载但未启用的插件。 */
+    public synchronized boolean enablePlugin(String name) {
+        LoadedPlugin lp = loaded.get(name);
+        if (lp == null) return false;
+        if (lp.enabled) {
+            LOG.warn("插件已经启用: " + name);
+            return false;
+        }
+        enableSingle(lp);
+        return true;
+    }
+
+    /** 停用单个已启用的插件（不卸载，仅调 onDisable）。 */
+    public synchronized boolean disablePlugin(String name) {
+        LoadedPlugin lp = loaded.get(name);
+        if (lp == null) return false;
+        if (!lp.enabled) {
+            LOG.warn("插件未启用: " + name);
+            return false;
+        }
+        try {
+            lp.instance.onDisable(lp.context);
+            LOG.info("插件已停用: " + lp.info.getName());
+        } catch (Throwable t) {
+            LOG.error("插件 onDisable 异常: " + lp.info.getName(), t);
+        }
+        lp.enabled = false;
+        return true;
+    }
+
+    private void enableSingle(LoadedPlugin lp) {
+        if (lp.enabled) return;
+        try {
+            lp.instance.onEnable(lp.context);
+            lp.enabled = true;
+            LOG.info("插件已启用: " + lp.info);
+        } catch (Throwable t) {
+            LOG.error("插件 onEnable 异常: " + lp.info.getName(), t);
         }
     }
 
@@ -141,7 +178,7 @@ public final class PluginManager {
             LoadedPlugin reloaded = loaded.get(name);
             if (reloaded != null) {
                 reloaded.instance.onLoad(reloaded.context);
-                reloaded.instance.onEnable(reloaded.context);
+                enableSingle(reloaded);
                 LOG.info("插件重载成功: " + name);
             }
             return true;
@@ -181,6 +218,208 @@ public final class PluginManager {
     }
 
     public int getPluginCount() { return loaded.size(); }
+
+    // =================== 热替换 / 动态加载 ===================
+
+    /**
+     * 加载并启用单个插件（从指定 jar 文件）。
+     * 如果该插件已加载，则先卸载再重新加载（热重载）。
+     */
+    public synchronized boolean loadPlugin(File jar) {
+        if (!jar.exists() || !jar.getName().toLowerCase().endsWith(".jar")) {
+            LOG.warn("无效的插件文件: " + jar.getAbsolutePath());
+            return false;
+        }
+        try {
+            // 读取元数据，检查是否已加载
+            PluginInfo info = readPluginJson(jar);
+            if (info != null && loaded.containsKey(info.getName())) {
+                // 已加载：执行热重载
+                LOG.info("插件已加载，执行热重载: " + info.getName());
+                return reloadPlugin(info.getName());
+            }
+            loadSingle(jar);
+            LoadedPlugin lp = findNewlyLoaded(jar);
+            if (lp != null) {
+                lp.instance.onLoad(lp.context);
+                enableSingle(lp);
+                LOG.info("插件加载并启用成功: " + lp.info);
+                return true;
+            }
+            return false;
+        } catch (Throwable t) {
+            LOG.error("加载插件失败: " + jar.getName(), t);
+            return false;
+        }
+    }
+
+    /** 获取 plugins 目录下可用的未加载 jar 文件列表。 */
+    public List<File> getAvailableJars() {
+        if (!initialized || pluginsDir == null) return Collections.emptyList();
+        File[] jars = pluginsDir.listFiles(f -> f.isFile() && f.getName().toLowerCase().endsWith(".jar"));
+        if (jars == null) return Collections.emptyList();
+        Set<String> loadedJars = loaded.values().stream()
+                .map(lp -> lp.jarFile.getName())
+                .collect(Collectors.toSet());
+        return Arrays.stream(jars)
+                .filter(j -> !loadedJars.contains(j.getName()))
+                .collect(Collectors.toList());
+    }
+
+    /** 获取所有已加载插件的详细状态列表。 */
+    public List<Map<String, Object>> getPluginStatuses() {
+        List<Map<String, Object>> result = new ArrayList<>();
+        for (LoadedPlugin lp : loaded.values()) {
+            Map<String, Object> status = new LinkedHashMap<>();
+            status.put("name", lp.info.getName());
+            status.put("version", lp.info.getVersion());
+            status.put("author", lp.info.getAuthor());
+            status.put("description", lp.info.getDescription());
+            status.put("mainClass", lp.info.getMainClass());
+            status.put("jarFile", lp.jarFile.getName());
+            status.put("enabled", lp.enabled);
+            status.put("loaded", true);
+            result.add(status);
+        }
+        // 也列出可用但未加载的 jar
+        for (File jar : getAvailableJars()) {
+            Map<String, Object> status = new LinkedHashMap<>();
+            status.put("jarFile", jar.getName());
+            status.put("loaded", false);
+            status.put("enabled", false);
+            // 尝试读取基本信息
+            try {
+                PluginInfo info = readPluginJson(jar);
+                if (info != null) {
+                    status.put("name", info.getName());
+                    status.put("version", info.getVersion());
+                    status.put("author", info.getAuthor());
+                    status.put("description", info.getDescription());
+                    status.put("mainClass", info.getMainClass());
+                } else {
+                    status.put("name", jar.getName().replace(".jar", ""));
+                    status.put("version", "?");
+                    status.put("author", "?");
+                    status.put("description", "");
+                }
+            } catch (Exception e) {
+                status.put("name", jar.getName().replace(".jar", ""));
+            }
+            result.add(status);
+        }
+        return result;
+    }
+
+    // =================== 文件监听（热替换） ===================
+
+    private ScheduledExecutorService fileWatcher;
+
+    /**
+     * 启动插件目录文件监听器，检测 jar 文件变更并自动热重载。
+     * 检测到 jar 文件被修改（更新）时自动触发 reloadPlugin()。
+     */
+    public synchronized void startFileWatcher() {
+        if (fileWatcher != null) return;
+        if (!initialized) {
+            LOG.warn("PluginManager 未初始化，无法启动文件监听");
+            return;
+        }
+        fileWatcher = Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "plugin-file-watcher");
+            t.setDaemon(true);
+            return t;
+        });
+
+        final Map<String, Long> lastModified = new HashMap<>();
+        // 初始化记录所有 jar 的修改时间
+        File[] jars = pluginsDir.listFiles(f -> f.isFile() && f.getName().toLowerCase().endsWith(".jar"));
+        if (jars != null) {
+            for (File jar : jars) {
+                lastModified.put(jar.getName(), jar.lastModified());
+            }
+        }
+
+        fileWatcher.scheduleWithFixedDelay(() -> {
+            try {
+                File[] current = pluginsDir.listFiles(f -> f.isFile() && f.getName().toLowerCase().endsWith(".jar"));
+                if (current == null) return;
+
+                Set<String> currentNames = new HashSet<>();
+                for (File jar : current) {
+                    currentNames.add(jar.getName());
+                    Long prev = lastModified.get(jar.getName());
+                    if (prev == null) {
+                        // 新增的 jar
+                        LOG.info("[文件监听] 检测到新插件: " + jar.getName());
+                        // 稍等确保文件写入完成
+                        try { Thread.sleep(500); } catch (InterruptedException ignored) {}
+                        loadPlugin(jar);
+                        lastModified.put(jar.getName(), jar.lastModified());
+                    } else if (jar.lastModified() > prev) {
+                        // 修改过的 jar
+                        LOG.info("[文件监听] 检测到插件更新: " + jar.getName());
+                        try { Thread.sleep(500); } catch (InterruptedException ignored) {}
+                        // 查找对应插件名
+                        String pluginName = findPluginNameByJar(jar.getName());
+                        if (pluginName != null) {
+                            reloadPlugin(pluginName);
+                        }
+                        lastModified.put(jar.getName(), jar.lastModified());
+                    }
+                }
+                // 检测删除的 jar
+                for (String name : new HashSet<>(lastModified.keySet())) {
+                    if (!currentNames.contains(name)) {
+                        LOG.info("[文件监听] 检测到插件删除: " + name);
+                        String pluginName = findPluginNameByJar(name);
+                        if (pluginName != null) {
+                            unloadPlugin(pluginName);
+                        }
+                        lastModified.remove(name);
+                    }
+                }
+            } catch (Exception e) {
+                LOG.error("[文件监听] 异常", e);
+            }
+        }, 3, 3, TimeUnit.SECONDS);
+
+        LOG.info("插件文件监听已启动（扫描间隔 3 秒）");
+    }
+
+    /** 停止文件监听。 */
+    public synchronized void stopFileWatcher() {
+        if (fileWatcher != null) {
+            fileWatcher.shutdown();
+            fileWatcher = null;
+            LOG.info("插件文件监听已停止");
+        }
+    }
+
+    public boolean isFileWatcherRunning() {
+        return fileWatcher != null && !fileWatcher.isShutdown();
+    }
+
+    private String findPluginNameByJar(String jarName) {
+        for (LoadedPlugin lp : loaded.values()) {
+            if (lp.jarFile.getName().equals(jarName)) {
+                return lp.info.getName();
+            }
+        }
+        // 回退：尝试从 jar 读取 plugin.json
+        File jar = new File(pluginsDir, jarName);
+        if (jar.exists()) {
+            PluginInfo info = readPluginJson(jar);
+            if (info != null) return info.getName();
+        }
+        return null;
+    }
+
+    private LoadedPlugin findNewlyLoaded(File jar) {
+        for (LoadedPlugin lp : loaded.values()) {
+            if (lp.jarFile.equals(jar)) return lp;
+        }
+        return null;
+    }
 
     // =================== 内部实现 ===================
 
@@ -320,6 +559,7 @@ public final class PluginManager {
         private final Plugin instance;
         private final PluginContext context;
         private final File jarFile;
+        private volatile boolean enabled = false;
 
         LoadedPlugin(PluginInfo info, Plugin instance, PluginContext context, File jarFile) {
             this.info = info;
@@ -332,6 +572,8 @@ public final class PluginManager {
         public Plugin getInstance() { return instance; }
         public PluginContext getContext() { return context; }
         public File getJarFile() { return jarFile; }
+        public boolean isEnabled() { return enabled; }
+        void setEnabled(boolean enabled) { this.enabled = enabled; }
 
         @Override
         public String toString() { return info.toString(); }

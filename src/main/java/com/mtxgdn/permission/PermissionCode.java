@@ -52,7 +52,8 @@ public enum PermissionCode {
 
     ADMIN_BLACKLIST_VIEW("admin.blacklist.view", "查看黑名单", "管理后台"),
     ADMIN_BLACKLIST_MANAGE("admin.blacklist.manage", "管理黑名单", "管理后台"),
-    ADMIN_ONEBOT_GROUP_CONFIG("admin.onebot.group.config", "管理OneBot群组配置", "管理后台");
+    ADMIN_ONEBOT_GROUP_CONFIG("admin.onebot.group.config", "管理OneBot群组配置", "管理后台"),
+    ADMIN_PLUGINS_MANAGE("admin.plugins.manage", "管理插件", "管理后台");
 
     private final String code;
     private final String name;
