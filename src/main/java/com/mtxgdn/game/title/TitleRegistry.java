@@ -100,8 +100,12 @@ public class TitleRegistry {
         return t;
     }
 
-    private static void register(Title title) {
+    public static void register(Title title) {
         TITLES.put(title.getKey(), title);
+    }
+
+    public static void unregister(String key) {
+        TITLES.remove(key);
     }
 
     public static Title get(String key) {

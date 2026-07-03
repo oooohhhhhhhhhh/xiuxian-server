@@ -6,6 +6,8 @@ import com.mtxgdn.game.config.GameConfigLoader;
 import com.mtxgdn.game.entity.PlayerInfo;
 import com.mtxgdn.game.entity.RealmConfig;
 import com.mtxgdn.game.entity.SpiritualRoot;
+import com.mtxgdn.game.entity.Title;
+import com.mtxgdn.game.title.TitleRegistry;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -139,6 +141,10 @@ public class PlayerService {
     }
 
     public void addExperience(Connection conn, long playerId, long exp) throws SQLException {
+        Player player = getPlayerById(playerId);
+        if (player != null) {
+            exp = (long) (exp * getFinalExpBonus(player));
+        }
         String sql = "UPDATE players SET experience = experience + ? WHERE id = ?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, exp);
@@ -674,6 +680,104 @@ public class PlayerService {
         p.setCreatedAt(rs.getString("created_at"));
         p.setUpdatedAt(rs.getString("updated_at"));
         return p;
+    }
+
+    private Title getEquippedTitle(long playerId) {
+        String sql = "SELECT title_key FROM player_titles WHERE player_id = ? AND is_equipped = ?";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setLong(1, playerId);
+            ps.setBoolean(2, true);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return TitleRegistry.get(rs.getString("title_key"));
+                }
+            }
+        } catch (SQLException e) {
+            e.printStackTrace();
+        }
+        return null;
+    }
+
+    public int getFinalAttack(Player player) {
+        int base = player.getAttack();
+        Title title = getEquippedTitle(player.getId());
+        if (title != null) {
+            base += title.getAttackBonus();
+        }
+        return base;
+    }
+
+    public int getFinalDefense(Player player) {
+        int base = player.getDefense();
+        Title title = getEquippedTitle(player.getId());
+        if (title != null) {
+            base += title.getDefenseBonus();
+        }
+        return base;
+    }
+
+    public int getFinalMaxHp(Player player) {
+        int base = player.getMaxHp();
+        Title title = getEquippedTitle(player.getId());
+        if (title != null) {
+            base += title.getHpBonus();
+        }
+        return base;
+    }
+
+    public int getFinalMaxMp(Player player) {
+        int base = player.getMaxMp();
+        Title title = getEquippedTitle(player.getId());
+        if (title != null) {
+            base += title.getMpBonus();
+        }
+        return base;
+    }
+
+    public int getFinalSpeed(Player player) {
+        int base = player.getSpeed();
+        Title title = getEquippedTitle(player.getId());
+        if (title != null) {
+            base += title.getSpeedBonus();
+        }
+        return base;
+    }
+
+    public int getFinalSpirit(Player player) {
+        int base = player.getSpirit();
+        Title title = getEquippedTitle(player.getId());
+        if (title != null) {
+            base += title.getSpiritBonus();
+        }
+        return base;
+    }
+
+    public double getFinalCultivationSpeed(Player player) {
+        double base = 1.0;
+        Title title = getEquippedTitle(player.getId());
+        if (title != null) {
+            base += title.getCultivationSpeedBonus();
+        }
+        return base;
+    }
+
+    public double getFinalExpBonus(Player player) {
+        double base = 1.0;
+        Title title = getEquippedTitle(player.getId());
+        if (title != null) {
+            base += title.getExpBonus();
+        }
+        return base;
+    }
+
+    public double getFinalDropRateBonus(Player player) {
+        double base = 0.0;
+        Title title = getEquippedTitle(player.getId());
+        if (title != null) {
+            base += title.getDropRateBonus();
+        }
+        return base;
     }
 
     private SpiritualRoot safeParseSpiritualRoot(String s) {

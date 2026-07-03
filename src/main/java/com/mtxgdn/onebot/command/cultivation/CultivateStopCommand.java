@@ -63,6 +63,11 @@ public class CultivateStopCommand extends Command {
         int cultivationPerSec = GameConfigLoader.getCultivationPerSecond(currentRealm);
         long expGained = (long) elapsedSeconds * cultivationPerSec;
 
+        var player = playerService.getPlayerById(p.getId());
+        if (player != null) {
+            expGained = (long) (expGained * playerService.getFinalCultivationSpeed(player));
+        }
+
         playerService.addExperience(userId, expGained);
         playerService.setCultivating(p.getId(), false);
         actionLog.logCultivateStop(userId, p.getName(), expGained, elapsedSeconds);

@@ -9,8 +9,10 @@ import com.mtxgdn.game.explorationevent.ExplorationEvent;
 import com.mtxgdn.game.explorationevent.ExplorationEventRegistry;
 import com.mtxgdn.game.item.Item;
 import com.mtxgdn.game.item.ItemRegistry;
+import com.mtxgdn.game.entity.Title;
 import com.mtxgdn.game.secretrealm.SecretRealm;
 import com.mtxgdn.game.secretrealm.SecretRealmRegistry;
+import com.mtxgdn.game.title.TitleRegistry;
 import com.mtxgdn.game.service.*;
 import com.mtxgdn.permission.PermissionService;
 import com.mtxgdn.plugin.event.PluginEvent;
@@ -175,6 +177,18 @@ public final class PluginContext {
         log.debug("取消注册秘境: " + realm.getFullKey());
     }
 
+    /** 注册一个称号（成就）。 */
+    public void registerTitle(Title title) {
+        TitleRegistry.register(title);
+        log.debug("注册称号: " + title.getKey() + " (" + title.getName() + ")");
+    }
+
+    /** 取消注册一个称号（成就）。 */
+    public void unregisterTitle(String titleKey) {
+        TitleRegistry.unregister(titleKey);
+        log.debug("取消注册称号: " + titleKey);
+    }
+
     // ================ 权限注册接口 =================
 
     /**
@@ -276,6 +290,7 @@ public final class PluginContext {
     public NewbieGuideService getGuideService() { return ServiceRegistry.getGuideService(); }
     public RealmService getRealmService() { return ServiceRegistry.getRealmService(); }
     public EnergyService getEnergyService() { return ServiceRegistry.getEnergyService(); }
+    public TitleService getTitleService() { return ServiceRegistry.getTitleService(); }
 
     // ================ 底层接口（供插件访问服务端基础设施） =================
 

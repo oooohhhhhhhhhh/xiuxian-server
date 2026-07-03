@@ -141,7 +141,7 @@ public class CombatService {
         battleLog.add("⚔【" + challenger.getName() + "】VS【" + target.getName() + "】");
         battleLog.add("");
 
-        boolean challengerFirst = challenger.getSpeed() >= target.getSpeed();
+        boolean challengerFirst = playerService.getFinalSpeed(challenger) >= playerService.getFinalSpeed(target);
         int maxRounds = 20;
         int round = 0;
         String winner = null;
@@ -300,15 +300,15 @@ public class CombatService {
             mpCostOut[0] = scaledMpCost;
         } else {
             mpCostOut[0] = 0;
-            baseDamage = attacker.getAttack();
+            baseDamage = playerService.getFinalAttack(attacker);
         }
 
         if (attackerRoot != null && attackerRoot.hasEffect(SpiritualRoot.SpecialEffect.DAMAGE_BOOST)) {
             baseDamage = (int)(baseDamage * (1 + attackerRoot.getEffectValue()));
         }
 
-        int defense = defender.getDefense();
-        double critChance = attacker.getSpeed() / 200.0;
+        int defense = playerService.getFinalDefense(defender);
+        double critChance = playerService.getFinalSpeed(attacker) / 200.0;
         if (attackerRoot != null && attackerRoot.hasEffect(SpiritualRoot.SpecialEffect.CRIT_CHANCE)) {
             critChance += attackerRoot.getEffectValue();
         }
@@ -377,7 +377,7 @@ public class CombatService {
         battleLog.add("【" + monster.getName() + "】- 攻击:" + monster.getAttack() + " 防御:" + monster.getDefense() + " 生命:" + monster.getHp());
         battleLog.add("---");
 
-        boolean playerFirst = player.getSpeed() >= monster.getSpeed();
+        boolean playerFirst = playerService.getFinalSpeed(player) >= monster.getSpeed();
         int maxRounds = 30;
         int round = 0;
         boolean playerWon = false;
@@ -559,7 +559,7 @@ public class CombatService {
             mpCostOut[0] = scaledMpCost;
         } else {
             mpCostOut[0] = 0;
-            baseDamage = attacker.getAttack() + attacker.getSpirit();
+            baseDamage = playerService.getFinalAttack(attacker) + playerService.getFinalSpirit(attacker);
             battleLog.add("【" + attackerName + "】发动了普通攻击！");
         }
 
@@ -567,7 +567,7 @@ public class CombatService {
             baseDamage = (int)(baseDamage * (1 + attackerRoot.getEffectValue()));
         }
 
-        double critChance = attacker.getSpeed() / 200.0;
+        double critChance = playerService.getFinalSpeed(attacker) / 200.0;
         if (attackerRoot != null && attackerRoot.hasEffect(SpiritualRoot.SpecialEffect.CRIT_CHANCE)) {
             critChance += attackerRoot.getEffectValue();
         }
@@ -593,7 +593,7 @@ public class CombatService {
 
         int baseDamage = attacker.getAttack();
         int variance = random.nextInt(-4, 5);
-        int finalDamage = Math.max(1, baseDamage + variance - defender.getDefense() / 3);
+        int finalDamage = Math.max(1, baseDamage + variance - playerService.getFinalDefense(defender) / 3);
 
         if (defenderRoot != null && defenderRoot.hasEffect(SpiritualRoot.SpecialEffect.DAMAGE_REDUCTION)) {
             finalDamage = (int)(finalDamage * (1 - defenderRoot.getEffectValue()));
@@ -784,8 +784,8 @@ public class CombatService {
                 if (playerHpMap.get(playerId) <= 0) continue;
 
                 double debuff = currentForm.getPlayerDebuffPercent();
-                int adjustedAttack = (int)(player.getAttack() * (1 - debuff));
-                int adjustedDefense = (int)(player.getDefense() * (1 - debuff));
+                int adjustedAttack = (int)(playerService.getFinalAttack(player) * (1 - debuff));
+                int adjustedDefense = (int)(playerService.getFinalDefense(player) * (1 - debuff));
 
                 int[] mpOut = new int[1];
                 int damage = calculatePlayerDamageToMonster(player, boss, playerSkillsMap.get(playerId),
@@ -838,7 +838,7 @@ public class CombatService {
 
             if (targetPlayer != null) {
                 double debuff = currentForm.getPlayerDebuffPercent();
-                int adjustedDefense = (int)(targetPlayer.getDefense() * (1 - debuff));
+                int adjustedDefense = (int)(playerService.getFinalDefense(targetPlayer) * (1 - debuff));
 
                 int mDamage = calculateMonsterDamageToPlayer(boss, targetPlayer, battleLog,
                         boss.getName(), targetPlayer.getName());
