@@ -9,14 +9,21 @@ public class SecretRealm {
     private int requiredRealm;
     private long cooldownMs;
     private String description;
+    private boolean raid;
 
     protected SecretRealm(String namespace, String key, int requiredRealm,
                           long cooldownMs) {
+        this(namespace, key, requiredRealm, cooldownMs, false);
+    }
+
+    protected SecretRealm(String namespace, String key, int requiredRealm,
+                          long cooldownMs, boolean raid) {
         this.fullKey = namespace + ":" + key;
         this.name = "secretrealm." + key + ".name";
         this.requiredRealm = requiredRealm;
         this.cooldownMs = cooldownMs;
         this.description = "secretrealm." + key + ".desc";
+        this.raid = raid;
         SecretRealmRegistry.register(this);
     }
 
@@ -48,6 +55,10 @@ public class SecretRealm {
 
     public String getDescription() {
         return LangManager.get(description);
+    }
+
+    public boolean isRaid() {
+        return raid;
     }
 
     @Override

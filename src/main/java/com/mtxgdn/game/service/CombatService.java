@@ -1,8 +1,10 @@
 package com.mtxgdn.game.service;
 
 import com.mtxgdn.entity.Player;
+import com.mtxgdn.game.entity.BossForm;
 import com.mtxgdn.game.entity.Monster;
 import com.mtxgdn.game.entity.PveCombatResult;
+import com.mtxgdn.game.entity.RaidCombatResult;
 import com.mtxgdn.game.entity.Skill;
 import com.mtxgdn.game.entity.SpiritualRoot;
 import com.mtxgdn.game.item.ItemRegistry;
@@ -716,5 +718,178 @@ public class CombatService {
         public void setMessage(String message) {
             this.message = message;
         }
+    }
+
+    public RaidCombatResult raidBossFight(List<Long> playerIds, List<BossForm> bossForms) {
+        if (playerIds == null || playerIds.isEmpty()) {
+            return RaidCombatResult.failure("团队成员不能为空");
+        }
+
+        List<Player> players = new ArrayList<>();
+        for (long playerId : playerIds) {
+            Player player = playerService.getPlayerById(playerId);
+            if (player == null || player.getHp() <= 0) {
+                return RaidCombatResult.failure("团队中存在无效或已阵亡的成员");
+            }
+            players.add(player);
+        }
+
+        int bossTotalHp = 0;
+        for (BossForm form : bossForms) {
+            bossTotalHp += (int)(form.getHpMultiplier() * 500 * (bossForms.indexOf(form) + 1));
+        }
+
+        int bossCurrentHp = bossTotalHp;
+        BossForm currentForm = bossForms.get(0);
+        int currentFormIndex = 0;
+        int realm = 3;
+
+        Monster boss = new Monster(currentForm.getName(), bossCurrentHp,
+                (int)(500 * currentForm.getAttackMultiplier()),
+                (int)(300 * currentForm.getDefenseMultiplier()),
+                (int)(100 * currentForm.getSpeedMultiplier()),
+                realm, true, new String[0], 0.5, 0, 0, 0, currentForm.getDescription());
+
+        List<String> battleLog = new ArrayList<>();
+        battleLog.add("👑【" + currentForm.getName() + "】出现在众人面前！");
+        battleLog.add(currentForm.getDescription());
+        battleLog.add("提示：进入Boss战，玩家属性削弱" + (int)(currentForm.getPlayerDebuffPercent() * 100) + "%");
+        battleLog.add("---");
+
+        Map<Long, Integer> playerHpMap = new LinkedHashMap<>();
+        Map<Long, Integer> playerMpMap = new LinkedHashMap<>();
+        Map<Long, List<Skill>> playerSkillsMap = new LinkedHashMap<>();
+        Map<Long, Set<Long>> playerUsedSkills = new LinkedHashMap<>();
+        Map<Long, String> playerNames = new LinkedHashMap<>();
+
+        for (Player p : players) {
+            playerHpMap.put(p.getId(), p.getHp());
+            playerMpMap.put(p.getId(), p.getMp());
+            playerSkillsMap.put(p.getId(), skillService.getPlayerSkills(p.getId()));
+            playerUsedSkills.put(p.getId(), new HashSet<>());
+            playerNames.put(p.getId(), p.getName());
+        }
+
+        long lastHitPlayerId = -1;
+        String lastHitPlayerName = "";
+        int round = 0;
+        int maxRounds = 50;
+
+        while (round < maxRounds && bossCurrentHp > 0 && playerHpMap.values().stream().anyMatch(hp -> hp > 0)) {
+            round++;
+            battleLog.add("-- 第" + round + "回合 --");
+
+            for (Player player : players) {
+                long playerId = player.getId();
+                if (playerHpMap.get(playerId) <= 0) continue;
+
+                double debuff = currentForm.getPlayerDebuffPercent();
+                int adjustedAttack = (int)(player.getAttack() * (1 - debuff));
+                int adjustedDefense = (int)(player.getDefense() * (1 - debuff));
+
+                int[] mpOut = new int[1];
+                int damage = calculatePlayerDamageToMonster(player, boss, playerSkillsMap.get(playerId),
+                        playerMpMap.get(playerId), battleLog, player.getName(), boss.getName(),
+                        playerUsedSkills.get(playerId), mpOut);
+
+                damage = (int)(damage * (1 - debuff));
+                playerMpMap.put(playerId, Math.max(0, playerMpMap.get(playerId) - mpOut[0]));
+                bossCurrentHp -= damage;
+
+                battleLog.add("【" + player.getName() + "】对【" + boss.getName() + "】造成 " + damage + " 点伤害");
+
+                if (bossCurrentHp <= 0) {
+                    lastHitPlayerId = playerId;
+                    lastHitPlayerName = player.getName();
+                    break;
+                }
+
+                double hpPercent = (double)bossCurrentHp / bossTotalHp;
+                if (hpPercent < 0.33 && currentFormIndex == 0) {
+                    currentFormIndex = 2;
+                    currentForm = bossForms.get(2);
+                    boss.setName(currentForm.getName());
+                    boss.setDescription(currentForm.getDescription());
+                    boss.setAttack((int)(500 * currentForm.getAttackMultiplier()));
+                    boss.setDefense((int)(300 * currentForm.getDefenseMultiplier()));
+                    battleLog.add("⚠【" + boss.getName() + "】进入第三形态！属性大幅提升，玩家削弱15%！");
+                } else if (hpPercent < 0.66 && currentFormIndex == 0) {
+                    currentFormIndex = 1;
+                    currentForm = bossForms.get(1);
+                    boss.setName(currentForm.getName());
+                    boss.setDescription(currentForm.getDescription());
+                    boss.setAttack((int)(500 * currentForm.getAttackMultiplier()));
+                    boss.setDefense((int)(300 * currentForm.getDefenseMultiplier()));
+                    battleLog.add("⚠【" + boss.getName() + "】进入第二形态！属性提升，玩家削弱10%！");
+                }
+            }
+
+            if (bossCurrentHp <= 0) break;
+
+            List<Long> alivePlayers = new ArrayList<>();
+            for (long pid : playerHpMap.keySet()) {
+                if (playerHpMap.get(pid) > 0) alivePlayers.add(pid);
+            }
+
+            if (alivePlayers.isEmpty()) break;
+
+            long targetPlayerId = alivePlayers.get(random.nextInt(alivePlayers.size()));
+            Player targetPlayer = players.stream().filter(p -> p.getId() == targetPlayerId).findFirst().orElse(null);
+
+            if (targetPlayer != null) {
+                double debuff = currentForm.getPlayerDebuffPercent();
+                int adjustedDefense = (int)(targetPlayer.getDefense() * (1 - debuff));
+
+                int mDamage = calculateMonsterDamageToPlayer(boss, targetPlayer, battleLog,
+                        boss.getName(), targetPlayer.getName());
+
+                playerHpMap.put(targetPlayerId, playerHpMap.get(targetPlayerId) - mDamage);
+                battleLog.add("【" + boss.getName() + "】攻击【" + targetPlayer.getName() + "】，造成 " + mDamage + " 点伤害，剩余生命 " + Math.max(0, playerHpMap.get(targetPlayerId)));
+
+                if (playerHpMap.get(targetPlayerId) <= 0) {
+                    battleLog.add("【" + targetPlayer.getName() + "】被击败！");
+                }
+            }
+        }
+
+        RaidCombatResult result = new RaidCombatResult();
+        result.setSuccess(true);
+        result.setBossName(boss.getName());
+        result.setBossForm(currentFormIndex);
+        result.setTotalRounds(round);
+
+        List<Long> defeatedPlayers = new ArrayList<>();
+        for (long pid : playerHpMap.keySet()) {
+            if (playerHpMap.get(pid) <= 0) {
+                defeatedPlayers.add(pid);
+            }
+        }
+        result.setDefeatedPlayers(defeatedPlayers);
+
+        boolean allDefeated = playerHpMap.values().stream().allMatch(hp -> hp <= 0);
+        boolean bossDefeated = bossCurrentHp <= 0;
+
+        if (bossDefeated && !allDefeated) {
+            result.setTeamWon(true);
+            result.setLastHitPlayerId(lastHitPlayerId);
+            result.setLastHitPlayerName(lastHitPlayerName);
+            battleLog.add("---");
+            battleLog.add("🎉 团队成功击败了【" + boss.getName() + "】！");
+            battleLog.add("最终一击由【" + lastHitPlayerName + "】完成！");
+            result.setMessage("团队成功击败了【" + boss.getName() + "】，最终一击由【" + lastHitPlayerName + "】完成！");
+        } else {
+            result.setTeamWon(false);
+            battleLog.add("---");
+            battleLog.add("💀 团队全军覆没，Boss战失败...");
+            result.setMessage("团队全军覆没，挑战失败");
+        }
+
+        for (Player p : players) {
+            p.setHp(Math.max(0, playerHpMap.get(p.getId())));
+            playerService.updatePlayer(p.getId(), p);
+        }
+
+        result.setBattleLog(battleLog);
+        return result;
     }
 }

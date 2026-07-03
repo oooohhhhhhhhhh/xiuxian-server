@@ -50,6 +50,10 @@ public enum PermissionCode {
     GAME_REDEEM_CODE("game.redeem.code", "兑换码", "游戏功能"),
     ADMIN_REDEEM_CODE_MANAGE("admin.redeem.code.manage", "管理兑换码", "管理后台"),
 
+    GAME_TEAM_MANAGE("game.team.manage", "团队管理", "游戏功能"),
+    GAME_TEAM_VIEW("game.team.view", "查看团队", "游戏功能"),
+    GAME_SECRET_REALM_ENTER("game.secret_realm.enter", "进入秘境", "游戏功能"),
+
     ADMIN_BLACKLIST_VIEW("admin.blacklist.view", "查看黑名单", "管理后台"),
     ADMIN_BLACKLIST_MANAGE("admin.blacklist.manage", "管理黑名单", "管理后台"),
     ADMIN_ONEBOT_GROUP_CONFIG("admin.onebot.group.config", "管理OneBot群组配置", "管理后台"),

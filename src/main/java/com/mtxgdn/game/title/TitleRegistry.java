@@ -74,6 +74,9 @@ public class TitleRegistry {
 
         register(title("bug_hunter", "捉虫达人", "为修仙世界除虫的功臣", Title.Rarity.EPIC, 1,
                 5, 20, 20, 5, 5, 5, 0.05, 0.10, 0.05));
+
+        register(title("raid_conqueror", "副本征服者", "给予Boss致命一击的勇士", Title.Rarity.UNCOMMON, 1,
+                15, 30, 20, 10, 8, 5, 0.05, 0.12, 0.08));
     }
 
     private static Title title(String key, String name, String desc, Title.Rarity rarity,

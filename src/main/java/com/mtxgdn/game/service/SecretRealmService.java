@@ -1,8 +1,10 @@
 package com.mtxgdn.game.service;
 
 import com.mtxgdn.entity.Player;
+import com.mtxgdn.game.entity.BossForm;
 import com.mtxgdn.game.entity.Monster;
 import com.mtxgdn.game.entity.PveCombatResult;
+import com.mtxgdn.game.entity.RaidCombatResult;
 import com.mtxgdn.game.entity.SecretRealmResult;
 import com.mtxgdn.game.entity.SpiritualRoot;
 import com.mtxgdn.game.item.ItemRegistry;
@@ -343,5 +345,200 @@ public class SecretRealmService {
             case 5: return "化神期";
             default: return "未知境界";
         }
+    }
+
+    public SecretRealmResult enterRaid(long leaderId, String areaName) {
+        Player leader = playerService.getPlayerRaw(leaderId);
+        if (leader == null) {
+            return SecretRealmResult.failure("角色不存在，请先创建角色");
+        }
+
+        SecretRealm area = SecretRealmRegistry.resolve(areaName);
+        if (area == null) {
+            return SecretRealmResult.failure("未知的秘境: " + areaName);
+        }
+
+        if (!area.isRaid()) {
+            return SecretRealmResult.failure("该秘境不支持团队副本模式");
+        }
+
+        TeamService teamService = TeamService.getInstance();
+        TeamService.Team team = teamService.getTeam(leaderId);
+        if (team == null) {
+            return SecretRealmResult.failure("你需要先创建或加入一个团队");
+        }
+
+        if (!team.isLeader(leaderId)) {
+            return SecretRealmResult.failure("只有队长可以发起副本挑战");
+        }
+
+        List<Long> memberIds = new ArrayList<>(team.getMemberIds());
+        if (memberIds.size() < 2) {
+            return SecretRealmResult.failure("团队人数不足，至少需要2人");
+        }
+
+        List<Player> members = new ArrayList<>();
+        for (long memberId : memberIds) {
+            Player member = playerService.getPlayerRaw(memberId);
+            if (member == null) {
+                return SecretRealmResult.failure("团队成员不存在");
+            }
+            if (member.getRealm() < area.getRequiredRealm()) {
+                return SecretRealmResult.failure("团队成员【" + member.getName() + "】境界不足，无法进入");
+            }
+            if (member.getHp() <= 0) {
+                return SecretRealmResult.failure("团队成员【" + member.getName() + "】已重伤，无法进入");
+            }
+            members.add(member);
+        }
+
+        long now = System.currentTimeMillis();
+        for (Player member : members) {
+            long lastTime = member.getLastSecretRealmTime();
+            if (lastTime > 0 && (now - lastTime) < area.getCooldownMs()) {
+                long remaining = (area.getCooldownMs() - (now - lastTime)) / 1000;
+                return SecretRealmResult.failure("【" + member.getName() + "】刚探索过秘境，还需要等待 " + remaining + " 秒");
+            }
+        }
+
+        for (Player member : members) {
+            playerService.updateLastSecretRealmTime(member.getId(), now);
+        }
+
+        List<String> log = new ArrayList<>();
+        log.add("🏰 团队进入了【" + area.getName() + "】秘境副本！");
+        log.add("成员：" + members.stream().map(Player::getName).toList());
+        log.add("---");
+
+        SecretRealmResult result = new SecretRealmResult();
+        result.setSuccess(true);
+        result.setLog(log);
+        result.setArea(areaName);
+
+        int waveCount = Math.max(2, area.getRequiredRealm());
+        result.setMessage("团队副本开始！共 " + waveCount + " 波小怪关卡");
+
+        for (int wave = 1; wave <= waveCount; wave++) {
+            log.add("=== 第" + wave + "波小怪 ===");
+
+            int monsterCount = random.nextInt(1, 3);
+            boolean waveCleared = true;
+
+            for (int i = 0; i < monsterCount; i++) {
+                Monster monster = Monster.random(area.getRequiredRealm(), random);
+                log.add("⚔ 出现了【" + monster.getName() + "】！");
+
+                boolean allDefeated = false;
+                for (Player member : members) {
+                    if (member.getHp() <= 0) continue;
+
+                    CombatService combatService = new CombatService();
+                    PveCombatResult pveResult = combatService.pveFight(member.getId(), monster);
+
+                    if (pveResult.isPlayerWon()) {
+                        log.add("【" + member.getName() + "】击败了【" + monster.getName() + "】！");
+                        result.setExpGained(result.getExpGained() + pveResult.getExpGained());
+                        result.setGoldGained(result.getGoldGained() + pveResult.getGoldGained());
+                        result.setSpiritStonesGained(result.getSpiritStonesGained() + pveResult.getSpiritStonesGained());
+                        break;
+                    } else {
+                        log.add("【" + member.getName() + "】被【" + monster.getName() + "】击败！");
+                    }
+
+                    allDefeated = members.stream().allMatch(p -> p.getHp() <= 0);
+                    if (allDefeated) break;
+                }
+
+                if (allDefeated) {
+                    waveCleared = false;
+                    break;
+                }
+            }
+
+            if (!waveCleared) {
+                break;
+            }
+
+            log.add("第" + wave + "波小怪已全部清除！");
+            if (wave < waveCount) {
+                log.add("继续前进...");
+            }
+        }
+
+        if (members.stream().anyMatch(p -> p.getHp() > 0)) {
+            log.add("=== 最终Boss ===");
+            log.add("所有小怪已清除，最终Boss出现！");
+
+            List<BossForm> bossForms = BossForm.createFormsForRealm(area.getRequiredRealm());
+            CombatService combatService = new CombatService();
+            RaidCombatResult raidResult = combatService.raidBossFight(memberIds, bossForms);
+
+            if (raidResult.getBattleLog() != null) {
+                log.addAll(raidResult.getBattleLog());
+            }
+
+            if (raidResult.isTeamWon()) {
+                result.setMonsterDefeated(true);
+                result.setMonsterName(raidResult.getBossName());
+
+                long baseExp = (area.getRequiredRealm() + 1) * 500L;
+                long baseGold = (area.getRequiredRealm() + 1) * 300L;
+                long baseSpiritStones = (area.getRequiredRealm() + 1) * 100L;
+
+                int memberCount = members.size();
+                double teamBonus = 1 + 0.2 * (memberCount - 1);
+                long totalExp = (long)(baseExp * teamBonus);
+                long totalGold = (long)(baseGold * teamBonus);
+                long totalSpiritStones = (long)(baseSpiritStones * teamBonus);
+
+                long expPerMember = totalExp / memberCount;
+                long goldPerMember = totalGold / memberCount;
+                long ssPerMember = totalSpiritStones / memberCount;
+
+                for (Player member : members) {
+                    if (member.getHp() > 0) {
+                        playerService.addExperience(member.getId(), expPerMember);
+                        playerService.addGold(member.getId(), goldPerMember);
+                        itemService.addSpiritStones(member.getId(), ssPerMember);
+                    }
+                }
+
+                result.setExpGained(expPerMember);
+                result.setGoldGained(goldPerMember);
+                result.setSpiritStonesGained(ssPerMember);
+
+                BossForm finalForm = bossForms.get(raidResult.getBossForm());
+                if (finalForm.getRewardTable() != null && finalForm.getRewardTable().length > 0) {
+                    for (Player member : members) {
+                        if (member.getHp() > 0 && random.nextDouble() < finalForm.getRewardChance()) {
+                            String rewardItem = finalForm.getRewardTable()[random.nextInt(finalForm.getRewardTable().length)];
+                            if (ItemRegistry.contains(rewardItem)) {
+                                itemService.addItem(member.getId(), rewardItem, 1);
+                                if (member.getId() == raidResult.getLastHitPlayerId()) {
+                                    result.setItemGained(rewardItem);
+                                    result.setItemQuantity(result.getItemQuantity() + 1);
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if (raidResult.getLastHitPlayerId() > 0) {
+            new TitleService().grantTitle(raidResult.getLastHitPlayerId(), "raid_conqueror");
+            log.add("🏆 【" + raidResult.getLastHitPlayerName() + "】获得了「副本征服者」称号！");
+        }
+
+                result.setMessage("团队成功击败了【" + raidResult.getBossName() + "】！");
+            } else {
+                result.setMonsterDefeated(false);
+                result.setMessage("团队挑战失败");
+            }
+        } else {
+            result.setSuccess(false);
+            result.setMessage("团队全军覆没");
+        }
+
+        new DailyService().onSecretRealm(leaderId);
+        return result;
     }
 }

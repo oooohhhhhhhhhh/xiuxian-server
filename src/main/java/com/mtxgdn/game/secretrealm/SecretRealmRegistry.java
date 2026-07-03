@@ -77,6 +77,16 @@ public class SecretRealmRegistry {
         return result;
     }
 
+    public static List<SecretRealm> getRaidRealms(int requiredRealm) {
+        List<SecretRealm> result = new ArrayList<>();
+        for (SecretRealm realm : realms.values()) {
+            if (realm.isRaid() && realm.getRequiredRealm() <= requiredRealm) {
+                result.add(realm);
+            }
+        }
+        return result;
+    }
+
     public static Collection<SecretRealm> getAll() {
         return Collections.unmodifiableCollection(realms.values());
     }

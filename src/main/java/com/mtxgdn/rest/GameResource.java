@@ -26,6 +26,7 @@ import com.mtxgdn.game.service.ItemService;
 import com.mtxgdn.game.service.PlayerService;
 import com.mtxgdn.game.service.RealmService;
 import com.mtxgdn.game.service.SkillService;
+import com.mtxgdn.game.service.TeamService;
 import com.mtxgdn.game.service.TradeService;
 import com.mtxgdn.game.entity.Technique;
 import com.mtxgdn.game.service.TechniqueService;
@@ -1900,6 +1901,18 @@ public class GameResource {
         return Response.ok(GameMessage.restOk("获取成功", data).toString()).build();
     }
 
+    private String getRealmName(int realmId) {
+        switch (realmId) {
+            case 0: return "凡人";
+            case 1: return "炼气期";
+            case 2: return "筑基期";
+            case 3: return "金丹期";
+            case 4: return "元婴期";
+            case 5: return "化神期";
+            default: return "未知境界";
+        }
+    }
+
     private String formatUptime(long totalSeconds) {
         long days = totalSeconds / 86400;
         long hours = (totalSeconds % 86400) / 3600;
@@ -2037,5 +2050,237 @@ public class GameResource {
         o.addProperty("expBonus", t.getExpBonus());
         o.addProperty("dropRateBonus", t.getDropRateBonus());
         return o;
+    }
+
+    // ==================== 团队系统 ====================
+
+    @POST
+    @Path("/team/create")
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("game.team.manage")
+    public Response createTeam() {
+        Long userId = getCurrentUserId();
+        PlayerInfo player = playerService.getPlayerByUserId(userId);
+        if (player == null) {
+            return Response.ok(GameMessage.restError(GameErrorCode.PLAYER_NOT_FOUND).toString()).build();
+        }
+
+        TeamService teamService = TeamService.getInstance();
+        TeamService.Team team = teamService.createTeam(player.getId());
+        if (team == null) {
+            return Response.ok(GameMessage.restError(400, "你已经在一个团队中").toString()).build();
+        }
+
+        JsonObject data = new JsonObject();
+        data.addProperty("teamId", team.getTeamId());
+        data.addProperty("leaderId", team.getLeaderId());
+        data.addProperty("leaderName", player.getName());
+        JsonArray members = new JsonArray();
+        for (long memberId : team.getMemberIds()) {
+            PlayerInfo m = playerService.getPlayerInfoById(memberId);
+            JsonObject o = new JsonObject();
+            o.addProperty("playerId", memberId);
+            o.addProperty("name", m != null ? m.getName() : "未知");
+            members.add(o);
+        }
+        data.add("members", members);
+        return Response.ok(GameMessage.restOk("团队创建成功", data).toString()).build();
+    }
+
+    @POST
+    @Path("/team/invite")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("game.team.manage")
+    public Response invitePlayer(String body) {
+        Long userId = getCurrentUserId();
+        PlayerInfo player = playerService.getPlayerByUserId(userId);
+        if (player == null) {
+            return Response.ok(GameMessage.restError(GameErrorCode.PLAYER_NOT_FOUND).toString()).build();
+        }
+
+        JsonObject json = gson.fromJson(body, JsonObject.class);
+        long targetId = json.has("targetPlayerId") ? json.get("targetPlayerId").getAsLong() : 0;
+
+        if (targetId == 0) {
+            return Response.ok(GameMessage.restError(GameErrorCode.PARAM_MISSING).toString()).build();
+        }
+
+        PlayerInfo target = playerService.getPlayerInfoById(targetId);
+        if (target == null) {
+            return Response.ok(GameMessage.restError(GameErrorCode.PLAYER_NOT_FOUND).toString()).build();
+        }
+
+        TeamService teamService = TeamService.getInstance();
+        boolean success = teamService.invitePlayer(player.getId(), targetId);
+        if (!success) {
+            return Response.ok(GameMessage.restError(400, "邀请失败，可能你不是队长或团队已满").toString()).build();
+        }
+
+        return Response.ok(GameMessage.restOk("邀请已发送给【" + target.getName() + "】", null).toString()).build();
+    }
+
+    @POST
+    @Path("/team/accept")
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("game.team.manage")
+    public Response acceptInvite() {
+        Long userId = getCurrentUserId();
+        PlayerInfo player = playerService.getPlayerByUserId(userId);
+        if (player == null) {
+            return Response.ok(GameMessage.restError(GameErrorCode.PLAYER_NOT_FOUND).toString()).build();
+        }
+
+        TeamService teamService = TeamService.getInstance();
+        TeamService.Team team = teamService.acceptInvite(player.getId());
+        if (team == null) {
+            return Response.ok(GameMessage.restError(400, "没有待接受的邀请").toString()).build();
+        }
+
+        JsonObject data = new JsonObject();
+        data.addProperty("teamId", team.getTeamId());
+        data.addProperty("leaderId", team.getLeaderId());
+        JsonArray members = new JsonArray();
+        for (long memberId : team.getMemberIds()) {
+            PlayerInfo m = playerService.getPlayerInfoById(memberId);
+            JsonObject o = new JsonObject();
+            o.addProperty("playerId", memberId);
+            o.addProperty("name", m != null ? m.getName() : "未知");
+            members.add(o);
+        }
+        data.add("members", members);
+        return Response.ok(GameMessage.restOk("成功加入团队", data).toString()).build();
+    }
+
+    @POST
+    @Path("/team/leave")
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("game.team.manage")
+    public Response leaveTeam() {
+        Long userId = getCurrentUserId();
+        PlayerInfo player = playerService.getPlayerByUserId(userId);
+        if (player == null) {
+            return Response.ok(GameMessage.restError(GameErrorCode.PLAYER_NOT_FOUND).toString()).build();
+        }
+
+        TeamService teamService = TeamService.getInstance();
+        boolean success = teamService.leaveTeam(player.getId());
+        if (!success) {
+            return Response.ok(GameMessage.restError(400, "你不在任何团队中").toString()).build();
+        }
+
+        return Response.ok(GameMessage.restOk("已离开团队", null).toString()).build();
+    }
+
+    @GET
+    @Path("/team/info")
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("game.team.view")
+    public Response getTeamInfo() {
+        Long userId = getCurrentUserId();
+        PlayerInfo player = playerService.getPlayerByUserId(userId);
+        if (player == null) {
+            return Response.ok(GameMessage.restError(GameErrorCode.PLAYER_NOT_FOUND).toString()).build();
+        }
+
+        TeamService teamService = TeamService.getInstance();
+        TeamService.Team team = teamService.getTeam(player.getId());
+        if (team == null) {
+            return Response.ok(GameMessage.restOk("你不在任何团队中", null).toString()).build();
+        }
+
+        JsonObject data = new JsonObject();
+        data.addProperty("teamId", team.getTeamId());
+        data.addProperty("leaderId", team.getLeaderId());
+        PlayerInfo leader = playerService.getPlayerInfoById(team.getLeaderId());
+        data.addProperty("leaderName", leader != null ? leader.getName() : "未知");
+        JsonArray members = new JsonArray();
+        for (long memberId : team.getMemberIds()) {
+            PlayerInfo m = playerService.getPlayerInfoById(memberId);
+            JsonObject o = new JsonObject();
+            o.addProperty("playerId", memberId);
+            o.addProperty("name", m != null ? m.getName() : "未知");
+            o.addProperty("isLeader", memberId == team.getLeaderId());
+            members.add(o);
+        }
+        data.add("members", members);
+        return Response.ok(GameMessage.restOk("获取成功", data).toString()).build();
+    }
+
+    // ==================== 副本系统 ====================
+
+    @GET
+    @Path("/raid/realms")
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("game.secretrealm.enter")
+    public Response getRaidRealms() {
+        Long userId = getCurrentUserId();
+        PlayerInfo player = playerService.getPlayerByUserId(userId);
+        if (player == null) {
+            return Response.ok(GameMessage.restError(GameErrorCode.PLAYER_NOT_FOUND).toString()).build();
+        }
+
+        List<SecretRealm> realms = com.mtxgdn.game.secretrealm.SecretRealmRegistry.getRaidRealms(player.getRealm());
+        JsonArray arr = new JsonArray();
+        for (SecretRealm r : realms) {
+            JsonObject o = new JsonObject();
+            o.addProperty("fullKey", r.getFullKey());
+            o.addProperty("name", r.getName());
+            o.addProperty("description", r.getDescription());
+            o.addProperty("requiredRealm", r.getRequiredRealm());
+            o.addProperty("realmName", getRealmName(r.getRequiredRealm()));
+            o.addProperty("cooldownMs", r.getCooldownMs());
+            arr.add(o);
+        }
+        JsonObject data = new JsonObject();
+        data.add("realms", arr);
+        return Response.ok(GameMessage.restOk("获取成功", data).toString()).build();
+    }
+
+    @POST
+    @Path("/raid/enter")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("game.secretrealm.enter")
+    public Response enterRaid(String body) {
+        Long userId = getCurrentUserId();
+        PlayerInfo player = playerService.getPlayerByUserId(userId);
+        if (player == null) {
+            return Response.ok(GameMessage.restError(GameErrorCode.PLAYER_NOT_FOUND).toString()).build();
+        }
+
+        JsonObject json = gson.fromJson(body, JsonObject.class);
+        String areaName = json.has("areaName") ? json.get("areaName").getAsString() : "";
+
+        if (areaName.trim().isEmpty()) {
+            return Response.ok(GameMessage.restError(GameErrorCode.PARAM_MISSING).toString()).build();
+        }
+
+        com.mtxgdn.game.entity.SecretRealmResult result = secretRealmService.enterRaid(player.getId(), areaName);
+        JsonObject data = new JsonObject();
+        data.addProperty("success", result.isSuccess());
+        data.addProperty("message", result.getMessage());
+        data.addProperty("area", result.getArea());
+        data.addProperty("eventType", result.getEventType());
+        data.addProperty("expGained", result.getExpGained());
+        data.addProperty("goldGained", result.getGoldGained());
+        data.addProperty("spiritStonesGained", result.getSpiritStonesGained());
+        data.addProperty("monsterDefeated", result.isMonsterDefeated());
+        data.addProperty("monsterName", result.getMonsterName() != null ? result.getMonsterName() : "");
+        data.addProperty("itemGained", result.getItemGained() != null ? result.getItemGained() : "");
+        data.addProperty("itemQuantity", result.getItemQuantity());
+
+        JsonArray logArr = new JsonArray();
+        if (result.getLog() != null) {
+            for (String log : result.getLog()) {
+                logArr.add(log);
+            }
+        }
+        data.add("log", logArr);
+
+        if (result.isSuccess()) {
+            return Response.ok(GameMessage.restOk(result.getMessage(), data).toString()).build();
+        }
+        return Response.ok(GameMessage.restError(400, result.getMessage()).toString()).build();
     }
 }

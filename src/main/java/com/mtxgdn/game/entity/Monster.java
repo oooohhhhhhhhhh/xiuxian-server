@@ -39,11 +39,14 @@ public class Monster {
     }
 
     public String getName() { return name; }
+    public void setName(String name) { this.name = name; }
     public int getHp() { return hp; }
     public void setHp(int hp) { this.hp = hp; }
     public int getMaxHp() { return maxHp; }
     public int getAttack() { return attack; }
+    public void setAttack(int attack) { this.attack = attack; }
     public int getDefense() { return defense; }
+    public void setDefense(int defense) { this.defense = defense; }
     public int getSpeed() { return speed; }
     public int getRealm() { return realm; }
     public boolean isBoss() { return isBoss; }
@@ -53,6 +56,7 @@ public class Monster {
     public long getGoldReward() { return goldReward; }
     public long getSpiritStoneReward() { return spiritStoneReward; }
     public String getDescription() { return description; }
+    public void setDescription(String description) { this.description = description; }
 
     private static final String[] MONSTER_PREFIXES = {"烈焰", "冰霜", "暗影", "血牙", "铁甲", "疾风", "毒雾", "岩石", "幽冥", "金翅", "霜月", "邪眼", "嗜血", "枯骨"};
     private static final String[] MONSTER_NAMES = {"妖狼", "巨蟒", "魔蛛", "赤虎", "黑熊", "妖鹰", "石魔", "蛇妖", "蝎王", "魅狐", "尸鬼", "蝠妖"};
