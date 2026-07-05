@@ -663,6 +663,56 @@ public class DatabaseManager {
                 }
             } catch (SQLException ignored) {
             }
+            // 迁移：recipes 表添加品阶字段
+            try {
+                stmt.execute("ALTER TABLE recipes ADD COLUMN high_quality_rate DOUBLE DEFAULT 0");
+            } catch (SQLException ignored) {
+            }
+            try {
+                stmt.execute("ALTER TABLE recipes ADD COLUMN max_quality_rate DOUBLE DEFAULT 0");
+            } catch (SQLException ignored) {
+            }
+            try {
+                stmt.execute("ALTER TABLE recipes ADD COLUMN quality_bonus_rate DOUBLE DEFAULT 0");
+            } catch (SQLException ignored) {
+            }
+            // 迁移：buff表
+            try {
+                String buffTableSql = "CREATE TABLE IF NOT EXISTS player_buffs (" +
+                        "id " + (IS_SQLITE ? "INTEGER PRIMARY KEY AUTOINCREMENT" : "BIGINT AUTO_INCREMENT PRIMARY KEY") + ", " +
+                        "player_id BIGINT NOT NULL, " +
+                        "buff_id VARCHAR(64) NOT NULL, " +
+                        "attack_bonus INT DEFAULT 0, " +
+                        "defense_bonus INT DEFAULT 0, " +
+                        "speed_bonus INT DEFAULT 0, " +
+                        "spirit_bonus INT DEFAULT 0, " +
+                        "expire_time BIGINT NOT NULL, " +
+                        "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP" +
+                        (IS_SQLITE ? "" : ", FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE") +
+                        ")";
+                stmt.execute(buffTableSql);
+            } catch (SQLException ignored) {
+            }
+            // 迁移：农田表
+            try {
+                String farmPlotsTableSql = "CREATE TABLE IF NOT EXISTS farm_plots (" +
+                        "id " + (IS_SQLITE ? "INTEGER PRIMARY KEY AUTOINCREMENT" : "BIGINT AUTO_INCREMENT PRIMARY KEY") + ", " +
+                        "player_id BIGINT NOT NULL, " +
+                        "plot_index INT NOT NULL, " +
+                        "state VARCHAR(16) NOT NULL DEFAULT 'EMPTY', " +
+                        "seed_key VARCHAR(128), " +
+                        "crop_key VARCHAR(128), " +
+                        "planted_time BIGINT DEFAULT 0, " +
+                        "harvest_time BIGINT DEFAULT 0, " +
+                        "growth_stage INT DEFAULT 0, " +
+                        "water_level INT DEFAULT 100, " +
+                        "fertilizer_level INT DEFAULT 0, " +
+                        "yield INT DEFAULT 0" +
+                        (IS_SQLITE ? "" : ", FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE") +
+                        ")";
+                stmt.execute(farmPlotsTableSql);
+            } catch (SQLException ignored) {
+            }
         } catch (SQLException e) {
             throw new RuntimeException("数据库迁移失败", e);
         }

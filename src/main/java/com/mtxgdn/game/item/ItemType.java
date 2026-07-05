@@ -7,7 +7,8 @@ public enum ItemType {
     SKILL_BOOK("功法秘籍"),
     TREASURE("法宝"),
     QUEST("任务物品"),
-    CURRENCY("货币");
+    CURRENCY("货币"),
+    SEED("种子");
 
     private final String displayName;
 

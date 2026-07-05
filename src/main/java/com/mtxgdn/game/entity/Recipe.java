@@ -2,7 +2,8 @@ package com.mtxgdn.game.entity;
 
 public class Recipe {
 
-    public enum Category { PILL, EQUIPMENT, CONSUMABLE }
+    public enum Category { PILL, EQUIPMENT, CONSUMABLE, SEED }
+    public enum PillQuality { NORMAL, HIGH, MAX }
 
     private long id;
     private String name;
@@ -22,6 +23,9 @@ public class Recipe {
     private double successRate;
     private long minExpGain;
     private long maxExpGain;
+    private double highQualityRate;
+    private double maxQualityRate;
+    private double qualityBonusRate;
 
     public Recipe() {
     }
@@ -79,4 +83,13 @@ public class Recipe {
 
     public long getMaxExpGain() { return maxExpGain; }
     public void setMaxExpGain(long maxExpGain) { this.maxExpGain = maxExpGain; }
+
+    public double getHighQualityRate() { return highQualityRate; }
+    public void setHighQualityRate(double highQualityRate) { this.highQualityRate = highQualityRate; }
+
+    public double getMaxQualityRate() { return maxQualityRate; }
+    public void setMaxQualityRate(double maxQualityRate) { this.maxQualityRate = maxQualityRate; }
+
+    public double getQualityBonusRate() { return qualityBonusRate; }
+    public void setQualityBonusRate(double qualityBonusRate) { this.qualityBonusRate = qualityBonusRate; }
 }

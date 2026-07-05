@@ -1,0 +1,76 @@
+package com.mtxgdn.game.entity;
+
+import java.util.HashMap;
+import java.util.Map;
+
+public class CropConfig {
+    private String seedKey;
+    private String cropKey;
+    private String cropName;
+    private int growthSeconds;
+    private int stages;
+    private int baseYield;
+    private int maxYield;
+    private int waterNeed;
+    private int fertilizerBonus;
+
+    private static final Map<String, CropConfig> configs = new HashMap<>();
+
+    static {
+        configs.put("mtxgdn:spirit_grass_seed", new CropConfig(
+            "mtxgdn:spirit_grass_seed", "mtxgdn:spirit_grass", "灵草",
+            60, 3, 3, 5, 50, 10
+        ));
+        configs.put("mtxgdn:thousand_year_ginseng_seed", new CropConfig(
+            "mtxgdn:thousand_year_ginseng_seed", "mtxgdn:thousand_year_ginseng", "千年人参",
+            180, 5, 1, 3, 40, 15
+        ));
+        configs.put("mtxgdn:dark_ice_grass_seed", new CropConfig(
+            "mtxgdn:dark_ice_grass_seed", "mtxgdn:dark_ice_grass", "暗冰草",
+            90, 4, 2, 4, 45, 12
+        ));
+        configs.put("mtxgdn:fire_vine_seed", new CropConfig(
+            "mtxgdn:fire_vine_seed", "mtxgdn:fire_vine", "火焰藤",
+            120, 4, 2, 4, 45, 12
+        ));
+    }
+
+    public CropConfig() {}
+
+    public CropConfig(String seedKey, String cropKey, String cropName,
+                      int growthSeconds, int stages, int baseYield,
+                      int maxYield, int waterNeed, int fertilizerBonus) {
+        this.seedKey = seedKey;
+        this.cropKey = cropKey;
+        this.cropName = cropName;
+        this.growthSeconds = growthSeconds;
+        this.stages = stages;
+        this.baseYield = baseYield;
+        this.maxYield = maxYield;
+        this.waterNeed = waterNeed;
+        this.fertilizerBonus = fertilizerBonus;
+    }
+
+    public static CropConfig get(String seedKey) {
+        return configs.get(seedKey);
+    }
+
+    public String getSeedKey() { return seedKey; }
+    public void setSeedKey(String seedKey) { this.seedKey = seedKey; }
+    public String getCropKey() { return cropKey; }
+    public void setCropKey(String cropKey) { this.cropKey = cropKey; }
+    public String getCropName() { return cropName; }
+    public void setCropName(String cropName) { this.cropName = cropName; }
+    public int getGrowthSeconds() { return growthSeconds; }
+    public void setGrowthSeconds(int growthSeconds) { this.growthSeconds = growthSeconds; }
+    public int getStages() { return stages; }
+    public void setStages(int stages) { this.stages = stages; }
+    public int getBaseYield() { return baseYield; }
+    public void setBaseYield(int baseYield) { this.baseYield = baseYield; }
+    public int getMaxYield() { return maxYield; }
+    public void setMaxYield(int maxYield) { this.maxYield = maxYield; }
+    public int getWaterNeed() { return waterNeed; }
+    public void setWaterNeed(int waterNeed) { this.waterNeed = waterNeed; }
+    public int getFertilizerBonus() { return fertilizerBonus; }
+    public void setFertilizerBonus(int fertilizerBonus) { this.fertilizerBonus = fertilizerBonus; }
+}

@@ -46,7 +46,7 @@ public class CraftCommand extends Command {
         StringBuilder sb = new StringBuilder();
         sb.append("=== 合成系统 ===\n");
         sb.append("可用配方: ").append(recipes.size()).append(" 种\n\n");
-        sb.append("分类: 丹药PILL | 装备EQUIPMENT | 消耗品CONSUMABLE\n\n");
+        sb.append("分类: 丹药PILL | 装备EQUIPMENT | 消耗品CONSUMABLE | 种子SEED\n\n");
         sb.append("查看配方: /合成 列表\n");
         sb.append("按分类查看: /合成 配方 <分类>\n");
         sb.append("制造: /合成 制造 <配方ID>");
@@ -75,6 +75,11 @@ public class CraftCommand extends Command {
 
             sb.append("  费用:").append(r.getCostGold()).append("金").append(r.getCostSpiritStones()).append("灵石");
             if (r.getRequiredRealm() > 0) sb.append(" | 需境界Lv").append(r.getRequiredRealm());
+            if (r.getCategory() == Recipe.Category.PILL) {
+                sb.append(" | 品质:");
+                if (r.getMaxQualityRate() > 0) sb.append("极品").append((int)(r.getMaxQualityRate() * 100)).append("%");
+                if (r.getHighQualityRate() > 0) sb.append("/上品").append((int)(r.getHighQualityRate() * 100)).append("%");
+            }
             sb.append("\n\n");
         }
         sb.append("制造: /合成 制造 <配方ID>");
@@ -82,13 +87,13 @@ public class CraftCommand extends Command {
     }
 
     private void listRecipesWithCategory(CommandContext ctx, PlayerInfo p, String[] parts) {
-        if (parts.length < 2) { ctx.reply("用法: /合成 配方 <分类>\n分类: PILL(丹药) / EQUIPMENT(装备) / CONSUMABLE(消耗品)"); return; }
+        if (parts.length < 2) { ctx.reply("用法: /合成 配方 <分类>\n分类: PILL(丹药) / EQUIPMENT(装备) / CONSUMABLE(消耗品) / SEED(种子)"); return; }
         String cat = parts[1].toUpperCase();
         Recipe.Category category;
         try {
             category = Recipe.Category.valueOf(cat);
         } catch (IllegalArgumentException e) {
-            ctx.reply("无效分类: " + cat + "\n可用: PILL / EQUIPMENT / CONSUMABLE");
+            ctx.reply("无效分类: " + cat + "\n可用: PILL / EQUIPMENT / CONSUMABLE / SEED");
             return;
         }
 
@@ -124,6 +129,7 @@ public class CraftCommand extends Command {
             case PILL -> "丹药";
             case EQUIPMENT -> "装备";
             case CONSUMABLE -> "消耗品";
+            case SEED -> "种子";
         };
     }
 
