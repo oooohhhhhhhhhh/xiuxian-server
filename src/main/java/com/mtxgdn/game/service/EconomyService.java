@@ -131,6 +131,14 @@ public class EconomyService {
         {"强化石", "mtxgdn:enhance_stone", "100", "强化装备所需"},
         {"灵草", "mtxgdn:spirit_grass", "20", "炼丹基本材料"},
         {"铁矿石", "mtxgdn:iron_ore", "15", "炼器基本材料"},
+        {"灵草种子", "mtxgdn:spirit_grass_seed", "50", "种植灵草，60秒成熟"},
+        {"千年人参种子", "mtxgdn:thousand_year_ginseng_seed", "200", "种植千年人参，180秒成熟"},
+        {"暗冰草种子", "mtxgdn:dark_ice_grass_seed", "120", "种植暗冰草，90秒成熟"},
+        {"火焰藤种子", "mtxgdn:fire_vine_seed", "150", "种植火焰藤，120秒成熟"},
+        {"幽冥花种子", "mtxgdn:nether_flower_seed", "300", "种植幽冥花，240秒成熟（稀有）"},
+        {"星辰草种子", "mtxgdn:star_grass_seed", "500", "种植星辰草，300秒成熟（史诗）"},
+        {"血灵芝种子", "mtxgdn:blood_lingzhi_seed", "400", "种植血灵芝，200秒成熟（稀有）"},
+        {"天山雪莲种子", "mtxgdn:tianshan_snow_lotus_seed", "1000", "种植天山雪莲，420秒成熟（传说）"},
     };
 
     public Map<String, Object> buyFromShop(long playerId, int shopIndex) {

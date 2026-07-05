@@ -33,6 +33,22 @@ public class CropConfig {
             "mtxgdn:fire_vine_seed", "mtxgdn:fire_vine", "火焰藤",
             120, 4, 2, 4, 45, 12
         ));
+        configs.put("mtxgdn:nether_flower_seed", new CropConfig(
+            "mtxgdn:nether_flower_seed", "mtxgdn:nether_flower", "幽冥花",
+            240, 5, 1, 3, 35, 20
+        ));
+        configs.put("mtxgdn:star_grass_seed", new CropConfig(
+            "mtxgdn:star_grass_seed", "mtxgdn:star_grass", "星辰草",
+            300, 6, 1, 2, 30, 25
+        ));
+        configs.put("mtxgdn:blood_lingzhi_seed", new CropConfig(
+            "mtxgdn:blood_lingzhi_seed", "mtxgdn:blood_lingzhi", "血灵芝",
+            200, 5, 1, 2, 40, 18
+        ));
+        configs.put("mtxgdn:tianshan_snow_lotus_seed", new CropConfig(
+            "mtxgdn:tianshan_snow_lotus_seed", "mtxgdn:tianshan_snow_lotus", "天山雪莲",
+            420, 7, 1, 2, 25, 30
+        ));
     }
 
     public CropConfig() {}
