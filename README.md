@@ -339,7 +339,7 @@ mvn clean package -DskipTests
 ### 4. 运行
 
 ```bash
-java -jar target/main-V1.4.1-alpha2.jar
+java -jar target/main-V1.4.1-beta1.jar
 ```
 
 启动后会自动初始化数据库表结构、扫描并注册游戏数据。
