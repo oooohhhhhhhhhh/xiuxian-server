@@ -14,17 +14,17 @@
 - **修炼系统**：挂机修炼，根据境界获得经验倍率加成；修炼中可能触发**心魔**——有概率修为倒退（轻微/中等/严重三种程度，灵力越高越能抵抗）
 - **境界突破**：11 大境界（凡人→炼气→筑基→金丹→元婴→化神→合体→大乘→渡劫→真仙→金仙），每境含初/中/后三期。小境界 100% 成功，大境界突破触发**天劫**（7 种天劫按境界匹配：雷劫/心魔劫/风火劫/水劫/五行劫/阴阳劫/轮回劫），成功率随境界递减（80%→10%），受灵根等级、灵力属性、天劫对应属性影响，可服用渡劫丹 +10%，上限 95%；失败则损失 1/3 经验并重伤
 - **功法/心法系统**：11 种内功心法（4 种类型：攻击/防御/修炼/辅助），可学习/装备/升级，最多同时运转 3 门，每级属性 +12%，装备即获被动加成（HP/MP/攻/防/速/灵力/修炼速度/经验/伤害/减伤）
-- **制造系统**：炼丹和炼器，11 种配方（丹药/装备/消耗品），最多 3 种材料，成功率 + 失败安慰经验，可制造回血丹、回蓝丹、培元丹、灵剑、强化石、渡劫丹等
+- **制造系统**：炼丹和炼器，11 种配方（丹药/装备/消耗品/种子），最多 3 种材料，成功率 + 失败安慰经验，可制造回血丹、回蓝丹、培元丹、灵剑、强化石、渡劫丹等
 - **装备强化**：穿戴装备可强化至 +15，成功率逐级递减（95%→3%），+5 以上可能降级或碎装备，强化增加攻击/防御/速度/灵力加成
 - **天象系统**：全服每日随机天象（紫气东来/星辰耀天/血月当空/灵潮涌动/枯荣交替/万籁俱寂），影响修炼/游历/战斗/灵石掉落倍率
 - **晨修·紫气东来**：每日一次的修炼收益加成，连续天数越多紫气越精纯
 - **今日机缘**：嵌入游戏行为的每日目标（游历3次/PvP1次/秘境1次/学技能1次），完成后当场发放奖励，无需手动领取
 - **灵根共鸣**：连续活跃 7 天和 30 天时触发，永久提升属性
-- **游历探索**：随机事件系统，权重抽奖机制，巽风灵根可缩减冷却时间
+- **游历探索**：随机事件系统，权重抽奖机制，巽风灵根可缩减冷却时间。13 种游历事件：发现种子、采集材料、神秘奇遇、遇见修士、采集灵草、遭遇商人、遭遇妖兽、发现遗迹、发现灵泉、神秘高塔、遭遇陷阱、发现宝藏、一无所获
 - **秘境探索**：8 个秘境区域，随机遭遇宝藏/妖兽/Boss/灵草/陷阱/古修/遗迹等事件
 - **坊市交易**：玩家间物品交易，使用灵石结算，5% 手续费（土金灵根减半），挂单/购买/撤单完整流程
 - **宗门系统**：创建宗门/申请加入/审批/任命/捐献/仓库存取/踢出/解散/宗门升级/宗主转让/宗门战，金丹期以上消耗 500 灵石创建，声望排行，宗门仓库共享物品；**5级角色**（宗主>副宗主>长老>内门弟子>外门弟子），内门/外门可消耗贡献值兑换仓库物品
-- **物品系统**：7 种类型、6 种稀有度，组件化效果（经验/回血/货币/buff/技能书），支持按中文名称/key 使用物品
+- **物品系统**：7 种类型、6 种稀有度，组件化效果（经验/回血/货币/buff/技能书/传送/重生/境界突破/属性重置），支持按中文名称/key 使用物品。60+ 种物品：灵草/矿石/丹药/装备/材料/种子等
 - **能量转化系统**：等价交换式物品能量互转，物品→能量→物品闭环；支持主程序物品和插件物品，插件可通过 `PluginContext.registerItemEnergy()` 注册自定义能量值；管理员可管理玩家能量；REST API 接口开放外部调用
 - **技能系统**：攻击技能和辅助技能，熟练度升级（使用获得熟练度，技能书 +1 级），等级越高蓝耗越大，金水木灵根熟练度 +30%
 - **装备系统**：装备穿戴/卸下，属性加成
@@ -35,6 +35,8 @@
 - **PVP 对战**：回合制玩家对战，支持技能施放、暴击、灵根特效（回血/增伤/减伤/暴击/MP减免等）
 - **PVE 战斗**：游历和秘境中随机遭遇妖兽，完整回合制战斗（技能、暴击、灵根特效全生效）；秘境含 Boss 战，各秘境专属守护者
 - **离线收益**：断线后修炼继续进行（50% 效率，上限 8 小时），上线时自动结算经验、HP/MP 恢复，心魔判定降频
+- **农场系统**：玩家拥有 4-12 块农田，可种植 8 种种子（灵草/千年人参/暗冰草/火焰藤/幽冥花/星辰草/血灵芝/天山雪莲），浇水施肥提升产量，扩建需要金币
+- **Buff 系统**：物品使用可获得临时属性加成（攻击/防御/速度/灵力），自动过期并扣除属性，支持叠加多个 Buff
 - **用户系统**：邮箱注册/验证码、JWT 双令牌认证、BCrypt 密码加密
 - **权限管理**：RBAC 角色权限系统，新增 `game.*`/`qq.*` 前缀权限码自动授予 PLAYER 角色，无需逐个加入角色定义
 - **QQ 机器人**：OneBot 协议集成，支持私聊和群聊指令操作；黑名单系统 + 自动禁言（群组级别开关、29天循环禁言、管理员权限检测）
@@ -43,7 +45,7 @@
 - **国际化 (i18n)**：JSON 语言的本地化系统，物品/秘境/事件/系统消息完整翻译，当前支持中文 (zh_cn)
 - **数据库**：MySQL / SQLite 双支持，HikariCP 连接池，一行配置切换
 - **Web 管理控制台**：修仙风主题面板，侧边栏导航，实时日志，玩家管理，用户角色管理，数据发放
-- **插件系统**：完整的生命周期管理（onLoad/onEnable/onDisable），独立类加载器隔离；插件可注册命令/物品/游历事件/秘境/能量值/自定义权限码；事件总线（10 种事件类型，支持优先级和取消）；支持热重载（reloadPlugin）；访问全部 19 个游戏服务 API；暴露底层接口（数据库连接/服务端配置/频率限制/JWT/行为日志/统计收集器）；支持插件添加 REST API 端点、Web 管理页面和 WebSocket 消息处理器
+- **插件系统**：完整的生命周期管理（onLoad/onEnable/onDisable），独立类加载器隔离；插件可注册命令/物品/游历事件/秘境/能量值/自定义权限码；事件总线（10 种事件类型，支持优先级和取消）；支持热重载（reloadPlugin）；访问全部 26 个游戏服务 API；暴露底层接口（数据库连接/服务端配置/频率限制/JWT/行为日志/统计收集器）；支持插件添加 REST API 端点、Web 管理页面和 WebSocket 消息处理器
 
 ---
 
@@ -105,14 +107,18 @@ src/main/java/com/mtxgdn/
 │   │   └── GameConfigLoader.java    # 境界配置加载器
 │   ├── entity/                     # 游戏实体
 │   │   ├── CelestialPhenomenon.java
+│   │   ├── CropConfig.java          # 作物配置（种子→作物映射、生长时间、产量）
 │   │   ├── ExplorationResult.java
+│   │   ├── FarmPlot.java            # 农田地块实体（状态/水分/肥力/生长阶段）
 │   │   ├── Monster.java              # 怪物/Boss 实体（属性、掉落表、Boss 工厂）
 │   │   ├── PlayerInfo.java
 │   │   ├── PveCombatResult.java      # PVE 战斗结果
+│   │   ├── RaidCombatResult.java     # 宗门战结果
 │   │   ├── RealmBreakthroughResult.java
 │   │   ├── RealmConfig.java
 │   │   ├── RealmConfigFile.java
-│   │   ├── Recipe.java               # 制造配方实体
+│   │   ├── Recipe.java               # 制造配方实体（新增 SEED 分类）
+│   │   ├── RedeemCode.java           # 兑换码实体
 │   │   ├── SecretRealmResult.java
 │   │   ├── Skill.java
 │   │   ├── SpiritualRoot.java
@@ -122,7 +128,8 @@ src/main/java/com/mtxgdn/
 │   │   ├── Sect.java                 # 宗门实体
 │   │   ├── SectMember.java           # 宗门成员实体
 │   │   ├── SectApplication.java      # 入宗申请实体
-│   │   └── SectWarehouseItem.java    # 宗门仓库物品实体
+│   │   ├── SectWarehouseItem.java    # 宗门仓库物品实体
+│   │   └── Title.java                # 称号实体
 │   ├── explorationevent/           # 游历事件系统
 │   │   ├── ExplorationEvent.java       # 事件抽象基类
 │   │   ├── ExplorationEventRegistry.java  # 事件注册中心
@@ -134,40 +141,62 @@ src/main/java/com/mtxgdn/
 │   │   ├── ItemRegistry.java       # 物品注册中心（支持 key + 中文名 resolve）
 │   │   ├── ItemScanner.java        # 物品扫描器
 │   │   ├── ItemType.java           # 物品类型枚举
-│   │   ├── BuffEffect.java         # Buff 效果
+│   │   ├── AttributeResetEffect.java # 属性重置效果
+│   │   ├── BuffEffect.java         # Buff 效果（攻击/防御/速度/灵力加成）
 │   │   ├── CurrencyEffect.java     # 货币效果
+│   │   ├── DebuffCleanEffect.java  # 清除负面效果
 │   │   ├── EmptyEffect.java        # 空效果
 │   │   ├── ExpEffect.java          # 经验效果
 │   │   ├── HealEffect.java         # 治疗效果
-│   │   └── LearnSkillEffect.java   # 学习技能效果
+│   │   ├── LearnSkillEffect.java   # 学习技能效果
+│   │   ├── RealmBreakEffect.java   # 境界突破效果
+│   │   ├── RebirthEffect.java      # 重生效果
+│   │   └── TeleportEffect.java     # 传送效果
 │   ├── secretrealm/                # 秘境系统
 │   │   ├── SecretRealm.java        # 秘境基类（集成 LangManager 翻译）
 │   │   ├── SecretRealmRegistry.java
 │   │   └── SecretRealmScanner.java
-│   └── service/                    # 游戏服务层
-│       ├── CombatService.java      # 战斗系统（含灵根特效）
-│       ├── CraftingService.java    # 制造系统（炼丹/炼器）
-│       ├── DailyService.java       # 每日系统（晨修/机缘/天象/灵根共鸣）
-│       ├── EnhanceService.java     # 装备强化系统
-│       ├── ExplorationService.java # 游历探索（含灵根 CD 缩减）
-│       ├── HeartDemonService.java  # 心魔系统
-│       ├── ItemService.java        # 物品管理
-│       ├── NewbieGuideService.java # 新手引导
-│       ├── OfflineRewardService.java # 离线收益（修炼/HP恢复/降频心魔）
-│       ├── PlayerService.java      # 玩家管理
-│       ├── RealmService.java       # 境界突破（含天劫）
-│       ├── SecretRealmService.java # 秘境探索
-│       ├── SkillService.java       # 技能管理（含熟练度/灵根加成）
-│       ├── TechniqueService.java   # 功法/心法系统
-│       ├── ChatService.java        # 聊天系统（世界频道+私聊）
-│       ├── FriendService.java      # 好友系统
-│       ├── TradeService.java       # 坊市交易
-│       ├── EnergyService.java      # 能量转化（物品↔能量 + 插件自定义注册）
-│       └── SectService.java        # 宗门系统
+│   ├── service/                    # 游戏服务层
+│   │   ├── BuffService.java        # Buff 系统（添加/移除/过期检测/属性叠加）
+│   │   ├── CombatService.java      # 战斗系统（含灵根特效）
+│   │   ├── CraftingService.java    # 制造系统（炼丹/炼器/种子）
+│   │   ├── DailyService.java       # 每日系统（晨修/机缘/天象/灵根共鸣）
+│   │   ├── EconomyService.java     # 经济系统（签到/回收/拍卖/灵庄）
+│   │   ├── EnhanceService.java     # 装备强化系统
+│   │   ├── ExplorationService.java # 游历探索（含灵根 CD 缩减）
+│   │   ├── FarmService.java        # 农场系统（种植/浇水/施肥/收获/扩建）
+│   │   ├── HeartDemonService.java  # 心魔系统
+│   │   ├── ItemService.java        # 物品管理
+│   │   ├── NewbieGuideService.java # 新手引导
+│   │   ├── OfflineRewardService.java # 离线收益（修炼/HP恢复/降频心魔）
+│   │   ├── PlayerService.java      # 玩家管理
+│   │   ├── RealmService.java       # 境界突破（含天劫）
+│   │   ├── RedeemCodeService.java  # 兑换码服务
+│   │   ├── SecretRealmService.java # 秘境探索
+│   │   ├── SkillService.java       # 技能管理（含熟练度/灵根加成）
+│   │   ├── TechniqueService.java   # 功法/心法系统
+│   │   ├── TitleService.java       # 称号系统
+│   │   ├── ChatService.java        # 聊天系统（世界频道+私聊）
+│   │   ├── FriendService.java      # 好友系统
+│   │   ├── TradeService.java       # 坊市交易
+│   │   ├── EnergyService.java      # 能量转化（物品↔能量 + 插件自定义注册）
+│   │   └── SectService.java        # 宗门系统
 │
 ├── minecraft/
 │   ├── MinecraftMotdServer.java    # Minecraft MOTD 服务器
-│   └── VarInt.java                 # Minecraft VarInt 编解码
+│   ├── VarInt.java                 # Minecraft VarInt 编解码
+│   ├── adapter/                    # Minecraft 适配器
+│   │   ├── McCommandResult.java    # 命令执行结果
+│   │   ├── MinecraftAdapter.java   # 适配器主类（启动/停止 MC 服务器）
+│   │   ├── MinecraftCommandContext.java # MC 命令上下文
+│   │   ├── MinecraftMessageSender.java # MC 消息发送
+│   │   ├── MinecraftPlayerBinding.java # MC 玩家绑定
+│   │   ├── MinecraftPlayerBindingService.java # 绑定服务
+│   │   └── MinecraftServerProcess.java # MC 服务器进程管理
+│   ├── agent/                      # Minecraft 代理
+│   │   └── XiuxianAgent.java       # 修仙代理（MC 插件通信）
+│   └── plugin/                     # Minecraft 插件（Bukkit API）
+│       └── XiuxianBridgePlugin.java # 修仙桥插件
 │
 ├── onebot/                         # QQ 机器人集成
 │   ├── OneBotAccountFlow.java      # OneBot 账号流程（注册/绑定/解绑）
@@ -231,55 +260,118 @@ src/main/java/com/mtxgdn/
     └── GameWebSocketApp.java       # WebSocket 游戏服务
 
 src/main/java/data/mtxgdn/          # 游戏数据定义
-├── explorationevent/               # 10 种游历事件实体
-│   ├── CultivatorEvent.java
-│   ├── HerbEvent.java
-│   ├── MerchantEvent.java
-│   ├── MonsterEvent.java
-│   ├── NothingEvent.java
-│   ├── RuinsEvent.java
-│   ├── SpiritSpringEvent.java
-│   ├── StrangeTowerEvent.java
-│   ├── TrapEvent.java
-│   └── TreasureEvent.java
-├── item/                           # 28 种物品实体
-│   ├── BasicSwordManual.java
-│   ├── BeastCore.java
-│   ├── CultivationElixir.java
-│   ├── DragonBloodCrystal.java
-│   ├── EnhanceStone.java
-│   ├── FireDragonArt.java
-│   ├── GoldBag.java
-│   ├── GuardianJade.java
-│   ├── HealingPill.java
-│   ├── HeavenlyJade.java
-│   ├── HeavenPill.java
-│   ├── IronOre.java
-│   ├── JadeArmor.java
-│   ├── ManaPill.java
-│   ├── PowerBuffPill.java
-│   ├── ProtectCharm.java
-│   ├── ScripturePage.java
-│   ├── SpeedTalisman.java
-│   ├── SpiritGrass.java
-│   ├── SpiritRecoveryPill.java
-│   ├── SpiritSpringWater.java
-│   ├── SpiritStone.java
-│   ├── SpiritStonePouch.java
-│   ├── SpiritSword.java
-│   ├── ThunderBoltTalisman.java
-│   └── TribulationPill.java
+├── explorationevent/               # 13 种游历事件实体（权重抽奖机制）
+│   ├── CultivatorEvent.java        # 遇见修士（权重6）
+│   ├── HerbEvent.java              # 采集灵草（权重10）
+│   ├── MaterialEvent.java          # 采集材料（权重10）— 炼丹材料掉落
+│   ├── MerchantEvent.java          # 遭遇商人（权重5）
+│   ├── MonsterEvent.java           # 遭遇妖兽（权重10）— PVE战斗
+│   ├── MysteryEvent.java           # 神秘奇遇（权重8）— 传说材料/大量资源
+│   ├── NothingEvent.java           # 一无所获（权重5）
+│   ├── RuinsEvent.java             # 发现遗迹（权重6）
+│   ├── SeedEvent.java              # 发现种子（权重12）— 8种种子掉落
+│   ├── SpiritSpringEvent.java      # 发现灵泉（权重5）
+│   ├── StrangeTowerEvent.java      # 神秘高塔（权重4）
+│   ├── TrapEvent.java              # 遭遇陷阱（权重5）
+│   └── TreasureEvent.java          # 发现宝藏（权重7）
+├── item/                           # 60+ 种物品实体
+│   ├── BasicSwordManual.java       # 基础剑谱
+│   ├── BeastCore.java              # 兽核
+│   ├── BloodJadeMarrow.java        # 血玉髓（史诗）
+│   ├── BloodLingzhi.java           # 血灵芝（稀有作物）
+│   ├── BloodLingzhiSeed.java       # 血灵芝种子
+│   ├── CultivationElixir.java      # 修炼丹
+│   ├── DamageReflectionPill.java   # 伤害反弹丹
+│   ├── DarkIceGrass.java           # 暗冰草（稀有作物）
+│   ├── DarkIceGrassSeed.java       # 暗冰草种子
+│   ├── DeepSeaCoral.java           # 深海珊瑚（史诗）
+│   ├── DemonCore.java              # 魔核（稀有）
+│   ├── DragonBloodCrystal.java     # 龙血晶（史诗）
+│   ├── DragonBone.java             # 龙骨（传说）
+│   ├── DragonHeart.java            # 龙心（传说）
+│   ├── DragonScale.java            # 龙鳞（传说）
+│   ├── DragonSword.java            # 龙剑（传说武器）
+│   ├── EnhanceStone.java           # 强化石
+│   ├── ExpMultiplierPill.java      # 经验翻倍丹
+│   ├── FireDragonArt.java          # 火龙诀
+│   ├── FireVine.java               # 火焰藤（稀有作物）
+│   ├── FireVineSeed.java           # 火焰藤种子
+│   ├── FiveColoredDivineStone.java # 五色神石（传说）
+│   ├── FragmentScroll.java         # 残卷
+│   ├── GhostFireEssence.java       # 鬼火精华（稀有）
+│   ├── GoldBag.java                # 金币袋
+│   ├── GoldOre.java                # 金矿石（稀有）
+│   ├── GuardianJade.java           # 守护玉佩
+│   ├── HealingPill.java            # 回血丹
+│   ├── HeavenFireStone.java        # 天火石（史诗）
+│   ├── HeavenlyJade.java           # 天玉
+│   ├── HeavenPill.java             # 天丹
+│   ├── IceCrystal.java             # 冰晶（稀有）
+│   ├── ImmortalPill.java           # 仙丹
+│   ├── IronOre.java                # 铁矿石（普通）
+│   ├── JadeArmor.java              # 玉甲
+│   ├── ManaPill.java               # 回蓝丹
+│   ├── MoonEssence.java            # 月精
+│   ├── MysteryToken.java           # 神秘令牌
+│   ├── MythrilOre.java             # 秘银矿石（稀有）
+│   ├── NetherFlower.java           # 幽冥花（史诗作物）
+│   ├── NetherFlowerSeed.java       # 幽冥花种子
+│   ├── PhoenixArmor.java           # 凤凰甲
+│   ├── PhoenixFeather.java         # 凤凰羽毛（传说）
+│   ├── PhoenixGallbladder.java     # 凤凰胆（传说）
+│   ├── PowerBuffPill.java          # 力量增益丹
+│   ├── ProtectCharm.java           # 护身符
+│   ├── PurificationPill.java       # 净化丹
+│   ├── QilinAmulet.java            # 麒麟护符
+│   ├── QilinBlood.java             # 麒麟血（传说）
+│   ├── QilinHorn.java              # 麒麟角（传说）
+│   ├── QuestLetter.java            # 任务信
+│   ├── QuestScroll.java            # 任务卷轴
+│   ├── RebirthPill.java            # 重生丹
+│   ├── ScripturePage.java          # 经文残页
+│   ├── SilverOre.java              # 银矿石（普通）
+│   ├── SkySilk.java                # 天蚕丝（史诗）
+│   ├── SnakeVenom.java             # 蛇毒
+│   ├── SpeedTalisman.java          # 速度符箓
+│   ├── SpiritBoostPill.java        # 灵力增益丹
+│   ├── SpiritGrass.java            # 灵草（普通作物）
+│   ├── SpiritGrassSeed.java        # 灵草种子
+│   ├── SpiritPearl.java            # 灵珠（史诗）
+│   ├── SpiritRecoveryPill.java     # 灵力恢复丹
+│   ├── SpiritSpringWater.java      # 灵泉水
+│   ├── SpiritStone.java            # 灵石
+│   ├── SpiritStonePouch.java       # 灵石袋
+│   ├── SpiritSword.java            # 灵剑
+│   ├── SpiritWood.java             # 灵木
+│   ├── StarGrass.java              # 星辰草（传说作物）
+│   ├── StarGrassSeed.java          # 星辰草种子
+│   ├── StarRobes.java              # 星辰长袍
+│   ├── StarSand.java               # 星辰沙（稀有）
+│   ├── SunEssence.java             # 日精
+│   ├── SuperHealingPill.java       # 超级回血丹
+│   ├── SuperManaPill.java          # 超级回蓝丹
+│   ├── TeleportTalisman.java       # 传送符箓
+│   ├── TenThousandYearLingzhi.java # 万年灵芝
+│   ├── ThousandYearGinseng.java    # 千年人参（稀有作物）
+│   ├── ThousandYearGinsengSeed.java# 千年人参种子
+│   ├── ThousandYearHeshouwu.java   # 千年何首乌（稀有）
+│   ├── ThunderBoltTalisman.java    # 雷电符箓
+│   ├── TianshanSnowLotus.java      # 天山雪莲（传说作物）
+│   ├── TianshanSnowLotusSeed.java  # 天山雪莲种子
+│   ├── TigerFang.java              # 虎牙
+│   ├── TribulationPill.java        # 渡劫丹
+│   └── UltimatePowerPill.java      # 终极力量丹
 ├── lang/                           # 多语言翻译文件
 │   └── zh_cn.json                  # 简体中文翻译（物品/秘境/事件/系统消息）
 └── secretrealm/                    # 8 个秘境区域
-    ├── AncientBattlefield.java
-    ├── AncientRuins.java
-    ├── BeastMountain.java
-    ├── DarkForest.java
-    ├── ImmortalCave.java
-    ├── NineHeavensPlatform.java
-    ├── ThunderValley.java
-    └── WildGrassland.java
+    ├── AncientBattlefield.java     # 古战场（元婴）
+    ├── AncientRuins.java           # 古修遗迹（金丹）
+    ├── BeastMountain.java          # 百兽山脉（筑基）
+    ├── DarkForest.java             # 暗黑森林（炼气）
+    ├── ImmortalCave.java           # 仙人洞府（化神）
+    ├── NineHeavensPlatform.java    # 九霄台（元婴）
+    ├── ThunderValley.java          # 雷渊谷（金丹）
+    └── WildGrassland.java          # 荒野草原（凡人）
 ```
 
 ---
@@ -351,7 +443,7 @@ java -jar target/main-V1.4.1-beta1.jar
 | `--demo` | 启动交互式演示客户端，服务关闭时自动退出 |
 | `--nogui` | 无 GUI 模式，按 Enter 关闭服务器 |
 
-### 4. 访问
+### 5. 访问
 
 | 服务 | 地址 |
 |------|------|
@@ -455,8 +547,6 @@ java -jar target/main-V1.4.1-beta1.jar
 | POST | `/api/game/energy/convert` | - | 物品转化为能量 |
 | POST | `/api/game/energy/exchange` | - | 能量兑换为物品 |
 | POST | `/api/game/economy/signin` | `game.economy.signin` | 签到 |
-| GET | `/api/game/economy/shop/items` | `game.economy.shop` | 商店商品列表 |
-| POST | `/api/game/economy/shop/buy` | `game.economy.shop` | 购买商品 |
 | POST | `/api/game/economy/recycle` | `game.economy.recycle` | 物品回收 |
 | GET | `/api/game/economy/bank/info` | `game.economy.bank` | 灵庄账户信息 |
 | POST | `/api/game/economy/bank/deposit` | `game.economy.bank` | 存款 |
@@ -471,6 +561,15 @@ java -jar target/main-V1.4.1-beta1.jar
 | GET | `/api/game/title/active` | `game.title.view` | 当前装备称号 |
 | POST | `/api/game/title/equip` | `game.title.equip` | 装备称号 |
 | POST | `/api/game/title/unequip` | `game.title.equip` | 卸下称号 |
+| GET | `/api/game/farm/plots` | `game.farm.view` | 查看农田状态 |
+| POST | `/api/game/farm/plant` | `game.farm.plant` | 种植种子（body: `{plotIndex, seedKey}`） |
+| POST | `/api/game/farm/water` | `game.farm.water` | 浇水（body: `{plotIndex}`） |
+| POST | `/api/game/farm/fertilize` | `game.farm.fertilize` | 施肥（body: `{plotIndex}`） |
+| POST | `/api/game/farm/harvest` | `game.farm.harvest` | 收获作物（body: `{plotIndex}`） |
+| POST | `/api/game/farm/clear` | `game.farm.clear` | 清理地块（body: `{plotIndex}`） |
+| POST | `/api/game/farm/expand` | `game.farm.expand` | 扩建农田 |
+| GET | `/api/game/buff` | `game.player.info` | 查看当前激活的 Buff |
+| POST | `/api/game/redeem` | `game.redeem.code` | 使用兑换码（body: `{code}`） |
 
 ### 管理后台 API（需管理员 Token）
 
@@ -501,6 +600,7 @@ java -jar target/main-V1.4.1-beta1.jar
 | POST | `/api/admin/onebot/groups/{groupId}/muteDuration` | `admin.onebot.group.config` | 设置禁言天数（body: `{days}`，1-30） |
 | DELETE | `/api/admin/onebot/groups/{groupId}` | `admin.onebot.group.config` | 删除群组配置 |
 | GET | `/api/admin/plugins` | - | 获取已注册的插件 Web 页面列表 |
+| POST | `/api/admin/items/give` | `admin.items.give` | 向指定玩家发放物品（body: `{playerName, itemKey, quantity}`） |
 
 ---
 
@@ -527,10 +627,10 @@ java -jar target/main-V1.4.1-beta1.jar
 
 | 分类 | 前缀 | 数量 | 示例 |
 |------|------|------|------|
-| 游戏功能 | `game.*` | 29+ | `game.cultivate`, `game.explore`, `game.technique.learn`, `game.chat.world`, `game.rank.view`, `game.friend.manage` |
+| 游戏功能 | `game.*` | 37+ | `game.cultivate`, `game.explore`, `game.technique.learn`, `game.chat.world`, `game.rank.view`, `game.friend.manage`, `game.farm.view`, `game.farm.plant`, `game.farm.harvest` |
 | QQ 指令 | `qq.*` | 5 | `qq.bind`, `qq.command.admin` |
 | 管理后台 | `admin.*` | 14 | `admin.shutdown`, `admin.database.reset_all`, `admin.blacklist.manage`, `admin.onebot.group.config` |
-| 插件扩展 | `plugin.*` | 动态 | 由插件通过 `registerPermission()` 注册（如 `plugin.shop.admin`） |
+| 插件扩展 | `plugin.*` | 动态 | 由插件通过 `registerPermission()` 注册 |
 
 ---
 
@@ -596,6 +696,14 @@ java -jar target/main-V1.4.1-beta1.jar
 | `friend_remove` | 删除好友 |
 | `friend_list` | 好友列表 |
 | `friend_pending` | 待处理的好友申请 |
+| `farm_plots` | 查看农田状态 |
+| `farm_plant` | 种植种子 |
+| `farm_water` | 浇水 |
+| `farm_fertilize` | 施肥 |
+| `farm_harvest` | 收获作物 |
+| `farm_clear` | 清理地块 |
+| `farm_expand` | 扩建农田 |
+| `buff` | 查看当前激活的 Buff |
 
 ---
 
@@ -629,6 +737,9 @@ java -jar target/main-V1.4.1-beta1.jar
 | `/explore` / `/游历` | `game.explore` | 游历探索 |
 | `/secret` / `/秘境` | `game.secret_realm` | 查看可用秘境（含境界/冷却/描述） |
 | `/secret_enter <名称>` / `/进入秘境` | `game.secret_realm` | 进入秘境（支持中文名，如 /进入秘境 远古战场） |
+| `/map` / `/地图` | `game.player.info` | 查看当前位置与周围地点（实验性） |
+| `/地图 go <地名>` | `game.player.info` | 前往相邻地点 |
+| `/地图 list [区域]` | `game.player.info` | 浏览全地图 |
 
 ### 物品与装备
 
@@ -640,6 +751,7 @@ java -jar target/main-V1.4.1-beta1.jar
 | `/equip <物品> <部位>` / `/装备` | `game.equipment.equip` | 装备物品（部位：weapon/armor/accessory） |
 | `/unequip <部位>` / `/卸下` | `game.equipment.equip` | 卸下装备 |
 | `/equipped` / `/已装备` | `game.inventory.view` | 查看已装备的物品 |
+| `/buff` / `/增益` | `game.player.info` | 查看当前激活的 Buff 效果 |
 
 ### 技能
 
@@ -647,6 +759,7 @@ java -jar target/main-V1.4.1-beta1.jar
 |------|------|------|
 | `/skills` / `/技能` | `game.player.info` | 查看技能列表（含境界/金币要求） |
 | `/learn <技能ID或名称>` / `/学习` | `game.skill.learn` | 学习技能（支持中文名和ID） |
+| `/战斗策略 <猛攻\|均衡\|防守>` / `/战术` | - | 设置战斗策略（默认均衡） |
 
 ### 功法系统
 
@@ -718,13 +831,24 @@ java -jar target/main-V1.4.1-beta1.jar
 | `/daily` / `/天象` | `game.player.info` | 查看今日天象与机缘 |
 | `/morning` / `/晨修` | `game.player.info` | 每日晨修（获取修炼加成） |
 
+### 农场系统
+
+| 指令 | 权限 | 说明 |
+|------|------|------|
+| `/farm` / `/种田` | `game.farm.view` | 查看农田状态 |
+| `/种田 种植 <地块> <种子>` | `game.farm.plant` | 在指定地块种植种子 |
+| `/种田 浇水 <地块>` | `game.farm.water` | 给指定地块浇水 |
+| `/种田 施肥 <地块>` | `game.farm.fertilize` | 给指定地块施肥（需要强化石） |
+| `/种田 收获 <地块>` | `game.farm.harvest` | 收获成熟作物 |
+| `/种田 清理 <地块>` | `game.farm.clear` | 清理已种植地块 |
+| `/种田 扩建` | `game.farm.expand` | 扩建农田（消耗金币） |
+| `/种田 种子` | `game.farm.view` | 查看可用种子列表 |
+
 ### 经济系统
 
 | 指令 | 权限 | 说明 |
 |------|------|------|
 | `/qd` / `/签到` | `game.economy.signin` | 每日签到（获得灵石） |
-| `/shop` / `/商店` | `game.economy.shop` | 查看商店商品 |
-| `/buy <物品> <数量>` / `/购买` | `game.economy.shop` | 购买商店物品 |
 | `/recycle <物品> <数量>` / `/回收` | `game.economy.recycle` | 回收物品获得灵石 |
 | `/bank` / `/灵庄` | `game.economy.bank` | 查看灵庄账户 |
 | `/bank deposit <数量>` / `/存钱` | `game.economy.bank` | 存入灵石 |
@@ -734,6 +858,12 @@ java -jar target/main-V1.4.1-beta1.jar
 | `/auction create <物品> <数量> <起始价>` / `/发布拍卖` | `game.economy.auction` | 发布竞拍 |
 | `/auction bid <拍卖ID> <价格>` / `/出价` | `game.economy.auction` | 出价竞拍 |
 | `/cultivate_boost` / `/修炼加速` | `game.economy.cultivate` | 消耗灵石加速修炼 |
+
+### 兑换码
+
+| 指令 | 权限 | 说明 |
+|------|------|------|
+| `/redeem <兑换码>` / `/兑换` | `game.redeem.code` | 使用兑换码领取奖励 |
 
 ### 称号系统
 
@@ -757,6 +887,8 @@ java -jar target/main-V1.4.1-beta1.jar
 |------|------|------|
 | `/cleardb_players` / `/清除玩家数据` | `admin.database.clear_players` | 清除所有玩家数据 |
 | `/cleardb_all` / `/重置全部数据` | `admin.database.reset_all` | 重置全部数据并重新初始化 |
+| `/发放 <玩家ID> 金币=<数量> 灵力=<数量> 灵石=<数量> [物品key]=<数量>` | `admin.status` | 给玩家发放物品/金币/灵力/灵石 |
+| `/发放 <玩家名> <物品Key> [数量]` | `admin.items.give` | 向指定玩家发放物品 |
 | `/能量管理 <玩家ID> 查看` | `admin.status` | 查看指定玩家能量值 |
 | `/能量管理 <玩家ID> 设置 <值>` | `admin.status` | 设置玩家能量值 |
 | `/能量管理 <玩家ID> 增加 <值>` | `admin.status` | 增加玩家能量值 |
@@ -934,6 +1066,66 @@ logging:
 - **晨修·紫气东来**：每日一次，获得经验+灵石，连续天数越多收益越高
 - **今日机缘**：游历3次 / PvP1次 / 秘境1次 / 学技能1次，完成后当场发放奖励
 - **灵根共鸣**：连续活跃 7 天 → 属性小幅提升；连续活跃 30 天 → 属性大幅提升
+
+---
+
+### 🌾 农场系统
+
+玩家拥有 4-12 块农田，可种植各类种子，通过浇水施肥提升产量。
+
+**农田规则**：
+
+| 参数 | 值 |
+|------|------|
+| 初始地块数 | 4 块 |
+| 最大地块数 | 12 块 |
+| 水分上限 | 100%（每秒消耗 1%） |
+| 肥力上限 | 100%（消耗强化石提升） |
+| 扩建费用 | 100 × 2^(当前地块数-4) 金币 |
+
+**作物列表**：
+
+| 种子 | 作物 | 生长时间 | 阶段 | 基础产量 | 最大产量 | 肥力加成 |
+|------|------|----------|------|----------|----------|----------|
+| 灵草种子 | 灵草 | 60秒 | 3 | 3 | 5 | 10% |
+| 暗冰草种子 | 暗冰草 | 90秒 | 4 | 2 | 4 | 12% |
+| 火焰藤种子 | 火焰藤 | 120秒 | 4 | 2 | 4 | 12% |
+| 千年人参种子 | 千年人参 | 180秒 | 5 | 1 | 3 | 15% |
+| 血灵芝种子 | 血灵芝 | 200秒 | 5 | 1 | 2 | 18% |
+| 幽冥花种子 | 幽冥花 | 240秒 | 5 | 1 | 3 | 20% |
+| 星辰草种子 | 星辰草 | 300秒 | 6 | 1 | 2 | 25% |
+| 天山雪莲种子 | 天山雪莲 | 420秒 | 7 | 1 | 2 | 30% |
+
+**产量计算**：
+- 水分加成：基础产量 × 水分百分比 × 0.5
+- 肥力加成：基础产量 × 肥力百分比 × 肥力加成率
+- 随机加成：0-2
+- 上限：最大产量
+
+**种子获取**：通过游历事件（SeedEvent）随机掉落，不同稀有度的种子有不同掉落概率。
+
+---
+
+### ✨ Buff 系统
+
+物品使用可获得临时属性加成，Buff 自动过期并扣除对应属性。
+
+**Buff 属性**：
+- 攻击加成（attackBonus）
+- 防御加成（defenseBonus）
+- 速度加成（speedBonus）
+- 灵力加成（spiritBonus）
+
+**机制说明**：
+- Buff 添加时立即增加玩家属性
+- Buff 过期时自动扣除对应属性
+- 支持叠加多个同类 Buff
+- 每秒检查过期 Buff
+- 服务器重启时自动重新加载未过期的 Buff
+
+**可用 Buff 物品**：
+- 力量增益丹（PowerBuffPill）：攻击+50，持续 300 秒
+- 灵力增益丹（SpiritBoostPill）：灵力+30，持续 300 秒
 
 ---
 
