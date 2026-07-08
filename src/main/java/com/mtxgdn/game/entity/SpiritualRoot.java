@@ -12,7 +12,7 @@ public enum SpiritualRoot {
 
     TRUE_FIVE_ELEMENTS("正·五行灵根", Tier.PERFECT, "天地间最完美的灵根，五元素100%亲和，万法皆通",
             0.25, 0.25, 0.25, 0.25, 0.25, 0.10,
-            SpecialEffect.FIVE_ELEMENTS_AFFINITY, 1.0),
+            SpecialEffect.FIVE_ELEMENTS_AFFINITY, 1.0, false),
 
     TAIYI_GOLDEN("太乙金灵根", Tier.HEAVENLY, "金系天灵根，锐金之气贯体，攻伐无双",
             0.15, 0, 0, 0.05, 0, 0,
@@ -123,11 +123,20 @@ public enum SpiritualRoot {
     private final double speedBonus;
     private final SpecialEffect effect;
     private final double effectValue;
+    private final boolean initializable;
 
     SpiritualRoot(String displayName, Tier tier, String description,
                   double attackBonus, double hpBonus, double mpBonus,
                   double spiritBonus, double defenseBonus, double speedBonus,
                   SpecialEffect effect, double effectValue) {
+        this(displayName, tier, description, attackBonus, hpBonus, mpBonus,
+                spiritBonus, defenseBonus, speedBonus, effect, effectValue, true);
+    }
+
+    SpiritualRoot(String displayName, Tier tier, String description,
+                  double attackBonus, double hpBonus, double mpBonus,
+                  double spiritBonus, double defenseBonus, double speedBonus,
+                  SpecialEffect effect, double effectValue, boolean initializable) {
         this.displayName = displayName;
         this.tier = tier;
         this.description = description;
@@ -139,7 +148,10 @@ public enum SpiritualRoot {
         this.speedBonus = speedBonus;
         this.effect = effect;
         this.effectValue = effectValue;
+        this.initializable = initializable;
     }
+
+    public boolean isInitializable() { return initializable; }
 
     public String getDisplayName() { return displayName; }
     public Tier getTier() { return tier; }
@@ -161,17 +173,29 @@ public enum SpiritualRoot {
     public int applySpeedBonus(int base) { return base + (int)(base * speedBonus); }
 
     public static SpiritualRoot drawRandom(Random random) {
-        if (totalWeight < 0) {
-            totalWeight = 0;
-            for (int w : WEIGHTS) totalWeight += w;
-        }
-        int roll = random.nextInt(totalWeight);
-        int cumulative = 0;
+        return drawRandom(random, false);
+    }
+
+    public static SpiritualRoot drawRandomForRecast(Random random) {
+        return drawRandom(random, true);
+    }
+
+    private static SpiritualRoot drawRandom(Random random, boolean allowNonInitializable) {
+        int effectiveWeight = 0;
         SpiritualRoot[] values = values();
         for (int i = 0; i < values.length; i++) {
-            cumulative += WEIGHTS[i];
-            if (roll < cumulative) {
-                return values[i];
+            if (allowNonInitializable || values[i].initializable) {
+                effectiveWeight += WEIGHTS[i];
+            }
+        }
+        int roll = random.nextInt(effectiveWeight);
+        int cumulative = 0;
+        for (int i = 0; i < values.length; i++) {
+            if (allowNonInitializable || values[i].initializable) {
+                cumulative += WEIGHTS[i];
+                if (roll < cumulative) {
+                    return values[i];
+                }
             }
         }
         return CHAOS_MIXED;
