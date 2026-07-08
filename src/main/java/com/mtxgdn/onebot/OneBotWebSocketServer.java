@@ -550,6 +550,20 @@ public class OneBotWebSocketServer extends WebSocketApplication
         }
     }
 
+    @Override
+    public void handleChangePassword(WebSocket socket, String selfId, String senderQq) {
+        QqBinding b = bindingService.findByQq(senderQq);
+        if (b == null) {
+            sendPrivateMsg(socket, selfId, senderQq, "你尚未绑定账号，请先 /绑定。");
+            return;
+        }
+        PendingSession session = new PendingSession("changePassword", null);
+        session.state = "WAITING_OLD_PASSWORD";
+        pendingSessions.put(senderQq, session);
+        sendPrivateMsg(socket, selfId, senderQq,
+                "===== 修改密码 =====\n请输入当前密码：\n(输入 /cancel 取消)");
+    }
+
     // ==================== Pending Flow ====================
 
     private void handlePendingFlow(WebSocket socket, String selfId, String senderQq,
@@ -565,6 +579,12 @@ public class OneBotWebSocketServer extends WebSocketApplication
                 session.state = "WAITING_PASSWORD";
                 sendPrivateMsg(socket, selfId, senderQq, "请输入密码：\n(输入 /cancel 取消)");
                 break;
+            case "WAITING_OLD_PASSWORD":
+                handleOldPasswordInput(socket, selfId, senderQq, session, message.trim());
+                break;
+            case "WAITING_NEW_PASSWORD":
+                handleNewPasswordInput(socket, selfId, senderQq, session, message.trim());
+                break;
             case "WAITING_PASSWORD":
                 String password = message.trim();
                 if (password.length() < 6) {
@@ -578,6 +598,48 @@ public class OneBotWebSocketServer extends WebSocketApplication
                 }
                 pendingSessions.remove(senderQq);
                 break;
+        }
+    }
+
+    private void handleOldPasswordInput(WebSocket socket, String selfId, String senderQq,
+                                         PendingSession session, String oldPassword) {
+        QqBinding b = bindingService.findByQq(senderQq);
+        if (b == null) {
+            pendingSessions.remove(senderQq);
+            sendPrivateMsg(socket, selfId, senderQq, "发生错误，请重新操作。");
+            return;
+        }
+        String username = getUsernameByUserId(b.getUserId());
+        Long userId = verifyUserCredentials(username, oldPassword);
+        if (userId == null) {
+            sendPrivateMsg(socket, selfId, senderQq, "当前密码错误，请重新输入：\n(输入 /cancel 取消)");
+            return;
+        }
+        session.state = "WAITING_NEW_PASSWORD";
+        sendPrivateMsg(socket, selfId, senderQq, "请输入新密码（不少于6位）：\n(输入 /cancel 取消)");
+    }
+
+    private void handleNewPasswordInput(WebSocket socket, String selfId, String senderQq,
+                                         PendingSession session, String newPassword) {
+        if (newPassword.length() < 6) {
+            sendPrivateMsg(socket, selfId, senderQq, "新密码不少于6位，请重新输入：\n(输入 /cancel 取消)");
+            return;
+        }
+        QqBinding b = bindingService.findByQq(senderQq);
+        if (b == null) {
+            pendingSessions.remove(senderQq);
+            sendPrivateMsg(socket, selfId, senderQq, "发生错误，请重新操作。");
+            return;
+        }
+        try {
+            String hashedPassword = BCrypt.hashpw(newPassword, BCrypt.gensalt());
+            updatePassword(b.getUserId(), hashedPassword);
+            pendingSessions.remove(senderQq);
+            sendPrivateMsg(socket, selfId, senderQq, "密码修改成功！");
+            actionLog.logSystem("用户 " + b.getUserId() + " 修改了密码");
+        } catch (RuntimeException e) {
+            pendingSessions.remove(senderQq);
+            sendPrivateMsg(socket, selfId, senderQq, "密码修改失败: " + e.getMessage());
         }
     }
 
@@ -700,6 +762,30 @@ public class OneBotWebSocketServer extends WebSocketApplication
             stmt.setLong(1, userId);
             stmt.executeUpdate();
         } catch (SQLException e) { throw new RuntimeException("删除用户失败", e); }
+    }
+
+    private String getUsernameByUserId(long userId) {
+        String sql = "SELECT username FROM users WHERE id = ?";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setLong(1, userId);
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) return rs.getString("username");
+            }
+        } catch (SQLException e) { log.error("查询用户名失败", e); }
+        return null;
+    }
+
+    private void updatePassword(long userId, String hashedPassword) {
+        String sql = "UPDATE users SET password = ? WHERE id = ?";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, hashedPassword);
+            stmt.setLong(2, userId);
+            if (stmt.executeUpdate() == 0) {
+                throw new RuntimeException("用户不存在");
+            }
+        } catch (SQLException e) { throw new RuntimeException("密码更新失败", e); }
     }
 
     // ==================== 黑名单自动禁言 ====================
