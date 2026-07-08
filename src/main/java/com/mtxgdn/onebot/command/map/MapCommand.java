@@ -1,6 +1,5 @@
 package com.mtxgdn.onebot.command.map;
 
-import com.mtxgdn.common.ExperimentalConfig;
 import com.mtxgdn.common.command.Command;
 import com.mtxgdn.common.command.CommandContext;
 import com.mtxgdn.game.entity.PlayerInfo;
@@ -24,10 +23,6 @@ public class MapCommand extends Command {
 
     @Override
     public void execute(CommandContext ctx) {
-        if (!ExperimentalConfig.isEnabled("map")) {
-            ctx.reply("地图系统尚未开放，管理员可将 config/experimental.yml 中 experimental.map 设为 true 启用");
-            return;
-        }
         Long userId = ctx.requireBinding();
         if (userId == null) return;
         PlayerInfo p = ctx.requirePlayer(userId);

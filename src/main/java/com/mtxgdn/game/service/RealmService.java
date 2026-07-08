@@ -227,6 +227,7 @@ public class RealmService {
     private double getSpiritualRootBonus(SpiritualRoot root, int currentRealm) {
         if (root == null) return 0;
         return switch (root.getTier()) {
+            case PERFECT -> 25.0;
             case HEAVENLY -> 15.0;
             case VARIANT -> 10.0;
             case DUAL -> 5.0;

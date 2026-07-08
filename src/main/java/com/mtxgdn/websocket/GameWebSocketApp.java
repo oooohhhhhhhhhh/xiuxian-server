@@ -1626,10 +1626,6 @@ public class GameWebSocketApp extends WebSocketApplication {
     }
 
     private void handleMapSurroundings(WebSocket socket, long msgId, Long userId) {
-        if (!ExperimentalConfig.isEnabled("map")) {
-            socket.send(GameMessage.error(msgId, "map_surroundings", 403, "地图系统尚未开放").toJson());
-            return;
-        }
         PlayerInfo player = playerService.getPlayerByUserId(userId);
         if (player == null) {
             socket.send(GameMessage.error(msgId, "map_surroundings", GameErrorCode.PLAYER_NOT_FOUND).toJson());
@@ -1668,10 +1664,6 @@ public class GameWebSocketApp extends WebSocketApplication {
     }
 
     private void handleMapTravel(WebSocket socket, long msgId, Long userId, JsonObject data) {
-        if (!ExperimentalConfig.isEnabled("map")) {
-            socket.send(GameMessage.error(msgId, "map_travel", 403, "地图系统尚未开放").toJson());
-            return;
-        }
         PlayerInfo player = playerService.getPlayerByUserId(userId);
         if (player == null) {
             socket.send(GameMessage.error(msgId, "map_travel", GameErrorCode.PLAYER_NOT_FOUND).toJson());
@@ -1696,10 +1688,6 @@ public class GameWebSocketApp extends WebSocketApplication {
     }
 
     private void handleMapLocations(WebSocket socket, long msgId) {
-        if (!ExperimentalConfig.isEnabled("map")) {
-            socket.send(GameMessage.error(msgId, "map_locations", 403, "地图系统尚未开放").toJson());
-            return;
-        }
         mapService.ensureInitialized();
         List<MapLocation> locations = mapService.getAllLocations();
         JsonArray arr = new JsonArray();

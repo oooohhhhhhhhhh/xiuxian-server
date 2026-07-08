@@ -556,11 +556,23 @@ public class PlayerService {
 
     public List<PlayerInfo> getTopByWealth(int limit) {
         String sql = """
-            SELECT p.*, COALESCE(SUM(CASE WHEN pi.item_key = 'spirit_stone' THEN pi.quantity ELSE 0 END), 0) AS spirit_stones
+            SELECT p.*, COALESCE(SUM(CASE
+                WHEN pi.item_key = 'mtxgdn:spirit_stone_low' THEN pi.quantity
+                WHEN pi.item_key = 'mtxgdn:spirit_stone_mid' THEN pi.quantity * 1000
+                WHEN pi.item_key = 'mtxgdn:spirit_stone_high' THEN pi.quantity * 1000000
+                WHEN pi.item_key = 'mtxgdn:spirit_stone_supreme' THEN pi.quantity * 1000000000
+                WHEN pi.item_key = 'mtxgdn:spirit_stone' THEN pi.quantity
+                ELSE 0 END), 0) AS spirit_stones
             FROM players p
             LEFT JOIN players_items pi ON p.id = pi.player_id
             GROUP BY p.id
-            ORDER BY (p.gold + COALESCE(SUM(CASE WHEN pi.item_key = 'spirit_stone' THEN pi.quantity ELSE 0 END), 0)) DESC
+            ORDER BY (p.gold + COALESCE(SUM(CASE
+                WHEN pi.item_key = 'mtxgdn:spirit_stone_low' THEN pi.quantity
+                WHEN pi.item_key = 'mtxgdn:spirit_stone_mid' THEN pi.quantity * 1000
+                WHEN pi.item_key = 'mtxgdn:spirit_stone_high' THEN pi.quantity * 1000000
+                WHEN pi.item_key = 'mtxgdn:spirit_stone_supreme' THEN pi.quantity * 1000000000
+                WHEN pi.item_key = 'mtxgdn:spirit_stone' THEN pi.quantity
+                ELSE 0 END), 0)) DESC
             LIMIT ?
             """;
         List<PlayerInfo> players = new ArrayList<>();

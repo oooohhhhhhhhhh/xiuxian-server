@@ -223,19 +223,251 @@ public class ItemService {
     // ==================== 灵石便捷方法 ====================
 
     public long getSpiritStoneCount(long playerId) {
-        return getItemCount(playerId, CurrencyEffect.SPIRIT_STONE_KEY);
+        return getTotalSpiritStonesInLowGrade(playerId);
+    }
+
+    public long getSpiritStoneCount(long playerId, int grade) {
+        String key = CurrencyEffect.getStoneKey(grade);
+        return getItemCount(playerId, key);
+    }
+
+    public long getTotalSpiritStonesInLowGrade(long playerId) {
+        long total = 0;
+        for (int i = 0; i < 4; i++) {
+            String key = CurrencyEffect.getStoneKey(i);
+            long count = getItemCount(playerId, key);
+            total += count * CurrencyEffect.getExchangeRate(i);
+        }
+        long oldCount = getItemCount(playerId, CurrencyEffect.SPIRIT_STONE_OLD_KEY);
+        total += oldCount;
+        return total;
     }
 
     public boolean removeSpiritStones(long playerId, long amount) {
-        return removeItem(playerId, CurrencyEffect.SPIRIT_STONE_KEY, amount);
+        return removeSpiritStonesFromAllGrades(playerId, amount);
+    }
+
+    public boolean removeSpiritStones(long playerId, long amount, int grade) {
+        String key = CurrencyEffect.getStoneKey(grade);
+        return removeItem(playerId, key, amount);
+    }
+
+    private boolean removeSpiritStonesFromAllGrades(long playerId, long amount) {
+        if (amount <= 0) return true;
+        long remaining = amount;
+
+        try (Connection conn = DatabaseManager.getConnection()) {
+            long oldCount = getItemCount(conn, playerId, CurrencyEffect.SPIRIT_STONE_OLD_KEY);
+            if (oldCount > 0) {
+                if (oldCount >= remaining) {
+                    removeItem(conn, playerId, CurrencyEffect.SPIRIT_STONE_OLD_KEY, remaining);
+                    return true;
+                } else {
+                    removeItem(conn, playerId, CurrencyEffect.SPIRIT_STONE_OLD_KEY, oldCount);
+                    remaining -= oldCount;
+                }
+            }
+
+            for (int i = 0; i < 4; i++) {
+                String key = CurrencyEffect.getStoneKey(i);
+                long rate = CurrencyEffect.getExchangeRate(i);
+                long count = getItemCount(conn, playerId, key);
+                long value = count * rate;
+
+                if (value >= remaining) {
+                    long toRemove = (remaining + rate - 1) / rate;
+                    removeItem(conn, playerId, key, toRemove);
+                    if (remaining % rate > 0 && i < 3) {
+                        addItem(conn, playerId, CurrencyEffect.getStoneKey(i + 1), remaining / rate);
+                    }
+                    return true;
+                } else {
+                    removeItem(conn, playerId, key, count);
+                    remaining -= value;
+                }
+            }
+            return false;
+        } catch (SQLException e) {
+            throw new RuntimeException("扣除灵石失败", e);
+        }
     }
 
     public boolean addSpiritStones(long playerId, long amount) {
-        return addItem(playerId, CurrencyEffect.SPIRIT_STONE_KEY, amount);
+        return addSpiritStonesAuto(playerId, amount);
+    }
+
+    public boolean addSpiritStones(long playerId, long amount, int grade) {
+        if (grade > 0) {
+            long limit = CurrencyEffect.MAX_HOLD_PER_GRADE[grade];
+            if (limit > 0 && getItemCount(playerId, CurrencyEffect.getStoneKey(grade)) + amount > limit) {
+                throw new RuntimeException("灵石持有已达上限");
+            }
+        }
+        // 非下品直接添加，不合并
+        String key = CurrencyEffect.getStoneKey(grade);
+        return addItem(playerId, key, amount);
     }
 
     public boolean addSpiritStones(Connection conn, long playerId, long amount) throws SQLException {
-        return addItem(conn, playerId, CurrencyEffect.SPIRIT_STONE_KEY, amount);
+        return addSpiritStonesAuto(conn, playerId, amount);
+    }
+
+    public boolean addSpiritStones(Connection conn, long playerId, long amount, int grade) throws SQLException {
+        if (grade > 0) {
+            long limit = CurrencyEffect.MAX_HOLD_PER_GRADE[grade];
+            if (limit > 0) {
+                long current = getItemCount(conn, playerId, CurrencyEffect.getStoneKey(grade));
+                if (current + amount > limit) {
+                    throw new SQLException("灵石持有已达上限");
+                }
+            }
+        }
+        String key = CurrencyEffect.getStoneKey(grade);
+        return addItem(conn, playerId, key, amount);
+    }
+
+    /**
+     * 以"下品灵石等值"发放灵石，自动按最优面额存入背包。
+     * 发放后触发自动合并，将低级灵石按阈值合并为高级灵石。
+     * 同时检查各等级硬上限，溢出部分留在本级不合并。
+     */
+    private boolean addSpiritStonesAuto(long playerId, long amount) {
+        try (Connection conn = DatabaseManager.getConnection()) {
+            addSpiritStonesAuto(conn, playerId, amount);
+            consolidateAll(conn, playerId);
+            return true;
+        } catch (SQLException e) {
+            throw new RuntimeException("发放灵石失败", e);
+        }
+    }
+
+    private boolean addSpiritStonesAuto(Connection conn, long playerId, long amount) throws SQLException {
+        if (amount <= 0) return true;
+
+        // 按面额从大到小分配，优先用高等级灵石，受硬上限约束
+        long remaining = amount;
+        for (int grade = 3; grade >= 0; grade--) {
+            long rate = CurrencyEffect.getExchangeRate(grade);
+            long maxHold = CurrencyEffect.MAX_HOLD_PER_GRADE[grade];
+            String key = CurrencyEffect.getStoneKey(grade);
+
+            long current = getItemCount(conn, playerId, key);
+            long canAdd = (maxHold > 0) ? Math.max(0, maxHold - current) : Long.MAX_VALUE;
+            long maxByLimit = canAdd * rate;
+
+            long useFromThis = Math.min(remaining / rate * rate, maxByLimit);
+            long countThis = useFromThis / rate;
+
+            if (countThis > 0) {
+                addItem(conn, playerId, key, countThis);
+                remaining -= countThis * rate;
+            }
+
+            if (remaining < rate) break;
+        }
+
+        // 剩余尾数用下品灵石补齐
+        if (remaining > 0) {
+            addItem(conn, playerId, CurrencyEffect.SPIRIT_STONE_LOW, remaining);
+        }
+
+        return true;
+    }
+
+    /**
+     * 将玩家背包中所有灵石按合并阈值向上一级压缩：
+     *   - 下品 ≥2000等值 → 合并为中品
+     *   - 中品 ≥2000000等值 → 合并为上品
+     *   - 上品 ≥2000000000等值 → 合并为极品
+     * 合并时受上级硬上限约束。
+     */
+    private void consolidateAll(Connection conn, long playerId) throws SQLException {
+        for (int grade = 0; grade < 3; grade++) {
+            long threshold = CurrencyEffect.CONSOLIDATE_THRESHOLD_LOW[grade];
+            if (threshold == 0) continue;
+
+            int nextGrade = grade + 1;
+            long rate = CurrencyEffect.getExchangeRate(nextGrade);
+            String lowerKey = CurrencyEffect.getStoneKey(grade);
+            String higherKey = CurrencyEffect.getStoneKey(nextGrade);
+
+            long lowerCount = getItemCount(conn, playerId, lowerKey);
+            long lowerValue = lowerCount * CurrencyEffect.getExchangeRate(grade);
+
+            if (lowerValue >= threshold) {
+                long maxUp = CurrencyEffect.MAX_HOLD_PER_GRADE[nextGrade];
+                long currentUp = getItemCount(conn, playerId, higherKey);
+                long canUp = (maxUp > 0) ? Math.max(0, maxUp - currentUp) : Long.MAX_VALUE;
+
+                long totalCanMergeValue = lowerValue / rate;
+                long actualToUpCount = Math.min(totalCanMergeValue, canUp);
+                long actualRemoveLower = actualToUpCount * rate / CurrencyEffect.getExchangeRate(grade);
+
+                if (actualToUpCount > 0 && actualRemoveLower > 0) {
+                    long realRemove = Math.min(actualRemoveLower, lowerCount);
+                    removeItem(conn, playerId, lowerKey, realRemove);
+                    addItem(conn, playerId, higherKey, actualToUpCount);
+                }
+            }
+        }
+    }
+
+    public Map<String, Object> exchangeSpiritStones(long playerId, int fromGrade, int toGrade, long amount) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        if (fromGrade < 0 || fromGrade > 3 || toGrade < 0 || toGrade > 3) {
+            result.put("success", false);
+            result.put("message", "无效的灵石等级");
+            return result;
+        }
+        if (fromGrade <= toGrade) {
+            result.put("success", false);
+            result.put("message", "只能将高等级灵石兑换为低等级灵石");
+            return result;
+        }
+        if (amount <= 0) {
+            result.put("success", false);
+            result.put("message", "兑换数量必须大于0");
+            return result;
+        }
+
+        String fromKey = CurrencyEffect.getStoneKey(fromGrade);
+        if (getItemCount(playerId, fromKey) < amount) {
+            result.put("success", false);
+            result.put("message", "灵石不足");
+            return result;
+        }
+
+        long rate = CurrencyEffect.getExchangeRate(fromGrade) / CurrencyEffect.getExchangeRate(toGrade);
+        long targetAmount = amount * rate;
+
+        return DatabaseManager.runTransaction(conn -> {
+            Map<String, Object> innerResult = new LinkedHashMap<>();
+            try {
+                removeItem(conn, playerId, fromKey, amount);
+                String toKey = CurrencyEffect.getStoneKey(toGrade);
+                addItem(conn, playerId, toKey, targetAmount);
+                innerResult.put("success", true);
+                innerResult.put("fromAmount", amount);
+                innerResult.put("fromGrade", fromGrade);
+                innerResult.put("toAmount", targetAmount);
+                innerResult.put("toGrade", toGrade);
+                innerResult.put("message", String.format("兑换成功！%d %s → %d %s",
+                        amount, getStoneName(fromGrade), targetAmount, getStoneName(toGrade)));
+            } catch (SQLException e) {
+                innerResult.put("success", false);
+                innerResult.put("message", "兑换失败: " + e.getMessage());
+            }
+            return innerResult;
+        });
+    }
+
+    private String getStoneName(int grade) {
+        return switch (grade) {
+            case 1 -> "中品灵石";
+            case 2 -> "上品灵石";
+            case 3 -> "极品灵石";
+            default -> "下品灵石";
+        };
     }
 
     // ==================== 装备系统 ====================

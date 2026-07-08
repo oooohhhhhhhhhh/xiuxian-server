@@ -1,6 +1,5 @@
 package com.mtxgdn.game.service;
 
-import com.mtxgdn.common.ExperimentalConfig;
 import com.mtxgdn.db.DatabaseManager;
 import com.mtxgdn.game.config.GameConfigLoader;
 import com.mtxgdn.game.entity.MapLocation;
@@ -195,15 +194,7 @@ public class MapService {
 
     // ==================== 移动 ====================
 
-    private Map<String, Object> disabledResult() {
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("success", false);
-        result.put("message", "地图系统尚未开放。管理员可将 config/experimental.yml 中 experimental.map 设为 true 启用");
-        return result;
-    }
-
     public Map<String, Object> travel(long playerId, long targetLocationId) {
-        if (!ExperimentalConfig.isEnabled("map")) return disabledResult();
         Map<String, Object> result = new LinkedHashMap<>();
         ensureInitialized();
 
@@ -285,12 +276,6 @@ public class MapService {
      * 查看当前位置及周围
      */
     public Map<String, Object> getPlayerSurroundings(long playerId) {
-        if (!ExperimentalConfig.isEnabled("map")) {
-            Map<String, Object> result = new LinkedHashMap<>();
-            result.put("success", false);
-            result.put("message", "地图系统尚未开放");
-            return result;
-        }
         Map<String, Object> result = new LinkedHashMap<>();
         ensureInitialized();
 

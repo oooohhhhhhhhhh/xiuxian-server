@@ -12,9 +12,6 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 
-/**
- * 经济总控服务：签到、回收、兑换、商店、灵石修炼加速、经济数据面板。
- */
 public class EconomyService {
 
     private final PlayerService playerService = new PlayerService();
@@ -22,15 +19,14 @@ public class EconomyService {
 
     // ==================== 签到系统 ====================
 
-    /** 7 天签到奖励（按稀有度和数量递进） */
     private static final String[][] SIGN_IN_REWARDS = {
-        {"灵石 x50", "mtxgdn:spirit_stone", "50"},
-        {"灵石 x80 + 灵草 x2", "mtxgdn:spirit_stone", "80", "mtxgdn:spirit_grass", "2"},
-        {"灵石 x120 + 铁矿石 x3", "mtxgdn:spirit_stone", "120", "mtxgdn:iron_ore", "3"},
-        {"灵石 x160 + 回血丹 x2", "mtxgdn:spirit_stone", "160", "mtxgdn:healing_pill", "2"},
-        {"灵石 x200 + 强化石 x1", "mtxgdn:spirit_stone", "200", "mtxgdn:enhance_stone", "1"},
-        {"灵石 x260 + 回蓝丹 x2", "mtxgdn:spirit_stone", "260", "mtxgdn:mana_pill", "2"},
-        {"灵石 x350 + 修炼丹 x1", "mtxgdn:spirit_stone", "350", "mtxgdn:cultivation_elixir", "1"},
+        {"下品灵石 x50", "mtxgdn:spirit_stone_low", "50"},
+        {"下品灵石 x80 + 灵草 x2", "mtxgdn:spirit_stone_low", "80", "mtxgdn:spirit_grass", "2"},
+        {"下品灵石 x120 + 铁矿石 x3", "mtxgdn:spirit_stone_low", "120", "mtxgdn:iron_ore", "3"},
+        {"下品灵石 x160 + 回血丹 x2", "mtxgdn:spirit_stone_low", "160", "mtxgdn:healing_pill", "2"},
+        {"下品灵石 x200 + 强化石 x1", "mtxgdn:spirit_stone_low", "200", "mtxgdn:enhance_stone", "1"},
+        {"下品灵石 x260 + 回蓝丹 x2", "mtxgdn:spirit_stone_low", "260", "mtxgdn:mana_pill", "2"},
+        {"下品灵石 x350 + 修炼丹 x1", "mtxgdn:spirit_stone_low", "350", "mtxgdn:cultivation_elixir", "1"},
     };
 
     public Map<String, Object> signIn(long playerId) {
@@ -60,7 +56,6 @@ public class EconomyService {
         }
 
         String[] reward = SIGN_IN_REWARDS[newStreak - 1];
-        // 奖励发放
         for (int i = 1; i < reward.length; i += 2) {
             String itemKey = reward[i];
             int qty = Integer.parseInt(reward[i + 1]);
@@ -83,7 +78,6 @@ public class EconomyService {
 
     // ==================== 物品回收 ====================
 
-    /** 回收价为基础价的 30% */
     private static final double RECYCLE_RATE = 0.30;
 
     public Map<String, Object> recycleItem(long playerId, String itemKey, int quantity) {
@@ -93,7 +87,7 @@ public class EconomyService {
         if (item == null) { result.put("success", false); result.put("message", "物品不存在"); return result; }
 
         String fullKey = item.getFullKey();
-        if (fullKey.equals("mtxgdn:spirit_stone")) {
+        if (fullKey.startsWith("mtxgdn:spirit_stone")) {
             result.put("success", false); result.put("message", "灵石本身就是货币，无需回收"); return result;
         }
         if (!item.isTradeable()) {
@@ -115,13 +109,12 @@ public class EconomyService {
         result.put("success", true);
         result.put("recycled", item.getName() + " x" + quantity);
         result.put("stonesGained", recycleValue);
-        result.put("message", "回收了【" + item.getName() + "】x" + quantity + "，获得 " + recycleValue + " 灵石");
+        result.put("message", "回收了【" + item.getName() + "】x" + quantity + "，获得 " + recycleValue + " 下品灵石");
         return result;
     }
 
     // ==================== 商店 ====================
 
-    /** 商店商品：name, itemKey, price(灵石), description */
     private static final String[][] SHOP_ITEMS = {
         {"回血丹", "mtxgdn:healing_pill", "30", "恢复 50 生命值"},
         {"回蓝丹", "mtxgdn:mana_pill", "25", "恢复 30 法力值"},
@@ -155,7 +148,7 @@ public class EconomyService {
         long stones = itemService.getSpiritStoneCount(playerId);
         if (stones < price) {
             result.put("success", false);
-            result.put("message", "灵石不足，需要 " + price + " 灵石（当前: " + stones + "）");
+            result.put("message", "灵石不足，需要 " + price + " 下品灵石（当前: " + stones + "）");
             return result;
         }
 
@@ -165,7 +158,7 @@ public class EconomyService {
         result.put("success", true);
         result.put("item", item != null ? item.getName() : itemKey);
         result.put("cost", price);
-        result.put("message", "花费 " + price + " 灵石，购得【" + (item != null ? item.getName() : itemKey) + "】");
+        result.put("message", "花费 " + price + " 下品灵石，购得【" + (item != null ? item.getName() : itemKey) + "】");
         return result;
     }
 
@@ -173,7 +166,6 @@ public class EconomyService {
 
     // ==================== 灵石修炼加速 ====================
 
-    /** 每 100 灵石 = 1 小时 ×1.5 倍修炼效率 */
     private static final int STONES_PER_BOOST = 100;
     private static final double BOOST_MULTIPLIER = 1.5;
 
@@ -186,7 +178,7 @@ public class EconomyService {
             result.put("success", false); result.put("message", "请先开始修炼（/修炼），才能使用灵石加速"); return result;
         }
         if (stonesToBurn < STONES_PER_BOOST) {
-            result.put("success", false); result.put("message", "至少需要 " + STONES_PER_BOOST + " 灵石才能加速修炼"); return result;
+            result.put("success", false); result.put("message", "至少需要 " + STONES_PER_BOOST + " 下品灵石才能加速修炼"); return result;
         }
 
         long currentStones = itemService.getSpiritStoneCount(playerId);
@@ -199,7 +191,6 @@ public class EconomyService {
 
         itemService.removeSpiritStones(playerId, stonesToBurn);
 
-        // 直接结算加速经验：按玩家境界计算 boostHours 时间的修炼收益，叠 1.5 倍
         int realmId = player.getRealm();
         double cultivPerSecond = com.mtxgdn.game.config.GameConfigLoader.getCultivationPerSecond(realmId);
         long boostSeconds = (long) boostHours * 3600L;
@@ -212,14 +203,14 @@ public class EconomyService {
         result.put("stonesSpent", stonesToBurn);
         result.put("boostHours", boostHours);
         result.put("bonusExp", bonusExp);
-        result.put("message", "你燃烧 " + stonesToBurn + " 灵石化作灵气洪流！\n修炼加速 " + boostHours + " 小时（×" + BOOST_MULTIPLIER + "）\n额外获得 " + bonusExp + " 经验");
+        result.put("message", "你燃烧 " + stonesToBurn + " 下品灵石化作灵气洪流！\n修炼加速 " + boostHours + " 小时（×" + BOOST_MULTIPLIER + "）\n额外获得 " + bonusExp + " 经验");
         return result;
     }
 
     // ==================== 金币灵石互通 ====================
 
-    private static final long GOLD_TO_STONE_RATE = 10;   // 10 金币 = 1 灵石
-    private static final long STONE_TO_GOLD_RATE = 5;     // 1 灵石 = 5 金币
+    private static final long GOLD_TO_STONE_RATE = 10;
+    private static final long STONE_TO_GOLD_RATE = 5;
 
     public Map<String, Object> exchangeGoldToStones(long playerId, long goldAmount) {
         Map<String, Object> result = new LinkedHashMap<>();
@@ -239,7 +230,7 @@ public class EconomyService {
         result.put("success", true);
         result.put("goldSpent", goldAmount);
         result.put("stonesGained", stones);
-        result.put("message", "兑换成功！" + goldAmount + " 金币 → " + stones + " 灵石");
+        result.put("message", "兑换成功！" + goldAmount + " 金币 → " + stones + " 下品灵石");
         return result;
     }
 
@@ -247,7 +238,7 @@ public class EconomyService {
         Map<String, Object> result = new LinkedHashMap<>();
         long currentStones = itemService.getSpiritStoneCount(playerId);
         if (stoneAmount < 1) {
-            result.put("success", false); result.put("message", "至少需要 1 灵石才能兑换金币"); return result;
+            result.put("success", false); result.put("message", "至少需要 1 下品灵石才能兑换金币"); return result;
         }
         if (currentStones < stoneAmount) {
             result.put("success", false); result.put("message", "灵石不足，需要 " + stoneAmount + "（当前: " + currentStones + "）"); return result;
@@ -260,26 +251,20 @@ public class EconomyService {
         result.put("success", true);
         result.put("stonesSpent", stoneAmount);
         result.put("goldGained", gold);
-        result.put("message", "兑换成功！" + stoneAmount + " 灵石 → " + gold + " 金币");
+        result.put("message", "兑换成功！" + stoneAmount + " 下品灵石 → " + gold + " 金币");
         return result;
     }
 
     // ==================== 灵庄 ====================
 
-    /** 定期利率表: 天数 → {名称, 总利率%} */
     private static final Object[][] FIXED_DEPOSIT_PLANS = {
-        {7, "七日期", 3},    // 7天 3%
-        {30, "月满期", 10},   // 30天 10%
-        {90, "季定期", 25},   // 90天 25%
+        {7, "七日期", 3},
+        {30, "月满期", 10},
+        {90, "季定期", 25},
     };
 
-    /** 活期日利率 0.5% */
     private static final double CURRENT_DAILY_RATE = 0.005;
 
-    /**
-     * 存入灵庄。
-     * @param type "current"=活期, "fixed_7"/"fixed_30"/"fixed_90"=定期
-     */
     public Map<String, Object> bankDeposit(long playerId, String type, long amount) {
         Map<String, Object> result = new LinkedHashMap<>();
         Player player = playerService.getPlayerById(playerId);
@@ -289,7 +274,7 @@ public class EconomyService {
         if (currentStones < amount) {
             result.put("success", false); result.put("message", "灵石不足，需要 " + amount + "，当前仅有 " + currentStones); return result;
         }
-        if (amount < 100) { result.put("success", false); result.put("message", "灵庄起存 100 灵石"); return result; }
+        if (amount < 100) { result.put("success", false); result.put("message", "灵庄起存 100 下品灵石"); return result; }
 
         double rate;
         int days = 0;
@@ -316,7 +301,7 @@ public class EconomyService {
 
         try {
             DatabaseManager.runTransaction(conn -> {
-                itemService.removeItem(conn, playerId, com.mtxgdn.game.item.CurrencyEffect.SPIRIT_STONE_KEY, amount);
+                itemService.removeItem(conn, playerId, com.mtxgdn.game.item.CurrencyEffect.SPIRIT_STONE_LOW, amount);
 
                 String sql = "INSERT INTO player_bank (player_id, deposit_type, principal, rate, deposited_at, matures_at) VALUES (?, ?, ?, ?, ?, ?)";
                 try (PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -336,19 +321,16 @@ public class EconomyService {
 
         result.put("success", true);
         if ("current".equals(type)) {
-            result.put("message", "已将 " + amount + " 灵石存入灵庄（活期，日利 " + String.format("%.1f", rate * 100) + "%）。随时可取，利息按日结算。");
+            result.put("message", "已将 " + amount + " 下品灵石存入灵庄（活期，日利 " + String.format("%.1f", rate * 100) + "%）。随时可取，利息按日结算。");
         } else {
             long expectedInterest = (long)(amount * rate);
-            result.put("message", "已将 " + amount + " 灵石存入灵庄【" + typeName + "】（" + days + "天，到期利息 " + expectedInterest + " 灵石）。到期前取出将损失全部利息！");
+            result.put("message", "已将 " + amount + " 下品灵石存入灵庄【" + typeName + "】（" + days + "天，到期利息 " + expectedInterest + " 下品灵石）。到期前取出将损失全部利息！");
         }
         result.put("principal", amount);
         result.put("depositType", type);
         return result;
     }
 
-    /**
-     * 从灵庄取款（含利息结算）。
-     */
     public Map<String, Object> bankWithdraw(long playerId, long depositId) {
         Map<String, Object> result = new LinkedHashMap<>();
 
@@ -365,13 +347,11 @@ public class EconomyService {
         String note = "";
 
         if (isCurrent) {
-            // 活期：按天数算复利
             long now = System.currentTimeMillis();
             long elapsedMs = now - dep.depositedAt;
             int elapsedDays = (int)(elapsedMs / 86400000L);
             interest = Math.max(0, (long)(dep.principal * Math.pow(1 + dep.rate, elapsedDays) - dep.principal));
         } else {
-            // 定期：到期才有利息，提前取出无利息
             long now = System.currentTimeMillis();
             if (dep.maturesAt > 0 && now >= dep.maturesAt) {
                 interest = (long)(dep.principal * dep.rate);
@@ -385,7 +365,7 @@ public class EconomyService {
         try {
             DatabaseManager.runTransaction(conn -> {
                 markBankDepositDone(conn, depositId, interest);
-                itemService.addItem(conn, playerId, com.mtxgdn.game.item.CurrencyEffect.SPIRIT_STONE_KEY, dep.principal + interest);
+                itemService.addItem(conn, playerId, com.mtxgdn.game.item.CurrencyEffect.SPIRIT_STONE_LOW, dep.principal + interest);
                 return null;
             });
         } catch (Exception e) {
@@ -396,11 +376,10 @@ public class EconomyService {
         result.put("principal", dep.principal);
         result.put("interest", interest);
         result.put("total", dep.principal + interest);
-        result.put("message", "灵庄取款成功！本金 " + dep.principal + "+ 利息 " + interest + " = 共 " + (dep.principal + interest) + " 灵石" + note);
+        result.put("message", "灵庄取款成功！本金 " + dep.principal + "+ 利息 " + interest + " = 共 " + (dep.principal + interest) + " 下品灵石" + note);
         return result;
     }
 
-    /** 查看灵庄账户 */
     public Map<String, Object> getBankInfo(long playerId) {
         Map<String, Object> result = new LinkedHashMap<>();
         List<Map<String, Object>> deposits = new ArrayList<>();
@@ -511,10 +490,9 @@ public class EconomyService {
     public Map<String, Object> getEconomyStats() {
         Map<String, Object> stats = new LinkedHashMap<>();
 
-        String totalStonesSql = "SELECT COALESCE(SUM(quantity), 0) FROM players_items WHERE item_key = 'mtxgdn:spirit_stone'";
+        String totalStonesSql = "SELECT COALESCE(SUM(CASE WHEN item_key = 'mtxgdn:spirit_stone_low' THEN quantity WHEN item_key = 'mtxgdn:spirit_stone_mid' THEN quantity * 1000 WHEN item_key = 'mtxgdn:spirit_stone_high' THEN quantity * 1000000 WHEN item_key = 'mtxgdn:spirit_stone_supreme' THEN quantity * 1000000000 WHEN item_key = 'mtxgdn:spirit_stone' THEN quantity ELSE 0 END), 0) FROM players_items WHERE item_key LIKE 'mtxgdn:spirit_stone%'";
         String totalGoldSql = "SELECT COALESCE(SUM(gold), 0) FROM players";
         String totalPlayersSql = "SELECT COUNT(*) FROM players";
-        String avgStonesSql = "SELECT COALESCE(AVG(s.quantity), 0) FROM (SELECT COALESCE(SUM(quantity), 0) AS quantity FROM players_items WHERE item_key = 'mtxgdn:spirit_stone' GROUP BY player_id) s";
 
         try (Connection conn = DatabaseManager.getConnection()) {
             try (PreparedStatement ps = conn.prepareStatement(totalStonesSql); ResultSet rs = ps.executeQuery()) {
@@ -526,11 +504,7 @@ public class EconomyService {
             try (PreparedStatement ps = conn.prepareStatement(totalPlayersSql); ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) stats.put("totalPlayers", rs.getInt(1));
             }
-            try (PreparedStatement ps = conn.prepareStatement(avgStonesSql); ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) stats.put("avgStonesPerPlayer", Math.round(rs.getDouble(1)));
-            }
 
-            // 24h 内灵石变化（粗略估算：从player_action_logs取）
             stats.put("last24hTradeVolume", estimate24hVolume(conn));
         } catch (Exception e) {
             stats.put("error", e.getMessage());
@@ -548,9 +522,8 @@ public class EconomyService {
         return 0;
     }
 
-    // ==================== DB helpers ====================
+    // ==================== 竞拍行 ====================
 
-    /** 竞拍行 — 创建拍卖 */
     public Map<String, Object> createAuction(long playerId, String itemKey, int quantity, long startPrice, int hours) {
         Map<String, Object> result = new LinkedHashMap<>();
         var item = com.mtxgdn.game.item.ItemRegistry.resolve(itemKey);
@@ -581,11 +554,10 @@ public class EconomyService {
         }
 
         result.put("success", true);
-        result.put("message", "已将【" + item.getName() + "】×" + quantity + " 上架竞拍行，起拍价 " + startPrice + " 灵石，" + realHours + " 小时后截止");
+        result.put("message", "已将【" + item.getName() + "】×" + quantity + " 上架竞拍行，起拍价 " + startPrice + " 下品灵石，" + realHours + " 小时后截止");
         return result;
     }
 
-    /** 竞拍行 — 出价 */
     public Map<String, Object> placeBid(long bidderPlayerId, long listingId, long amount) {
         Map<String, Object> result = new LinkedHashMap<>();
 
@@ -603,17 +575,14 @@ public class EconomyService {
 
         try {
             DatabaseManager.runTransaction(conn -> {
-                // 退还前一个出价人
                 if (listing.currentBidderId != null && listing.currentBid != null) {
                     itemService.addSpiritStones(conn, listing.currentBidderId, listing.currentBid);
                 }
 
-                // 扣除当前出价人灵石
-                if (!itemService.removeItem(conn, bidderPlayerId, com.mtxgdn.game.item.CurrencyEffect.SPIRIT_STONE_KEY, amount)) {
+                if (!itemService.removeItem(conn, bidderPlayerId, com.mtxgdn.game.item.CurrencyEffect.SPIRIT_STONE_LOW, amount)) {
                     throw new SQLException("灵石扣除失败");
                 }
 
-                // 记录出价
                 String bidSql = "INSERT INTO auction_bids (listing_id, bidder_player_id, amount) VALUES (?, ?, ?)";
                 try (PreparedStatement ps = conn.prepareStatement(bidSql)) {
                     ps.setLong(1, listingId);
@@ -621,7 +590,6 @@ public class EconomyService {
                     ps.setLong(3, amount);
                     ps.executeUpdate();
                 }
-                // 更新当前出价
                 String updSql = "UPDATE auction_listings SET current_bid = ?, current_bidder_id = ? WHERE id = ?";
                 try (PreparedStatement ps = conn.prepareStatement(updSql)) {
                     ps.setLong(1, amount);
@@ -638,13 +606,12 @@ public class EconomyService {
         }
 
         result.put("success", true);
-        result.put("message", "出价成功！以 " + amount + " 灵石竞拍 #" + listingId);
+        result.put("message", "出价成功！以 " + amount + " 下品灵石竞拍 #" + listingId);
         return result;
     }
 
     public List<Map<String, Object>> getActiveAuctionItems() {
         List<Map<String, Object>> result = new ArrayList<>();
-        // 先结算过期的
         settleExpiredAuctions();
         String sql = "SELECT * FROM auction_listings WHERE status = 'active' ORDER BY created_at DESC";
         try (Connection conn = DatabaseManager.getConnection();
@@ -696,7 +663,7 @@ public class EconomyService {
             long now = System.currentTimeMillis();
             while (rs.next()) {
                 java.sql.Timestamp endTime = rs.getTimestamp("end_time");
-                if (endTime != null && endTime.getTime() > now) continue; // 未过期
+                if (endTime != null && endTime.getTime() > now) continue;
                 long listingId = rs.getLong("id");
                 long sellerId = rs.getLong("seller_player_id");
                 String itemKey = rs.getString("item_key");
@@ -705,12 +672,11 @@ public class EconomyService {
                 Long bidderId = rs.getObject("current_bidder_id") != null ? rs.getLong("current_bidder_id") : null;
                 double feeRate = rs.getDouble("fee_rate");
 
-                // 原子标记为已结算，防止并发重复结算
                 try (PreparedStatement claimPs = conn.prepareStatement(
                         "UPDATE auction_listings SET status = 'ended' WHERE id = ? AND status = 'active'")) {
                     claimPs.setLong(1, listingId);
                     int claimed = claimPs.executeUpdate();
-                    if (claimed == 0) continue; // 已被其他线程结算
+                    if (claimed == 0) continue;
                 }
 
                 if (bidderId != null && currentBid > 0) {
@@ -718,7 +684,6 @@ public class EconomyService {
                     itemService.addSpiritStones(sellerId, currentBid - fee);
                     itemService.addItem(bidderId, itemKey, qty);
                 } else {
-                    // 无人出价，退回物品
                     itemService.addItem(sellerId, itemKey, qty);
                 }
             }

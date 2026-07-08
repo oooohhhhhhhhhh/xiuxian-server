@@ -1839,8 +1839,6 @@ public class GameResource {
     @Produces(MediaType.APPLICATION_JSON)
     @RequirePermission("game.player.info")
     public Response getMapSurroundings() {
-        if (!ExperimentalConfig.isEnabled("map"))
-            return Response.ok(GameMessage.restError(403, "地图系统尚未开放").toString()).build();
         Long userId = getCurrentUserId();
         int playerId = getPlayerIdByUserId(userId);
         Map<String, Object> result = mapService.getPlayerSurroundings(playerId);
@@ -1852,8 +1850,6 @@ public class GameResource {
     @Produces(MediaType.APPLICATION_JSON)
     @RequirePermission("game.player.info")
     public Response travelTo(@PathParam("locationId") long locationId) {
-        if (!ExperimentalConfig.isEnabled("map"))
-            return Response.ok(GameMessage.restError(403, "地图系统尚未开放").toString()).build();
         Long userId = getCurrentUserId();
         int playerId = getPlayerIdByUserId(userId);
         Map<String, Object> result = mapService.travel(playerId, locationId);
@@ -1868,8 +1864,6 @@ public class GameResource {
     @Produces(MediaType.APPLICATION_JSON)
     @RequirePermission("game.player.info")
     public Response getMapLocations() {
-        if (!ExperimentalConfig.isEnabled("map"))
-            return Response.ok(GameMessage.restError(403, "地图系统尚未开放").toString()).build();
         mapService.ensureInitialized();
         List<MapLocation> locations = mapService.getAllLocations();
         JsonArray arr = new JsonArray();

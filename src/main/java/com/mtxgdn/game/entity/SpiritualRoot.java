@@ -6,6 +6,10 @@ import java.util.Random;
 
 public enum SpiritualRoot {
 
+    TRUE_FIVE_ELEMENTS("正·五行灵根", Tier.PERFECT, "天地间最完美的灵根，五元素100%亲和，万法皆通",
+            0.25, 0.25, 0.25, 0.25, 0.25, 0.10,
+            SpecialEffect.FIVE_ELEMENTS_AFFINITY, 1.0),
+
     TAIYI_GOLDEN("太乙金灵根", Tier.HEAVENLY, "金系天灵根，锐金之气贯体，攻伐无双",
             0.15, 0, 0, 0.05, 0, 0,
             SpecialEffect.CRIT_CHANCE, 0.05),
@@ -58,6 +62,7 @@ public enum SpiritualRoot {
             SpecialEffect.LATE_BLOOMER, 0.05);
 
     public enum Tier {
+        PERFECT("正灵根"),
         HEAVENLY("天灵根"),
         VARIANT("异灵根"),
         DUAL("双灵根"),
@@ -85,10 +90,12 @@ public enum SpiritualRoot {
         TRADE_FEE_HALF,
         SPIRIT_STONE_DROP,
         PROFICIENCY_BOOST,
-        LATE_BLOOMER
+        LATE_BLOOMER,
+        FIVE_ELEMENTS_AFFINITY
     }
 
     private static final int[] WEIGHTS = {
+        1,
         3, 3, 3, 3, 3,
         5, 5, 5,
         10, 10, 10,
