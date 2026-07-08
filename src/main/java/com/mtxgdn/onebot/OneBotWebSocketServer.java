@@ -564,6 +564,20 @@ public class OneBotWebSocketServer extends WebSocketApplication
                 "===== 修改密码 =====\n请输入当前密码：\n(输入 /cancel 取消)");
     }
 
+    @Override
+    public void handleDeleteAccount(WebSocket socket, String selfId, String senderQq) {
+        QqBinding b = bindingService.findByQq(senderQq);
+        if (b == null) {
+            sendPrivateMsg(socket, selfId, senderQq, "你尚未绑定账号，请先 /绑定。");
+            return;
+        }
+        PendingSession session = new PendingSession("deleteAccount", null);
+        session.state = "WAITING_DELETE_CONFIRM";
+        pendingSessions.put(senderQq, session);
+        sendPrivateMsg(socket, selfId, senderQq,
+                "===== 注销账号 =====\n⚠ 此操作不可逆！\n注销后将删除你的角色、物品、灵石等全部数据！\n\n请输入账号密码确认注销：\n(输入 /cancel 取消)");
+    }
+
     // ==================== Pending Flow ====================
 
     private void handlePendingFlow(WebSocket socket, String selfId, String senderQq,
@@ -584,6 +598,9 @@ public class OneBotWebSocketServer extends WebSocketApplication
                 break;
             case "WAITING_NEW_PASSWORD":
                 handleNewPasswordInput(socket, selfId, senderQq, session, message.trim());
+                break;
+            case "WAITING_DELETE_CONFIRM":
+                handleDeleteConfirm(socket, selfId, senderQq, session, message.trim());
                 break;
             case "WAITING_PASSWORD":
                 String password = message.trim();
@@ -636,10 +653,43 @@ public class OneBotWebSocketServer extends WebSocketApplication
             updatePassword(b.getUserId(), hashedPassword);
             pendingSessions.remove(senderQq);
             sendPrivateMsg(socket, selfId, senderQq, "密码修改成功！");
-            actionLog.logSystem("用户 " + b.getUserId() + " 修改了密码");
+            actionLog.logCustom(b.getUserId(), "系统", "修改密码", "成功");
         } catch (RuntimeException e) {
             pendingSessions.remove(senderQq);
             sendPrivateMsg(socket, selfId, senderQq, "密码修改失败: " + e.getMessage());
+        }
+    }
+
+    private void handleDeleteConfirm(WebSocket socket, String selfId, String senderQq,
+                                      PendingSession session, String password) {
+        QqBinding b = bindingService.findByQq(senderQq);
+        if (b == null) {
+            pendingSessions.remove(senderQq);
+            sendPrivateMsg(socket, selfId, senderQq, "发生错误，请重新操作。");
+            return;
+        }
+        String username = getUsernameByUserId(b.getUserId());
+        Long userId = verifyUserCredentials(username, password);
+        if (userId == null) {
+            sendPrivateMsg(socket, selfId, senderQq, "密码错误，请重新输入：\n(输入 /cancel 取消)");
+            return;
+        }
+        try {
+            // 删除玩家数据
+            PlayerInfo player = ServiceRegistry.getPlayerService().getPlayerByUserId(userId);
+            if (player != null) {
+                ServiceRegistry.getPlayerService().deletePlayer(player.getId());
+                actionLog.logCustom(userId, username, "注销账号", "角色数据已删除");
+            }
+            // 解绑QQ
+            bindingService.unbindByQq(senderQq);
+            // 删除用户账号
+            deleteUser(userId);
+            pendingSessions.remove(senderQq);
+            sendPrivateMsg(socket, selfId, senderQq, "账号已注销。感谢您的陪伴，修仙之路后会有期！");
+        } catch (RuntimeException e) {
+            pendingSessions.remove(senderQq);
+            sendPrivateMsg(socket, selfId, senderQq, "注销失败: " + e.getMessage());
         }
     }
 

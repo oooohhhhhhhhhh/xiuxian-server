@@ -11,4 +11,6 @@ public interface OneBotAccountFlow {
     void handleUnbind(WebSocket socket, String selfId, String senderQq);
 
     void handleChangePassword(WebSocket socket, String selfId, String senderQq);
+
+    void handleDeleteAccount(WebSocket socket, String selfId, String senderQq);
 }
