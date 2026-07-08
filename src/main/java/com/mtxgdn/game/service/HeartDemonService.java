@@ -45,6 +45,7 @@ public class HeartDemonService {
         double rootResist = 0;
         if (root != null) {
             rootResist = switch (root.getTier()) {
+                case PRIMORDIAL -> 8.0;
                 case PERFECT -> 6.0;
                 case VARIANT -> 4.0;
                 case HEAVENLY -> 3.0;
