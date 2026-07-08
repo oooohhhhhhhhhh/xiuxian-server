@@ -7,7 +7,7 @@ import com.mtxgdn.common.service.ServiceRegistry;
 import java.util.List;
 
 public class RankCommand extends Command {
-    public RankCommand() { super(new String[]{"rank", "排行", "rank2", "排行榜"}, "查看排行榜", "/排行榜 [power|wealth]", "社交", "game.rank.view"); }
+    public RankCommand() { super(new String[]{"排行", "排行榜", "rank", "rank2"}, "查看排行榜", "/排行榜 [power|wealth]", "社交", "game.rank.view"); }
     @Override
     public void execute(CommandContext ctx) {
         Long userId = ctx.requireBinding(); if (userId == null) return;

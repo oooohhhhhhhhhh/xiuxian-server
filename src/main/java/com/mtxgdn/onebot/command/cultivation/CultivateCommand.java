@@ -16,7 +16,7 @@ public class CultivateCommand extends Command {
     private final Map<Long, Long> cultivateStartTimes = new ConcurrentHashMap<>();
 
     public CultivateCommand() {
-        super(new String[]{"cultivate", "修炼", "闭关"},
+        super(new String[]{"修炼", "闭关", "cultivate"},
                 "开始闭关修炼",
                 "/修炼",
                 "修炼",

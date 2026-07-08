@@ -11,7 +11,7 @@ import com.mtxgdn.util.PlayerActionLogger;
 public class BreakthroughCommand extends Command {
 
     public BreakthroughCommand() {
-        super(new String[]{"breakthrough", "突破"},
+        super(new String[]{"突破", "breakthrough"},
                 "突破当前境界",
                 "/突破",
                 "修炼",

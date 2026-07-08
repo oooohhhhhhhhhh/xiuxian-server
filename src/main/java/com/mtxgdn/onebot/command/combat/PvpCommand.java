@@ -16,7 +16,7 @@ public class PvpCommand extends Command {
     private static final QqBindingService bindingService = new QqBindingService();
 
     public PvpCommand() {
-        super(new String[]{"pvp", "挑战"}, "挑战其他修士", "/挑战 <角色名>\n/接受 — 接受正在进行的切磋\n/拒绝 — 拒绝切磋", "战斗", "game.pvp.challenge");
+        super(new String[]{"挑战", "pvp"}, "挑战其他修士", "/挑战 <角色名>\n/接受 — 接受正在进行的切磋\n/拒绝 — 拒绝切磋", "战斗", "game.pvp.challenge");
 
         registerSub("接受", (ctx, p, parts) -> {
             var combatService = ServiceRegistry.getCombatService();

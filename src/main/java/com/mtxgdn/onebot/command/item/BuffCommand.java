@@ -11,7 +11,7 @@ import java.util.Map;
 
 public class BuffCommand extends Command {
     public BuffCommand() {
-        super(new String[]{"buff", "状态", "增益"}, "查看当前增益状态", "/状态", "实用功能", null);
+        super(new String[]{"增益", "buff", "状态"}, "查看当前增益状态", "/增益", "实用功能", null);
     }
 
     @Override

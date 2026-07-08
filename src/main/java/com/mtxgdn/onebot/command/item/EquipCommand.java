@@ -7,7 +7,7 @@ import com.mtxgdn.common.service.ServiceRegistry;
 
 public class EquipCommand extends Command {
     public EquipCommand() {
-        super(new String[]{"equip", "装备"}, "穿戴装备到指定部位", "/装备 <物品key> <部位>", "背包", "game.equipment.equip");
+        super(new String[]{"装备", "equip"}, "穿戴装备到指定部位", "/装备 <物品key> <部位>", "背包", "game.equipment.equip");
     }
     @Override
     public void execute(CommandContext ctx) {

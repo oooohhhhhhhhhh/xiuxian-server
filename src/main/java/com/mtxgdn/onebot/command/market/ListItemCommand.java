@@ -7,7 +7,7 @@ import com.mtxgdn.common.service.ServiceRegistry;
 import java.util.Map;
 
 public class ListItemCommand extends Command {
-    public ListItemCommand() { super(new String[]{"list", "上架"}, "将物品上架坊市", "/上架 <物品key> <数量> <灵石价格>", "坊市", "game.player.info"); }
+    public ListItemCommand() { super(new String[]{"上架", "list"}, "将物品上架坊市", "/上架 <物品key> <数量> <灵石价格>", "坊市", "game.player.info"); }
     @Override
     public void execute(CommandContext ctx) {
         Long userId = ctx.requireBinding();

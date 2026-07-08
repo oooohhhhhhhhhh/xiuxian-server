@@ -12,7 +12,7 @@ public class PlayerSearchCommand extends Command {
     private static final int MAX_RESULTS = 10;
 
     public PlayerSearchCommand() {
-        super(new String[]{"查人", "search", "查找", "playersearch"},
+        super(new String[]{"查人", "查找", "search", "playersearch"},
                 "根据名称搜索玩家",
                 "/查人 <名称>",
                 "社交",

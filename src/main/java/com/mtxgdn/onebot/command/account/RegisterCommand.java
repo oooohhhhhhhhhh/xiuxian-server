@@ -9,9 +9,9 @@ import com.mtxgdn.onebot.command.OneBotCommandContext;
 public class RegisterCommand extends Command {
 
     public RegisterCommand() {
-        super(new String[]{"register", "注册"},
+        super(new String[]{"注册", "register"},
                 "注册修仙角色",
-                "/register <角色名>",
+                "/注册 <角色名>",
                 "账号");
     }
 

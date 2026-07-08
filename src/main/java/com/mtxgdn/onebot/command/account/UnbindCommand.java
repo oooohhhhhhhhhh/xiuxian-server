@@ -9,9 +9,9 @@ import com.mtxgdn.onebot.command.OneBotCommandContext;
 public class UnbindCommand extends Command {
 
     public UnbindCommand() {
-        super(new String[]{"unbind", "解绑"},
+        super(new String[]{"解绑", "unbind"},
                 "解除QQ号/MC号与游戏账号的绑定",
-                "/unbind",
+                "/解绑",
                 "账号",
                 "game.player.info",
                 true);

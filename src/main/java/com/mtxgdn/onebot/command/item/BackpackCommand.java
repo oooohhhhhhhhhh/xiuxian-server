@@ -10,7 +10,7 @@ import java.util.List;
 
 public class BackpackCommand extends Command {
     public BackpackCommand() {
-        super(new String[]{"backpack", "背包"}, "查看背包中的物品", "/背包", "背包", "game.inventory.view");
+        super(new String[]{"背包", "backpack"}, "查看背包中的物品", "/背包", "背包", "game.inventory.view");
     }
     @Override
     public void execute(CommandContext ctx) {

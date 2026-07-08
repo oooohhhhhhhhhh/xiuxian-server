@@ -10,7 +10,7 @@ import java.util.Map;
 
 public class EquippedCommand extends Command {
     public EquippedCommand() {
-        super(new String[]{"equipped", "已装备"}, "查看当前装备", "/已装备", "背包", "game.inventory.view");
+        super(new String[]{"已装备", "equipped"}, "查看当前装备", "/已装备", "背包", "game.inventory.view");
     }
     @Override
     public void execute(CommandContext ctx) {

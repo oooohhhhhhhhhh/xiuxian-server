@@ -6,7 +6,7 @@ import com.mtxgdn.game.entity.PlayerInfo;
 import com.mtxgdn.common.service.ServiceRegistry;
 
 public class MorningCommand extends Command {
-    public MorningCommand() { super(new String[]{"morning", "晨修"}, "每日晨修，获取天象加成", "/晨修", "修炼", "game.player.info"); }
+    public MorningCommand() { super(new String[]{"晨修", "morning"}, "每日晨修，获取天象加成", "/晨修", "修炼", "game.player.info"); }
     @Override
     public void execute(CommandContext ctx) {
         Long userId = ctx.requireBinding();

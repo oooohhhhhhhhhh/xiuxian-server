@@ -11,7 +11,7 @@ import com.mtxgdn.util.PlayerActionLogger;
 public class ExploreCommand extends Command {
 
     public ExploreCommand() {
-        super(new String[]{"explore", "游历"},
+        super(new String[]{"游历", "explore"},
                 "外出游历探索",
                 "/游历",
                 "探索",

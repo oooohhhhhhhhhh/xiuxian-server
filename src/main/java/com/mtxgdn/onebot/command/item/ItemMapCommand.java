@@ -8,7 +8,7 @@ import com.mtxgdn.util.LangManager;
 import java.util.*;
 
 public class ItemMapCommand extends Command {
-    public ItemMapCommand() { super(new String[]{"itemmap", "物品列表"}, "查看物品中文名与key映射表", "/物品列表", "背包", "game.player.info"); }
+    public ItemMapCommand() { super(new String[]{"物品列表", "itemmap"}, "查看物品中文名与key映射表", "/物品列表", "背包", "game.player.info"); }
     @Override
     public void execute(CommandContext ctx) {
         Collection<Item> allItems = ItemRegistry.getAll();

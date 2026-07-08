@@ -9,7 +9,7 @@ import java.util.List;
 
 public class SkillsCommand extends Command {
     public SkillsCommand() {
-        super(new String[]{"skills", "技能"}, "查看可用技能列表", "/技能", "战斗", "game.player.info");
+        super(new String[]{"技能", "skills"}, "查看可用技能列表", "/技能", "战斗", "game.player.info");
     }
     @Override
     public void execute(CommandContext ctx) {

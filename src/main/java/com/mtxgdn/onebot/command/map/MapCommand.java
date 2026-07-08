@@ -13,8 +13,8 @@ public class MapCommand extends Command {
     private final MapService mapService = new MapService();
 
     public MapCommand() {
-        super(new String[]{"map", "地图"}, "查看游戏地图",
-                "/地图 — 查看当前位置与周围地点\n/地图 go <地名> — 前往相邻地点\n/地图 list [区域] — 浏览全地图",
+        super(new String[]{"地图", "map"}, "查看游戏地图",
+                "/地图 — 查看当前位置与周围地点\n/地图 前往 <地名> — 前往相邻地点\n/地图 列表 [区域] — 浏览全地图",
                 "探索", "game.player.info");
 
         registerSub(new String[]{"go", "前往"}, this::handleGo);

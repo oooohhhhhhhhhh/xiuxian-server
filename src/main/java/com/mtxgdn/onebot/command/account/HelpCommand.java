@@ -12,9 +12,9 @@ import java.util.*;
 public class HelpCommand extends Command {
 
     public HelpCommand() {
-        super(new String[]{"help", "帮助"},
+        super(new String[]{"帮助", "help"},
                 "查看所有可用指令",
-                "/help",
+                "/帮助",
                 "账号");
     }
 

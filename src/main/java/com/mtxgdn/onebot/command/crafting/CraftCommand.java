@@ -14,7 +14,7 @@ import java.util.Map;
 
 public class CraftCommand extends Command {
     public CraftCommand() {
-        super(new String[]{"合成", "craft", "炼制"}, "合成系统 — 查看配方/合成物品",
+        super(new String[]{"合成", "炼制", "craft"}, "合成系统 — 查看配方/合成物品",
                 "/合成 [列表|配方 <分类>|制造 <配方ID>]", "实用功能", null);
 
         registerSub(new String[]{"列表", "list"}, this::listRecipes);

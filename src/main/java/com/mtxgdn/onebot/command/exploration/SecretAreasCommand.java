@@ -11,7 +11,7 @@ import java.util.List;
 public class SecretAreasCommand extends Command {
 
     public SecretAreasCommand() {
-        super(new String[]{"secret", "秘境"},
+        super(new String[]{"秘境", "secret"},
                 "查看可用秘境",
                 "/秘境",
                 "探索",

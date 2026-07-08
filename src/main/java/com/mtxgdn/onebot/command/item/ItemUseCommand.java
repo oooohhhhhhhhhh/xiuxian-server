@@ -9,7 +9,7 @@ import java.util.Map;
 
 public class ItemUseCommand extends Command {
     public ItemUseCommand() {
-        super(new String[]{"itemuse", "使用"}, "使用背包中的物品", "/使用 <物品名称或key>", "背包", "game.item.use");
+        super(new String[]{"使用", "itemuse"}, "使用背包中的物品", "/使用 <物品名称或key>", "背包", "game.item.use");
     }
     @Override
     public void execute(CommandContext ctx) {

@@ -7,7 +7,7 @@ import com.mtxgdn.common.service.ServiceRegistry;
 import java.util.Map;
 
 public class BuyItemCommand extends Command {
-    public BuyItemCommand() { super(new String[]{"buy", "购买"}, "购买坊市中的物品", "/购买 <挂单ID>", "坊市", "game.player.info"); }
+    public BuyItemCommand() { super(new String[]{"购买", "buy"}, "购买坊市中的物品", "/购买 <挂单ID>", "坊市", "game.player.info"); }
     @Override
     public void execute(CommandContext ctx) {
         Long userId = ctx.requireBinding(); if (userId == null) return;

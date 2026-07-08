@@ -8,7 +8,7 @@ import com.mtxgdn.game.item.ItemRegistry;
 import com.mtxgdn.common.service.ServiceRegistry;
 
 public class MyListingsCommand extends Command {
-    public MyListingsCommand() { super(new String[]{"mylistings", "我的挂单"}, "查看我在坊市的挂单", "/我的挂单", "坊市", "game.player.info"); }
+    public MyListingsCommand() { super(new String[]{"我的挂单", "mylistings"}, "查看我在坊市的挂单", "/我的挂单", "坊市", "game.player.info"); }
     @Override
     public void execute(CommandContext ctx) {
         Long userId = ctx.requireBinding(); if (userId == null) return;

@@ -6,7 +6,7 @@ import com.mtxgdn.game.entity.PlayerInfo;
 import com.mtxgdn.common.service.ServiceRegistry;
 
 public class DailyCommand extends Command {
-    public DailyCommand() { super(new String[]{"daily", "天象"}, "查看今日天象与机缘", "/天象", "修炼", "game.player.info"); }
+    public DailyCommand() { super(new String[]{"天象", "daily"}, "查看今日天象与机缘", "/天象", "修炼", "game.player.info"); }
     @Override
     public void execute(CommandContext ctx) {
         Long userId = ctx.requireBinding();

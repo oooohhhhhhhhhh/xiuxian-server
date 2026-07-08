@@ -11,7 +11,7 @@ import com.mtxgdn.util.PlayerActionLogger;
 public class SecretEnterCommand extends Command {
 
     public SecretEnterCommand() {
-        super(new String[]{"secret_enter", "进入秘境"},
+        super(new String[]{"进入秘境", "secret_enter"},
                 "进入指定秘境",
                 "/进入秘境 <秘境名称>",
                 "探索",

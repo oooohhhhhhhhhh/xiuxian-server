@@ -8,7 +8,7 @@ import com.mtxgdn.util.PlayerActionLogger;
 import java.util.List;
 
 public class PrivateMessageCommand extends Command {
-    public PrivateMessageCommand() { super(new String[]{"msg", "私聊"}, "发送私聊消息给其他玩家", "/私聊 <玩家名> <消息内容>", "社交", "game.chat.private"); }
+    public PrivateMessageCommand() { super(new String[]{"私聊", "msg"}, "发送私聊消息给其他玩家", "/私聊 <玩家名> <消息内容>", "社交", "game.chat.private"); }
     @Override
     public void execute(CommandContext ctx) {
         Long userId = ctx.requireBinding(); if (userId == null) return;

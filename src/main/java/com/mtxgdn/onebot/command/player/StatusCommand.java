@@ -10,7 +10,7 @@ import com.mtxgdn.common.service.ServiceRegistry;
 public class StatusCommand extends Command {
 
     public StatusCommand() {
-        super(new String[]{"status", "状态", "info", "信息"},
+        super(new String[]{"状态", "信息", "status", "info"},
                 "查看角色状态（含离线收益）",
                 "/状态",
                 "我的角色",

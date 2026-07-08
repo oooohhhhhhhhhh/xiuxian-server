@@ -9,9 +9,9 @@ import com.mtxgdn.onebot.command.OneBotCommandContext;
 public class BindCommand extends Command {
 
     public BindCommand() {
-        super(new String[]{"bind", "绑定"},
+        super(new String[]{"绑定", "bind"},
                 "将QQ/MC号绑定到已有游戏账号",
-                "/bind",
+                "/绑定",
                 "账号",
                 null,
                 true);

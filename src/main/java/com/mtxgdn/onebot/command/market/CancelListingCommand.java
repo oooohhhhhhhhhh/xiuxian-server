@@ -7,7 +7,7 @@ import com.mtxgdn.common.service.ServiceRegistry;
 import java.util.Map;
 
 public class CancelListingCommand extends Command {
-    public CancelListingCommand() { super(new String[]{"cancel", "撤单"}, "撤回坊市挂单", "/撤单 <挂单ID>", "坊市", "game.player.info"); }
+    public CancelListingCommand() { super(new String[]{"撤单", "cancel"}, "撤回坊市挂单", "/撤单 <挂单ID>", "坊市", "game.player.info"); }
     @Override
     public void execute(CommandContext ctx) {
         Long userId = ctx.requireBinding(); if (userId == null) return;

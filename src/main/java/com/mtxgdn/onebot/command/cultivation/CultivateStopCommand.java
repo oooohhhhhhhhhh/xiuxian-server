@@ -13,7 +13,7 @@ import com.mtxgdn.util.PlayerActionLogger;
 public class CultivateStopCommand extends Command {
 
     public CultivateStopCommand() {
-        super(new String[]{"stop", "停止"},
+        super(new String[]{"停止", "stop"},
                 "结束闭关并结算灵力",
                 "/停止",
                 "修炼",

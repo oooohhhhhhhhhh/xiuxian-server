@@ -11,9 +11,9 @@ public class QuizCommand extends Command {
     private static final QuizService quiz = QuizService.getInstance();
 
     public QuizCommand() {
-        super(new String[]{"quiz", "题库"},
+        super(new String[]{"题库", "quiz"},
                 "管理机器人题库 (查看 / 添加 / 删除)",
-                "/quiz [list|show <id>|add <answer> <题干>|delete <id>]",
+                "/题库 [列表|查看 <id>|添加 <答案> <题干>|删除 <id>]",
                 "账号");
 
         addRoute(RouteDefinition.onebotOnly("list", (ctx, p, parts) -> onList(ctx)));

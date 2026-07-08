@@ -9,7 +9,7 @@ import java.util.Map;
 
 public class LearnSkillCommand extends Command {
     public LearnSkillCommand() {
-        super(new String[]{"learn", "学习"}, "学习指定技能（支持名称或ID）", "/学习 <技能名称或ID>", "战斗", "game.skill.learn");
+        super(new String[]{"学习", "learn"}, "学习指定技能（支持名称或ID）", "/学习 <技能名称或ID>", "战斗", "game.skill.learn");
     }
     @Override
     public void execute(CommandContext ctx) {

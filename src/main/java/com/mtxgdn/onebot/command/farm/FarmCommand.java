@@ -19,7 +19,7 @@ public class FarmCommand extends Command {
     private final ItemService itemService = new ItemService();
 
     public FarmCommand() {
-        super(new String[]{"farm", "种田"}, "种田系统", "/种田 [查看/种植/浇水/施肥/收获/清理/扩建/种子]", "探索");
+        super(new String[]{"种田", "farm"}, "种田系统", "/种田 [查看/种植/浇水/施肥/收获/清理/扩建/种子]", "探索");
     }
 
     @Override

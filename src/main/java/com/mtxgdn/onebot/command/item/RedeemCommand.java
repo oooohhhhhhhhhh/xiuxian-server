@@ -17,7 +17,7 @@ public class RedeemCommand extends Command {
     private static final PlayerService playerService = ServiceRegistry.getPlayerService();
 
     public RedeemCommand() {
-        super(new String[]{"redeem", "兑换"},
+        super(new String[]{"兑换", "redeem"},
                 "使用兑换码领取奖励",
                 "/兑换 <兑换码>",
                 "背包",

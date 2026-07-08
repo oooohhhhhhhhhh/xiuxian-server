@@ -7,7 +7,7 @@ import com.mtxgdn.game.item.Item;
 import com.mtxgdn.game.item.ItemRegistry;
 import com.mtxgdn.common.service.ServiceRegistry;
 public class MarketCommand extends Command {
-    public MarketCommand() { super(new String[]{"market", "坊市"}, "查看坊市交易挂单", "/坊市", "坊市", "game.player.info"); }
+    public MarketCommand() { super(new String[]{"坊市", "market"}, "查看坊市交易挂单", "/坊市", "坊市", "game.player.info"); }
     @Override
     public void execute(CommandContext ctx) {
         Long userId = ctx.requireBinding();

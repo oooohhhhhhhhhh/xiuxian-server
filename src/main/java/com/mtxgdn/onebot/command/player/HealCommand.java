@@ -7,7 +7,7 @@ import com.mtxgdn.common.service.ServiceRegistry;
 import java.util.Map;
 
 public class HealCommand extends Command {
-    public HealCommand() { super(new String[]{"heal", "疗伤"}, "恢复伤势", "/疗伤", "我的角色", "game.player.info"); }
+    public HealCommand() { super(new String[]{"疗伤", "heal"}, "恢复伤势", "/疗伤", "我的角色", "game.player.info"); }
     @Override
     public void execute(CommandContext ctx) {
         Long userId = ctx.requireBinding(); if (userId == null) return;
