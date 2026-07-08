@@ -33,6 +33,9 @@ import com.mtxgdn.game.service.TechniqueService;
 import com.mtxgdn.game.service.EnhanceService;
 import com.mtxgdn.game.service.ChatService;
 import com.mtxgdn.game.service.FriendService;
+import com.mtxgdn.game.service.BuffService;
+import com.mtxgdn.game.service.FarmService;
+import com.mtxgdn.game.entity.FarmPlot;
 import com.mtxgdn.game.entity.Friend;
 import com.mtxgdn.game.entity.ChatMessage;
 import com.mtxgdn.common.service.ServiceRegistry;
@@ -2276,5 +2279,232 @@ public class GameResource {
             return Response.ok(GameMessage.restOk(result.getMessage(), data).toString()).build();
         }
         return Response.ok(GameMessage.restError(400, result.getMessage()).toString()).build();
+    }
+
+    // ==================== Buff 系统 ====================
+
+    @GET
+    @Path("/buff")
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("game.player.info")
+    public Response getPlayerBuffs() {
+        Long userId = getCurrentUserId();
+        int playerId = getPlayerIdByUserId(userId);
+
+        BuffService buffService = new BuffService();
+        Map<String, Object> result = buffService.getActiveBuffs(playerId);
+
+        JsonObject data = new JsonObject();
+        @SuppressWarnings("unchecked")
+        List<Map<String, Object>> buffs = (List<Map<String, Object>>) result.get("buffs");
+        int count = (int) result.get("count");
+
+        JsonArray buffArray = new JsonArray();
+        for (Map<String, Object> buff : buffs) {
+            JsonObject o = new JsonObject();
+            o.addProperty("id", (String) buff.get("id"));
+            o.addProperty("attackBonus", (int) buff.get("attackBonus"));
+            o.addProperty("defenseBonus", (int) buff.get("defenseBonus"));
+            o.addProperty("speedBonus", (int) buff.get("speedBonus"));
+            o.addProperty("spiritBonus", (int) buff.get("spiritBonus"));
+            o.addProperty("remainingSeconds", (long) buff.get("remainingSeconds"));
+            buffArray.add(o);
+        }
+
+        int totalAtk = buffService.getTotalAttackBonus(playerId);
+        int totalDef = buffService.getTotalDefenseBonus(playerId);
+        int totalSpd = buffService.getTotalSpeedBonus(playerId);
+        int totalSpi = buffService.getTotalSpiritBonus(playerId);
+
+        data.add("buffs", buffArray);
+        data.addProperty("count", count);
+        data.addProperty("totalAttackBonus", totalAtk);
+        data.addProperty("totalDefenseBonus", totalDef);
+        data.addProperty("totalSpeedBonus", totalSpd);
+        data.addProperty("totalSpiritBonus", totalSpi);
+
+        return Response.ok(GameMessage.restOk("获取成功", data).toString()).build();
+    }
+
+    // ==================== 种田系统 ====================
+
+    @GET
+    @Path("/farm/plots")
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("game.player.info")
+    public Response getFarmPlots() {
+        Long userId = getCurrentUserId();
+        int playerId = getPlayerIdByUserId(userId);
+
+        FarmService farmService = new FarmService();
+        List<FarmPlot> plots = farmService.getPlots(playerId);
+
+        JsonArray plotArray = new JsonArray();
+        for (FarmPlot plot : plots) {
+            JsonObject o = new JsonObject();
+            o.addProperty("id", plot.getId());
+            o.addProperty("plotIndex", plot.getPlotIndex());
+            o.addProperty("state", plot.getState().name());
+            o.addProperty("stateDisplay", plot.getState().getDisplayName());
+            o.addProperty("seedKey", plot.getSeedKey());
+            o.addProperty("cropKey", plot.getCropKey());
+            o.addProperty("growthStage", plot.getGrowthStage());
+            o.addProperty("waterLevel", plot.getWaterLevel());
+            o.addProperty("fertilizerLevel", plot.getFertilizerLevel());
+            if (plot.getState() != FarmPlot.PlotState.EMPTY && plot.getHarvestTime() > 0) {
+                long remaining = Math.max(0, plot.getHarvestTime() - System.currentTimeMillis());
+                o.addProperty("harvestRemainingMs", remaining);
+            }
+            plotArray.add(o);
+        }
+
+        JsonObject data = new JsonObject();
+        data.add("plots", plotArray);
+        data.addProperty("count", plotArray.size());
+
+        return Response.ok(GameMessage.restOk("获取成功", data).toString()).build();
+    }
+
+    @POST
+    @Path("/farm/plant")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("game.player.info")
+    public Response farmPlant(String body) {
+        Long userId = getCurrentUserId();
+        int playerId = getPlayerIdByUserId(userId);
+
+        JsonObject json = gson.fromJson(body, JsonObject.class);
+        int plotIndex = json.has("plotIndex") ? json.get("plotIndex").getAsInt() : -1;
+        String seedKey = json.has("seedKey") ? json.get("seedKey").getAsString() : "";
+
+        if (plotIndex < 0 || seedKey.isEmpty()) {
+            return Response.ok(GameMessage.restError(GameErrorCode.PARAM_MISSING).toString()).build();
+        }
+
+        FarmService farmService = new FarmService();
+        Map<String, Object> result = farmService.plant(playerId, plotIndex, seedKey);
+
+        if (Boolean.TRUE.equals(result.get("success"))) {
+            return Response.ok(GameMessage.restOk((String) result.get("message"), gson.toJsonTree(result).getAsJsonObject()).toString()).build();
+        }
+        return Response.ok(GameMessage.restError(400, (String) result.get("message")).toString()).build();
+    }
+
+    @POST
+    @Path("/farm/water")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("game.player.info")
+    public Response farmWater(String body) {
+        Long userId = getCurrentUserId();
+        int playerId = getPlayerIdByUserId(userId);
+
+        JsonObject json = gson.fromJson(body, JsonObject.class);
+        int plotIndex = json.has("plotIndex") ? json.get("plotIndex").getAsInt() : -1;
+
+        if (plotIndex < 0) {
+            return Response.ok(GameMessage.restError(GameErrorCode.PARAM_MISSING).toString()).build();
+        }
+
+        FarmService farmService = new FarmService();
+        Map<String, Object> result = farmService.water(playerId, plotIndex);
+
+        if (Boolean.TRUE.equals(result.get("success"))) {
+            return Response.ok(GameMessage.restOk((String) result.get("message"), gson.toJsonTree(result).getAsJsonObject()).toString()).build();
+        }
+        return Response.ok(GameMessage.restError(400, (String) result.get("message")).toString()).build();
+    }
+
+    @POST
+    @Path("/farm/fertilize")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("game.player.info")
+    public Response farmFertilize(String body) {
+        Long userId = getCurrentUserId();
+        int playerId = getPlayerIdByUserId(userId);
+
+        JsonObject json = gson.fromJson(body, JsonObject.class);
+        int plotIndex = json.has("plotIndex") ? json.get("plotIndex").getAsInt() : -1;
+
+        if (plotIndex < 0) {
+            return Response.ok(GameMessage.restError(GameErrorCode.PARAM_MISSING).toString()).build();
+        }
+
+        FarmService farmService = new FarmService();
+        Map<String, Object> result = farmService.fertilize(playerId, plotIndex);
+
+        if (Boolean.TRUE.equals(result.get("success"))) {
+            return Response.ok(GameMessage.restOk((String) result.get("message"), gson.toJsonTree(result).getAsJsonObject()).toString()).build();
+        }
+        return Response.ok(GameMessage.restError(400, (String) result.get("message")).toString()).build();
+    }
+
+    @POST
+    @Path("/farm/harvest")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("game.player.info")
+    public Response farmHarvest(String body) {
+        Long userId = getCurrentUserId();
+        int playerId = getPlayerIdByUserId(userId);
+
+        JsonObject json = gson.fromJson(body, JsonObject.class);
+        int plotIndex = json.has("plotIndex") ? json.get("plotIndex").getAsInt() : -1;
+
+        if (plotIndex < 0) {
+            return Response.ok(GameMessage.restError(GameErrorCode.PARAM_MISSING).toString()).build();
+        }
+
+        FarmService farmService = new FarmService();
+        Map<String, Object> result = farmService.harvest(playerId, plotIndex);
+
+        if (Boolean.TRUE.equals(result.get("success"))) {
+            return Response.ok(GameMessage.restOk((String) result.get("message"), gson.toJsonTree(result).getAsJsonObject()).toString()).build();
+        }
+        return Response.ok(GameMessage.restError(400, (String) result.get("message")).toString()).build();
+    }
+
+    @POST
+    @Path("/farm/clear")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("game.player.info")
+    public Response farmClear(String body) {
+        Long userId = getCurrentUserId();
+        int playerId = getPlayerIdByUserId(userId);
+
+        JsonObject json = gson.fromJson(body, JsonObject.class);
+        int plotIndex = json.has("plotIndex") ? json.get("plotIndex").getAsInt() : -1;
+
+        if (plotIndex < 0) {
+            return Response.ok(GameMessage.restError(GameErrorCode.PARAM_MISSING).toString()).build();
+        }
+
+        FarmService farmService = new FarmService();
+        Map<String, Object> result = farmService.clearPlot(playerId, plotIndex);
+
+        if (Boolean.TRUE.equals(result.get("success"))) {
+            return Response.ok(GameMessage.restOk((String) result.get("message"), null).toString()).build();
+        }
+        return Response.ok(GameMessage.restError(400, (String) result.get("message")).toString()).build();
+    }
+
+    @POST
+    @Path("/farm/expand")
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("game.player.info")
+    public Response farmExpand() {
+        Long userId = getCurrentUserId();
+        int playerId = getPlayerIdByUserId(userId);
+
+        FarmService farmService = new FarmService();
+        Map<String, Object> result = farmService.expandPlot(playerId);
+
+        if (Boolean.TRUE.equals(result.get("success"))) {
+            return Response.ok(GameMessage.restOk((String) result.get("message"), gson.toJsonTree(result).getAsJsonObject()).toString()).build();
+        }
+        return Response.ok(GameMessage.restError(400, (String) result.get("message")).toString()).build();
     }
 }

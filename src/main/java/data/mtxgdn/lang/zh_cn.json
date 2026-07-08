@@ -97,6 +97,8 @@
   "item.gold_ore.desc": "蕴含黄金的矿石，是贵重的炼器材料",
   "item.mythril_ore.name": "秘银矿石",
   "item.mythril_ore.desc": "蕴含神秘力量的银色矿石，是炼制神器的材料",
+  "item.qiankun_zaohua_dan.name": "乾坤造化丹",
+  "item.qiankun_zaohua_dan.desc": "蕴含乾坤造化的神丹，可用于重铸灵根",
   "item.dragon_blood_crystal.name": "龙血晶",
   "item.dragon_blood_crystal.desc": "传说中沾染龙血的晶石，蕴含强大力量",
   "item.dragon_bone.name": "龙骨",

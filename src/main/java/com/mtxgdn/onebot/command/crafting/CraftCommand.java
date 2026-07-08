@@ -20,6 +20,7 @@ public class CraftCommand extends Command {
         registerSub(new String[]{"列表", "list"}, this::listRecipes);
         registerSub(new String[]{"配方", "recipes"}, this::listRecipesWithCategory);
         registerSub(new String[]{"制造", "craft", "make"}, this::doCraft);
+        registerSub(new String[]{"熟练度", "proficiency"}, this::showProficiency);
 
         addRoute(RouteDefinition.get("crafting/recipes", this::handleListHttp));
         addRoute(RouteDefinition.post("crafting/craft", this::handleCraftHttp));
@@ -122,6 +123,18 @@ public class CraftCommand extends Command {
         var service = ServiceRegistry.getCraftingService();
         Map<String, Object> result = service.craft(p.getId(), recipeId);
         ctx.reply((String) result.get("message"));
+    }
+
+    private void showProficiency(CommandContext ctx, PlayerInfo p, String[] parts) {
+        var service = ServiceRegistry.getCraftingService();
+        List<Recipe> recipes = service.getAllRecipes();
+        StringBuilder sb = new StringBuilder();
+        sb.append("=== 合成熟练度 ===\n");
+        sb.append("当前合成系统暂未追踪熟练度数据。\n");
+        sb.append("可通过制造配方获取经验值来提升境界。\n\n");
+        sb.append("可用配方总数: ").append(recipes.size()).append(" 种\n");
+        sb.append("使用 /合成 列表 查看所有配方");
+        ctx.reply(sb.toString());
     }
 
     private String categoryLabel(Recipe.Category cat) {
