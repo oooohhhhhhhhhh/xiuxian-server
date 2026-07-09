@@ -571,6 +571,9 @@ select option { background: var(--bg-panel); color: var(--text-primary); }
       <div class="nav-item" onclick="switchTab('plugins')">
         <span class="nav-icon">🔌</span> 插件管理
       </div>
+      <div class="nav-item" onclick="switchTab('newbieReward')">
+        <span class="nav-icon">🎁</span> 新人奖励
+      </div>
     </div>
     <div class="sidebar-footer">
       <div style="display:flex;align-items:center;justify-content:space-between">
@@ -717,6 +720,49 @@ select option { background: var(--bg-panel); color: var(--text-primary); }
           <div id="pluginMsg"></div>
           <div id="pluginTable" class="table-wrap">
             <div class="empty">加载中...</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="tab" id="tab-newbieReward">
+        <div class="card">
+          <div class="card-header">
+            <div class="card-title">🎁 新人奖励配置</div>
+            <button class="btn btn-primary" onclick="loadNewbieRewardConfig()">🔄 刷新</button>
+          </div>
+          <div id="newbieRewardMsg"></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:16px">
+            <div>
+              <label style="display:block;color:var(--text-muted);font-size:12px;margin-bottom:6px">
+                <input type="checkbox" id="nrEnabled" onchange="toggleNrEnabled()"> 启用新人奖励
+              </label>
+              <div class="row">
+                <input placeholder="金币奖励" id="nrGold" type="number" min="0" style="width:150px">
+                <span style="color:var(--gold)">金币</span>
+              </div>
+              <div class="row">
+                <input placeholder="灵石奖励" id="nrSpiritStones" type="number" min="0" style="width:150px">
+                <select id="nrStoneGrade" style="width:120px">
+                  <option value="0">下品灵石</option>
+                  <option value="1">中品灵石</option>
+                  <option value="2">上品灵石</option>
+                  <option value="3">极品灵石</option>
+                </select>
+              </div>
+            </div>
+          </div>
+          <div class="section-title" style="margin-top:20px">奖励物品列表</div>
+          <div id="nrItemsList" style="margin-bottom:12px">
+            <div class="empty">暂无奖励物品</div>
+          </div>
+          <div class="row" style="margin-bottom:16px">
+            <select id="nrAddItemKey" style="width:250px"><option value="">--选择物品--</option></select>
+            <input placeholder="数量" id="nrAddItemQty" type="number" min="1" style="width:80px">
+            <button class="btn btn-action" onclick="addNrItem()">+ 添加物品</button>
+          </div>
+          <div class="row">
+            <button class="btn btn-primary" onclick="saveNewbieRewardConfig()">保存配置</button>
+            <button class="btn-sm" onclick="resetNrForm()">重置</button>
           </div>
         </div>
       </div>
@@ -870,7 +916,7 @@ async function fetchStatus() {
   } catch (x) { document.getElementById('connDot').className = 'conn-dot off'; }
 }
 
-const TAB_TITLES = { overview:'📊 总览', players:'👥 玩家管理', database:'🗄️ 数据库', users:'🔑 用户/角色', groups:'🏷️ 权限组管理', logs:'📜 实时日志', traces:'👣 玩家轨迹', redeemCodes:'🎫 兑换码', statsMessages:'💬 消息统计', statsCommands:'⚡ 指令统计', plugins:'🔌 插件管理' };
+const TAB_TITLES = { overview:'📊 总览', players:'👥 玩家管理', database:'🗄️ 数据库', users:'🔑 用户/角色', groups:'🏷️ 权限组管理', logs:'📜 实时日志', traces:'👣 玩家轨迹', redeemCodes:'🎫 兑换码', statsMessages:'💬 消息统计', statsCommands:'⚡ 指令统计', plugins:'🔌 插件管理', newbieReward:'🎁 新人奖励' };
 
 function switchTab(name) {
   currentTab = name;
@@ -2369,6 +2415,124 @@ function showPluginMsg(msg, ok) {
     const el = document.getElementById('pluginMsg');
     if (el) el.innerHTML = '';
   }, 5000);
+}
+
+// ========== 新人奖励配置 ==========
+let nrItems = [];
+
+async function loadNewbieRewardConfig() {
+  try {
+    const d = await api('/newbie-reward/config');
+    document.getElementById('nrEnabled').checked = d.enabled || false;
+    document.getElementById('nrGold').value = d.goldReward || '';
+    document.getElementById('nrSpiritStones').value = d.spiritStoneReward || '';
+    document.getElementById('nrStoneGrade').value = d.spiritStoneGrade || 0;
+    nrItems = d.items || [];
+    renderNrItems();
+    toggleNrEnabled();
+    await loadNrItemOptions();
+  } catch (x) {
+    document.getElementById('newbieRewardMsg').innerHTML = '<div class="msg msg-err">加载失败: ' + $h(x.message || '') + '</div>';
+  }
+}
+
+async function loadNrItemOptions() {
+  try {
+    const d = await api('/items');
+    const sel = document.getElementById('nrAddItemKey');
+    sel.innerHTML = '<option value="">--选择物品--</option>';
+    for (const i of d.items) {
+      sel.innerHTML += '<option value="' + i.key + '">' + $h(i.name) + '</option>';
+    }
+  } catch (x) {}
+}
+
+function toggleNrEnabled() {
+  const enabled = document.getElementById('nrEnabled').checked;
+  const inputs = ['nrGold', 'nrSpiritStones', 'nrStoneGrade', 'nrAddItemKey', 'nrAddItemQty'];
+  inputs.forEach(id => {
+    const el = document.getElementById(id);
+    if (el) el.disabled = !enabled;
+  });
+}
+
+function renderNrItems() {
+  const list = document.getElementById('nrItemsList');
+  if (nrItems.length === 0) {
+    list.innerHTML = '<div class="empty">暂无奖励物品</div>';
+    return;
+  }
+  let html = '<table><tr><th>物品名称</th><th>物品标识</th><th>数量</th><th>操作</th></tr>';
+  for (let i = 0; i < nrItems.length; i++) {
+    const item = nrItems[i];
+    let itemName = item.itemKey;
+    try {
+      const sel = document.getElementById('nrAddItemKey');
+      for (let j = 0; j < sel.options.length; j++) {
+        if (sel.options[j].value === item.itemKey) {
+          itemName = sel.options[j].text;
+          break;
+        }
+      }
+    } catch (e) {}
+    html += '<tr>' +
+      '<td>' + $h(itemName) + '</td>' +
+      '<td style="color:var(--text-muted);font-size:11px">' + $h(item.itemKey) + '</td>' +
+      '<td>' + item.quantity + '</td>' +
+      '<td><button class="btn btn-danger btn-sm" onclick="removeNrItem(' + i + ')">删除</button></td>' +
+      '</tr>';
+  }
+  html += '</table>';
+  list.innerHTML = html;
+}
+
+function addNrItem() {
+  const key = document.getElementById('nrAddItemKey').value;
+  const qty = parseInt(document.getElementById('nrAddItemQty').value);
+  if (!key || !qty || qty <= 0) {
+    alert('请选择物品并输入有效数量');
+    return;
+  }
+  nrItems.push({ itemKey: key, quantity: qty });
+  document.getElementById('nrAddItemQty').value = '';
+  renderNrItems();
+}
+
+function removeNrItem(idx) {
+  nrItems.splice(idx, 1);
+  renderNrItems();
+}
+
+async function saveNewbieRewardConfig() {
+  const config = {
+    enabled: document.getElementById('nrEnabled').checked,
+    goldReward: parseInt(document.getElementById('nrGold').value) || 0,
+    spiritStoneReward: parseInt(document.getElementById('nrSpiritStones').value) || 0,
+    spiritStoneGrade: parseInt(document.getElementById('nrStoneGrade').value) || 0,
+    items: nrItems
+  };
+  try {
+    const d = await api('/newbie-reward/config', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(config)
+    });
+    if (d.code === 200) {
+      document.getElementById('newbieRewardMsg').innerHTML = '<div class="msg msg-ok">' + $h(d.message) + '</div>';
+      setTimeout(() => {
+        const el = document.getElementById('newbieRewardMsg');
+        if (el) el.innerHTML = '';
+      }, 5000);
+    } else {
+      document.getElementById('newbieRewardMsg').innerHTML = '<div class="msg msg-err">' + $h(d.message || '保存失败') + '</div>';
+    }
+  } catch (x) {
+    document.getElementById('newbieRewardMsg').innerHTML = '<div class="msg msg-err">保存失败: ' + $h(x.message || '') + '</div>';
+  }
+}
+
+function resetNrForm() {
+  loadNewbieRewardConfig();
 }
 
 </script>

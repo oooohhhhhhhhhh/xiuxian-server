@@ -328,13 +328,12 @@ public class ItemService {
 
     /**
      * 以"下品灵石等值"发放灵石，自动按最优面额存入背包。
-     * 发放后触发自动合并，将低级灵石按阈值合并为高级灵石。
+     * 不触发自动合并，灵石保持原始等级。
      * 同时检查各等级硬上限，溢出部分留在本级不合并。
      */
     private boolean addSpiritStonesAuto(long playerId, long amount) {
         try (Connection conn = DatabaseManager.getConnection()) {
             addSpiritStonesAuto(conn, playerId, amount);
-            consolidateAll(conn, playerId);
             return true;
         } catch (SQLException e) {
             throw new RuntimeException("发放灵石失败", e);

@@ -3,10 +3,12 @@ package com.mtxgdn.game.service;
 import com.mtxgdn.db.DatabaseManager;
 import com.mtxgdn.entity.Player;
 import com.mtxgdn.game.config.GameConfigLoader;
+import com.mtxgdn.game.config.NewbieRewardConfig;
 import com.mtxgdn.game.entity.PlayerInfo;
 import com.mtxgdn.game.entity.RealmConfig;
 import com.mtxgdn.game.entity.SpiritualRoot;
 import com.mtxgdn.game.entity.Title;
+import com.mtxgdn.game.service.ItemService;
 import com.mtxgdn.game.title.TitleRegistry;
 
 import java.sql.Connection;
@@ -76,20 +78,48 @@ public class PlayerService {
                 gold, cultivation_progress, is_cultivating, cultivation_start_time, last_secret_realm_time, last_exploration_time, tutorial_step, tutorial_tips, current_location_id)
             VALUES (?, ?, ?, 1, 0, 0, 0, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, 0, 0, 1, 0, 1)
             """;
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, userId);
-            ps.setString(2, name);
-            ps.setString(3, root.name());
-            ps.setInt(4, root.applyHpBonus(100));
-            ps.setInt(5, root.applyHpBonus(100));
-            ps.setInt(6, root.applyMpBonus(50));
-            ps.setInt(7, root.applyMpBonus(50));
-            ps.setInt(8, root.applyAttackBonus(10));
-            ps.setInt(9, root.applyDefenseBonus(5));
-            ps.setInt(10, root.applySpeedBonus(5));
-            ps.setInt(11, root.applySpiritBonus(5));
-            ps.executeUpdate();
+        long playerId = -1;
+        try (Connection conn = DatabaseManager.getConnection()) {
+            try (PreparedStatement ps = conn.prepareStatement(sql, PreparedStatement.RETURN_GENERATED_KEYS)) {
+                ps.setLong(1, userId);
+                ps.setString(2, name);
+                ps.setString(3, root.name());
+                ps.setInt(4, root.applyHpBonus(100));
+                ps.setInt(5, root.applyHpBonus(100));
+                ps.setInt(6, root.applyMpBonus(50));
+                ps.setInt(7, root.applyMpBonus(50));
+                ps.setInt(8, root.applyAttackBonus(10));
+                ps.setInt(9, root.applyDefenseBonus(5));
+                ps.setInt(10, root.applySpeedBonus(5));
+                ps.setInt(11, root.applySpiritBonus(5));
+                ps.executeUpdate();
+                try (ResultSet rs = ps.getGeneratedKeys()) {
+                    if (rs.next()) {
+                        playerId = rs.getLong(1);
+                    }
+                }
+            }
+
+            NewbieRewardConfig rewardConfig = GameConfigLoader.getNewbieRewardConfig();
+            if (rewardConfig.isEnabled()) {
+                ItemService itemService = new ItemService();
+
+                if (rewardConfig.getGoldReward() > 0) {
+                    addGold(conn, playerId, rewardConfig.getGoldReward());
+                }
+
+                if (rewardConfig.getSpiritStoneReward() > 0) {
+                    itemService.addSpiritStones(conn, playerId, rewardConfig.getSpiritStoneReward(), rewardConfig.getSpiritStoneGrade());
+                }
+
+                if (rewardConfig.getItems() != null && !rewardConfig.getItems().isEmpty()) {
+                    for (NewbieRewardConfig.RewardItem item : rewardConfig.getItems()) {
+                        if (item.getItemKey() != null && !item.getItemKey().isBlank() && item.getQuantity() > 0) {
+                            itemService.addItem(conn, playerId, item.getItemKey(), item.getQuantity());
+                        }
+                    }
+                }
+            }
         } catch (SQLException e) {
             throw new RuntimeException("创建玩家失败: " + e.getMessage(), e);
         }

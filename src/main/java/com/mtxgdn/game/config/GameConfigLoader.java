@@ -20,9 +20,11 @@ public class GameConfigLoader {
 
     private static final Gson gson = new Gson();
     private static final String REALM_CONFIG_PATH = "game/realm_config.json";
+    private static final String NEWBIE_REWARD_PATH = "config/newbie_reward.json";
 
     private static volatile RealmConfigFile realmConfigFile;
     private static volatile List<RealmConfig> realmConfigs;
+    private static volatile NewbieRewardConfig newbieRewardConfig;
 
     /**
      * 主动释放配置文件到 jar 所在目录的 config/ 下，供用户修改
@@ -39,6 +41,27 @@ public class GameConfigLoader {
                 }
             } catch (Exception e) {
                 System.err.println("[GameConfig] 释放 " + REALM_CONFIG_PATH + " 失败: " + e.getMessage());
+            }
+        }
+        extractNewbieRewardConfig();
+    }
+
+    private static void extractNewbieRewardConfig() {
+        Path jarDir = AppConfig.getJarDir();
+        Path target = jarDir.resolve(NEWBIE_REWARD_PATH);
+        if (!Files.exists(target)) {
+            NewbieRewardConfig defaultConfig = new NewbieRewardConfig();
+            defaultConfig.setEnabled(false);
+            defaultConfig.setGoldReward(1000);
+            defaultConfig.setSpiritStoneReward(100);
+            defaultConfig.setSpiritStoneGrade(0);
+            try {
+                Files.createDirectories(target.getParent());
+                String json = gson.toJson(defaultConfig);
+                Files.writeString(target, json, StandardCharsets.UTF_8);
+                System.out.println("[GameConfig] 已创建新人奖励配置文件: " + target.toAbsolutePath());
+            } catch (Exception e) {
+                System.err.println("[GameConfig] 创建新人奖励配置文件失败: " + e.getMessage());
             }
         }
     }
@@ -139,6 +162,56 @@ public class GameConfigLoader {
             realmConfigs = Collections.unmodifiableList(realmConfigFile.getRealms());
         } catch (Exception e) {
             throw new RuntimeException("加载境界配置失败: " + e.getMessage(), e);
+        }
+    }
+
+    public static NewbieRewardConfig getNewbieRewardConfig() {
+        if (newbieRewardConfig == null) {
+            synchronized (GameConfigLoader.class) {
+                if (newbieRewardConfig == null) {
+                    loadNewbieRewardConfig();
+                }
+            }
+        }
+        return newbieRewardConfig;
+    }
+
+    public static void reloadNewbieRewardConfig() {
+        loadNewbieRewardConfig();
+    }
+
+    private static void loadNewbieRewardConfig() {
+        Path jarDir = AppConfig.getJarDir();
+        Path externalPath = jarDir.resolve(NEWBIE_REWARD_PATH);
+
+        if (Files.exists(externalPath)) {
+            try (InputStream is = new FileInputStream(externalPath.toFile())) {
+                Reader reader = new InputStreamReader(is, StandardCharsets.UTF_8);
+                newbieRewardConfig = gson.fromJson(reader, NewbieRewardConfig.class);
+                return;
+            } catch (Exception e) {
+                System.err.println("[GameConfig] 从外部加载新人奖励配置失败，使用默认配置: " + e.getMessage());
+            }
+        }
+
+        newbieRewardConfig = new NewbieRewardConfig();
+        newbieRewardConfig.setEnabled(false);
+        newbieRewardConfig.setGoldReward(1000);
+        newbieRewardConfig.setSpiritStoneReward(100);
+        newbieRewardConfig.setSpiritStoneGrade(0);
+    }
+
+    public static void saveNewbieRewardConfig(NewbieRewardConfig config) {
+        Path jarDir = AppConfig.getJarDir();
+        Path target = jarDir.resolve(NEWBIE_REWARD_PATH);
+        try {
+            Files.createDirectories(target.getParent());
+            String json = gson.toJson(config);
+            Files.writeString(target, json, StandardCharsets.UTF_8);
+            newbieRewardConfig = config;
+            System.out.println("[GameConfig] 已保存新人奖励配置: " + target.toAbsolutePath());
+        } catch (Exception e) {
+            throw new RuntimeException("保存新人奖励配置失败: " + e.getMessage(), e);
         }
     }
 }

@@ -2003,6 +2003,76 @@ public class AdminResource {
         return Response.ok(data.toString()).build();
     }
 
+    // ========== 新人奖励配置 API ==========
+
+    @GET
+    @Path("/newbie-reward/config")
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("admin.config.manage")
+    public Response getNewbieRewardConfig() {
+        com.mtxgdn.game.config.NewbieRewardConfig config = com.mtxgdn.game.config.GameConfigLoader.getNewbieRewardConfig();
+        JsonObject result = new JsonObject();
+        result.addProperty("code", 200);
+        result.addProperty("enabled", config.isEnabled());
+        result.addProperty("goldReward", config.getGoldReward());
+        result.addProperty("spiritStoneReward", config.getSpiritStoneReward());
+        result.addProperty("spiritStoneGrade", config.getSpiritStoneGrade());
+        JsonArray itemsArr = new JsonArray();
+        if (config.getItems() != null) {
+            for (com.mtxgdn.game.config.NewbieRewardConfig.RewardItem item : config.getItems()) {
+                JsonObject itemObj = new JsonObject();
+                itemObj.addProperty("itemKey", item.getItemKey());
+                itemObj.addProperty("quantity", item.getQuantity());
+                itemsArr.add(itemObj);
+            }
+        }
+        result.add("items", itemsArr);
+        return Response.ok(gson.toJson(result)).build();
+    }
+
+    @POST
+    @Path("/newbie-reward/config")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("admin.config.manage")
+    public Response updateNewbieRewardConfig(String body) {
+        try {
+            JsonObject req = com.google.gson.JsonParser.parseString(body).getAsJsonObject();
+            com.mtxgdn.game.config.NewbieRewardConfig config = new com.mtxgdn.game.config.NewbieRewardConfig();
+
+            config.setEnabled(req.has("enabled") ? req.get("enabled").getAsBoolean() : false);
+            config.setGoldReward(req.has("goldReward") ? req.get("goldReward").getAsLong() : 0);
+            config.setSpiritStoneReward(req.has("spiritStoneReward") ? req.get("spiritStoneReward").getAsLong() : 0);
+            config.setSpiritStoneGrade(req.has("spiritStoneGrade") ? req.get("spiritStoneGrade").getAsInt() : 0);
+
+            java.util.List<com.mtxgdn.game.config.NewbieRewardConfig.RewardItem> items = new java.util.ArrayList<>();
+            if (req.has("items") && req.get("items").isJsonArray()) {
+                JsonArray itemsArr = req.getAsJsonArray("items");
+                for (int i = 0; i < itemsArr.size(); i++) {
+                    JsonObject itemObj = itemsArr.get(i).getAsJsonObject();
+                    String itemKey = itemObj.has("itemKey") ? itemObj.get("itemKey").getAsString() : null;
+                    long quantity = itemObj.has("quantity") ? itemObj.get("quantity").getAsLong() : 0;
+                    if (itemKey != null && !itemKey.isBlank() && quantity > 0) {
+                        items.add(new com.mtxgdn.game.config.NewbieRewardConfig.RewardItem(itemKey, quantity));
+                    }
+                }
+            }
+            config.setItems(items);
+
+            com.mtxgdn.game.config.GameConfigLoader.saveNewbieRewardConfig(config);
+
+            JsonObject result = new JsonObject();
+            result.addProperty("code", 200);
+            result.addProperty("message", "新人奖励配置已保存");
+            return Response.ok(gson.toJson(result)).build();
+        } catch (Exception e) {
+            JsonObject err = new JsonObject();
+            err.addProperty("code", 500);
+            err.addProperty("message", "保存失败: " + e.getMessage());
+            return Response.ok(gson.toJson(err)).build();
+        }
+    }
+
     private static String formatUptime(long millis) {
         long seconds = millis / 1000;
         long days = seconds / 86400;
