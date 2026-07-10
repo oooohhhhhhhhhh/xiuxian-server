@@ -30,6 +30,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.sql.Timestamp;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
@@ -827,17 +828,58 @@ public class OneBotWebSocketServer extends WebSocketApplication
     }
 
     private Long verifyUserCredentials(String username, String password) {
-        String sql = "SELECT id, password FROM users WHERE username = ?";
+        String rateLimitKey = "onebot_login_" + username.toLowerCase();
+        if (!RateLimiter.allow(rateLimitKey, 5, 60)) {
+            return null;
+        }
+
+        String sql = "SELECT id, password, failed_attempts, locked_until FROM users WHERE username = ?";
         try (Connection conn = DatabaseManager.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
             stmt.setString(1, username);
             try (ResultSet rs = stmt.executeQuery()) {
-                if (rs.next() && BCrypt.checkpw(password, rs.getString("password"))) {
-                    return rs.getLong("id");
+                if (rs.next()) {
+                    java.sql.Timestamp lockedUntil = rs.getTimestamp("locked_until");
+                    if (lockedUntil != null && lockedUntil.getTime() > System.currentTimeMillis()) {
+                        return null;
+                    }
+
+                    if (BCrypt.checkpw(password, rs.getString("password"))) {
+                        resetFailedAttempts(rs.getLong("id"));
+                        return rs.getLong("id");
+                    } else {
+                        incrementFailedAttempts(rs.getLong("id"));
+                    }
                 }
             }
         } catch (SQLException e) { log.error("验证用户凭据失败", e); }
         return null;
+    }
+
+    private void incrementFailedAttempts(long userId) {
+        int maxAttempts = 5;
+        long lockDurationMinutes = 15;
+        String sql = "UPDATE users SET failed_attempts = failed_attempts + 1, " +
+                "locked_until = COALESCE(" +
+                "CASE WHEN failed_attempts + 1 >= ? THEN ? ELSE NULL END, " +
+                "locked_until) " +
+                "WHERE id = ?";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, maxAttempts);
+            ps.setTimestamp(2, new Timestamp(System.currentTimeMillis() + lockDurationMinutes * 60 * 1000));
+            ps.setLong(3, userId);
+            ps.executeUpdate();
+        } catch (SQLException e) { log.error("更新失败次数失败", e); }
+    }
+
+    private void resetFailedAttempts(long userId) {
+        String sql = "UPDATE users SET failed_attempts = 0, locked_until = NULL WHERE id = ?";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setLong(1, userId);
+            ps.executeUpdate();
+        } catch (SQLException e) { log.error("重置失败次数失败", e); }
     }
 
     private boolean isUsernameExists(String username) {

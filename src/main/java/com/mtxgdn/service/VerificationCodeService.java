@@ -9,14 +9,14 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Timestamp;
 import java.time.Instant;
-import java.util.Random;
+import java.security.SecureRandom;
 
 public class VerificationCodeService {
 
     private static final int CODE_LENGTH = 6;
     private static final int EXPIRY_MINUTES = 5;
     private static final int RATE_LIMIT_SECONDS = 60;
-    private static final Random RANDOM = new Random();
+    private static final SecureRandom RANDOM = new SecureRandom();
 
     public String generateAndStoreCode(String email) {
         if (!canSendCode(email)) {

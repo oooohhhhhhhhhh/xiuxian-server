@@ -119,6 +119,8 @@ public class DatabaseManager {
                 "username VARCHAR(64) NOT NULL UNIQUE, " +
                 "password VARCHAR(256) NOT NULL, " +
                 "email VARCHAR(128) DEFAULT '', " +
+                "failed_attempts INT DEFAULT 0, " +
+                "locked_until TIMESTAMP DEFAULT NULL, " +
                 "created_at " + tsDefault +
                 ")";
 
@@ -1116,6 +1118,7 @@ public class DatabaseManager {
         List<Object> params = new ArrayList<>();
 
         for (Map.Entry<String, Object> entry : data.entrySet()) {
+            validateColumnName(entry.getKey());
             if (cols.length() > 0) {
                 cols.append(", ");
                 vals.append(", ");
@@ -1174,6 +1177,7 @@ public class DatabaseManager {
         List<Object> params = new ArrayList<>();
 
         for (Map.Entry<String, Object> entry : data.entrySet()) {
+            validateColumnName(entry.getKey());
             if (setClause.length() > 0) {
                 setClause.append(", ");
             }
@@ -1215,15 +1219,26 @@ public class DatabaseManager {
     }
 
     /**
-     * 验证表名是否存在于数据库中
+     * 验证表名是否合法
      */
     private static void validateTableName(String tableName) {
         if (tableName == null || tableName.isBlank()) {
             throw new IllegalArgumentException("表名不能为空");
         }
-        // 只允许字母、数字和下划线
         if (!tableName.matches("^[a-zA-Z_][a-zA-Z0-9_]*$")) {
             throw new IllegalArgumentException("无效的表名: " + tableName);
+        }
+    }
+
+    /**
+     * 验证列名是否合法
+     */
+    private static void validateColumnName(String columnName) {
+        if (columnName == null || columnName.isBlank()) {
+            throw new IllegalArgumentException("列名不能为空");
+        }
+        if (!columnName.matches("^[a-zA-Z_][a-zA-Z0-9_]*$")) {
+            throw new IllegalArgumentException("无效的列名: " + columnName);
         }
     }
 

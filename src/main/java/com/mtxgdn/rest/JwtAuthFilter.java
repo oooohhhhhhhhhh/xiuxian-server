@@ -1,6 +1,7 @@
 package com.mtxgdn.rest;
 
 import com.mtxgdn.util.JwtUtil;
+import com.mtxgdn.util.TokenBlacklist;
 import jakarta.ws.rs.container.ContainerRequestContext;
 import jakarta.ws.rs.container.ContainerRequestFilter;
 import jakarta.ws.rs.core.Response;
@@ -40,6 +41,13 @@ public class JwtAuthFilter implements ContainerRequestFilter {
         }
 
         String token = authorizationHeader.substring("Bearer ".length()).trim();
+
+        if (TokenBlacklist.isBlacklisted(token)) {
+            requestContext.abortWith(Response.status(Response.Status.UNAUTHORIZED)
+                    .entity("{\"code\":401,\"message\":\"Token已失效，请重新登录\"}")
+                    .build());
+            return;
+        }
 
         if (!JwtUtil.validateToken(token)) {
             if (isDualAuthPath) {

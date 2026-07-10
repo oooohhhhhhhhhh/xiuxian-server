@@ -125,6 +125,7 @@ public class AdminResource {
     @GET
     @Path("/status")
     @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("admin.status")
     public Response getStatus() {
         long uptime = System.currentTimeMillis() - Main.serverStartTime;
 

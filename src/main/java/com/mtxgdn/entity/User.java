@@ -1,11 +1,15 @@
 package com.mtxgdn.entity;
 
+import java.sql.Timestamp;
+
 public class User {
 
     private Long id;
     private String username;
     private String password;
     private String email;
+    private Integer failedAttempts;
+    private Timestamp lockedUntil;
     private String createdAt;
 
     public User() {
@@ -47,6 +51,22 @@ public class User {
 
     public void setEmail(String email) {
         this.email = email;
+    }
+
+    public Integer getFailedAttempts() {
+        return failedAttempts;
+    }
+
+    public void setFailedAttempts(Integer failedAttempts) {
+        this.failedAttempts = failedAttempts;
+    }
+
+    public Timestamp getLockedUntil() {
+        return lockedUntil;
+    }
+
+    public void setLockedUntil(Timestamp lockedUntil) {
+        this.lockedUntil = lockedUntil;
     }
 
     public String getCreatedAt() {

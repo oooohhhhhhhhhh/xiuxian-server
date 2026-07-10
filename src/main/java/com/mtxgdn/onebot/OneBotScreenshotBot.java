@@ -56,26 +56,31 @@ public class OneBotScreenshotBot implements OneBotMessageSender, Runnable {
      */
     private Point findWindow(String titleKeyword) {
         try {
-            // 使用 PowerShell 查找包含关键词的窗口进程
-            String cmd = "powershell -Command \"Add-Type -Name Window -Namespace Console " +
-                    "-MemberDefinition '[DllImport(\\\"user32.dll\\\")] public static extern IntPtr FindWindow(" +
+            if (titleKeyword == null || titleKeyword.isBlank()) {
+                log.warn("窗口标题关键词为空");
+                return null;
+            }
+            String sanitizedKeyword = sanitizePowerShellString(titleKeyword);
+            String psScript =
+                    "Add-Type -Name Window -Namespace Console " +
+                    "-MemberDefinition '[DllImport(\"user32.dll\")] public static extern IntPtr FindWindow(" +
                     "string lpClassName, string lpWindowName); " +
-                    "[DllImport(\\\"user32.dll\\\")] public static extern bool GetWindowRect(" +
+                    "[DllImport(\"user32.dll\")] public static extern bool GetWindowRect(" +
                     "IntPtr hWnd, out RECT lpRect); " +
-                    "[DllImport(\\\"user32.dll\\\")] public static extern bool GetClientRect(" +
+                    "[DllImport(\"user32.dll\")] public static extern bool GetClientRect(" +
                     "IntPtr hWnd, out RECT lpRect); " +
-                    "[DllImport(\\\"user32.dll\\\")] public static extern bool ClientToScreen(" +
+                    "[DllImport(\"user32.dll\")] public static extern bool ClientToScreen(" +
                     "IntPtr hWnd, ref POINT lpPoint); " +
                     "public struct RECT { public int Left, Top, Right, Bottom; } " +
                     "public struct POINT { public int X, Y; }'; " +
-                    "$processes = Get-Process | Where-Object { $_.MainWindowTitle -like '*" +
-                    titleKeyword + "*' -and $_.MainWindowTitle -ne '' }; " +
+                    "$pattern = '*' + $args[0] + '*'; " +
+                    "$processes = Get-Process | Where-Object { $_.MainWindowTitle -like $pattern -and $_.MainWindowTitle -ne '' }; " +
                     "if ($processes) { $h = $processes[0].MainWindowHandle; " +
                     "$rect = New-Object Console.Window+RECT; " +
                     "[Console.Window]::GetWindowRect($h, [ref]$rect); " +
                     "Write-Host ($rect.Left.ToString() + ',' + $rect.Top.ToString() + " +
-                    "'|' + $processes[0].MainWindowTitle); } else { Write-Host 'NOT_FOUND'; }\"";
-            Process proc = Runtime.getRuntime().exec(new String[]{"cmd", "/c", cmd});
+                    "'|' + $processes[0].MainWindowTitle); } else { Write-Host 'NOT_FOUND'; }";
+            Process proc = Runtime.getRuntime().exec(new String[]{"powershell", "-NoProfile", "-Command", psScript, sanitizedKeyword});
             try (BufferedReader reader = new BufferedReader(new InputStreamReader(proc.getInputStream(), "GBK"))) {
                 String line = reader.readLine();
                 proc.waitFor();
@@ -253,16 +258,23 @@ public class OneBotScreenshotBot implements OneBotMessageSender, Runnable {
     }
 
     /**
+     * 对 PowerShell 字符串进行安全转义，防止命令注入。
+     */
+    private String sanitizePowerShellString(String input) {
+        if (input == null) return "";
+        return input.replace("'", "''").replace("\"", "\\\"").replace("$", "`$").replace("`", "``");
+    }
+
+    /**
      * 使用 Windows 10+ 内置 OCR 引擎识别图片文件中的文字。
      */
     private String recognizeText(Path pngFile) {
         try {
-            String path = pngFile.toAbsolutePath().toString().replace("\\", "\\\\");
-            String script =
+            String psScript =
                 "[Windows.Media.Ocr.OcrEngine, Windows.Foundation, ContentType=WindowsRuntime] > $null; " +
                 "[Windows.Graphics.Imaging.BitmapDecoder, Windows.Foundation, ContentType=WindowsRuntime] > $null; " +
                 "[Windows.Storage.StorageFile, Windows.Foundation, ContentType=WindowsRuntime] > $null; " +
-                "$path = '" + path + "'; " +
+                "$path = $args[0]; " +
                 "$file = [Windows.Storage.StorageFile]::GetFileFromPathAsync($path).GetAwaiter().GetResult(); " +
                 "$stream = $file.OpenReadAsync().GetAwaiter().GetResult(); " +
                 "$decoder = [Windows.Graphics.Imaging.BitmapDecoder]::CreateAsync($stream).GetAwaiter().GetResult(); " +
@@ -274,7 +286,7 @@ public class OneBotScreenshotBot implements OneBotMessageSender, Runnable {
                 "} else { Write-Host 'OCR_ENGINE_NULL'; }";
 
             Process proc = Runtime.getRuntime().exec(
-                    new String[]{"powershell", "-NoProfile", "-Command", script});
+                    new String[]{"powershell", "-NoProfile", "-Command", psScript, pngFile.toAbsolutePath().toString()});
             try (BufferedReader reader = new BufferedReader(
                     new InputStreamReader(proc.getInputStream(), "UTF-8"))) {
                 StringBuilder sb = new StringBuilder();

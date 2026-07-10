@@ -17,6 +17,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.sql.Timestamp;
 import java.util.Arrays;
 import java.util.List;
 
@@ -130,14 +131,22 @@ public class UserService {
 
         String trimmedUsername = username.trim();
 
-        User user = findUserByUsername(trimmedUsername);
+        User user = findUserByUsernameWithLockInfo(trimmedUsername);
         if (user == null) {
             return buildError(401, GameErrorCode.AUTH_WRONG_PASSWORD.getMessage());
         }
 
+        if (isAccountLocked(user)) {
+            long remainingSeconds = (user.getLockedUntil().getTime() - System.currentTimeMillis()) / 1000;
+            return buildError(423, "账号已被锁定，请 " + remainingSeconds + " 秒后再试");
+        }
+
         if (!BCrypt.checkpw(rawPassword, user.getPassword())) {
+            incrementFailedAttempts(user.getId());
             return buildError(401, GameErrorCode.AUTH_WRONG_PASSWORD.getMessage());
         }
+
+        resetFailedAttempts(user.getId());
 
         String token = JwtUtil.generateToken(user.getId(), user.getUsername());
 
@@ -179,6 +188,66 @@ public class UserService {
             throw new RuntimeException("数据库查询失败", e);
         }
         return null;
+    }
+
+    private User findUserByUsernameWithLockInfo(String username) {
+        String sql = "SELECT id, username, password, failed_attempts, locked_until FROM users WHERE username = ?";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, username);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    User user = new User();
+                    user.setId(rs.getLong("id"));
+                    user.setUsername(rs.getString("username"));
+                    user.setPassword(rs.getString("password"));
+                    user.setFailedAttempts(rs.getInt("failed_attempts"));
+                    user.setLockedUntil(rs.getTimestamp("locked_until"));
+                    return user;
+                }
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("数据库查询失败", e);
+        }
+        return null;
+    }
+
+    private boolean isAccountLocked(User user) {
+        Timestamp lockedUntil = user.getLockedUntil();
+        if (lockedUntil == null) {
+            return false;
+        }
+        return lockedUntil.getTime() > System.currentTimeMillis();
+    }
+
+    private void incrementFailedAttempts(long userId) {
+        int maxAttempts = 5;
+        long lockDurationMinutes = 15;
+        String sql = "UPDATE users SET failed_attempts = failed_attempts + 1, " +
+                "locked_until = COALESCE(" +
+                "CASE WHEN failed_attempts + 1 >= ? THEN ? ELSE NULL END, " +
+                "locked_until) " +
+                "WHERE id = ?";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, maxAttempts);
+            ps.setTimestamp(2, new java.sql.Timestamp(System.currentTimeMillis() + lockDurationMinutes * 60 * 1000));
+            ps.setLong(3, userId);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException("更新失败次数失败", e);
+        }
+    }
+
+    private void resetFailedAttempts(long userId) {
+        String sql = "UPDATE users SET failed_attempts = 0, locked_until = NULL WHERE id = ?";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setLong(1, userId);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException("重置失败次数失败", e);
+        }
     }
 
     private boolean isUsernameExists(String username) {
@@ -321,6 +390,36 @@ public class UserService {
             return Response.ok(GameMessage.restOk("账户注销成功", data).toString()).build();
         } catch (SQLException e) {
             throw new RuntimeException("注销账户失败", e);
+        }
+    }
+
+    public Response resetPasswordByEmail(String email, String newPassword) {
+        String sql = "SELECT id, username FROM users WHERE email = ?";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, email);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) {
+                    return buildError(404, "该邮箱未注册");
+                }
+                long userId = rs.getLong("id");
+                String username = rs.getString("username");
+
+                String hashedPassword = BCrypt.hashpw(newPassword, BCrypt.gensalt());
+                String updateSql = "UPDATE users SET password = ?, failed_attempts = 0, locked_until = NULL WHERE id = ?";
+                try (PreparedStatement ups = conn.prepareStatement(updateSql)) {
+                    ups.setString(1, hashedPassword);
+                    ups.setLong(2, userId);
+                    ups.executeUpdate();
+                }
+
+                JsonObject data = new JsonObject();
+                data.addProperty("message", "密码重置成功，请使用新密码登录");
+                data.addProperty("username", username);
+                return Response.ok(GameMessage.restOk("密码重置成功", data).toString()).build();
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("重置密码失败", e);
         }
     }
 }
