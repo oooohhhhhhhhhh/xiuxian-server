@@ -12,6 +12,7 @@ import com.mtxgdn.game.entity.PlayerInfo;
 import com.mtxgdn.game.service.NewbieGuideService;
 import com.mtxgdn.onebot.command.OneBotCommandContext;
 import com.mtxgdn.permission.PermissionService;
+import com.mtxgdn.service.UserService;
 import com.mtxgdn.util.GameLogger;
 import com.mtxgdn.util.OneBotLogger;
 import com.mtxgdn.util.PlayerActionLogger;
@@ -741,8 +742,17 @@ public class OneBotWebSocketServer extends WebSocketApplication
         }
         try {
             bindingService.bind(senderQq, userId);
-            sendPrivateMsg(socket, selfId, senderQq,
-                    "绑定成功！\n用户名: " + session.username + "\n用户ID: " + userId);
+            String email = senderQq + "@qq.com";
+            UserService userService = new UserService();
+            String existingEmail = userService.getUserEmail(userId);
+            if (existingEmail == null || existingEmail.isEmpty()) {
+                userService.updateUserEmail(userId, email);
+                sendPrivateMsg(socket, selfId, senderQq,
+                        "绑定成功！\n用户名: " + session.username + "\n用户ID: " + userId + "\n已自动绑定邮箱: " + email);
+            } else {
+                sendPrivateMsg(socket, selfId, senderQq,
+                        "绑定成功！\n用户名: " + session.username + "\n用户ID: " + userId);
+            }
         } catch (RuntimeException e) {
             sendPrivateMsg(socket, selfId, senderQq, "绑定失败: " + e.getMessage());
         }

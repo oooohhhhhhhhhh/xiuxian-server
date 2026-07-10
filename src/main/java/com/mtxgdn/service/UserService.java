@@ -227,6 +227,35 @@ public class UserService {
         return Response.status(httpStatus).entity(body.toString()).build();
     }
 
+    public void updateUserEmail(long userId, String email) {
+        String sql = "UPDATE users SET email = ? WHERE id = ? AND (email IS NULL OR email = '' OR email = ?)";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, email);
+            ps.setLong(2, userId);
+            ps.setString(3, email);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException("更新邮箱失败", e);
+        }
+    }
+
+    public String getUserEmail(long userId) {
+        String sql = "SELECT email FROM users WHERE id = ?";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setLong(1, userId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getString("email");
+                }
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("查询邮箱失败", e);
+        }
+        return null;
+    }
+
     public Response changePassword(long userId, String oldPassword, String newPassword) {
         if (oldPassword == null || oldPassword.isEmpty()) {
             return buildError(400, "原密码不能为空");
