@@ -228,12 +228,22 @@ public class UserService {
     }
 
     public void updateUserEmail(long userId, String email) {
-        String sql = "UPDATE users SET email = ? WHERE id = ? AND (email IS NULL OR email = '' OR email = ?)";
+        String sql;
+        if (email == null) {
+            sql = "UPDATE users SET email = NULL WHERE id = ? AND (email IS NULL OR email = '')";
+        } else {
+            sql = "UPDATE users SET email = ? WHERE id = ? AND (email IS NULL OR email = '' OR email = ?)";
+        }
         try (Connection conn = DatabaseManager.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, email);
-            ps.setLong(2, userId);
-            ps.setString(3, email);
+            int idx = 1;
+            if (email != null) {
+                ps.setString(idx++, email);
+            }
+            ps.setLong(idx++, userId);
+            if (email != null) {
+                ps.setString(idx, email);
+            }
             ps.executeUpdate();
         } catch (SQLException e) {
             throw new RuntimeException("更新邮箱失败", e);
