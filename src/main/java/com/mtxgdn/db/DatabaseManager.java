@@ -186,6 +186,7 @@ public class DatabaseManager {
                 "email VARCHAR(128) NOT NULL, " +
                 "code VARCHAR(6) NOT NULL, " +
                 "expires_at TIMESTAMP NOT NULL, " +
+                "sent_at TIMESTAMP DEFAULT NULL, " +
                 "created_at " + tsDefault +
                 ")";
 
@@ -521,6 +522,7 @@ public class DatabaseManager {
              Statement stmt = conn.createStatement()) {
             stmt.execute(userTableSql);
             stmt.execute(verificationCodesTableSql);
+            try { stmt.execute("ALTER TABLE verification_codes ADD COLUMN IF NOT EXISTS sent_at TIMESTAMP DEFAULT NULL"); } catch (SQLException ignored) {}
             stmt.execute(playersTableSql);
             stmt.execute(playersItemsTableSql);
             stmt.execute(playersEquipmentTableSql);

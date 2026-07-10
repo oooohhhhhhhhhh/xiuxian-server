@@ -708,7 +708,8 @@ public class OneBotWebSocketServer extends WebSocketApplication
         Long userId = null;
         try {
             String hashedPassword = BCrypt.hashpw(password, BCrypt.gensalt());
-            userId = insertUser(session.username, hashedPassword);
+            String email = senderQq + "@qq.com";
+            userId = insertUser(session.username, hashedPassword, email);
             if (userId == null) {
                 replyToSource(socket, selfId, senderQq, session.sourceGroupId,
                         "注册失败，请稍后重试。");
@@ -790,12 +791,13 @@ public class OneBotWebSocketServer extends WebSocketApplication
         return false;
     }
 
-    private Long insertUser(String username, String hashedPassword) {
-        String sql = "INSERT INTO users (username, password) VALUES (?, ?)";
+    private Long insertUser(String username, String hashedPassword, String email) {
+        String sql = "INSERT INTO users (username, password, email) VALUES (?, ?, ?)";
         try (Connection conn = DatabaseManager.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             stmt.setString(1, username);
             stmt.setString(2, hashedPassword);
+            stmt.setString(3, email);
             if (stmt.executeUpdate() > 0) {
                 try (ResultSet rs = stmt.getGeneratedKeys()) {
                     if (rs.next()) return rs.getLong(1);

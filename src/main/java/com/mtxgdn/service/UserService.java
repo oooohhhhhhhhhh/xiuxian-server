@@ -6,6 +6,8 @@ import com.mtxgdn.common.GameMessage;
 import com.mtxgdn.db.DatabaseManager;
 import com.mtxgdn.entity.User;
 import com.mtxgdn.permission.PermissionService;
+import com.mtxgdn.service.VerificationCodeService;
+import com.mtxgdn.util.AppConfig;
 import com.mtxgdn.util.JwtUtil;
 import jakarta.ws.rs.core.Response;
 import org.mindrot.jbcrypt.BCrypt;
@@ -15,10 +17,12 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.sql.Statement;
+import java.util.Arrays;
+import java.util.List;
 
 public class UserService {
 
-    public Response register(String username, String rawPassword) {
+    public Response register(String username, String rawPassword, String email, String code) {
         if (username == null || username.trim().isEmpty()) {
             return buildError(400, "用户名不能为空");
         }
@@ -35,9 +39,40 @@ public class UserService {
             return buildError(409, GameErrorCode.AUTH_USERNAME_EXISTS.getMessage());
         }
 
+        boolean verifyCodeEnabled = AppConfig.getBoolean("verify_code.enabled", true);
+        String trimmedEmail = null;
+
+        if (verifyCodeEnabled) {
+            if (email == null || email.trim().isEmpty()) {
+                return buildError(400, "邮箱不能为空");
+            }
+            trimmedEmail = email.trim().toLowerCase();
+
+            if (!isValidEmail(trimmedEmail)) {
+                return buildError(400, "邮箱格式不正确");
+            }
+
+            if (!isAllowedEmailDomain(trimmedEmail)) {
+                return buildError(400, "不支持的邮箱类型");
+            }
+
+            if (isEmailExists(trimmedEmail)) {
+                return buildError(409, "该邮箱已被注册");
+            }
+
+            if (code == null || code.trim().isEmpty()) {
+                return buildError(400, "验证码不能为空");
+            }
+
+            VerificationCodeService verificationCodeService = new VerificationCodeService();
+            if (!verificationCodeService.verifyCode(trimmedEmail, code.trim())) {
+                return buildError(400, "验证码错误或已过期");
+            }
+        }
+
         String hashedPassword = BCrypt.hashpw(rawPassword, BCrypt.gensalt());
 
-        User user = insertUser(trimmedUsername, hashedPassword);
+        User user = insertUser(trimmedUsername, hashedPassword, trimmedEmail);
         if (user == null) {
             return buildError(500, "注册失败，请稍后重试");
         }
@@ -52,6 +87,37 @@ public class UserService {
         data.addProperty("token", token);
 
         return Response.ok(GameMessage.restOk("注册成功", data).toString()).build();
+    }
+
+    private boolean isValidEmail(String email) {
+        return email.matches("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$");
+    }
+
+    private boolean isAllowedEmailDomain(String email) {
+        String allowedDomains = AppConfig.get("verify_code.allowed_domains", "qq.com,163.com,126.com,gmail.com,outlook.com,hotmail.com");
+        List<String> domains = Arrays.asList(allowedDomains.split(","));
+        int atIndex = email.lastIndexOf('@');
+        if (atIndex <= 0 || atIndex >= email.length() - 1) {
+            return false;
+        }
+        String domain = email.substring(atIndex + 1).toLowerCase();
+        return domains.contains(domain);
+    }
+
+    private boolean isEmailExists(String email) {
+        String sql = "SELECT COUNT(*) FROM users WHERE email = ?";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, email);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getInt(1) > 0;
+                }
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("数据库查询失败", e);
+        }
+        return false;
     }
 
     public Response login(String username, String rawPassword) {
@@ -131,12 +197,13 @@ public class UserService {
         return false;
     }
 
-    private User insertUser(String username, String hashedPassword) {
-        String sql = "INSERT INTO users (username, password) VALUES (?, ?)";
+    private User insertUser(String username, String hashedPassword, String email) {
+        String sql = "INSERT INTO users (username, password, email) VALUES (?, ?, ?)";
         try (Connection conn = DatabaseManager.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
             ps.setString(1, username);
             ps.setString(2, hashedPassword);
+            ps.setString(3, email);
             int affected = ps.executeUpdate();
             if (affected > 0) {
                 try (ResultSet rs = ps.getGeneratedKeys()) {
@@ -144,6 +211,7 @@ public class UserService {
                         User user = new User();
                         user.setId(rs.getLong(1));
                         user.setUsername(username);
+                        user.setEmail(email);
                         return user;
                     }
                 }

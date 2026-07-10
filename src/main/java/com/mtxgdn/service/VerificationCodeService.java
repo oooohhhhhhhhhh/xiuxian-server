@@ -1,6 +1,7 @@
 package com.mtxgdn.service;
 
 import com.mtxgdn.db.DatabaseManager;
+import com.mtxgdn.util.AppConfig;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -14,21 +15,41 @@ public class VerificationCodeService {
 
     private static final int CODE_LENGTH = 6;
     private static final int EXPIRY_MINUTES = 5;
+    private static final int RATE_LIMIT_SECONDS = 60;
     private static final Random RANDOM = new Random();
 
     public String generateAndStoreCode(String email) {
+        if (!canSendCode(email)) {
+            throw new RuntimeException("发送过于频繁，请稍后再试");
+        }
         String code = generateCode();
-        String sql = "INSERT INTO verification_codes (email, code, expires_at) VALUES (?, ?, ?)";
+        String sql = "INSERT INTO verification_codes (email, code, expires_at, sent_at) VALUES (?, ?, ?, ?)";
         try (Connection conn = DatabaseManager.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, email);
             ps.setString(2, code);
             ps.setTimestamp(3, Timestamp.from(Instant.now().plusSeconds(EXPIRY_MINUTES * 60L)));
+            ps.setTimestamp(4, Timestamp.from(Instant.now()));
             ps.executeUpdate();
         } catch (SQLException e) {
             throw new RuntimeException("验证码存储失败", e);
         }
         return code;
+    }
+
+    public boolean canSendCode(String email) {
+        int rateLimitSeconds = AppConfig.getInt("verify_code.rate_limit_seconds", RATE_LIMIT_SECONDS);
+        String sql = "SELECT id FROM verification_codes WHERE email = ? AND sent_at > ? ORDER BY id DESC LIMIT 1";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, email);
+            ps.setTimestamp(2, Timestamp.from(Instant.now().minusSeconds(rateLimitSeconds)));
+            try (ResultSet rs = ps.executeQuery()) {
+                return !rs.next();
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("查询发送记录失败", e);
+        }
     }
 
     public boolean verifyCode(String email, String code) {

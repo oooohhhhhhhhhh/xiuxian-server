@@ -39,6 +39,18 @@ smtp:
   auth: true
   starttls: true
 
+# ---- 注册验证码 ----
+verify_code:
+  enabled: true
+  allowed_domains:
+    - qq.com
+    - 163.com
+    - 126.com
+    - gmail.com
+    - outlook.com
+    - hotmail.com
+  rate_limit_seconds: 60
+
 # ---- OneBot QQ Bot ----
 onebot:
   enabled: true
