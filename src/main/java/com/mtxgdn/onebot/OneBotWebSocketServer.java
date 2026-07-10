@@ -13,6 +13,8 @@ import com.mtxgdn.game.service.NewbieGuideService;
 import com.mtxgdn.onebot.command.OneBotCommandContext;
 import com.mtxgdn.permission.PermissionService;
 import com.mtxgdn.service.UserService;
+import com.mtxgdn.service.VerificationCodeService;
+import com.mtxgdn.util.EmailService;
 import com.mtxgdn.util.GameLogger;
 import com.mtxgdn.util.OneBotLogger;
 import com.mtxgdn.util.PlayerActionLogger;
@@ -170,11 +172,14 @@ public class OneBotWebSocketServer extends WebSocketApplication
         String type;
         String state;
         String username;
+        String password;
+        String email;
+        String verificationCode;
 
         PendingSession(String type, Long sourceGroupId) {
             this.type = type;
             this.sourceGroupId = sourceGroupId;
-            this.state = "WAITING_PASSWORD";
+            this.state = "WAITING_USERNAME";
         }
 
         PendingSession() {
@@ -604,16 +609,63 @@ public class OneBotWebSocketServer extends WebSocketApplication
                 handleDeleteConfirm(socket, selfId, senderQq, session, message.trim());
                 break;
             case "WAITING_PASSWORD":
-                String password = message.trim();
-                if (password.length() < 6) {
+                String passwordInput = message.trim();
+                if (passwordInput.length() < 6) {
                     sendPrivateMsg(socket, selfId, senderQq, "密码不少于6位，请重新输入：\n(输入 /cancel 取消)");
                     return;
                 }
                 if ("register".equals(session.type)) {
-                    doRegisterComplete(socket, selfId, senderQq, session, password);
+                    session.password = passwordInput;
+                    boolean verifyCodeEnabled = AppConfig.getBoolean("verify_code.enabled", true);
+                    if (verifyCodeEnabled) {
+                        session.state = "WAITING_EMAIL";
+                        sendPrivateMsg(socket, selfId, senderQq, "请输入邮箱地址：\n(输入 /cancel 取消)");
+                    } else {
+                        doRegisterComplete(socket, selfId, senderQq, session, passwordInput, null, null);
+                        pendingSessions.remove(senderQq);
+                    }
                 } else {
-                    doBindComplete(socket, selfId, senderQq, session, password);
+                    doBindComplete(socket, selfId, senderQq, session, passwordInput);
+                    pendingSessions.remove(senderQq);
                 }
+                break;
+            case "WAITING_EMAIL":
+                String emailInput = message.trim();
+                if (emailInput.isEmpty()) {
+                    sendPrivateMsg(socket, selfId, senderQq, "邮箱不能为空，请重新输入：\n(输入 /cancel 取消)");
+                    return;
+                }
+                if (!isValidEmail(emailInput)) {
+                    sendPrivateMsg(socket, selfId, senderQq, "邮箱格式不正确，请重新输入：\n(输入 /cancel 取消)");
+                    return;
+                }
+                session.email = emailInput.toLowerCase();
+                try {
+                    VerificationCodeService verificationCodeService = new VerificationCodeService();
+                    if (!verificationCodeService.canSendCode(session.email)) {
+                        sendPrivateMsg(socket, selfId, senderQq, "发送过于频繁，请稍后再试：\n(输入 /cancel 取消)");
+                        return;
+                    }
+                    String code = verificationCodeService.generateAndStoreCode(session.email);
+                    EmailService.sendVerificationCode(session.email, code);
+                    session.state = "WAITING_CODE";
+                    sendPrivateMsg(socket, selfId, senderQq, "验证码已发送至邮箱，请输入验证码：\n(输入 /cancel 取消)");
+                } catch (Exception e) {
+                    sendPrivateMsg(socket, selfId, senderQq, "发送验证码失败: " + e.getMessage() + "\n请重新输入邮箱：\n(输入 /cancel 取消)");
+                }
+                break;
+            case "WAITING_CODE":
+                String codeInput = message.trim();
+                if (codeInput.isEmpty()) {
+                    sendPrivateMsg(socket, selfId, senderQq, "验证码不能为空，请重新输入：\n(输入 /cancel 取消)");
+                    return;
+                }
+                VerificationCodeService vcService = new VerificationCodeService();
+                if (!vcService.verifyCode(session.email, codeInput)) {
+                    sendPrivateMsg(socket, selfId, senderQq, "验证码错误或已过期，请重新输入：\n(输入 /cancel 取消)");
+                    return;
+                }
+                doRegisterComplete(socket, selfId, senderQq, session, session.password, session.email, codeInput);
                 pendingSessions.remove(senderQq);
                 break;
         }
@@ -676,14 +728,14 @@ public class OneBotWebSocketServer extends WebSocketApplication
             return;
         }
         try {
+            // 解绑QQ
+            bindingService.unbindByQq(senderQq);
             // 删除玩家数据
             PlayerInfo player = ServiceRegistry.getPlayerService().getPlayerByUserId(userId);
             if (player != null) {
                 ServiceRegistry.getPlayerService().deletePlayer(player.getId());
                 actionLog.logCustom(userId, username, "注销账号", "角色数据已删除");
             }
-            // 解绑QQ
-            bindingService.unbindByQq(senderQq);
             // 删除用户账号
             deleteUser(userId);
             pendingSessions.remove(senderQq);
@@ -695,7 +747,7 @@ public class OneBotWebSocketServer extends WebSocketApplication
     }
 
     private void doRegisterComplete(WebSocket socket, String selfId, String senderQq,
-                                     PendingSession session, String password) {
+                                     PendingSession session, String password, String email, String code) {
         if (isUsernameExists(session.username)) {
             replyToSource(socket, selfId, senderQq, session.sourceGroupId,
                     "角色名【" + session.username + "】已被占用，请重新注册。");
@@ -709,7 +761,6 @@ public class OneBotWebSocketServer extends WebSocketApplication
         Long userId = null;
         try {
             String hashedPassword = BCrypt.hashpw(password, BCrypt.gensalt());
-            String email = senderQq + "@qq.com";
             userId = insertUser(session.username, hashedPassword, email);
             if (userId == null) {
                 replyToSource(socket, selfId, senderQq, session.sourceGroupId,
@@ -824,6 +875,10 @@ public class OneBotWebSocketServer extends WebSocketApplication
             stmt.setLong(1, userId);
             stmt.executeUpdate();
         } catch (SQLException e) { throw new RuntimeException("删除用户失败", e); }
+    }
+
+    private boolean isValidEmail(String email) {
+        return email.matches("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$");
     }
 
     private String getUsernameByUserId(long userId) {
