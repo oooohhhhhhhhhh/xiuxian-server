@@ -22,15 +22,18 @@ public class BackpackCommand extends Command {
         var guideService = ServiceRegistry.getGuideService();
         var itemService = ServiceRegistry.getItemService();
         List<ItemService.InventoryEntry> inventory = itemService.getInventory((int) p.getId());
-        if (inventory.isEmpty()) {
-            ctx.reply("===== 背包 =====\n空空如也...");
-            return;
-        }
+        int usedSlots = itemService.getInventoryUsedSlots((int) p.getId());
+        int capacity = itemService.getInventoryCapacity((int) p.getId());
         StringBuilder sb = new StringBuilder();
         sb.append("===== 背包 =====\n");
-        for (ItemService.InventoryEntry entry : inventory) {
-            Item item = entry.getItem();
-            sb.append(item.getName()).append(" (").append(item.getFullKey()).append(") x").append(entry.getQuantity()).append("\n");
+        sb.append("容量: ").append(usedSlots).append("/").append(capacity).append("\n\n");
+        if (inventory.isEmpty()) {
+            sb.append("空空如也...");
+        } else {
+            for (ItemService.InventoryEntry entry : inventory) {
+                Item item = entry.getItem();
+                sb.append(item.getName()).append(" (").append(item.getFullKey()).append(") x").append(entry.getQuantity()).append("\n");
+            }
         }
         ctx.reply(sb.toString());
         String discTip = guideService.checkDiscovery((int) p.getId(), p, "backpack");

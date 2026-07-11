@@ -99,6 +99,13 @@ logging:
   dir: log
   color: true
 
+# ---- 背包系统 ----
+inventory:
+  # 基础背包容量（物品种类数）
+  base_capacity: 30
+  # 每级增加的背包容量
+  capacity_per_level: 5
+
 # ---- 性能 / 低内存优化 ----
 performance:
   # JVM 启动参数建议 (java -Xms128m -Xmx256m -XX:+UseSerialGC ...)

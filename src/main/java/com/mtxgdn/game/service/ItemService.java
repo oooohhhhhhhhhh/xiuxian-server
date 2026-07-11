@@ -1,11 +1,14 @@
 package com.mtxgdn.game.service;
 
 import com.mtxgdn.db.DatabaseManager;
+import com.mtxgdn.entity.Player;
 import com.mtxgdn.game.item.BuffEffect;
 import com.mtxgdn.game.item.CurrencyEffect;
+import com.mtxgdn.game.item.InventoryCapacityEffect;
 import com.mtxgdn.game.item.Item;
 import com.mtxgdn.game.item.ItemEffect;
 import com.mtxgdn.game.item.ItemRegistry;
+import com.mtxgdn.util.AppConfig;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -18,7 +21,56 @@ import java.util.Map;
 
 public class ItemService {
 
+    private static final int BASE_CAPACITY = AppConfig.getInt("inventory.base_capacity", 30);
+    private static final int CAPACITY_PER_LEVEL = AppConfig.getInt("inventory.capacity_per_level", 5);
+
     private final PlayerService playerService = new PlayerService();
+
+    // ==================== 背包容量 ====================
+
+    public int getInventoryCapacity(long playerId) {
+        Player player = playerService.getPlayerById(playerId);
+        int level = player != null ? player.getLevel() : 1;
+        int baseCapacity = BASE_CAPACITY + (level - 1) * CAPACITY_PER_LEVEL;
+        int bonusCapacity = calculateCapacityBonus(playerId);
+        return baseCapacity + bonusCapacity;
+    }
+
+    private int calculateCapacityBonus(long playerId) {
+        int bonus = 0;
+        Map<String, String> equipment = getEquipment(playerId);
+        for (String itemKey : equipment.values()) {
+            if (itemKey == null || itemKey.isEmpty()) continue;
+            Item item = ItemRegistry.get(itemKey);
+            if (item == null) continue;
+            for (ItemEffect effect : item.getEffects()) {
+                if (effect instanceof InventoryCapacityEffect ice) {
+                    bonus += ice.getCapacityBonus();
+                }
+            }
+        }
+        return bonus;
+    }
+
+    public int getInventoryUsedSlots(long playerId) {
+        String sql = "SELECT COUNT(*) FROM players_items WHERE player_id = ? AND quantity > 0";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setLong(1, playerId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getInt(1);
+                }
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("查询背包使用槽位数失败", e);
+        }
+        return 0;
+    }
+
+    public boolean isInventoryFull(long playerId) {
+        return getInventoryUsedSlots(playerId) >= getInventoryCapacity(playerId);
+    }
 
     // ==================== 添加物品 ====================
 
@@ -26,9 +78,11 @@ public class ItemService {
      * 添加物品到背包。使用 upsert：存在则累加数量，不存在则插入。
      *
      * @throws IllegalArgumentException 如果 quantity <= 0 或 itemKey 未注册
+     * @throws RuntimeException 如果背包已满
      */
     public boolean addItem(long playerId, String itemKey, long quantity) {
         validateAddParams(itemKey, quantity);
+        checkCapacity(playerId, itemKey);
         try (Connection conn = DatabaseManager.getConnection()) {
             return addItem(conn, playerId, itemKey, quantity);
         } catch (SQLException e) {
@@ -41,6 +95,7 @@ public class ItemService {
      */
     public boolean addItem(Connection conn, long playerId, String itemKey, long quantity) throws SQLException {
         validateAddParams(itemKey, quantity);
+        checkCapacity(conn, playerId, itemKey);
         String sql;
         if (DatabaseManager.isSqlite()) {
             sql = """
@@ -71,6 +126,20 @@ public class ItemService {
         }
         if (!ItemRegistry.contains(itemKey)) {
             throw new IllegalArgumentException("物品不存在: " + itemKey);
+        }
+    }
+
+    private void checkCapacity(long playerId, String itemKey) {
+        if (getItemCount(playerId, itemKey) == 0 && isInventoryFull(playerId)) {
+            int capacity = getInventoryCapacity(playerId);
+            throw new RuntimeException("背包已满！当前容量: " + capacity + " 格，请先清理背包或提升等级扩容");
+        }
+    }
+
+    private void checkCapacity(Connection conn, long playerId, String itemKey) throws SQLException {
+        if (getItemCount(conn, playerId, itemKey) == 0 && isInventoryFull(playerId)) {
+            int capacity = getInventoryCapacity(playerId);
+            throw new SQLException("背包已满！当前容量: " + capacity + " 格，请先清理背包或提升等级扩容");
         }
     }
 

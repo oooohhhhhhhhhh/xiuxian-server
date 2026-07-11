@@ -228,6 +228,7 @@ public class CraftingService {
             {"锻造凤甲", "以凤羽编织的神甲", "EQUIPMENT", 4, "mtxgdn:phoenix_armor", 1, "mtxgdn:phoenix_feather", 5, "mtxgdn:ice_crystal", 3, "mtxgdn:spirit_wood", 5, 25000L, 6000L, 0.35, 250L, 600L, 0.03, 0.005, 0.4},
             {"炼制麒麟护符", "蕴含麒麟之力的至尊护符", "EQUIPMENT", 5, "mtxgdn:qilin_amulet", 1, "mtxgdn:qilin_blood", 3, "mtxgdn:dragon_scale", 2, "mtxgdn:phoenix_feather", 2, 80000L, 20000L, 0.20, 500L, 1000L, 0.02, 0.003, 0.5},
             {"炼制星辰法袍", "以星砂编织的法袍", "EQUIPMENT", 3, "mtxgdn:star_robes", 1, "mtxgdn:star_sand", 5, "mtxgdn:spirit_wood", 3, "mtxgdn:spirit_stone_low", 5, 10000L, 2000L, 0.50, 100L, 300L, 0.04, 0.01, 0.3},
+            {"锻造空间戒指", "以灵木和星沙锻造的神奇戒指，可增加背包容量", "EQUIPMENT", 2, "mtxgdn:space_ring", 1, "mtxgdn:spirit_wood", 5, "mtxgdn:star_sand", 3, "mtxgdn:spirit_pearl", 2, 800L, 200L, 0.60, 60L, 150L, 0.04, 0.01, 0.2},
             {"炼制聚灵石", "浓缩灵石精华而成，蕴含大量灵石能量", "CONSUMABLE", 1, "mtxgdn:spirit_stone_pouch", 1, "mtxgdn:spirit_stone_low", 5, "mtxgdn:iron_ore", 3, null, 0, 100L, 0L, 0.90, 10L, 40L, 0.03, 0.005, 0.1},
             {"炼制加速符", "以疾风灵力绘制的符箓，使用后提升速度", "CONSUMABLE", 2, "mtxgdn:speed_talisman", 1, "mtxgdn:spirit_grass", 4, "mtxgdn:mana_pill", 2, "mtxgdn:heaven_pill", 1, 500L, 120L, 0.65, 40L, 100L, 0.04, 0.01, 0.15},
             {"炼制强化石", "将铁矿石和妖兽内丹熔炼成强化石", "CONSUMABLE", 1, "mtxgdn:enhance_stone", 1, "mtxgdn:iron_ore", 3, "mtxgdn:beast_core", 1, null, 0, 200L, 30L, 0.80, 15L, 40L, 0.05, 0.01, 0.1},

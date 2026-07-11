@@ -179,6 +179,8 @@
   "item.jade_armor.desc": "通体由灵玉打造的战甲，攻击力+80、防御力+200、速度+30、灵力+100",
   "item.star_robes.name": "星辰法袍",
   "item.star_robes.desc": "由星沙编织的法袍，防御力+150、灵力+100、速度+20",
+  "item.space_ring.name": "空间戒指",
+  "item.space_ring.desc": "蕴含空间法则的神奇戒指，装备后可增加20格背包容量",
   "item.spirit_spring_water.name": "灵泉水",
   "item.spirit_spring_water.desc": "蕴含灵气的泉水，饮用后可恢复少量生命和法力",
 
