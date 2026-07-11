@@ -19,6 +19,23 @@ public class FarmPlot {
         }
     }
 
+    public enum PestState {
+        CLEAN("健康"),
+        MILD("轻度虫害"),
+        SEVERE("严重虫害"),
+        DISEASE("病害");
+
+        private final String displayName;
+
+        PestState(String displayName) {
+            this.displayName = displayName;
+        }
+
+        public String getDisplayName() {
+            return displayName;
+        }
+    }
+
     private long id;
     private long playerId;
     private int plotIndex;
@@ -27,10 +44,15 @@ public class FarmPlot {
     private String cropKey;
     private long plantedTime;
     private long harvestTime;
+    private long wiltedTime;
     private int growthStage;
     private int waterLevel;
     private int fertilizerLevel;
     private int yield;
+    private double rootBonus;
+    private double seasonModifier;
+    private PestState pestState;
+    private long pestTime;
 
     public FarmPlot() {}
 
@@ -50,6 +72,8 @@ public class FarmPlot {
     public void setPlantedTime(long plantedTime) { this.plantedTime = plantedTime; }
     public long getHarvestTime() { return harvestTime; }
     public void setHarvestTime(long harvestTime) { this.harvestTime = harvestTime; }
+    public long getWiltedTime() { return wiltedTime; }
+    public void setWiltedTime(long wiltedTime) { this.wiltedTime = wiltedTime; }
     public int getGrowthStage() { return growthStage; }
     public void setGrowthStage(int growthStage) { this.growthStage = growthStage; }
     public int getWaterLevel() { return waterLevel; }
@@ -58,4 +82,12 @@ public class FarmPlot {
     public void setFertilizerLevel(int fertilizerLevel) { this.fertilizerLevel = fertilizerLevel; }
     public int getYield() { return yield; }
     public void setYield(int yield) { this.yield = yield; }
+    public double getRootBonus() { return rootBonus; }
+    public void setRootBonus(double rootBonus) { this.rootBonus = rootBonus; }
+    public double getSeasonModifier() { return seasonModifier; }
+    public void setSeasonModifier(double seasonModifier) { this.seasonModifier = seasonModifier; }
+    public PestState getPestState() { return pestState; }
+    public void setPestState(PestState pestState) { this.pestState = pestState; }
+    public long getPestTime() { return pestTime; }
+    public void setPestTime(long pestTime) { this.pestTime = pestTime; }
 }

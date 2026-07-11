@@ -36,6 +36,7 @@ import com.mtxgdn.game.service.FriendService;
 import com.mtxgdn.game.service.BuffService;
 import com.mtxgdn.game.service.FarmService;
 import com.mtxgdn.game.entity.FarmPlot;
+import com.mtxgdn.game.entity.Season;
 import com.mtxgdn.game.entity.Friend;
 import com.mtxgdn.game.entity.ChatMessage;
 import com.mtxgdn.common.service.ServiceRegistry;
@@ -2351,6 +2352,10 @@ public class GameResource {
             o.addProperty("growthStage", plot.getGrowthStage());
             o.addProperty("waterLevel", plot.getWaterLevel());
             o.addProperty("fertilizerLevel", plot.getFertilizerLevel());
+            o.addProperty("pestState", plot.getPestState() != null ? plot.getPestState().name() : "CLEAN");
+            o.addProperty("pestStateDisplay", plot.getPestState() != null ? plot.getPestState().getDisplayName() : "健康");
+            o.addProperty("rootBonus", plot.getRootBonus());
+            o.addProperty("seasonModifier", plot.getSeasonModifier());
             if (plot.getState() != FarmPlot.PlotState.EMPTY && plot.getHarvestTime() > 0) {
                 long remaining = Math.max(0, plot.getHarvestTime() - System.currentTimeMillis());
                 o.addProperty("harvestRemainingMs", remaining);
@@ -2358,9 +2363,13 @@ public class GameResource {
             plotArray.add(o);
         }
 
+        Season currentSeason = Season.getCurrentSeason();
         JsonObject data = new JsonObject();
         data.add("plots", plotArray);
         data.addProperty("count", plotArray.size());
+        data.addProperty("currentSeason", currentSeason.name());
+        data.addProperty("currentSeasonDisplay", currentSeason.getDisplayName());
+        data.addProperty("currentSeasonDesc", currentSeason.getDescription());
 
         return Response.ok(GameMessage.restOk("获取成功", data).toString()).build();
     }
@@ -2504,6 +2513,86 @@ public class GameResource {
 
         if (Boolean.TRUE.equals(result.get("success"))) {
             return Response.ok(GameMessage.restOk((String) result.get("message"), gson.toJsonTree(result).getAsJsonObject()).toString()).build();
+        }
+        return Response.ok(GameMessage.restError(400, (String) result.get("message")).toString()).build();
+    }
+
+    @POST
+    @Path("/farm/water-all")
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("game.player.info")
+    public Response farmWaterAll() {
+        Long userId = getCurrentUserId();
+        int playerId = getPlayerIdByUserId(userId);
+
+        FarmService farmService = new FarmService();
+        Map<String, Object> result = farmService.waterAll(playerId);
+
+        if (Boolean.TRUE.equals(result.get("success"))) {
+            return Response.ok(GameMessage.restOk((String) result.get("message"), gson.toJsonTree(result).getAsJsonObject()).toString()).build();
+        }
+        return Response.ok(GameMessage.restError(400, (String) result.get("message")).toString()).build();
+    }
+
+    @POST
+    @Path("/farm/fertilize-all")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("game.player.info")
+    public Response farmFertilizeAll(String body) {
+        Long userId = getCurrentUserId();
+        int playerId = getPlayerIdByUserId(userId);
+
+        JsonObject json = gson.fromJson(body, JsonObject.class);
+        String fertilizerKey = json.has("fertilizerKey") ? json.get("fertilizerKey").getAsString() : "mtxgdn:low_grade_fertilizer";
+
+        FarmService farmService = new FarmService();
+        Map<String, Object> result = farmService.fertilizeAll(playerId, fertilizerKey);
+
+        if (Boolean.TRUE.equals(result.get("success"))) {
+            return Response.ok(GameMessage.restOk((String) result.get("message"), gson.toJsonTree(result).getAsJsonObject()).toString()).build();
+        }
+        return Response.ok(GameMessage.restError(400, (String) result.get("message")).toString()).build();
+    }
+
+    @POST
+    @Path("/farm/harvest-all")
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("game.player.info")
+    public Response farmHarvestAll() {
+        Long userId = getCurrentUserId();
+        int playerId = getPlayerIdByUserId(userId);
+
+        FarmService farmService = new FarmService();
+        Map<String, Object> result = farmService.harvestAll(playerId);
+
+        if (Boolean.TRUE.equals(result.get("success"))) {
+            return Response.ok(GameMessage.restOk((String) result.get("message"), gson.toJsonTree(result).getAsJsonObject()).toString()).build();
+        }
+        return Response.ok(GameMessage.restError(400, (String) result.get("message")).toString()).build();
+    }
+
+    @POST
+    @Path("/farm/pesticide")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("game.player.info")
+    public Response farmPesticide(String body) {
+        Long userId = getCurrentUserId();
+        int playerId = getPlayerIdByUserId(userId);
+
+        JsonObject json = gson.fromJson(body, JsonObject.class);
+        int plotIndex = json.has("plotIndex") ? json.get("plotIndex").getAsInt() : -1;
+
+        if (plotIndex < 0) {
+            return Response.ok(GameMessage.restError(GameErrorCode.PARAM_MISSING).toString()).build();
+        }
+
+        FarmService farmService = new FarmService();
+        Map<String, Object> result = farmService.usePesticide(playerId, plotIndex);
+
+        if (Boolean.TRUE.equals(result.get("success"))) {
+            return Response.ok(GameMessage.restOk((String) result.get("message"), null).toString()).build();
         }
         return Response.ok(GameMessage.restError(400, (String) result.get("message")).toString()).build();
     }

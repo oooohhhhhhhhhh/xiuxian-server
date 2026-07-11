@@ -708,6 +708,7 @@ public class DatabaseManager {
                         "crop_key VARCHAR(128), " +
                         "planted_time BIGINT DEFAULT 0, " +
                         "harvest_time BIGINT DEFAULT 0, " +
+                        "wilted_time BIGINT DEFAULT 0, " +
                         "growth_stage INT DEFAULT 0, " +
                         "water_level INT DEFAULT 100, " +
                         "fertilizer_level INT DEFAULT 0, " +
@@ -715,6 +716,11 @@ public class DatabaseManager {
                         (IS_SQLITE ? "" : ", FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE") +
                         ")";
                 stmt.execute(farmPlotsTableSql);
+                try { stmt.execute("ALTER TABLE farm_plots ADD COLUMN wilted_time BIGINT DEFAULT 0"); } catch (SQLException ignored) {}
+                try { stmt.execute("ALTER TABLE farm_plots ADD COLUMN root_bonus DOUBLE DEFAULT 0"); } catch (SQLException ignored) {}
+                try { stmt.execute("ALTER TABLE farm_plots ADD COLUMN season_modifier DOUBLE DEFAULT 1"); } catch (SQLException ignored) {}
+                try { stmt.execute("ALTER TABLE farm_plots ADD COLUMN pest_state VARCHAR(16) DEFAULT 'CLEAN'"); } catch (SQLException ignored) {}
+                try { stmt.execute("ALTER TABLE farm_plots ADD COLUMN pest_time BIGINT DEFAULT 0"); } catch (SQLException ignored) {}
             } catch (SQLException ignored) {
             }
         } catch (SQLException e) {
