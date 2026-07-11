@@ -554,6 +554,24 @@ public class DatabaseManager {
             stmt.execute(redeemCodesTableSql);
             stmt.execute(redeemedCodesTableSql);
 
+            // 洞府表
+            String cavesTableSql = "CREATE TABLE IF NOT EXISTS caves (" +
+                    "id " + pk + ", " +
+                    "player_id BIGINT NOT NULL, " +
+                    "name VARCHAR(32) NOT NULL DEFAULT '山间洞府', " +
+                    "level INT DEFAULT 1, " +
+                    "spirit_energy BIGINT DEFAULT 0, " +
+                    "max_spirit_energy INT DEFAULT 1000, " +
+                    "cultivation_bonus INT DEFAULT 5, " +
+                    "storage_bonus INT DEFAULT 10, " +
+                    "last_collect_time BIGINT DEFAULT 0, " +
+                    "created_at " + tsDefault + ", " +
+                    "updated_at " + tsUpdate +
+                    (IS_SQLITE ? "" : ", FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE, ") +
+                    "UNIQUE (player_id)" +
+                    ")";
+            stmt.execute(cavesTableSql);
+
             // 迁移：为旧表添加 battle_strategy 列
             try { stmt.execute("ALTER TABLE players ADD COLUMN battle_strategy VARCHAR(16) DEFAULT 'balanced'"); } catch (SQLException ignored) {}
 

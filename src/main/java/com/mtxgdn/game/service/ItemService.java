@@ -49,6 +49,8 @@ public class ItemService {
                 }
             }
         }
+        com.mtxgdn.game.service.CaveService caveService = new com.mtxgdn.game.service.CaveService();
+        bonus += caveService.getStorageBonus(playerId);
         return bonus;
     }
 
