@@ -13,13 +13,13 @@ import java.util.concurrent.ConcurrentHashMap;
 
 public class CultivateCommand extends Command {
 
-    private final Map<Long, Long> cultivateStartTimes = new ConcurrentHashMap<>();
+    private final Map<Long, Long> meditateStartTimes = new ConcurrentHashMap<>();
 
     public CultivateCommand() {
-        super(new String[]{"修炼", "闭关", "cultivate"},
-                "开始闭关修炼",
-                "/修炼",
-                "修炼",
+        super(new String[]{"打坐", "闭关", "meditate", "cultivate"},
+                "开始打坐修炼",
+                "/打坐",
+                "打坐",
                 "game.cultivate");
     }
 
@@ -36,17 +36,17 @@ public class CultivateCommand extends Command {
         var actionLog = PlayerActionLogger.getInstance();
 
         if (p.isCultivating()) {
-            ctx.reply("你已经在闭关中了，使用 /停止 来结束。");
+            ctx.reply("你已经在打坐中了，使用 /停止 来结束。");
             return;
         }
 
         playerService.setCultivating(p.getId(), true);
-        cultivateStartTimes.put(userId, System.currentTimeMillis());
+        meditateStartTimes.put(userId, System.currentTimeMillis());
         actionLog.logCultivateStart(userId, p.getName(), p.getRealm());
 
         int ratePerSec = GameConfigLoader.getCultivationPerSecond(p.getRealm());
         int ratePerMin = ratePerSec * 60;
-        String msg = "开始闭关！\n每分钟获得 " + ratePerMin + " 灵力\n使用 /停止 结束闭关并结算灵力";
+        String msg = "开始打坐！\n每分钟获得 " + ratePerMin + " 灵力\n使用 /停止 结束打坐并结算灵力";
 
         NewbieGuideService.GuideResult guide = ServiceRegistry.getGuideService()
                 .checkAndAdvance((int) p.getId(), p, "cultivate_start");
@@ -56,10 +56,10 @@ public class CultivateCommand extends Command {
     }
 
     public Long getStartTime(Long userId) {
-        return cultivateStartTimes.get(userId);
+        return meditateStartTimes.get(userId);
     }
 
     public Long removeStartTime(Long userId) {
-        return cultivateStartTimes.remove(userId);
+        return meditateStartTimes.remove(userId);
     }
 }

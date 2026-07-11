@@ -4,6 +4,7 @@ import com.mtxgdn.db.DatabaseManager;
 import com.mtxgdn.entity.Player;
 import com.mtxgdn.game.config.GameConfigLoader;
 import com.mtxgdn.game.entity.Cave;
+import com.mtxgdn.game.service.HeartDemonService;
 import com.mtxgdn.util.GameLogger;
 
 import java.sql.Connection;
@@ -192,12 +193,25 @@ public class CaveService {
         int bonus = cave.getCultivationBonus();
         long expGain = 100 + (long) bonus * 10;
 
-        playerService.addExperience(playerId, expGain);
+        HeartDemonService heartDemonService = new HeartDemonService();
+        HeartDemonService.HeartDemonResult heartDemon = heartDemonService.processCultivationWithCave(playerId, expGain, 30, cave.getLevel());
 
-        result.put("success", true);
-        result.put("message", "在洞府中打坐冥想，获得 " + expGain + " 经验值（洞府修炼加成 +" + bonus + "%）");
-        result.put("expGain", expGain);
-        result.put("bonus", bonus);
+        if (heartDemon.triggered) {
+            expGain = heartDemon.netExpChange;
+            if (expGain < 0) expGain = 0;
+            playerService.addExperience(playerId, expGain);
+            result.put("success", true);
+            result.put("message", "在洞府中打坐冥想\n⚠ 心魔劫: " + heartDemon.narrative + "\n实际获得: " + expGain + " 经验值（洞府修炼加成 +" + bonus + "%）");
+            result.put("expGain", expGain);
+            result.put("bonus", bonus);
+            result.put("heartDemon", heartDemon);
+        } else {
+            playerService.addExperience(playerId, expGain);
+            result.put("success", true);
+            result.put("message", "在洞府中打坐冥想，获得 " + expGain + " 经验值（洞府修炼加成 +" + bonus + "%）");
+            result.put("expGain", expGain);
+            result.put("bonus", bonus);
+        }
         return result;
     }
 

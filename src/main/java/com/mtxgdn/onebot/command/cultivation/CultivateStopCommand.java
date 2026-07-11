@@ -14,9 +14,9 @@ public class CultivateStopCommand extends Command {
 
     public CultivateStopCommand() {
         super(new String[]{"停止", "stop"},
-                "结束闭关并结算灵力",
+                "结束打坐并结算灵力",
                 "/停止",
-                "修炼",
+                "打坐",
                 "game.cultivate");
     }
 
@@ -35,7 +35,7 @@ public class CultivateStopCommand extends Command {
         if (p == null) return;
 
         if (!p.isCultivating()) {
-            ctx.reply("你还没有开始闭关，使用 /修炼 开始。");
+            ctx.reply("你还没有开始打坐，使用 /打坐 开始。");
             return;
         }
 
@@ -47,14 +47,14 @@ public class CultivateStopCommand extends Command {
 
         if (startTime == null) {
             playerService.setCultivating(p.getId(), false);
-            ctx.reply("闭关状态异常，已强制结束。");
+            ctx.reply("打坐状态异常，已强制结束。");
             return;
         }
 
         long elapsedMillis = System.currentTimeMillis() - startTime;
         if (elapsedMillis < 1000) {
             playerService.setCultivating(p.getId(), false);
-            ctx.reply("闭关时间太短，未获得灵力。");
+            ctx.reply("打坐时间太短，未获得灵力。");
             return;
         }
 
@@ -73,8 +73,8 @@ public class CultivateStopCommand extends Command {
         actionLog.logCultivateStop(userId, p.getName(), expGained, elapsedSeconds);
 
         StringBuilder msg = new StringBuilder();
-        msg.append("===== 闭关结算 =====\n");
-        msg.append("修炼时长: ").append(elapsedSeconds).append(" 秒\n");
+        msg.append("===== 打坐结算 =====\n");
+        msg.append("打坐时长: ").append(elapsedSeconds).append(" 秒\n");
         msg.append("获得灵力: ").append(expGained).append("\n");
 
         HeartDemonService.HeartDemonResult heartDemon = heartDemonService.processCultivation(p.getId(), expGained, elapsedSeconds);

@@ -23,6 +23,10 @@ public class HeartDemonService {
     }
 
     public HeartDemonResult processCultivation(long playerId, long rawExpGained, int elapsedSeconds) {
+        return processCultivationWithCave(playerId, rawExpGained, elapsedSeconds, 0);
+    }
+
+    public HeartDemonResult processCultivationWithCave(long playerId, long rawExpGained, int elapsedSeconds, int caveLevel) {
         HeartDemonResult result = new HeartDemonResult();
         result.rawExpGained = rawExpGained;
 
@@ -59,7 +63,8 @@ public class HeartDemonService {
             }
         }
 
-        double finalChance = Math.min(40.0, baseChance - spiritResist - rootResist);
+        double caveResist = caveLevel * 3.0;
+        double finalChance = Math.min(40.0, Math.max(0.0, baseChance - spiritResist - rootResist - caveResist));
 
         int severityRoll = RANDOM.nextInt(100);
         int eventRoll = RANDOM.nextInt(100);
