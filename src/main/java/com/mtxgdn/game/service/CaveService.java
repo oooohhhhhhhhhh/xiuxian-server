@@ -27,6 +27,8 @@ public class CaveService {
 
     private static final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
 
+    private final FormationService formationService = new FormationService();
+
     static {
         scheduler.scheduleAtFixedRate(CaveService::tickSpiritEnergy, 10, 10, TimeUnit.SECONDS);
         LOG.info("洞府灵气自动增长任务已启动");
@@ -165,11 +167,21 @@ public class CaveService {
             return null;
         });
 
-        itemService.addSpiritStones(playerId, spiritEnergy);
+        int formationBoost = formationService.getTotalSpiritEnergyBoost(playerId);
+        long boostedEnergy = spiritEnergy;
+        if (formationBoost > 0) {
+            boostedEnergy = spiritEnergy * (100 + formationBoost) / 100;
+        }
+
+        itemService.addSpiritStones(playerId, boostedEnergy);
 
         result.put("success", true);
-        result.put("message", "收集洞府灵气获得 " + spiritEnergy + " 灵石！");
-        result.put("collected", spiritEnergy);
+        if (formationBoost > 0) {
+            result.put("message", "收集洞府灵气获得 " + boostedEnergy + " 灵石！（阵法加成 +" + formationBoost + "%）");
+        } else {
+            result.put("message", "收集洞府灵气获得 " + boostedEnergy + " 灵石！");
+        }
+        result.put("collected", boostedEnergy);
         return result;
     }
 
@@ -190,27 +202,46 @@ public class CaveService {
             return result;
         }
 
-        int bonus = cave.getCultivationBonus();
-        long expGain = 100 + (long) bonus * 10;
+        int caveBonus = cave.getCultivationBonus();
+        int formationBonus = formationService.getTotalCultivationBonus(playerId);
+        int totalBonus = caveBonus + formationBonus;
+        long expGain = 100 + (long) totalBonus * 10;
+
+        int formationResist = formationService.getTotalHeartDemonResist(playerId);
+        int totalCaveLevelForHeartDemon = cave.getLevel() + (formationResist / 2);
 
         HeartDemonService heartDemonService = new HeartDemonService();
-        HeartDemonService.HeartDemonResult heartDemon = heartDemonService.processCultivationWithCave(playerId, expGain, 30, cave.getLevel());
+        HeartDemonService.HeartDemonResult heartDemon = heartDemonService.processCultivationWithCave(playerId, expGain, 30, totalCaveLevelForHeartDemon);
 
         if (heartDemon.triggered) {
             expGain = heartDemon.netExpChange;
             if (expGain < 0) expGain = 0;
             playerService.addExperience(playerId, expGain);
+            StringBuilder msg = new StringBuilder();
+            msg.append("在洞府中打坐冥想\n");
+            msg.append("⚠ 心魔劫: ").append(heartDemon.narrative).append("\n");
+            msg.append("实际获得: ").append(expGain).append(" 经验值\n");
+            msg.append("洞府修炼加成: +").append(caveBonus).append("%");
+            if (formationBonus > 0) {
+                msg.append("（阵法加成: +").append(formationBonus).append("%）");
+            }
             result.put("success", true);
-            result.put("message", "在洞府中打坐冥想\n⚠ 心魔劫: " + heartDemon.narrative + "\n实际获得: " + expGain + " 经验值（洞府修炼加成 +" + bonus + "%）");
+            result.put("message", msg.toString());
             result.put("expGain", expGain);
-            result.put("bonus", bonus);
+            result.put("bonus", totalBonus);
             result.put("heartDemon", heartDemon);
         } else {
             playerService.addExperience(playerId, expGain);
+            StringBuilder msg = new StringBuilder();
+            msg.append("在洞府中打坐冥想，获得 ").append(expGain).append(" 经验值\n");
+            msg.append("洞府修炼加成: +").append(caveBonus).append("%");
+            if (formationBonus > 0) {
+                msg.append("（阵法加成: +").append(formationBonus).append("%）");
+            }
             result.put("success", true);
-            result.put("message", "在洞府中打坐冥想，获得 " + expGain + " 经验值（洞府修炼加成 +" + bonus + "%）");
+            result.put("message", msg.toString());
             result.put("expGain", expGain);
-            result.put("bonus", bonus);
+            result.put("bonus", totalBonus);
         }
         return result;
     }

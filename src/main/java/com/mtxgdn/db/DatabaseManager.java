@@ -572,6 +572,27 @@ public class DatabaseManager {
                     ")";
             stmt.execute(cavesTableSql);
 
+            // 阵法表
+            String formationsTableSql = "CREATE TABLE IF NOT EXISTS formations (" +
+                    "id " + pk + ", " +
+                    "player_id BIGINT NOT NULL, " +
+                    "formation_key VARCHAR(32) NOT NULL, " +
+                    "name VARCHAR(32) NOT NULL, " +
+                    "level INT DEFAULT 1, " +
+                    "spirit_energy_boost INT DEFAULT 0, " +
+                    "cultivation_bonus INT DEFAULT 0, " +
+                    "defense_bonus INT DEFAULT 0, " +
+                    "heart_demon_resist INT DEFAULT 0, " +
+                    "duration_minutes INT DEFAULT 60, " +
+                    "placed_at BIGINT DEFAULT 0, " +
+                    "expires_at BIGINT DEFAULT 0, " +
+                    "active BOOLEAN DEFAULT 0, " +
+                    "created_at " + tsDefault + ", " +
+                    "updated_at " + tsUpdate +
+                    (IS_SQLITE ? "" : ", FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE") +
+                    ")";
+            stmt.execute(formationsTableSql);
+
             // 迁移：为旧表添加 battle_strategy 列
             try { stmt.execute("ALTER TABLE players ADD COLUMN battle_strategy VARCHAR(16) DEFAULT 'balanced'"); } catch (SQLException ignored) {}
 
