@@ -23,7 +23,6 @@ public class FormationService {
 
     private final PlayerService playerService = new PlayerService();
     private final ItemService itemService = new ItemService();
-    private final CaveService caveService = new CaveService();
 
     private static final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
 
@@ -61,7 +60,7 @@ public class FormationService {
             return result;
         }
 
-        if (caveService.getCaveByPlayerId(playerId) == null) {
+        if (com.mtxgdn.common.service.ServiceRegistry.getCaveService().getCaveByPlayerId(playerId) == null) {
             result.put("success", false);
             result.put("message", "你还没有洞府，无法布置阵法");
             return result;

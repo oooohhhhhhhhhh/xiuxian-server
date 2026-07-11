@@ -24,6 +24,13 @@ public class ServiceRegistry {
     private static final EconomyService economyService = new EconomyService();
     private static final EnergyService energyService = new EnergyService();
     private static final TitleService titleService = new TitleService();
+    private static CaveService caveService;
+    private static FormationService formationService;
+
+    static {
+        caveService = new CaveService();
+        formationService = new FormationService();
+    }
 
     private ServiceRegistry() {
     }
@@ -106,5 +113,13 @@ public class ServiceRegistry {
 
     public static TitleService getTitleService() {
         return titleService;
+    }
+
+    public static CaveService getCaveService() {
+        return caveService;
+    }
+
+    public static FormationService getFormationService() {
+        return formationService;
     }
 }

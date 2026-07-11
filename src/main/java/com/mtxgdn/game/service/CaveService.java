@@ -27,8 +27,6 @@ public class CaveService {
 
     private static final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
 
-    private final FormationService formationService = new FormationService();
-
     static {
         scheduler.scheduleAtFixedRate(CaveService::tickSpiritEnergy, 10, 10, TimeUnit.SECONDS);
         LOG.info("洞府灵气自动增长任务已启动");
@@ -167,7 +165,7 @@ public class CaveService {
             return null;
         });
 
-        int formationBoost = formationService.getTotalSpiritEnergyBoost(playerId);
+        int formationBoost = com.mtxgdn.common.service.ServiceRegistry.getFormationService().getTotalSpiritEnergyBoost(playerId);
         long boostedEnergy = spiritEnergy;
         if (formationBoost > 0) {
             boostedEnergy = spiritEnergy * (100 + formationBoost) / 100;
@@ -203,11 +201,11 @@ public class CaveService {
         }
 
         int caveBonus = cave.getCultivationBonus();
-        int formationBonus = formationService.getTotalCultivationBonus(playerId);
+        int formationBonus = com.mtxgdn.common.service.ServiceRegistry.getFormationService().getTotalCultivationBonus(playerId);
         int totalBonus = caveBonus + formationBonus;
         long expGain = 100 + (long) totalBonus * 10;
 
-        int formationResist = formationService.getTotalHeartDemonResist(playerId);
+        int formationResist = com.mtxgdn.common.service.ServiceRegistry.getFormationService().getTotalHeartDemonResist(playerId);
         int totalCaveLevelForHeartDemon = cave.getLevel() + (formationResist / 2);
 
         HeartDemonService heartDemonService = new HeartDemonService();
