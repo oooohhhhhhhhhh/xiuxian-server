@@ -64,7 +64,6 @@ public class MinecraftServerProcess implements Runnable {
         this.javaPath = AppConfig.get("minecraft.java_path", "java");
         this.minMemoryMb = AppConfig.getInt("minecraft.min_memory_mb", 512);
         this.maxMemoryMb = AppConfig.getInt("minecraft.max_memory_mb", 1024);
-        this.autoStart = AppConfig.getBoolean("minecraft.auto_start", false);
         this.readyTimeoutMs = AppConfig.getInt("minecraft.ready_timeout_seconds", 120) * 1000L;
         this.commandPrefix = AppConfig.get("minecraft.command_prefix", "").trim();
 

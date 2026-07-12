@@ -223,7 +223,6 @@ public class FarmService {
 
     private static final long WILTED_DEAD_SECONDS = 3600;
     private static final double PEST_CHANCE_PER_HOUR = 0.02;
-    private static final long PEST_CHECK_INTERVAL = 60000;
 
     public Map<String, Object> water(long playerId, int plotIndex) {
         return DatabaseManager.runTransaction(conn -> {

@@ -30,7 +30,6 @@ public class QuizService {
     private final List<QuizQuestion> questions = new ArrayList<>();
     
     private String lastQuestion = null;
-    private int lastQuestionNumber = 0;
 
     private static final Pattern ANSWER_PATTERN = Pattern.compile(
             "正确答案是[：:]*\\s*(\\d+)",
@@ -224,16 +223,13 @@ public class QuizService {
                 }
             }
             lastQuestion = questionText;
-            lastQuestionNumber = extractQuestionNumber(message);
         } else if (questionText != null) {
             lastQuestion = questionText;
-            lastQuestionNumber = extractQuestionNumber(message);
         } else if (answer != null && lastQuestion != null) {
             if (findMatch(lastQuestion) == null) {
                 add(lastQuestion, answer);
             }
             lastQuestion = null;
-            lastQuestionNumber = 0;
         }
     }
 
@@ -295,16 +291,5 @@ public class QuizService {
             }
         }
         return null;
-    }
-
-    private int extractQuestionNumber(String message) {
-        Matcher m = Pattern.compile("第\\s*(\\d+)\\s*题", Pattern.CASE_INSENSITIVE).matcher(message);
-        if (m.find()) {
-            try {
-                return Integer.parseInt(m.group(1));
-            } catch (NumberFormatException ignored) {
-            }
-        }
-        return 0;
     }
 }

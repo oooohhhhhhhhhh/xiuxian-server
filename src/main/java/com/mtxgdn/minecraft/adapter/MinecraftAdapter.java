@@ -107,11 +107,9 @@ public class MinecraftAdapter implements MinecraftMessageSender {
     // ==================== 服务端事件回调 ====================
 
     void onServerReady() {
-        serverReady = true;
     }
 
     void onServerStopped() {
-        serverReady = false;
         pendingSessions.clear();
     }
 

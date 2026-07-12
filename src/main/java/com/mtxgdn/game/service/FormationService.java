@@ -1,6 +1,7 @@
 package com.mtxgdn.game.service;
 
 import com.mtxgdn.db.DatabaseManager;
+import com.mtxgdn.entity.Player;
 import com.mtxgdn.game.entity.Formation;
 import com.mtxgdn.util.GameLogger;
 
