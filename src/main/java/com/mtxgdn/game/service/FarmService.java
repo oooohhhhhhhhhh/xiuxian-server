@@ -1050,44 +1050,6 @@ public class FarmService {
         return plot;
     }
 
-    public Map<String, Object> buySeed(long playerId, String seedKey) {
-        Map<String, Object> result = new LinkedHashMap<>();
-
-        CropConfig config = CropConfig.get(seedKey);
-        if (config == null) {
-            result.put("success", false);
-            result.put("message", "未知种子");
-            return result;
-        }
-
-        Item seed = ItemRegistry.get(seedKey);
-        if (seed == null) {
-            result.put("success", false);
-            result.put("message", "种子物品不存在");
-            return result;
-        }
-
-        long cost = seed.getPrice();
-        long spiritStones = itemService.getSpiritStoneCount(playerId);
-        if (spiritStones < cost) {
-            result.put("success", false);
-            result.put("message", "灵石不足，需要 " + cost + " 灵石（你目前有 " + spiritStones + " 灵石）");
-            return result;
-        }
-
-        DatabaseManager.runTransaction(conn -> {
-            if (!itemService.removeItem(conn, playerId, com.mtxgdn.game.item.CurrencyEffect.SPIRIT_STONE_KEY, cost)) {
-                throw new SQLException("灵石扣除失败");
-            }
-            itemService.addItem(conn, playerId, seedKey, 1);
-            return null;
-        });
-
-        result.put("success", true);
-        result.put("message", "购买成功！获得 " + seed.getName() + " x1，消耗 " + cost + " 灵石");
-        return result;
-    }
-
     public void shutdown() {
         scheduler.shutdown();
     }

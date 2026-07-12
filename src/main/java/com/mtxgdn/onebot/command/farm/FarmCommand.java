@@ -20,7 +20,7 @@ public class FarmCommand extends Command {
     private final ItemService itemService = new ItemService();
 
     public FarmCommand() {
-        super(new String[]{"种田", "farm"}, "种田系统", "/种田 [查看/种植/浇水/施肥/收获/清理/扩建/种子/商店/一键浇水/一键施肥/一键收获/杀虫]", "探索");
+        super(new String[]{"种田", "farm"}, "种田系统", "/种田 [查看/种植/浇水/施肥/收获/清理/扩建/种子/一键浇水/一键施肥/一键收获/杀虫]", "探索");
     }
 
     @Override
@@ -55,8 +55,6 @@ public class FarmCommand extends Command {
             result = expandPlot(p.getId());
         } else if ("种子".equals(sub) || "seeds".equals(sub) || "s".equals(sub)) {
             result = listSeeds(p.getId());
-        } else if ("商店".equals(sub) || "shop".equals(sub) || "buy".equals(sub)) {
-            result = seedShop(p.getId(), parts);
         } else if ("一键浇水".equals(sub) || "waterall".equals(sub) || "wa".equals(sub)) {
             result = waterAll(p.getId());
         } else if ("一键施肥".equals(sub) || "fertilizeall".equals(sub) || "fa".equals(sub)) {
@@ -134,7 +132,7 @@ public class FarmCommand extends Command {
         }
 
         sb.append("──────────────\n");
-        sb.append("可用命令: /种田 种植 [地块] [种子] | /种田 浇水 [地块] | /种田 施肥 [地块] [low/mid/high] | /种田 收获 [地块] | /种田 杀虫 [地块] | /种田 扩建 | /种田 商店\n");
+        sb.append("可用命令: /种田 种植 [地块] [种子] | /种田 浇水 [地块] | /种田 施肥 [地块] [low/mid/high] | /种田 收获 [地块] | /种田 杀虫 [地块] | /种田 扩建\n");
         sb.append("一键操作: /种田 一键浇水 | /种田 一键施肥 [low/mid/high] | /种田 一键收获");
         return sb.toString();
     }
@@ -287,66 +285,6 @@ public class FarmCommand extends Command {
             }
         }
 
-        return sb.toString();
-    }
-
-    private String seedShop(long playerId, String[] args) {
-        if (args.length < 2) {
-            return buildSeedShopList(playerId);
-        }
-
-        String seedKey = args[1];
-        if (!seedKey.contains(":")) {
-            seedKey = "mtxgdn:" + seedKey;
-        }
-
-        Map<String, Object> result = farmService.buySeed(playerId, seedKey);
-        return (String) result.get("message");
-    }
-
-    private String buildSeedShopList(long playerId) {
-        long spiritStones = itemService.getSpiritStoneCount(playerId);
-        StringBuilder sb = new StringBuilder();
-        sb.append("【种子商店】\n");
-        sb.append("──────────────\n");
-        sb.append("当前灵石: ").append(spiritStones).append("\n\n");
-
-        String[] seedKeys = {
-            "mtxgdn:wan_ling_grass_seed",
-            "mtxgdn:spirit_grass_seed",
-            "mtxgdn:peach_seed",
-            "mtxgdn:dragon_fruit_seed",
-            "mtxgdn:he_shou_wu_seed",
-            "mtxgdn:dark_ice_grass_seed",
-            "mtxgdn:fire_vine_seed",
-            "mtxgdn:blood_lingzhi_seed",
-            "mtxgdn:thousand_year_ginseng_seed",
-            "mtxgdn:immortal_date_seed",
-            "mtxgdn:dragon_fruit_seed",
-            "mtxgdn:ginseng_fruit_seed",
-            "mtxgdn:purple_river_cart_seed",
-            "mtxgdn:nine_turn_grass_seed",
-            "mtxgdn:tianshan_snow_lotus_seed"
-        };
-
-        for (String key : seedKeys) {
-            Item item = ItemRegistry.get(key);
-            if (item != null) {
-                CropConfig config = CropConfig.get(key);
-                String cropName = config != null ? "→ " + config.getCropName() : "";
-                long count = itemService.getItemCount(playerId, key);
-                long price = item.getPrice();
-                boolean canAfford = spiritStones >= price;
-                
-                sb.append("- ").append(item.getName()).append(" (").append(key).append(") ")
-                  .append(cropName).append("\n");
-                sb.append("  价格: ").append(price).append(" 灵石");
-                if (!canAfford) sb.append(" ❌");
-                sb.append(" | 已拥有: ").append(count).append("\n");
-            }
-        }
-
-        sb.append("\n购买: /种田 商店 <种子key或名称>\n示例: /种田 商店 peach_seed");
         return sb.toString();
     }
 }
