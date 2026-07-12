@@ -24,14 +24,14 @@ public class MerchantEvent extends ExplorationEvent {
         double roll = random.nextDouble();
         if (roll < 0.3) {
             int stoneCount = random.nextInt(1, 4);
-            itemService.addItem(player.getId(), "enhance_stone", stoneCount);
-            result.setItemGained("enhance_stone");
+            itemService.addItem(player.getId(), "mtxgdn:enhance_stone", stoneCount);
+            result.setItemGained("mtxgdn:enhance_stone");
             result.setItemQuantity(stoneCount);
             log.add("🧳 一位背着大包袱的游商从远处走来，他向你展示了珍藏的强化石。");
             log.add("你以公道价格买下了 " + stoneCount + " 颗强化石。");
             result.setMessage("从游商处购得 " + stoneCount + " 颗强化石");
         } else if (roll < 0.6) {
-            String[] items = {"healing_pill", "mana_pill", "spirit_spring_water", "beast_core"};
+            String[] items = {"mtxgdn:healing_pill", "mtxgdn:mana_pill", "mtxgdn:spirit_spring_water", "mtxgdn:beast_core"};
             String giftItem = items[random.nextInt(items.length)];
             int qty = random.nextInt(1, 3);
             itemService.addItem(player.getId(), giftItem, qty);

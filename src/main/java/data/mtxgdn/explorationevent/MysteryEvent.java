@@ -25,7 +25,7 @@ public class MysteryEvent extends ExplorationEvent {
         double roll = random.nextDouble();
 
         if (roll < 0.2) {
-            String[] rareItems = {"five_colored_divine_stone", "phoenix_gallbladder", "qilin_horn", "dragon_scale", "phoenix_feather", "dragon_bone"};
+            String[] rareItems = {"mtxgdn:five_colored_divine_stone", "mtxgdn:phoenix_gallbladder", "mtxgdn:qilin_horn", "mtxgdn:dragon_scale", "mtxgdn:phoenix_feather", "mtxgdn:dragon_bone"};
             String itemKey = rareItems[random.nextInt(rareItems.length)];
             if (ItemRegistry.contains(itemKey)) {
                 itemService.addItem(player.getId(), itemKey, 1);
@@ -57,7 +57,7 @@ public class MysteryEvent extends ExplorationEvent {
             log.add("获得了 " + exp + " 点经验！");
             result.setMessage("神秘奇遇！研读秘籍获得 " + exp + " 经验");
         } else if (roll < 0.75) {
-            String[] seeds = {"spirit_grass_seed", "dark_ice_grass_seed", "fire_vine_seed", "thousand_year_ginseng_seed", "nether_flower_seed"};
+            String[] seeds = {"mtxgdn:spirit_grass_seed", "mtxgdn:dark_ice_grass_seed", "mtxgdn:fire_vine_seed", "mtxgdn:thousand_year_ginseng_seed", "mtxgdn:nether_flower_seed"};
             String seedKey = seeds[random.nextInt(seeds.length)];
             int qty = random.nextInt(2, 4);
             if (ItemRegistry.contains(seedKey)) {

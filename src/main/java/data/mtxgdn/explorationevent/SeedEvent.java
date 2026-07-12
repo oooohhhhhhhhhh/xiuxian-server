@@ -23,14 +23,14 @@ public class SeedEvent extends ExplorationEvent {
         result.setEventDescription("发现种子");
 
         String[][] seeds = {
-            {"spirit_grass_seed", "灵草种子"},
-            {"dark_ice_grass_seed", "暗冰草种子"},
-            {"fire_vine_seed", "火焰藤种子"},
-            {"thousand_year_ginseng_seed", "千年人参种子"},
-            {"nether_flower_seed", "幽冥花种子"},
-            {"star_grass_seed", "星辰草种子"},
-            {"blood_lingzhi_seed", "血灵芝种子"},
-            {"tianshan_snow_lotus_seed", "天山雪莲种子"},
+            {"mtxgdn:spirit_grass_seed", "灵草种子"},
+            {"mtxgdn:dark_ice_grass_seed", "暗冰草种子"},
+            {"mtxgdn:fire_vine_seed", "火焰藤种子"},
+            {"mtxgdn:thousand_year_ginseng_seed", "千年人参种子"},
+            {"mtxgdn:nether_flower_seed", "幽冥花种子"},
+            {"mtxgdn:star_grass_seed", "星辰草种子"},
+            {"mtxgdn:blood_lingzhi_seed", "血灵芝种子"},
+            {"mtxgdn:tianshan_snow_lotus_seed", "天山雪莲种子"},
         };
 
         double rarityRoll = random.nextDouble();
