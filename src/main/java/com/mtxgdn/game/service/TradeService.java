@@ -125,6 +125,7 @@ public class TradeService {
 
                 long sellerReceive = totalCost - listing.fee;
                 itemService.addItem(conn, listing.sellerPlayerId, com.mtxgdn.game.item.CurrencyEffect.SPIRIT_STONE_KEY, sellerReceive);
+                itemService.addSpiritStones(0, listing.fee);
                 return null;
             });
 

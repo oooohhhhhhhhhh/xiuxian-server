@@ -682,6 +682,7 @@ public class EconomyService {
                 if (bidderId != null && currentBid > 0) {
                     long fee = Math.max(1, (long)(currentBid * feeRate));
                     itemService.addSpiritStones(sellerId, currentBid - fee);
+                    itemService.addSpiritStones(0, fee);
                     itemService.addItem(bidderId, itemKey, qty);
                 } else {
                     itemService.addItem(sellerId, itemKey, qty);
