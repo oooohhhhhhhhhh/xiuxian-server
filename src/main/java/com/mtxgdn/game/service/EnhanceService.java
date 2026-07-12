@@ -151,7 +151,7 @@ public class EnhanceService {
             DatabaseManager.runTransaction(conn -> {
                 // 扣材料
                 playerService.addGold(conn, playerId, -goldCost);
-                itemService.removeItem(conn, playerId, "enhance_stone", stoneCost);
+                itemService.removeItem(conn, playerId, "mtxgdn:enhance_stone", stoneCost);
 
                 if (roll < successRate) {
                     setEnhanceLevel(conn, playerId, slot, currentLevel + 1);
