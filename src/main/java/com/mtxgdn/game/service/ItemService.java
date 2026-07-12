@@ -83,10 +83,10 @@ public class ItemService {
      * @throws RuntimeException 如果背包已满
      */
     public boolean addItem(long playerId, String itemKey, long quantity) {
-        validateAddParams(itemKey, quantity);
-        checkCapacity(playerId, itemKey);
+        String resolvedKey = validateAddParams(itemKey, quantity);
+        checkCapacity(playerId, resolvedKey);
         try (Connection conn = DatabaseManager.getConnection()) {
-            return addItem(conn, playerId, itemKey, quantity);
+            return addItem(conn, playerId, resolvedKey, quantity);
         } catch (SQLException e) {
             throw new RuntimeException("添加物品失败", e);
         }
@@ -96,8 +96,8 @@ public class ItemService {
      * 在已有事务中批量添加物品，使用外部 Connection。
      */
     public boolean addItem(Connection conn, long playerId, String itemKey, long quantity) throws SQLException {
-        validateAddParams(itemKey, quantity);
-        checkCapacity(conn, playerId, itemKey);
+        String resolvedKey = validateAddParams(itemKey, quantity);
+        checkCapacity(conn, playerId, resolvedKey);
         String sql;
         if (DatabaseManager.isSqlite()) {
             sql = """
@@ -116,19 +116,26 @@ public class ItemService {
         }
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, playerId);
-            ps.setString(2, itemKey);
+            ps.setString(2, resolvedKey);
             ps.setLong(3, quantity);
             return ps.executeUpdate() > 0;
         }
     }
 
-    private void validateAddParams(String itemKey, long quantity) {
+    private String validateAddParams(String itemKey, long quantity) {
         if (quantity <= 0) {
             throw new IllegalArgumentException("数量必须大于 0，当前值: " + quantity);
         }
-        if (!ItemRegistry.contains(itemKey)) {
-            throw new IllegalArgumentException("物品不存在: " + itemKey);
+        if (ItemRegistry.contains(itemKey)) {
+            return itemKey;
         }
+        if (!itemKey.contains(":")) {
+            String fullKey = "mtxgdn:" + itemKey;
+            if (ItemRegistry.contains(fullKey)) {
+                return fullKey;
+            }
+        }
+        throw new IllegalArgumentException("物品不存在: " + itemKey);
     }
 
     private void checkCapacity(long playerId, String itemKey) {
