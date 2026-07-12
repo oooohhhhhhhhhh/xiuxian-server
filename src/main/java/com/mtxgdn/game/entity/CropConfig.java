@@ -67,6 +67,39 @@ public class CropConfig {
             "mtxgdn:tianshan_snow_lotus_seed", "mtxgdn:tianshan_snow_lotus", "天山雪莲",
             420, 7, 1, 2, 25, 30, ElementType.WATER
         ));
+
+        configs.put("mtxgdn:peach_seed", new CropConfig(
+            "mtxgdn:peach_seed", "mtxgdn:peach", "蟠桃",
+            180, 4, 2, 4, 45, 15, ElementType.WOOD
+        ));
+        configs.put("mtxgdn:ginseng_fruit_seed", new CropConfig(
+            "mtxgdn:ginseng_fruit_seed", "mtxgdn:ginseng_fruit", "人参果",
+            300, 6, 1, 2, 35, 25, ElementType.WATER
+        ));
+        configs.put("mtxgdn:dragon_fruit_seed", new CropConfig(
+            "mtxgdn:dragon_fruit_seed", "mtxgdn:dragon_fruit", "火龙果",
+            120, 4, 2, 4, 40, 12, ElementType.FIRE
+        ));
+        configs.put("mtxgdn:immortal_date_seed", new CropConfig(
+            "mtxgdn:immortal_date_seed", "mtxgdn:immortal_date", "仙枣",
+            240, 5, 1, 3, 35, 20, ElementType.EARTH
+        ));
+        configs.put("mtxgdn:nine_turn_grass_seed", new CropConfig(
+            "mtxgdn:nine_turn_grass_seed", "mtxgdn:nine_turn_grass", "九转还魂草",
+            480, 8, 1, 2, 20, 35, ElementType.WATER
+        ));
+        configs.put("mtxgdn:he_shou_wu_seed", new CropConfig(
+            "mtxgdn:he_shou_wu_seed", "mtxgdn:he_shou_wu", "千年何首乌",
+            200, 5, 2, 4, 40, 18, ElementType.EARTH
+        ));
+        configs.put("mtxgdn:wan_ling_grass_seed", new CropConfig(
+            "mtxgdn:wan_ling_grass_seed", "mtxgdn:wan_ling_grass", "万灵草",
+            90, 3, 3, 6, 50, 10, ElementType.SPIRIT
+        ));
+        configs.put("mtxgdn:purple_river_cart_seed", new CropConfig(
+            "mtxgdn:purple_river_cart_seed", "mtxgdn:purple_river_cart", "紫河车",
+            360, 6, 1, 2, 30, 28, ElementType.DARK
+        ));
     }
 
     public CropConfig() {}

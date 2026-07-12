@@ -36,6 +36,28 @@ public class FarmPlot {
         }
     }
 
+    public enum CropQuality {
+        COMMON("普通", 1.0),
+        GOOD("上品", 1.5),
+        EXCELLENT("极品", 2.0);
+
+        private final String displayName;
+        private final double multiplier;
+
+        CropQuality(String displayName, double multiplier) {
+            this.displayName = displayName;
+            this.multiplier = multiplier;
+        }
+
+        public String getDisplayName() {
+            return displayName;
+        }
+
+        public double getMultiplier() {
+            return multiplier;
+        }
+    }
+
     private long id;
     private long playerId;
     private int plotIndex;
@@ -53,6 +75,7 @@ public class FarmPlot {
     private double seasonModifier;
     private PestState pestState;
     private long pestTime;
+    private CropQuality cropQuality;
 
     public FarmPlot() {}
 
@@ -90,4 +113,6 @@ public class FarmPlot {
     public void setPestState(PestState pestState) { this.pestState = pestState; }
     public long getPestTime() { return pestTime; }
     public void setPestTime(long pestTime) { this.pestTime = pestTime; }
+    public CropQuality getCropQuality() { return cropQuality; }
+    public void setCropQuality(CropQuality cropQuality) { this.cropQuality = cropQuality; }
 }

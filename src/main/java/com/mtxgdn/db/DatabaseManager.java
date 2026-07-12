@@ -760,6 +760,7 @@ public class DatabaseManager {
                 try { stmt.execute("ALTER TABLE farm_plots ADD COLUMN season_modifier DOUBLE DEFAULT 1"); } catch (SQLException ignored) {}
                 try { stmt.execute("ALTER TABLE farm_plots ADD COLUMN pest_state VARCHAR(16) DEFAULT 'CLEAN'"); } catch (SQLException ignored) {}
                 try { stmt.execute("ALTER TABLE farm_plots ADD COLUMN pest_time BIGINT DEFAULT 0"); } catch (SQLException ignored) {}
+                try { stmt.execute("ALTER TABLE farm_plots ADD COLUMN crop_quality VARCHAR(16)"); } catch (SQLException ignored) {}
             } catch (SQLException ignored) {
             }
         } catch (SQLException e) {

@@ -450,8 +450,18 @@ public class FarmService {
 
             Item crop = ItemRegistry.get(plot.getCropKey());
             String cropName = crop != null ? crop.getName() : config.getCropName();
+            
+            StringBuilder msg = new StringBuilder("收获成功！获得 ");
+            if (plot.getCropQuality() != null && plot.getCropQuality() != FarmPlot.CropQuality.COMMON) {
+                msg.append("【").append(plot.getCropQuality().getDisplayName()).append("】");
+            }
+            msg.append(cropName).append(" x").append(yield);
+            if (plot.getCropQuality() != null && plot.getCropQuality() != FarmPlot.CropQuality.COMMON) {
+                msg.append("（品质加成 +").append((int)((plot.getCropQuality().getMultiplier() - 1) * 100)).append("%）");
+            }
+            
             txResult.put("success", true);
-            txResult.put("message", "收获成功！获得 " + cropName + " x" + yield);
+            txResult.put("message", msg.toString());
             txResult.put("yield", yield);
             return txResult;
         });
@@ -472,7 +482,12 @@ public class FarmService {
         
         int randomBonus = random.nextInt(3);
         int total = baseYield + waterBonus + fertilizerBonus + randomBonus - pestPenalty;
-        return Math.max(1, Math.min(total, config.getMaxYield()));
+        
+        if (plot.getCropQuality() != null) {
+            total = (int) (total * plot.getCropQuality().getMultiplier());
+        }
+        
+        return Math.max(1, Math.min(total, config.getMaxYield() * 2));
     }
 
     private static void updateAllPlots() {
@@ -521,15 +536,18 @@ public class FarmService {
         }
 
         if (now >= plot.getHarvestTime()) {
+            FarmPlot.CropQuality quality = determineQuality(plot);
+            String qualityUpdateSql = "UPDATE farm_plots SET state = ?, growth_stage = ?, water_level = ?, wilted_time = ?, pest_state = ?, pest_time = ?, crop_quality = ? WHERE id = ?";
             try (Connection conn = DatabaseManager.getConnection();
-                 PreparedStatement ps = conn.prepareStatement(updateSql)) {
+                 PreparedStatement ps = conn.prepareStatement(qualityUpdateSql)) {
                 ps.setString(1, FarmPlot.PlotState.READY.name());
                 ps.setInt(2, config.getStages());
                 ps.setInt(3, newWater);
                 ps.setLong(4, 0);
                 ps.setString(5, newPestState.name());
                 ps.setLong(6, newPestTime);
-                ps.setLong(7, plot.getId());
+                ps.setString(7, quality.name());
+                ps.setLong(8, plot.getId());
                 ps.executeUpdate();
             } catch (SQLException ignored) {}
             return;
@@ -553,6 +571,32 @@ public class FarmService {
             ps.setLong(7, plot.getId());
             ps.executeUpdate();
         } catch (SQLException ignored) {}
+    }
+
+    private static FarmPlot.CropQuality determineQuality(FarmPlot plot) {
+        double qualityScore = 0;
+        
+        if (plot.getWaterLevel() >= 80) qualityScore += 15;
+        else if (plot.getWaterLevel() >= 50) qualityScore += 5;
+        
+        if (plot.getFertilizerLevel() >= 80) qualityScore += 20;
+        else if (plot.getFertilizerLevel() >= 50) qualityScore += 10;
+        
+        if (plot.getPestState() == FarmPlot.PestState.CLEAN) qualityScore += 25;
+        else if (plot.getPestState() == FarmPlot.PestState.MILD) qualityScore += 5;
+        
+        if (plot.getRootBonus() >= 0.2) qualityScore += 10;
+        if (plot.getSeasonModifier() > 1.1) qualityScore += 10;
+        
+        double rand = random.nextDouble() * 100;
+        
+        if (rand <= qualityScore * 0.3) {
+            return FarmPlot.CropQuality.EXCELLENT;
+        } else if (rand <= qualityScore * 0.7) {
+            return FarmPlot.CropQuality.GOOD;
+        } else {
+            return FarmPlot.CropQuality.COMMON;
+        }
     }
 
     private static void checkPestAttack(FarmPlot plot, long now) {
@@ -999,7 +1043,49 @@ public class FarmService {
         plot.setSeasonModifier(rs.getDouble("season_modifier"));
         plot.setPestState(FarmPlot.PestState.valueOf(rs.getString("pest_state")));
         plot.setPestTime(rs.getLong("pest_time"));
+        String qualityStr = rs.getString("crop_quality");
+        if (qualityStr != null) {
+            plot.setCropQuality(FarmPlot.CropQuality.valueOf(qualityStr));
+        }
         return plot;
+    }
+
+    public Map<String, Object> buySeed(long playerId, String seedKey) {
+        Map<String, Object> result = new LinkedHashMap<>();
+
+        CropConfig config = CropConfig.get(seedKey);
+        if (config == null) {
+            result.put("success", false);
+            result.put("message", "未知种子");
+            return result;
+        }
+
+        Item seed = ItemRegistry.get(seedKey);
+        if (seed == null) {
+            result.put("success", false);
+            result.put("message", "种子物品不存在");
+            return result;
+        }
+
+        long cost = seed.getPrice();
+        long spiritStones = itemService.getSpiritStoneCount(playerId);
+        if (spiritStones < cost) {
+            result.put("success", false);
+            result.put("message", "灵石不足，需要 " + cost + " 灵石（你目前有 " + spiritStones + " 灵石）");
+            return result;
+        }
+
+        DatabaseManager.runTransaction(conn -> {
+            if (!itemService.removeItem(conn, playerId, com.mtxgdn.game.item.CurrencyEffect.SPIRIT_STONE_KEY, cost)) {
+                throw new SQLException("灵石扣除失败");
+            }
+            itemService.addItem(conn, playerId, seedKey, 1);
+            return null;
+        });
+
+        result.put("success", true);
+        result.put("message", "购买成功！获得 " + seed.getName() + " x1，消耗 " + cost + " 灵石");
+        return result;
     }
 
     public void shutdown() {
