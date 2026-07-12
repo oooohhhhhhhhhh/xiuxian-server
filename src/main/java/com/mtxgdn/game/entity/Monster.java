@@ -83,7 +83,7 @@ public class Monster {
         int hp = baseHp + random.nextInt(realm * 20 + 10);
         int atk = baseAtk + random.nextInt(realm * 8 + 5);
         int def = baseDef + random.nextInt(realm * 3 + 2);
-        int spd = baseSpd + random.nextInt(realm * 3);
+        int spd = baseSpd + random.nextInt(realm * 3 + 1);
 
         String[] loot = COMMON_LOOT[random.nextInt(COMMON_LOOT.length)];
         double lootChance = 0.30 + random.nextDouble() * 0.15;
