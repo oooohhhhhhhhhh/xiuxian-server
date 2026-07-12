@@ -24,9 +24,9 @@ public class RuinsEvent extends ExplorationEvent {
 
         double roll = random.nextDouble();
         if (roll < 0.4) {
-            String[] rareItems = {"cultivation_elixir", "scripture_page", "spirit_sword", "guardian_jade",
-                    "basic_sword_manual", "fire_dragon_art", "jade_armor", "power_buff_pill",
-                    "speed_talisman", "thunder_bolt_talisman", "dragon_blood_crystal", "spirit_stone_pouch"};
+            String[] rareItems = {"mtxgdn:cultivation_elixir", "mtxgdn:scripture_page", "mtxgdn:spirit_sword", "mtxgdn:guardian_jade",
+                    "mtxgdn:basic_sword_manual", "mtxgdn:fire_dragon_art", "mtxgdn:jade_armor", "mtxgdn:power_buff_pill",
+                    "mtxgdn:speed_talisman", "mtxgdn:thunder_bolt_talisman", "mtxgdn:dragon_blood_crystal", "mtxgdn:spirit_stone_pouch"};
             String rareItem = rareItems[random.nextInt(rareItems.length)];
             if (ItemRegistry.contains(rareItem)) {
                 itemService.addItem(player.getId(), rareItem, 1);
@@ -34,6 +34,13 @@ public class RuinsEvent extends ExplorationEvent {
                 result.setItemQuantity(1);
                 log.add("🏛 你在遗迹深处发现了一件被封印的宝物！");
                 result.setMessage("在遗迹中发现稀有宝物！");
+            } else {
+                long spiritStones = (player.getRealm() + 1) * 80L;
+                itemService.addSpiritStones(player.getId(), spiritStones);
+                result.setSpiritStonesGained(spiritStones);
+                log.add("🏛 你发现了一处上古遗迹，但里面的宝物已被前人取走，只留下一些灵石。");
+                log.add("获得了 " + spiritStones + " 灵石。");
+                result.setMessage("遗迹寻宝，获得 " + spiritStones + " 灵石");
             }
         } else if (roll < 0.75) {
             long spiritStones = (player.getRealm() + 1) * 150L;

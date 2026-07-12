@@ -91,6 +91,12 @@ public class Auth {
             err.addProperty("code", 500);
             err.addProperty("message", "发送验证码失败，请稍后重试");
             return Response.status(500).entity(err.toString()).build();
+        } catch (RuntimeException e) {
+            System.err.println("[Auth] 验证码服务异常: " + e.getMessage());
+            JsonObject err = new JsonObject();
+            err.addProperty("code", 500);
+            err.addProperty("message", "发送验证码失败：" + e.getMessage());
+            return Response.status(500).entity(err.toString()).build();
         }
     }
 
@@ -196,6 +202,12 @@ public class Auth {
             JsonObject err = new JsonObject();
             err.addProperty("code", 500);
             err.addProperty("message", "发送验证码失败，请稍后重试");
+            return Response.status(500).entity(err.toString()).build();
+        } catch (RuntimeException e) {
+            System.err.println("[Auth] 验证码服务异常: " + e.getMessage());
+            JsonObject err = new JsonObject();
+            err.addProperty("code", 500);
+            err.addProperty("message", "发送验证码失败：" + e.getMessage());
             return Response.status(500).entity(err.toString()).build();
         }
     }
