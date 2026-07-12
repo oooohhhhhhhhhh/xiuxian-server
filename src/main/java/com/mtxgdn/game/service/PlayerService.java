@@ -11,6 +11,8 @@ import com.mtxgdn.game.entity.Title;
 import com.mtxgdn.game.service.ItemService;
 import com.mtxgdn.game.title.TitleRegistry;
 
+import com.mtxgdn.util.GameLogger;
+
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -19,8 +21,20 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 
 public class PlayerService {
+
+    private static final GameLogger LOG = GameLogger.getLogger(PlayerService.class);
+
+    private static final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+
+    static {
+        scheduler.scheduleAtFixedRate(PlayerService::tickAutoHeal, 10, 10, TimeUnit.SECONDS);
+        LOG.info("玩家自动回血任务已启动（每10秒回复1%最大生命值）");
+    }
 
     public PlayerInfo getPlayerByUserId(long userId) {
         String sql = "SELECT * FROM players WHERE user_id = ?";
@@ -890,6 +904,19 @@ public class PlayerService {
             }
         } catch (SQLException e) {
             throw new RuntimeException("删除玩家失败", e);
+        }
+    }
+
+    private static void tickAutoHeal() {
+        String sql = "UPDATE players SET hp = LEAST(hp + CEIL(max_hp * 0.01), max_hp) WHERE hp < max_hp";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            int affected = ps.executeUpdate();
+            if (affected > 0) {
+                LOG.debug("自动回血：" + affected + " 名玩家恢复了生命值");
+            }
+        } catch (SQLException e) {
+            LOG.error("自动回血失败", e);
         }
     }
 }
