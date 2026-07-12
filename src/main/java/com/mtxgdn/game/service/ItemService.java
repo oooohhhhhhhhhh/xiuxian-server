@@ -586,10 +586,10 @@ public class ItemService {
                     if (oldItem != null) {
                         for (ItemEffect effect : oldItem.getEffects()) {
                             if (effect instanceof BuffEffect be) {
-                                if (be.getAttackBonus() > 0) playerService.addAttack(playerId, -be.getAttackBonus());
-                                if (be.getDefenseBonus() > 0) playerService.addDefense(playerId, -be.getDefenseBonus());
-                                if (be.getSpeedBonus() > 0) playerService.addSpeed(playerId, -be.getSpeedBonus());
-                                if (be.getSpiritBonus() > 0) playerService.addSpirit(playerId, -be.getSpiritBonus());
+                                if (be.getAttackBonus() > 0) playerService.addAttack(conn, playerId, -be.getAttackBonus());
+                                if (be.getDefenseBonus() > 0) playerService.addDefense(conn, playerId, -be.getDefenseBonus());
+                                if (be.getSpeedBonus() > 0) playerService.addSpeed(conn, playerId, -be.getSpeedBonus());
+                                if (be.getSpiritBonus() > 0) playerService.addSpirit(conn, playerId, -be.getSpiritBonus());
                             }
                         }
                         addItem(conn, playerId, occupied, 1);
@@ -605,10 +605,10 @@ public class ItemService {
                             removeItem(conn, playerId, occupied, 1);
                             for (ItemEffect effect : oldItem.getEffects()) {
                                 if (effect instanceof BuffEffect be) {
-                                    if (be.getAttackBonus() > 0) playerService.addAttack(playerId, be.getAttackBonus());
-                                    if (be.getDefenseBonus() > 0) playerService.addDefense(playerId, be.getDefenseBonus());
-                                    if (be.getSpeedBonus() > 0) playerService.addSpeed(playerId, be.getSpeedBonus());
-                                    if (be.getSpiritBonus() > 0) playerService.addSpirit(playerId, be.getSpiritBonus());
+                                    if (be.getAttackBonus() > 0) playerService.addAttack(conn, playerId, be.getAttackBonus());
+                                    if (be.getDefenseBonus() > 0) playerService.addDefense(conn, playerId, be.getDefenseBonus());
+                                    if (be.getSpeedBonus() > 0) playerService.addSpeed(conn, playerId, be.getSpeedBonus());
+                                    if (be.getSpiritBonus() > 0) playerService.addSpirit(conn, playerId, be.getSpiritBonus());
                                 }
                             }
                         }
@@ -643,7 +643,12 @@ public class ItemService {
                 // 4. 执行新装备效果（在数据库写入成功后）
                 StringBuilder msgBuilder = new StringBuilder();
                 for (ItemEffect effect : item.getEffects()) {
-                    String effectMsg = effect.execute(playerId, playerService, this);
+                    String effectMsg;
+                    if (effect instanceof BuffEffect be) {
+                        effectMsg = be.execute(conn, playerId, playerService, this);
+                    } else {
+                        effectMsg = effect.execute(playerId, playerService, this);
+                    }
                     if (effectMsg != null && !effectMsg.isEmpty()) {
                         msgBuilder.append(effectMsg);
                     }
@@ -710,19 +715,19 @@ public class ItemService {
                 for (ItemEffect effect : item.getEffects()) {
                     if (effect instanceof BuffEffect be) {
                         if (be.getAttackBonus() > 0) {
-                            playerService.addAttack(playerId, -be.getAttackBonus());
+                            playerService.addAttack(conn, playerId, -be.getAttackBonus());
                             msgBuilder.append("攻击力 -").append(be.getAttackBonus()).append("，");
                         }
                         if (be.getDefenseBonus() > 0) {
-                            playerService.addDefense(playerId, -be.getDefenseBonus());
+                            playerService.addDefense(conn, playerId, -be.getDefenseBonus());
                             msgBuilder.append("防御力 -").append(be.getDefenseBonus()).append("，");
                         }
                         if (be.getSpeedBonus() > 0) {
-                            playerService.addSpeed(playerId, -be.getSpeedBonus());
+                            playerService.addSpeed(conn, playerId, -be.getSpeedBonus());
                             msgBuilder.append("速度 -").append(be.getSpeedBonus()).append("，");
                         }
                         if (be.getSpiritBonus() > 0) {
-                            playerService.addSpirit(playerId, -be.getSpiritBonus());
+                            playerService.addSpirit(conn, playerId, -be.getSpiritBonus());
                             msgBuilder.append("灵力 -").append(be.getSpiritBonus()).append("，");
                         }
                     }

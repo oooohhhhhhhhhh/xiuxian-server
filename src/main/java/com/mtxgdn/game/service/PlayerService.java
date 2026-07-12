@@ -413,6 +413,15 @@ public class PlayerService {
         }
     }
 
+    public void addAttack(Connection conn, long playerId, int amount) throws SQLException {
+        String sql = "UPDATE players SET attack = attack + ? WHERE id = ?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, amount);
+            ps.setLong(2, playerId);
+            ps.executeUpdate();
+        }
+    }
+
     public void addDefense(long playerId, int amount) {
         String sql = "UPDATE players SET defense = defense + ? WHERE id = ?";
         try (Connection conn = DatabaseManager.getConnection();
@@ -422,6 +431,15 @@ public class PlayerService {
             ps.executeUpdate();
         } catch (SQLException e) {
             throw new RuntimeException("增加防御力失败", e);
+        }
+    }
+
+    public void addDefense(Connection conn, long playerId, int amount) throws SQLException {
+        String sql = "UPDATE players SET defense = defense + ? WHERE id = ?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, amount);
+            ps.setLong(2, playerId);
+            ps.executeUpdate();
         }
     }
 
@@ -437,6 +455,15 @@ public class PlayerService {
         }
     }
 
+    public void addSpeed(Connection conn, long playerId, int amount) throws SQLException {
+        String sql = "UPDATE players SET speed = speed + ? WHERE id = ?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, amount);
+            ps.setLong(2, playerId);
+            ps.executeUpdate();
+        }
+    }
+
     public void addSpirit(long playerId, int amount) {
         String sql = "UPDATE players SET spirit = spirit + ? WHERE id = ?";
         try (Connection conn = DatabaseManager.getConnection();
@@ -446,6 +473,15 @@ public class PlayerService {
             ps.executeUpdate();
         } catch (SQLException e) {
             throw new RuntimeException("增加灵力失败", e);
+        }
+    }
+
+    public void addSpirit(Connection conn, long playerId, int amount) throws SQLException {
+        String sql = "UPDATE players SET spirit = spirit + ? WHERE id = ?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, amount);
+            ps.setLong(2, playerId);
+            ps.executeUpdate();
         }
     }
 
