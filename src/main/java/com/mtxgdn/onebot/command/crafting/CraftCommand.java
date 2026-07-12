@@ -7,6 +7,8 @@ import com.mtxgdn.common.command.CommandContext;
 import com.mtxgdn.common.command.RouteDefinition;
 import com.mtxgdn.game.entity.PlayerInfo;
 import com.mtxgdn.game.entity.Recipe;
+import com.mtxgdn.game.item.Item;
+import com.mtxgdn.game.item.ItemRegistry;
 import com.mtxgdn.common.service.ServiceRegistry;
 
 import java.util.List;
@@ -63,15 +65,15 @@ public class CraftCommand extends Command {
             sb.append("[").append(r.getId()).append("] ").append(r.getName())
               .append(" (").append(categoryLabel(r.getCategory())).append(")")
               .append(" 成功率:").append((int)(r.getSuccessRate() * 100)).append("%\n");
-            sb.append("  产物: ").append(r.getResultItemKey()).append(" x").append(r.getResultQuantity()).append("\n");
+            sb.append("  产物: ").append(itemDisplayName(r.getResultItemKey())).append(" x").append(r.getResultQuantity()).append("\n");
 
             StringBuilder mats = new StringBuilder();
             if (r.getMaterial1Key() != null && !r.getMaterial1Key().isEmpty())
-                mats.append("  ").append(r.getMaterial1Key()).append(" x").append(r.getMaterial1Count());
+                mats.append("  ").append(itemDisplayName(r.getMaterial1Key())).append(" x").append(r.getMaterial1Count());
             if (r.getMaterial2Key() != null && !r.getMaterial2Key().isEmpty())
-                mats.append("、").append(r.getMaterial2Key()).append(" x").append(r.getMaterial2Count());
+                mats.append("、").append(itemDisplayName(r.getMaterial2Key())).append(" x").append(r.getMaterial2Count());
             if (r.getMaterial3Key() != null && !r.getMaterial3Key().isEmpty())
-                mats.append("、").append(r.getMaterial3Key()).append(" x").append(r.getMaterial3Count());
+                mats.append("、").append(itemDisplayName(r.getMaterial3Key())).append(" x").append(r.getMaterial3Count());
             if (!mats.isEmpty()) sb.append("  材料:").append(mats).append("\n");
 
             sb.append("  费用:").append(r.getCostGold()).append("金").append(r.getCostSpiritStones()).append("灵石");
@@ -144,6 +146,11 @@ public class CraftCommand extends Command {
             case CONSUMABLE -> "消耗品";
             case SEED -> "种子";
         };
+    }
+
+    private String itemDisplayName(String itemKey) {
+        Item item = ItemRegistry.get(itemKey);
+        return item != null ? item.getName() : itemKey;
     }
 
     // ==================== REST API ====================
