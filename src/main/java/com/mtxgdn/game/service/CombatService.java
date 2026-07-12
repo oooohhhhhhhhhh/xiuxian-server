@@ -589,11 +589,17 @@ public class CombatService {
 
     private int calculateMonsterDamageToPlayer(Monster attacker, Player defender, List<String> battleLog,
                                                 String attackerName, String defenderName) {
+        return calculateMonsterDamageToPlayer(attacker, defender, battleLog, attackerName, defenderName, 0);
+    }
+
+    private int calculateMonsterDamageToPlayer(Monster attacker, Player defender, List<String> battleLog,
+                                                String attackerName, String defenderName, double debuff) {
         SpiritualRoot defenderRoot = defender.getSpiritualRoot();
 
         int baseDamage = attacker.getAttack();
         int variance = random.nextInt(-4, 5);
-        int finalDamage = Math.max(1, baseDamage + variance - playerService.getFinalDefense(defender) / 3);
+        int adjustedDefense = (int)(playerService.getFinalDefense(defender) * (1 - debuff));
+        int finalDamage = Math.max(1, baseDamage + variance - adjustedDefense / 3);
 
         if (defenderRoot != null && defenderRoot.hasEffect(SpiritualRoot.SpecialEffect.DAMAGE_REDUCTION)) {
             finalDamage = (int)(finalDamage * (1 - defenderRoot.getEffectValue()));
@@ -784,8 +790,6 @@ public class CombatService {
                 if (playerHpMap.get(playerId) <= 0) continue;
 
                 double debuff = currentForm.getPlayerDebuffPercent();
-                int adjustedAttack = (int)(playerService.getFinalAttack(player) * (1 - debuff));
-                int adjustedDefense = (int)(playerService.getFinalDefense(player) * (1 - debuff));
 
                 int[] mpOut = new int[1];
                 int damage = calculatePlayerDamageToMonster(player, boss, playerSkillsMap.get(playerId),
@@ -838,10 +842,9 @@ public class CombatService {
 
             if (targetPlayer != null) {
                 double debuff = currentForm.getPlayerDebuffPercent();
-                int adjustedDefense = (int)(playerService.getFinalDefense(targetPlayer) * (1 - debuff));
 
                 int mDamage = calculateMonsterDamageToPlayer(boss, targetPlayer, battleLog,
-                        boss.getName(), targetPlayer.getName());
+                        boss.getName(), targetPlayer.getName(), debuff);
 
                 playerHpMap.put(targetPlayerId, playerHpMap.get(targetPlayerId) - mDamage);
                 battleLog.add("【" + boss.getName() + "】攻击【" + targetPlayer.getName() + "】，造成 " + mDamage + " 点伤害，剩余生命 " + Math.max(0, playerHpMap.get(targetPlayerId)));
