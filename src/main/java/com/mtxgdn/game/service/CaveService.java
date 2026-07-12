@@ -138,37 +138,57 @@ public class CaveService {
             return result;
         }
 
-        long now = System.currentTimeMillis();
-        long elapsed = now - cave.getLastCollectTime();
         long collectInterval = 5 * 60 * 1000L;
-        if (elapsed < collectInterval) {
-            long remaining = (collectInterval - elapsed) / 1000;
-            result.put("success", false);
-            result.put("message", "灵气尚未汇聚，还需等待 " + remaining + " 秒");
-            return result;
-        }
+        Long collectedEnergy = DatabaseManager.runTransaction(conn -> {
+            String checkSql = "SELECT spirit_energy, last_collect_time FROM caves WHERE id = ? FOR UPDATE";
+            long spiritEnergy = 0;
+            long lastCollectTime = 0;
+            try (var ps = conn.prepareStatement(checkSql)) {
+                ps.setLong(1, cave.getId());
+                try (var rs = ps.executeQuery()) {
+                    if (rs.next()) {
+                        spiritEnergy = rs.getLong("spirit_energy");
+                        lastCollectTime = rs.getLong("last_collect_time");
+                    }
+                }
+            }
 
-        long spiritEnergy = cave.getSpiritEnergy();
-        if (spiritEnergy <= 0) {
-            result.put("success", false);
-            result.put("message", "洞府灵气不足，需要等待灵气汇聚");
-            return result;
-        }
+            long now = System.currentTimeMillis();
+            if (lastCollectTime > 0 && (now - lastCollectTime) < collectInterval) {
+                return null;
+            }
 
-        DatabaseManager.runTransaction(conn -> {
-            String sql = "UPDATE caves SET spirit_energy = 0, last_collect_time = ? WHERE id = ?";
-            try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            if (spiritEnergy <= 0) {
+                return null;
+            }
+
+            String updateSql = "UPDATE caves SET spirit_energy = 0, last_collect_time = ? WHERE id = ?";
+            try (var ps = conn.prepareStatement(updateSql)) {
                 ps.setLong(1, now);
                 ps.setLong(2, cave.getId());
                 ps.executeUpdate();
             }
-            return null;
+            return spiritEnergy;
         });
 
+        if (collectedEnergy == null) {
+            long now = System.currentTimeMillis();
+            long elapsed = now - cave.getLastCollectTime();
+            if (elapsed < collectInterval) {
+                long remaining = (collectInterval - elapsed) / 1000;
+                result.put("success", false);
+                result.put("message", "灵气尚未汇聚，还需等待 " + remaining + " 秒");
+            } else {
+                result.put("success", false);
+                result.put("message", "洞府灵气不足，需要等待灵气汇聚");
+            }
+            return result;
+        }
+
         int formationBoost = com.mtxgdn.common.service.ServiceRegistry.getFormationService().getTotalSpiritEnergyBoost(playerId);
-        long boostedEnergy = spiritEnergy;
+        long boostedEnergy = collectedEnergy;
         if (formationBoost > 0) {
-            boostedEnergy = spiritEnergy * (100 + formationBoost) / 100;
+            boostedEnergy = collectedEnergy * (100 + formationBoost) / 100;
         }
 
         itemService.addSpiritStones(playerId, boostedEnergy);

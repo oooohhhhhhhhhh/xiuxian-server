@@ -53,18 +53,36 @@ public class SecretRealmService {
             return SecretRealmResult.failure("你的境界不足，无法进入【" + areaName + "】，需要达到" + getRealmName(area.getRequiredRealm()) + "境界");
         }
 
-        long now = System.currentTimeMillis();
-        long lastTime = player.getLastSecretRealmTime();
-        if (lastTime > 0 && (now - lastTime) < area.getCooldownMs()) {
-            long remaining = (area.getCooldownMs() - (now - lastTime)) / 1000;
-            return SecretRealmResult.failure("你刚探索过【" + areaName + "】秘境，还需要等待 " + remaining + " 秒才能再次进入");
-        }
-
         if (player.getHp() <= 0) {
             return SecretRealmResult.failure("你已重伤，无法进入秘境，请先恢复生命值");
         }
 
-        playerService.updateLastSecretRealmTime(player.getId(), now);
+        long now = System.currentTimeMillis();
+        boolean canEnter = com.mtxgdn.db.DatabaseManager.runTransaction(conn -> {
+            String checkSql = "SELECT last_secret_realm_time FROM players WHERE id = ? FOR UPDATE";
+            try (var ps = conn.prepareStatement(checkSql)) {
+                ps.setLong(1, player.getId());
+                try (var rs = ps.executeQuery()) {
+                    if (rs.next()) {
+                        long lastTime = rs.getLong("last_secret_realm_time");
+                        if (lastTime > 0 && (now - lastTime) < area.getCooldownMs()) {
+                            return false;
+                        }
+                    }
+                }
+            }
+            String updateSql = "UPDATE players SET last_secret_realm_time = ? WHERE id = ?";
+            try (var ps = conn.prepareStatement(updateSql)) {
+                ps.setLong(1, now);
+                ps.setLong(2, player.getId());
+                ps.executeUpdate();
+            }
+            return true;
+        });
+
+        if (!canEnter) {
+            return SecretRealmResult.failure("你刚探索过【" + areaName + "】秘境，还需要等待一段时间才能再次进入");
+        }
 
         SecretRealmResult result = generateRealmEvent(player, area);
         result.setArea(areaName);
@@ -281,15 +299,8 @@ public class SecretRealmService {
         int newHp = Math.max(1, player.getHp() - hpLoss);
         result.setHpLost(hpLoss);
 
-        String updateSql = "UPDATE players SET hp = ? WHERE id = ?";
-        try (var conn = com.mtxgdn.db.DatabaseManager.getConnection();
-             var ps = conn.prepareStatement(updateSql)) {
-            ps.setInt(1, newHp);
-            ps.setLong(2, player.getId());
-            ps.executeUpdate();
-        } catch (Exception e) {
-            throw new RuntimeException("更新生命值失败", e);
-        }
+        player.setHp(newHp);
+        playerService.updatePlayer(player.getId(), player);
 
         log.add("⚠ 你不慎触发了秘境中的古老机关陷阱！损失了 " + hpLoss + " 点生命值。");
         result.setMessage("触发陷阱，损失了 " + hpLoss + " 点生命值");

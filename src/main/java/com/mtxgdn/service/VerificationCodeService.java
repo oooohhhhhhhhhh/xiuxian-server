@@ -19,20 +19,31 @@ public class VerificationCodeService {
     private static final SecureRandom RANDOM = new SecureRandom();
 
     public String generateAndStoreCode(String email) {
-        if (!canSendCode(email)) {
-            throw new RuntimeException("发送过于频繁，请稍后再试");
-        }
         String code = generateCode();
-        String sql = "INSERT INTO verification_codes (email, code, expires_at, sent_at) VALUES (?, ?, ?, ?)";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, email);
-            ps.setString(2, code);
-            ps.setTimestamp(3, Timestamp.from(Instant.now().plusSeconds(EXPIRY_MINUTES * 60L)));
-            ps.setTimestamp(4, Timestamp.from(Instant.now()));
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("验证码存储失败", e);
+        Boolean success = DatabaseManager.runTransaction(conn -> {
+            int rateLimitSeconds = AppConfig.getInt("verify_code.rate_limit_seconds", RATE_LIMIT_SECONDS);
+            String checkSql = "SELECT id FROM verification_codes WHERE email = ? AND sent_at > ? ORDER BY id DESC LIMIT 1";
+            try (var ps = conn.prepareStatement(checkSql)) {
+                ps.setString(1, email);
+                ps.setTimestamp(2, Timestamp.from(Instant.now().minusSeconds(rateLimitSeconds)));
+                try (var rs = ps.executeQuery()) {
+                    if (rs.next()) {
+                        return false;
+                    }
+                }
+            }
+            String insertSql = "INSERT INTO verification_codes (email, code, expires_at, sent_at) VALUES (?, ?, ?, ?)";
+            try (var ps = conn.prepareStatement(insertSql)) {
+                ps.setString(1, email);
+                ps.setString(2, code);
+                ps.setTimestamp(3, Timestamp.from(Instant.now().plusSeconds(EXPIRY_MINUTES * 60L)));
+                ps.setTimestamp(4, Timestamp.from(Instant.now()));
+                ps.executeUpdate();
+            }
+            return true;
+        });
+        if (!success) {
+            throw new RuntimeException("发送过于频繁，请稍后再试");
         }
         return code;
     }
