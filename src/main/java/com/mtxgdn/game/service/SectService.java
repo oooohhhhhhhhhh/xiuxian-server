@@ -770,6 +770,18 @@ public class SectService {
             result.put("success", false); result.put("message", "对方已经是宗主了"); return result;
         }
 
+        Player toPlayer = playerService.getPlayerById(toPlayerId);
+        if (toPlayer == null) {
+            result.put("success", false); result.put("message", "接收者角色不存在"); return result;
+        }
+        if (toPlayer.getRealm() < Sect.MIN_LEVEL_CREATE) {
+            String realmName = GameConfigLoader.getRealmConfig(toPlayer.getRealm(), 0) != null
+                    ? GameConfigLoader.getRealmConfig(toPlayer.getRealm(), 0).getFullName() : "凡人";
+            result.put("success", false);
+            result.put("message", "接收者境界不足，需要达到金丹期以上才能成为宗主（当前：" + realmName + "）");
+            return result;
+        }
+
         long spiritStones = itemService.getSpiritStoneCount(fromPlayerId);
         if (spiritStones < Sect.TRANSFER_COST_SPIRIT_STONES) {
             result.put("success", false);
