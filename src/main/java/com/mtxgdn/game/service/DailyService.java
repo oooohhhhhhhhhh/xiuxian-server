@@ -266,7 +266,6 @@ public class DailyService {
 
         if (totalDays == 7 && !daily.resonance7Awarded) {
             awardResonance(player, root, 7);
-            awardResonance(player, root, 7);
             markFortuneClaimed(playerId, "resonance7_awarded");
             awarded = true;
             resonanceMessage = "七天精进不辍！你的" + root.getDisplayName() + "与天地灵气产生共鸣，根基更加稳固";

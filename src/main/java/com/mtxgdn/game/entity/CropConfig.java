@@ -89,7 +89,7 @@ public class CropConfig {
             480, 8, 1, 2, 20, 35, ElementType.WATER
         ));
         configs.put("mtxgdn:he_shou_wu_seed", new CropConfig(
-            "mtxgdn:he_shou_wu_seed", "mtxgdn:he_shou_wu", "千年何首乌",
+            "mtxgdn:he_shou_wu_seed", "mtxgdn:thousand_year_heshouwu", "千年何首乌",
             200, 5, 2, 4, 40, 18, ElementType.EARTH
         ));
         configs.put("mtxgdn:wan_ling_grass_seed", new CropConfig(

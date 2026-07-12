@@ -26,7 +26,7 @@ public class SpiritSpringEvent extends ExplorationEvent {
         long exp = (player.getRealm() + 1) * 80L;
 
         playerService.addExperience(player.getId(), exp);
-        itemService.addItem(player.getId(), "spirit_spring_water", random.nextInt(1, 4));
+        itemService.addItem(player.getId(), "mtxgdn:spirit_spring_water", random.nextInt(1, 4));
         result.setExpGained(exp);
 
         log.add("💧 你发现了一处隐秘的灵泉！泉水清澈见底，散发着浓郁的灵气。");
