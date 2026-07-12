@@ -6,7 +6,6 @@ import com.mtxgdn.common.GameMessage;
 import com.mtxgdn.db.DatabaseManager;
 import com.mtxgdn.entity.User;
 import com.mtxgdn.permission.PermissionService;
-import com.mtxgdn.service.VerificationCodeService;
 import com.mtxgdn.util.AppConfig;
 import com.mtxgdn.util.JwtUtil;
 import jakarta.ws.rs.core.Response;

@@ -39,7 +39,6 @@ public class XiuxianAgent {
         log("超时，注入失败。");
     }
 
-    @SuppressWarnings({"unchecked", "rawtypes"})
     private static boolean injectCommand() throws Exception {
         // 1. 找到 MinecraftServer 实例
         Class<?> serverClass = findClass(
@@ -84,7 +83,7 @@ public class XiuxianAgent {
         // .executes(Command)
         literalBuilder = labClass.getMethod("executes", brigadierCmd).invoke(literalBuilder, handler);
         // .build()
-        Object node = labClass.getMethod("build").invoke(literalBuilder);
+        labClass.getMethod("build").invoke(literalBuilder);
 
         // 5. 注册到 dispatcher
         Class<?> dispatcherClass = dispatcher.getClass();

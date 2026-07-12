@@ -99,16 +99,6 @@ public class BlacklistService {
         return b;
     }
 
-    private Map<String, Object> toMap(Blacklist b) {
-        Map<String, Object> map = new LinkedHashMap<>();
-        map.put("qqNumber", b.isQqMode() ? b.getQqNumber() : null);
-        map.put("userId", b.isUserMode() ? b.getUserId() : null);
-        map.put("reason", b.getReason());
-        map.put("bannedBy", b.getBannedBy());
-        map.put("createdAt", b.getCreatedAt());
-        return map;
-    }
-
     /**
      * 检查QQ号是否在黑名单中（直接ban QQ号，或通过userId关联的绑定账号）。
      */

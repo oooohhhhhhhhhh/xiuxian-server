@@ -13,7 +13,6 @@ public class JwtAuthFilter implements ContainerRequestFilter {
     @Override
     public void filter(ContainerRequestContext requestContext) {
         String path = requestContext.getUriInfo().getPath();
-        String method = requestContext.getMethod();
 
         if (path.startsWith("auth/") || path.startsWith("test/")) {
             System.out.println("[JwtFilter] bypass: " + path);

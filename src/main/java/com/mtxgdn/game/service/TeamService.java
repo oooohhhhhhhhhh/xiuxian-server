@@ -1,7 +1,5 @@
 package com.mtxgdn.game.service;
 
-import com.mtxgdn.entity.Player;
-
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.atomic.AtomicLong;

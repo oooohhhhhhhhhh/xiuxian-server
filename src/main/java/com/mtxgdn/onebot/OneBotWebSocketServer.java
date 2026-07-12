@@ -175,7 +175,6 @@ public class OneBotWebSocketServer extends WebSocketApplication
         String username;
         String password;
         String email;
-        String verificationCode;
 
         PendingSession(String type, Long sourceGroupId) {
             this.type = type;

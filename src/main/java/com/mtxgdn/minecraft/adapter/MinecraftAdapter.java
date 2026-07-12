@@ -53,20 +53,15 @@ public class MinecraftAdapter implements MinecraftMessageSender {
     private final MinecraftPlayerBindingService bindingService = new MinecraftPlayerBindingService();
     private final Map<String, PendingSession> pendingSessions = new ConcurrentHashMap<>();
     private final Map<String, String> nameToUuid = new ConcurrentHashMap<>();
-    private volatile boolean serverReady = false;
     private volatile boolean running = false;
 
     private static class PendingSession {
         String type;      // "register" / "bind"
         String state;     // "WAITING_USERNAME" / "WAITING_PASSWORD"
         String username;
-        String mcName;
-        String mcUuid;
 
         PendingSession(String type, String mcName, String mcUuid) {
             this.type = type;
-            this.mcName = mcName;
-            this.mcUuid = mcUuid;
             if ("register".equals(type)) {
                 this.state = "WAITING_PASSWORD"; // 直接等密码，角色名用 MC 名
                 this.username = mcName;

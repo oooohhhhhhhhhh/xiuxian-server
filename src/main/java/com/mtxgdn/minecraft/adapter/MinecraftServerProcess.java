@@ -34,10 +34,6 @@ public class MinecraftServerProcess implements Runnable {
     /** 古代版本（无时间戳）格式：<玩家名> 消息 */
     private static final Pattern CHAT_PATTERN_LEGACY =
             Pattern.compile("^<(?<name>\\S+)>\\s+(?<msg>.+)$");
-    /** 玩家在聊天框输入 /xxx — MC 服务端日志会输出 "玩家名 issued server command: /xxx" */
-    private static final Pattern CMD_PATTERN =
-            Pattern.compile("(?<name>\\S+)\\s+issued server command:\\s*/(?<raw>\\S+)\\s*(?<args>.*)");
-
     private final String commandPrefix; // e.g. "xiuxian" → /xiuxian status, "" → /status
     /** 玩家加入 */
     private static final Pattern JOIN_PATTERN =
@@ -55,7 +51,6 @@ public class MinecraftServerProcess implements Runnable {
     private final int minMemoryMb;
     private final int maxMemoryMb;
     private final List<String> extraJvmArgs;
-    private final boolean autoStart;
     private final long readyTimeoutMs;
 
     private final AtomicBoolean running = new AtomicBoolean(false);

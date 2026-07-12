@@ -110,7 +110,6 @@ public enum SpiritualRoot {
         14,
         6
     };
-    private static int totalWeight = -1;
 
     private final String displayName;
     private final Tier tier;

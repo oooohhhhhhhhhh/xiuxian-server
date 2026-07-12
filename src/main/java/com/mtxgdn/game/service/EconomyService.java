@@ -460,14 +460,6 @@ public class EconomyService {
         return null;
     }
 
-    private void markBankDepositDone(long depositId, long interest) {
-        try (Connection conn = DatabaseManager.getConnection()) {
-            markBankDepositDone(conn, depositId, interest);
-        } catch (SQLException e) {
-            throw new RuntimeException("取款失败", e);
-        }
-    }
-
     private void markBankDepositDone(Connection conn, long depositId, long interest) throws SQLException {
         String sql = "UPDATE player_bank SET status = 'withdrawn', interest_earned = ? WHERE id = ?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {

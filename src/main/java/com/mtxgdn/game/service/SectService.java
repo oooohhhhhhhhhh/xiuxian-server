@@ -906,7 +906,6 @@ public class SectService {
 
         boolean attackerWin = attackerWins > defenderWins;
         String winnerSectName = attackerWin ? attackerSect.getName() : defenderSect.getName();
-        String loserSectName = attackerWin ? defenderSect.getName() : attackerSect.getName();
         long winnerSectId = attackerWin ? attackerSect.getId() : defenderSect.getId();
 
         battleLog.add("===== 宗门战结果 =====");

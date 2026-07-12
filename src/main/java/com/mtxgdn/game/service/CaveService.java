@@ -4,7 +4,6 @@ import com.mtxgdn.db.DatabaseManager;
 import com.mtxgdn.entity.Player;
 import com.mtxgdn.game.config.GameConfigLoader;
 import com.mtxgdn.game.entity.Cave;
-import com.mtxgdn.game.service.HeartDemonService;
 import com.mtxgdn.util.GameLogger;
 
 import java.sql.Connection;

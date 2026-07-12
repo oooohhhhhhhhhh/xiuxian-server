@@ -458,36 +458,6 @@ public class ItemService {
      *   - 上品 ≥2000000000等值 → 合并为极品
      * 合并时受上级硬上限约束。
      */
-    private void consolidateAll(Connection conn, long playerId) throws SQLException {
-        for (int grade = 0; grade < 3; grade++) {
-            long threshold = CurrencyEffect.CONSOLIDATE_THRESHOLD_LOW[grade];
-            if (threshold == 0) continue;
-
-            int nextGrade = grade + 1;
-            long rate = CurrencyEffect.getExchangeRate(nextGrade);
-            String lowerKey = CurrencyEffect.getStoneKey(grade);
-            String higherKey = CurrencyEffect.getStoneKey(nextGrade);
-
-            long lowerCount = getItemCount(conn, playerId, lowerKey);
-            long lowerValue = lowerCount * CurrencyEffect.getExchangeRate(grade);
-
-            if (lowerValue >= threshold) {
-                long maxUp = CurrencyEffect.MAX_HOLD_PER_GRADE[nextGrade];
-                long currentUp = getItemCount(conn, playerId, higherKey);
-                long canUp = (maxUp > 0) ? Math.max(0, maxUp - currentUp) : Long.MAX_VALUE;
-
-                long totalCanMergeValue = lowerValue / rate;
-                long actualToUpCount = Math.min(totalCanMergeValue, canUp);
-                long actualRemoveLower = actualToUpCount * rate / CurrencyEffect.getExchangeRate(grade);
-
-                if (actualToUpCount > 0 && actualRemoveLower > 0) {
-                    long realRemove = Math.min(actualRemoveLower, lowerCount);
-                    removeItem(conn, playerId, lowerKey, realRemove);
-                    addItem(conn, playerId, higherKey, actualToUpCount);
-                }
-            }
-        }
-    }
 
     public Map<String, Object> exchangeSpiritStones(long playerId, int fromGrade, int toGrade, long amount) {
         Map<String, Object> result = new LinkedHashMap<>();

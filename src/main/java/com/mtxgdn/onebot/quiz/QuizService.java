@@ -32,14 +32,6 @@ public class QuizService {
     private String lastQuestion = null;
     private int lastQuestionNumber = 0;
 
-    private static final Pattern QUESTION_PATTERN = Pattern.compile(
-            "(?:第\\s*(\\d+)\\s*题|请听题)(?:[\\s\\S])*?(?=请从下面选择|正确答案是|$)",
-            Pattern.CASE_INSENSITIVE);
-
-    private static final Pattern QUESTION_LINE_PATTERN = Pattern.compile(
-            "^(?:第\\s*\\d+\\s*题|题目\\d*)[\\s\\S]*?(?=\\n|请从下面选择|请听题|$)",
-            Pattern.CASE_INSENSITIVE);
-
     private static final Pattern ANSWER_PATTERN = Pattern.compile(
             "正确答案是[：:]*\\s*(\\d+)",
             Pattern.CASE_INSENSITIVE);

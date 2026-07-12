@@ -1,7 +1,6 @@
 package com.mtxgdn.plugin;
 
 import com.google.gson.JsonObject;
-import com.mtxgdn.Main;
 import com.mtxgdn.util.GameLogger;
 import org.glassfish.grizzly.http.server.HttpHandler;
 import org.glassfish.grizzly.http.server.HttpServer;

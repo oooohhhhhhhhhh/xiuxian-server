@@ -226,8 +226,6 @@ public class FarmService {
     private static final long PEST_CHECK_INTERVAL = 60000;
 
     public Map<String, Object> water(long playerId, int plotIndex) {
-        Map<String, Object> result = new LinkedHashMap<>();
-
         return DatabaseManager.runTransaction(conn -> {
             Map<String, Object> txResult = new LinkedHashMap<>();
 
@@ -387,8 +385,6 @@ public class FarmService {
     }
 
     public Map<String, Object> harvest(long playerId, int plotIndex) {
-        Map<String, Object> result = new LinkedHashMap<>();
-
         return DatabaseManager.runTransaction(conn -> {
             Map<String, Object> txResult = new LinkedHashMap<>();
 
@@ -646,8 +642,6 @@ public class FarmService {
     }
 
     public Map<String, Object> clearPlot(long playerId, int plotIndex) {
-        Map<String, Object> result = new LinkedHashMap<>();
-
         return DatabaseManager.runTransaction(conn -> {
             Map<String, Object> txResult = new LinkedHashMap<>();
 
