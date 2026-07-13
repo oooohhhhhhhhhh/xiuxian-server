@@ -522,6 +522,7 @@ public class OneBotWebSocketServer extends WebSocketApplication
         }
         PendingSession session = new PendingSession("register", sourceGroupId);
         session.username = name;
+        session.state = "WAITING_PASSWORD";
         pendingSessions.put(senderQq, session);
         replyToSource(socket, selfId, senderQq, sourceGroupId,
                 "角色名【" + name + "】可用！\n请在私聊中发送你的密码（不少于6位）\n(输入 /cancel 取消)");
@@ -728,16 +729,12 @@ public class OneBotWebSocketServer extends WebSocketApplication
             return;
         }
         try {
-            // 解绑QQ
-            bindingService.unbindByQq(senderQq);
-            // 删除玩家数据
             PlayerInfo player = ServiceRegistry.getPlayerService().getPlayerByUserId(userId);
             if (player != null) {
                 ServiceRegistry.getPlayerService().deletePlayer(player.getId());
-                actionLog.logCustom(userId, username, "注销账号", "角色数据已删除");
             }
-            // 删除用户账号
             deleteUser(userId);
+            bindingService.unbindByQq(senderQq);
             pendingSessions.remove(senderQq);
             sendPrivateMsg(socket, selfId, senderQq, "账号已注销。感谢您的陪伴，修仙之路后会有期！");
         } catch (RuntimeException e) {
