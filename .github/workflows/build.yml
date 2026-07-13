@@ -34,8 +34,10 @@ jobs:
           GITHUB_ACTOR: ${{ github.actor }}
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Build and deploy
-        run: mvn clean deploy -DskipTests -B -P github -Dproject.version=$PROJECT_VERSION
+      - name: Update version and deploy
+        run: |
+          mvn versions:set -DnewVersion=$PROJECT_VERSION -DgenerateBackupPoms=false -B
+          mvn clean deploy -DskipTests -B -P github
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
