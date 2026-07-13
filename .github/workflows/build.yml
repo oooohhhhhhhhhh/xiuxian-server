@@ -10,6 +10,7 @@ permissions:
 
 env:
   GITHUB_REPOSITORY_URL: https://maven.pkg.github.com/oooohhhhhhhhhh/xiuxian-server
+  PROJECT_VERSION: V1.4.1-${{ github.sha }}
 
 jobs:
   build:
@@ -26,17 +27,17 @@ jobs:
           cache: maven
 
       - name: Install dependencies
-        run: mvn dependency:go-offline -B
+        run: mvn dependency:go-offline -B -Dproject.version=$PROJECT_VERSION
 
       - name: Compile code
-        run: mvn compile -B
+        run: mvn compile -B -Dproject.version=$PROJECT_VERSION
 
       - name: Run tests
-        run: mvn test -B
+        run: mvn test -B -Dproject.version=$PROJECT_VERSION
         continue-on-error: true
 
       - name: Package JAR
-        run: mvn package -DskipTests -B -Dproject.version=V1.4.1-${{ github.sha }}
+        run: mvn package -DskipTests -B -Dproject.version=$PROJECT_VERSION
 
       - name: Configure Maven settings
         run: |
@@ -47,7 +48,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Deploy to GitHub Packages
-        run: mvn deploy -DskipTests -B -P github -Dproject.version=V1.4.1-${{ github.sha }}
+        run: mvn deploy -DskipTests -B -P github -Dproject.version=$PROJECT_VERSION
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4
