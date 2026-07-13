@@ -10,6 +10,7 @@ permissions:
 
 env:
   GITHUB_REPOSITORY_URL: https://maven.pkg.github.com/oooohhhhhhhhhh/xiuxian-server
+  GIT_COMMIT_SHA: ${{ github.sha }}
 
 jobs:
   build:
@@ -36,7 +37,7 @@ jobs:
       - name: Update version and deploy
         run: |
           BASE_VERSION=$(mvn help:evaluate -Dexpression=project.version -q -DforceStdout)
-          NEW_VERSION="${BASE_VERSION%-SNAPSHOT}-${{ github.sha }}"
+          NEW_VERSION="${BASE_VERSION%-SNAPSHOT}-$GIT_COMMIT_SHA"
           mvn versions:set -DnewVersion=$NEW_VERSION -DgenerateBackupPoms=false -B
           mvn clean deploy -DskipTests -B -P github
 
