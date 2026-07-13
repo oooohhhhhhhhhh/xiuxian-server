@@ -573,7 +573,7 @@ public class DatabaseManager {
                     "last_collect_time BIGINT DEFAULT 0, " +
                     "created_at " + tsDefault + ", " +
                     "updated_at " + tsUpdate +
-                    (IS_SQLITE ? "" : ", FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE, ") +
+                    (IS_SQLITE ? ", " : ", FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE, ") +
                     "UNIQUE (player_id)" +
                     ")";
             stmt.execute(cavesTableSql);
