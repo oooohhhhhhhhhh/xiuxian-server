@@ -111,7 +111,23 @@ performance:
   # JVM 启动参数建议 (java -Xms128m -Xmx256m -XX:+UseSerialGC ...)
   # 可用 start-low-memory.bat 一键启动低内存模式
   # 低内存模式: 启用后自动缩小连接池、线程池、缓冲区
-  low_memory: true
+  low_memory: false
+  # Grizzly IO线程数 (默认2)
+  grizzly_io_threads: 2
+  # Grizzly工作线程池核心/最大线程数
+  grizzly_worker_cores: 4
+  grizzly_worker_max: 8
+
+# ---- 网络配置 ----
+network:
+  # 连接超时（毫秒）
+  connection_timeout_ms: 10000
+  # 读取超时（毫秒）
+  read_timeout_ms: 30000
+  # 写入超时（毫秒）
+  write_timeout_ms: 10000
+  # WebSocket握手超时（毫秒）
+  websocket_handshake_timeout_ms: 15000
   # HikariCP 连接池最大连接数 (MySQL 默认用此值; SQLite 固定为 1)
   db_pool_max: 4
   # 内存日志最大保留条数

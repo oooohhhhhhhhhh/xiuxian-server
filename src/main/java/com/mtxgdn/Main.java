@@ -176,27 +176,32 @@ public class Main {
             pm.startFileWatcher();
         }
 
-        // 低内存模式：缩小 Grizzly 线程池和缓冲区
-        if (AppConfig.getBoolean("performance.low_memory", true)) {
-            int grizzlyIoThreads = AppConfig.getInt("performance.grizzly_io_threads", 1);
-            int grizzlyWorkerCore = AppConfig.getInt("performance.grizzly_worker_cores", 1);
-            int grizzlyWorkerMax = AppConfig.getInt("performance.grizzly_worker_max", 2);
-            ThreadPoolConfig workerConfig = ThreadPoolConfig.defaultConfig()
-                    .setCorePoolSize(grizzlyWorkerCore)
-                    .setMaxPoolSize(grizzlyWorkerMax)
-                    .setQueueLimit(50)
-                    .setPoolName("grizzly-worker");
-            for (NetworkListener listener : server.getListeners()) {
-                listener.getTransport().setSelectorRunnersCount(grizzlyIoThreads);
-                listener.getTransport().setWorkerThreadPoolConfig(workerConfig);
-                // 缩小 IO 缓冲区 (默认 64KB → 16KB)
+        // 性能模式配置：调整 Grizzly 线程池和缓冲区
+        int grizzlyIoThreads = AppConfig.getInt("performance.grizzly_io_threads", 2);
+        int grizzlyWorkerCore = AppConfig.getInt("performance.grizzly_worker_cores", 4);
+        int grizzlyWorkerMax = AppConfig.getInt("performance.grizzly_worker_max", 8);
+        int connectionTimeoutMs = AppConfig.getInt("network.connection_timeout_ms", 10000);
+        int readTimeoutMs = AppConfig.getInt("network.read_timeout_ms", 30000);
+
+        ThreadPoolConfig workerConfig = ThreadPoolConfig.defaultConfig()
+                .setCorePoolSize(grizzlyWorkerCore)
+                .setMaxPoolSize(grizzlyWorkerMax)
+                .setQueueLimit(100)
+                .setPoolName("grizzly-worker");
+
+        for (NetworkListener listener : server.getListeners()) {
+            listener.getTransport().setSelectorRunnersCount(grizzlyIoThreads);
+            listener.getTransport().setWorkerThreadPoolConfig(workerConfig);
+            listener.getTransport().setConnectionTimeout(connectionTimeoutMs);
+            listener.getTransport().setKeepAlive(true);
+            if (AppConfig.getBoolean("performance.low_memory", false)) {
                 listener.getTransport().setReadBufferSize(16384);
                 listener.getTransport().setWriteBufferSize(16384);
             }
-            LOG.info("低内存模式: Grizzly IO线程=" + grizzlyIoThreads +
-                    " 工作线程(" + grizzlyWorkerCore + "/" + grizzlyWorkerMax +
-                    ") 缓冲区=16KB");
         }
+        LOG.info("性能配置: Grizzly IO线程=" + grizzlyIoThreads +
+                " 工作线程(" + grizzlyWorkerCore + "/" + grizzlyWorkerMax + ")");
+        LOG.info("网络超时: 连接=" + connectionTimeoutMs + "ms 读取=" + readTimeoutMs + "ms");
 
         WebSocketAddOn wsAddOn = new WebSocketAddOn();
         server.getListeners().forEach(listener -> listener.registerAddOn(wsAddOn));
@@ -240,6 +245,23 @@ public class Main {
                     oneBotServer = new HttpServer();
                     NetworkListener oneBotListener = new NetworkListener("onebot", "0.0.0.0", oneBotPort);
                     oneBotListener.registerAddOn(new WebSocketAddOn());
+
+                    int obConnTimeout = AppConfig.getInt("network.connection_timeout_ms", 10000);
+                    int obHandshakeTimeout = AppConfig.getInt("network.websocket_handshake_timeout_ms", 15000);
+                    oneBotListener.getTransport().setConnectionTimeout(obConnTimeout);
+                    oneBotListener.getTransport().setKeepAlive(true);
+
+                    int obIoThreads = AppConfig.getInt("performance.grizzly_io_threads", 2);
+                    int obWorkerCore = AppConfig.getInt("performance.grizzly_worker_cores", 4);
+                    int obWorkerMax = AppConfig.getInt("performance.grizzly_worker_max", 8);
+                    ThreadPoolConfig obWorkerConfig = ThreadPoolConfig.defaultConfig()
+                            .setCorePoolSize(obWorkerCore)
+                            .setMaxPoolSize(obWorkerMax)
+                            .setQueueLimit(100)
+                            .setPoolName("onebot-worker");
+                    oneBotListener.getTransport().setSelectorRunnersCount(obIoThreads);
+                    oneBotListener.getTransport().setWorkerThreadPoolConfig(obWorkerConfig);
+
                     oneBotServer.addListener(oneBotListener);
 
                     oneBotWebSocketServer = new OneBotWebSocketServer();
@@ -247,6 +269,8 @@ public class Main {
 
                     oneBotServer.start();
                     LOG.info("OneBot WebSocket 服务启动在 ws://127.0.0.1:" + oneBotPort + "/onebot");
+                    LOG.info("  IO线程=" + obIoThreads + " 工作线程(" + obWorkerCore + "/" + obWorkerMax + ")");
+                    LOG.info("  连接超时=" + obConnTimeout + "ms 握手超时=" + obHandshakeTimeout + "ms");
                 } catch (Exception e) {
                     LOG.error("OneBot WebSocket 服务启动失败", e);
                 }
