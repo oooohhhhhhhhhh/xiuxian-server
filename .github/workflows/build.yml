@@ -21,6 +21,8 @@ jobs:
           java-version: '23'
           distribution: 'temurin'
           cache: maven
+          server-id: github
+          server-password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install dependencies
         run: mvn dependency:go-offline -B
@@ -46,19 +48,6 @@ jobs:
           ls -la "$JAR_FILE"
           echo "JAR_FILE=$JAR_FILE" >> $GITHUB_ENV
 
-      - name: Configure Maven settings
-        run: |
-          mkdir -p ~/.m2
-          echo '<settings>' > ~/.m2/settings.xml
-          echo '  <servers>' >> ~/.m2/settings.xml
-          echo '    <server>' >> ~/.m2/settings.xml
-          echo '      <id>github</id>' >> ~/.m2/settings.xml
-          echo "      <username>${{ github.actor }}</username>" >> ~/.m2/settings.xml
-          echo "      <password>${{ secrets.GITHUB_TOKEN }}</password>" >> ~/.m2/settings.xml
-          echo '    </server>' >> ~/.m2/settings.xml
-          echo '  </servers>' >> ~/.m2/settings.xml
-          echo '</settings>' >> ~/.m2/settings.xml
-
       - name: Deploy to GitHub Packages
         run: mvn deploy -DskipTests -B -Dmaven.deploy.skip=false
 
@@ -69,9 +58,12 @@ jobs:
           path: ${{ env.JAR_FILE }}
 
       - name: Create summary
-        run: |
-          echo "## Build Summary" >> $GITHUB_STEP_SUMMARY
-          echo "✅ Build successful" >> $GITHUB_STEP_SUMMARY
-          echo "📦 Artifact: ${{ env.JAR_FILE }}" >> $GITHUB_STEP_SUMMARY
-          echo "🔄 Branch: ${{ github.ref_name }}" >> $GITHUB_STEP_SUMMARY
-          echo "👤 Commit: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+        uses: actions/github-script@v7
+        with:
+          script: |
+            core.summary.addHeading('Build Summary')
+            core.summary.addRaw('✅ Build successful', true)
+            core.summary.addRaw(`📦 Artifact: ${process.env.JAR_FILE}`, true)
+            core.summary.addRaw(`🔄 Branch: ${context.ref.replace('refs/heads/', '')}`, true)
+            core.summary.addRaw(`👤 Commit: ${context.sha}`, true)
+            await core.summary.write()
