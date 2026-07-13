@@ -94,6 +94,16 @@ public class QuizAutoResponder {
         return groupTimers.containsKey(groupId);
     }
 
+    public void shutdown() {
+        for (Timer timer : groupTimers.values()) {
+            timer.cancel();
+        }
+        groupTimers.clear();
+        groupCounters.clear();
+        groupSockets.clear();
+        groupSelfIds.clear();
+    }
+
     private void sendGroupMsg(WebSocket socket, String selfId, Long groupId, String message) {
         if (socket == null || selfId == null || groupId == null || message == null) {
             return;

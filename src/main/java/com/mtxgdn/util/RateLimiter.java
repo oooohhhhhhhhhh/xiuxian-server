@@ -45,4 +45,17 @@ public class RateLimiter {
         }
         return Math.max(0, limit - window.counter.get());
     }
+
+    public static void cleanupExpired(int maxWindowSeconds) {
+        long now = System.currentTimeMillis() / 1000;
+        windows.entrySet().removeIf(entry -> (now - entry.getValue().windowStart) >= maxWindowSeconds);
+    }
+
+    public static int size() {
+        return windows.size();
+    }
+
+    public static void clear() {
+        windows.clear();
+    }
 }

@@ -19,6 +19,10 @@ public class BuffService {
         scheduler.scheduleAtFixedRate(BuffService::checkExpiredBuffs, 1, 1, TimeUnit.SECONDS);
     }
 
+    public static void shutdownScheduler() {
+        scheduler.shutdown();
+    }
+
     public static class ActiveBuff {
         private String buffId;
         private int attackBonus;
@@ -253,10 +257,6 @@ public class BuffService {
             return 0;
         }
         return 0;
-    }
-
-    public void shutdown() {
-        scheduler.shutdown();
     }
 
     public void reloadBuffsOnStartup(long playerId) {

@@ -37,6 +37,10 @@ public class FarmService {
         scheduler.scheduleAtFixedRate(FarmService::updateAllPlots, 1, 1, TimeUnit.SECONDS);
     }
 
+    public static void shutdownScheduler() {
+        scheduler.shutdown();
+    }
+
     private double calculateSpiritualRootBonus(long playerId, CropConfig.ElementType cropElement) {
         com.mtxgdn.entity.Player player = playerService.getPlayerById(playerId);
         if (player == null || player.getSpiritualRoot() == null) {
@@ -1041,9 +1045,5 @@ public class FarmService {
             plot.setCropQuality(FarmPlot.CropQuality.valueOf(qualityStr));
         }
         return plot;
-    }
-
-    public void shutdown() {
-        scheduler.shutdown();
     }
 }

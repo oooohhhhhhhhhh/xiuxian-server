@@ -35,6 +35,11 @@ public class PlayerService {
         LOG.info("玩家自动回血任务已启动（每10秒回复1%最大生命值）");
     }
 
+    public static void shutdown() {
+        scheduler.shutdown();
+        LOG.info("玩家自动回血任务已停止");
+    }
+
     public PlayerInfo getPlayerByUserId(long userId) {
         String sql = "SELECT * FROM players WHERE user_id = ?";
         try (Connection conn = DatabaseManager.getConnection();

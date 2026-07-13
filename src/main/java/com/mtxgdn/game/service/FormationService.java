@@ -30,6 +30,11 @@ public class FormationService {
         LOG.info("阵法定时检查任务已启动");
     }
 
+    public static void shutdown() {
+        scheduler.shutdown();
+        LOG.info("阵法定时检查任务已停止");
+    }
+
     public Formation getActiveFormation(long playerId) {
         String sql = "SELECT * FROM formations WHERE player_id = ? AND active = 1 ORDER BY expires_at DESC LIMIT 1";
         try (Connection conn = DatabaseManager.getConnection();

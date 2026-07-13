@@ -85,8 +85,32 @@ public class Main {
                 PluginManager.getInstance().disablePlugins();
             } catch (Exception ignore) {
             }
+            try {
+                com.mtxgdn.game.service.PlayerService.shutdown();
+            } catch (Exception ignore) {
+            }
+            try {
+                com.mtxgdn.game.service.FormationService.shutdown();
+            } catch (Exception ignore) {
+            }
+            try {
+                com.mtxgdn.game.service.FarmService.shutdownScheduler();
+            } catch (Exception ignore) {
+            }
+            try {
+                com.mtxgdn.game.service.CaveService.shutdown();
+            } catch (Exception ignore) {
+            }
+            try {
+                com.mtxgdn.game.service.BuffService.shutdownScheduler();
+            } catch (Exception ignore) {
+            }
             if (oneBotWebSocketServer != null) {
                 oneBotWebSocketServer.shutdown();
+            }
+            try {
+                com.mtxgdn.onebot.quiz.QuizAutoResponder.getInstance().shutdown();
+            } catch (Exception ignore) {
             }
             if (screenshotBot != null) {
                 screenshotBot.stop();
@@ -99,6 +123,11 @@ public class Main {
                     gameWebSocketApp.shutdownGracefully();
                 } catch (Exception ignore) {
                 }
+            }
+            try {
+                com.mtxgdn.db.DatabaseManager.shutdown();
+                LOG.info("数据库连接池已关闭");
+            } catch (Exception ignore) {
             }
             LOG.info("服务器已关闭");
         }, "shutdown-hook"));

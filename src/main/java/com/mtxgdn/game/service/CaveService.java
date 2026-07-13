@@ -31,6 +31,11 @@ public class CaveService {
         LOG.info("洞府灵气自动增长任务已启动");
     }
 
+    public static void shutdown() {
+        scheduler.shutdown();
+        LOG.info("洞府灵气自动增长任务已停止");
+    }
+
     public Cave getCaveByPlayerId(long playerId) {
         String sql = "SELECT * FROM caves WHERE player_id = ?";
         try (Connection conn = DatabaseManager.getConnection();

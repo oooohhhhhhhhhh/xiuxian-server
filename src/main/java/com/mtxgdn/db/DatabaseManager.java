@@ -65,6 +65,12 @@ public class DatabaseManager {
         return dataSource;
     }
 
+    public static void shutdown() {
+        if (dataSource != null && !dataSource.isClosed()) {
+            dataSource.close();
+        }
+    }
+
     public static boolean isSqlite() {
         return IS_SQLITE;
     }
