@@ -37,16 +37,15 @@ jobs:
       - name: Package JAR
         run: mvn package -DskipTests -B
 
-      - name: Verify JAR file
+      - name: Find JAR file
+        id: find-jar
         run: |
           JAR_FILE=$(find target -name "*.jar" -type f | head -n 1)
           if [ -z "$JAR_FILE" ]; then
             echo "Error: No JAR file found in target directory"
             exit 1
           fi
-          echo "Found JAR file: $JAR_FILE"
-          ls -la "$JAR_FILE"
-          echo "JAR_FILE=$JAR_FILE" >> $GITHUB_ENV
+          echo "jar_file=$JAR_FILE" >> $GITHUB_OUTPUT
 
       - name: Deploy to GitHub Packages
         run: mvn deploy -DskipTests -B -Dmaven.deploy.skip=false
@@ -55,7 +54,7 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: game-server-jar
-          path: ${{ env.JAR_FILE }}
+          path: ${{ steps.find-jar.outputs.jar_file }}
 
       - name: Create summary
         uses: actions/github-script@v7
@@ -63,7 +62,9 @@ jobs:
           script: |
             core.summary.addHeading('Build Summary')
             core.summary.addRaw('✅ Build successful', true)
-            core.summary.addRaw(`📦 Artifact: ${process.env.JAR_FILE}`, true)
-            core.summary.addRaw(`🔄 Branch: ${context.ref.replace('refs/heads/', '')}`, true)
-            core.summary.addRaw(`👤 Commit: ${context.sha}`, true)
+            core.summary.addRaw('📦 Artifact: ' + process.env.JAR_FILE_OUTPUT, true)
+            core.summary.addRaw('🔄 Branch: ' + context.ref.replace('refs/heads/', ''), true)
+            core.summary.addRaw('👤 Commit: ' + context.sha, true)
             await core.summary.write()
+        env:
+          JAR_FILE_OUTPUT: ${{ steps.find-jar.outputs.jar_file }}
