@@ -8,6 +8,9 @@ permissions:
   contents: read
   packages: write
 
+env:
+  GITHUB_REPOSITORY_URL: https://maven.pkg.github.com/oooohhhhhhhhhh/xiuxian-server
+
 jobs:
   build:
     runs-on: ubuntu-latest
@@ -21,8 +24,6 @@ jobs:
           java-version: '23'
           distribution: 'temurin'
           cache: maven
-          server-id: github
-          server-password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install dependencies
         run: mvn dependency:go-offline -B
@@ -37,8 +38,16 @@ jobs:
       - name: Package JAR
         run: mvn package -DskipTests -B
 
+      - name: Configure Maven settings
+        run: |
+          mkdir -p ~/.m2
+          echo "<settings><servers><server><id>github</id><username>$GITHUB_ACTOR</username><password>$GITHUB_TOKEN</password></server></servers></settings>" > ~/.m2/settings.xml
+        env:
+          GITHUB_ACTOR: ${{ github.actor }}
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Deploy to GitHub Packages
-        run: mvn deploy -DskipTests -B -Dmaven.deploy.skip=false
+        run: mvn deploy -DskipTests -B -P github
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4

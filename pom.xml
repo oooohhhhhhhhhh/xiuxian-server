@@ -120,13 +120,18 @@
         </dependency>
     </dependencies>
 
-    <distributionManagement>
-        <repository>
+    <profiles>
+        <profile>
             <id>github</id>
-            <name>GitHub Packages</name>
-            <url>https://maven.pkg.github.com/oooohhhhhhhhhh/xiuxian-server</url>
-        </repository>
-    </distributionManagement>
+            <distributionManagement>
+                <repository>
+                    <id>github</id>
+                    <name>GitHub Packages</name>
+                    <url>${env.GITHUB_REPOSITORY_URL}</url>
+                </repository>
+            </distributionManagement>
+        </profile>
+    </profiles>
 
     <build>
         <resources>
