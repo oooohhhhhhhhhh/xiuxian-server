@@ -276,7 +276,9 @@ public class PlayerService {
     }
 
     public void addHp(long playerId, int amount) {
-        String sql = "UPDATE players SET hp = LEAST(hp + ?, max_hp) WHERE id = ?";
+        String sql = DatabaseManager.isSqlite()
+                ? "UPDATE players SET hp = MIN(hp + ?, max_hp) WHERE id = ?"
+                : "UPDATE players SET hp = LEAST(hp + ?, max_hp) WHERE id = ?";
         try (Connection conn = DatabaseManager.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, amount);
@@ -377,7 +379,9 @@ public class PlayerService {
     }
 
     public void addMp(long playerId, int amount) {
-        String sql = "UPDATE players SET mp = LEAST(mp + ?, max_mp) WHERE id = ?";
+        String sql = DatabaseManager.isSqlite()
+                ? "UPDATE players SET mp = MIN(mp + ?, max_mp) WHERE id = ?"
+                : "UPDATE players SET mp = LEAST(mp + ?, max_mp) WHERE id = ?";
         try (Connection conn = DatabaseManager.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, amount);
@@ -496,7 +500,9 @@ public class PlayerService {
         }
 
         int baseHp = 100, baseMp = 50, baseAtk = 10, baseDef = 5, baseSpd = 5, baseSpi = 5;
-        String sql = "UPDATE players SET spiritual_root = ?, max_hp = ?, hp = LEAST(hp, ?), max_mp = ?, mp = LEAST(mp, ?), attack = ?, defense = ?, speed = ?, spirit = ? WHERE id = ?";
+        String sql = DatabaseManager.isSqlite()
+                ? "UPDATE players SET spiritual_root = ?, max_hp = ?, hp = MIN(hp, ?), max_mp = ?, mp = MIN(mp, ?), attack = ?, defense = ?, speed = ?, spirit = ? WHERE id = ?"
+                : "UPDATE players SET spiritual_root = ?, max_hp = ?, hp = LEAST(hp, ?), max_mp = ?, mp = LEAST(mp, ?), attack = ?, defense = ?, speed = ?, spirit = ? WHERE id = ?";
         try (Connection conn = DatabaseManager.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, newRoot.name());
@@ -948,7 +954,12 @@ public class PlayerService {
     }
 
     private static void tickAutoHeal() {
-        String sql = "UPDATE players SET hp = LEAST(hp + CEIL(max_hp * 0.01), max_hp) WHERE hp < max_hp";
+        String sql;
+        if (DatabaseManager.isSqlite()) {
+            sql = "UPDATE players SET hp = MIN(hp + CAST(CEILING(max_hp * 0.01) AS INTEGER), max_hp) WHERE hp < max_hp";
+        } else {
+            sql = "UPDATE players SET hp = LEAST(hp + CEIL(max_hp * 0.01), max_hp) WHERE hp < max_hp";
+        }
         try (Connection conn = DatabaseManager.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             int affected = ps.executeUpdate();

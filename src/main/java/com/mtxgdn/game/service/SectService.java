@@ -934,7 +934,9 @@ public class SectService {
             }
             // 失败方扣声望
             long loserSectId = attackerWin ? defenderSect.getId() : attackerSect.getId();
-            String loseSql = "UPDATE sects SET prestige = GREATEST(0, prestige - ?) WHERE id = ?";
+            String loseSql = DatabaseManager.isSqlite() 
+                    ? "UPDATE sects SET prestige = MAX(0, prestige - ?) WHERE id = ?"
+                    : "UPDATE sects SET prestige = GREATEST(0, prestige - ?) WHERE id = ?";
             try (PreparedStatement ps = conn.prepareStatement(loseSql)) {
                 ps.setLong(1, Sect.WAR_WIN_PRESTIGE);
                 ps.setLong(2, loserSectId);

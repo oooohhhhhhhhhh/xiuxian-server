@@ -321,7 +321,9 @@ public class CaveService {
     }
 
     public static void tickSpiritEnergy() {
-        String sql = "UPDATE caves SET spirit_energy = LEAST(max_spirit_energy, spirit_energy + 10)";
+        String sql = DatabaseManager.isSqlite()
+                ? "UPDATE caves SET spirit_energy = MIN(max_spirit_energy, spirit_energy + 10)"
+                : "UPDATE caves SET spirit_energy = LEAST(max_spirit_energy, spirit_energy + 10)";
         try (Connection conn = DatabaseManager.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.executeUpdate();

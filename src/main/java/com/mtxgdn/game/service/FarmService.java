@@ -923,7 +923,9 @@ public class FarmService {
             itemService.removeItem(conn, playerId, fertilizerKey, plotsToFertilize.size());
 
             for (int plotIndex : plotsToFertilize) {
-                String updateSql = "UPDATE farm_plots SET fertilizer_level = LEAST(fertilizer_level + ?, ?) WHERE player_id = ? AND plot_index = ?";
+                String updateSql = DatabaseManager.isSqlite()
+                    ? "UPDATE farm_plots SET fertilizer_level = MIN(fertilizer_level + ?, ?) WHERE player_id = ? AND plot_index = ?"
+                    : "UPDATE farm_plots SET fertilizer_level = LEAST(fertilizer_level + ?, ?) WHERE player_id = ? AND plot_index = ?";
                 try (PreparedStatement ps = conn.prepareStatement(updateSql)) {
                     ps.setInt(1, bonusAmount);
                     ps.setInt(2, FERTILIZER_MAX);
