@@ -44,18 +44,17 @@ jobs:
           fi
           echo "Found JAR file: $JAR_FILE"
           ls -la "$JAR_FILE"
-          java -jar "$JAR_FILE" --help 2>&1 || echo "JAR verification completed (exit code may be non-zero for help output)"
           echo "JAR_FILE=$JAR_FILE" >> $GITHUB_ENV
 
       - name: Configure Maven settings
         run: |
           mkdir -p ~/.m2
-          cat > ~/.m2/settings.xml << 'EOF'
+          cat > ~/.m2/settings.xml << EOF
           <settings>
             <servers>
               <server>
                 <id>github</id>
-                <username>${{ github.repository_owner }}</username>
+                <username>${{ github.actor }}</username>
                 <password>${{ secrets.GITHUB_TOKEN }}</password>
               </server>
             </servers>
@@ -63,12 +62,7 @@ jobs:
           EOF
 
       - name: Deploy to GitHub Packages
-        run: |
-          mvn deploy -DskipTests -B \
-            -Dmaven.deploy.skip=false \
-            -Dgithub.repository=${{ github.repository }}
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: mvn deploy -DskipTests -B -Dmaven.deploy.skip=false
 
       - name: Upload build artifact
         uses: actions/upload-artifact@v4

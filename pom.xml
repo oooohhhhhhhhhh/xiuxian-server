@@ -124,7 +124,7 @@
         <repository>
             <id>github</id>
             <name>GitHub Packages</name>
-            <url>https://maven.pkg.github.com/mtxgdn/main</url>
+            <url>https://maven.pkg.github.com/oooohhhhhhhhhh/xiuxian-server</url>
         </repository>
     </distributionManagement>
 
