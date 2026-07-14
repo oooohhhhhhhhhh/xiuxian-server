@@ -150,7 +150,15 @@ public class Main {
 
         String dbType = AppConfig.get("database.type", "mysql");
         if (!"sqlite".equalsIgnoreCase(dbType)) {
-            MySqlLauncher.ensureMySqlRunning();
+            String dbUrl = AppConfig.get("database.url", "jdbc:mysql://localhost:3306/xiuxian");
+            boolean isLocalDb = isLocalDatabase(dbUrl);
+            if (isLocalDb) {
+                MySqlLauncher.ensureMySqlRunning();
+            } else {
+                LOG.info("数据库类型: MySQL (远程地址)");
+                LOG.info("数据库URL: " + dbUrl);
+                LOG.info("跳过本地MySQL启动，请确保远程MySQL服务已运行");
+            }
         } else {
             LOG.info("数据库类型: SQLite (无需启动MySQL)");
         }
@@ -431,6 +439,41 @@ public class Main {
             }
         }
         return false;
+    }
+
+    private static boolean isLocalDatabase(String dbUrl) {
+        if (dbUrl == null) {
+            return true;
+        }
+        String host = extractHostFromUrl(dbUrl);
+        if (host == null) {
+            return true;
+        }
+        return host.equalsIgnoreCase("localhost")
+                || host.equalsIgnoreCase("127.0.0.1")
+                || host.equalsIgnoreCase("0:0:0:0:0:0:0:1")
+                || host.equalsIgnoreCase("::1");
+    }
+
+    private static String extractHostFromUrl(String dbUrl) {
+        if (dbUrl.startsWith("jdbc:mysql://")) {
+            String urlPart = dbUrl.substring("jdbc:mysql://".length());
+            int colonIdx = urlPart.indexOf(':');
+            int slashIdx = urlPart.indexOf('/');
+            int questionIdx = urlPart.indexOf('?');
+
+            int endIdx = Math.min(
+                    Math.min(colonIdx > 0 ? colonIdx : Integer.MAX_VALUE,
+                            slashIdx > 0 ? slashIdx : Integer.MAX_VALUE),
+                    questionIdx > 0 ? questionIdx : Integer.MAX_VALUE);
+
+            if (endIdx > 0 && endIdx < Integer.MAX_VALUE) {
+                return urlPart.substring(0, endIdx);
+            } else if (!urlPart.isEmpty()) {
+                return urlPart;
+            }
+        }
+        return null;
     }
 
     private static void waitForServerReady() {

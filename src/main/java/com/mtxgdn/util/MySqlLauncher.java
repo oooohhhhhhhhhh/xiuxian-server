@@ -23,6 +23,10 @@ public class MySqlLauncher {
     private static Process mysqlProcess;
     private static boolean shutdownHookRegistered;
 
+    private static boolean isWindows() {
+        return System.getProperty("os.name").toLowerCase().contains("win");
+    }
+
     public enum StartResult {
         ALREADY_RUNNING,
         SUCCESS,
@@ -44,11 +48,35 @@ public class MySqlLauncher {
     }
 
     public static void ensureMySqlRunning() {
+        String dbUrl = AppConfig.get("database.url", "jdbc:mysql://localhost:3306/xiuxian");
         String host = DEFAULT_HOST;
         int port = DEFAULT_PORT;
 
+        try {
+            if (dbUrl.startsWith("jdbc:mysql://")) {
+                String urlPart = dbUrl.substring("jdbc:mysql://".length());
+                int colonIdx = urlPart.indexOf(':');
+                int slashIdx = urlPart.indexOf('/');
+                if (colonIdx > 0 && colonIdx < slashIdx) {
+                    host = urlPart.substring(0, colonIdx);
+                    String portStr = urlPart.substring(colonIdx + 1, slashIdx);
+                    port = Integer.parseInt(portStr);
+                } else if (slashIdx > 0) {
+                    host = urlPart.substring(0, slashIdx);
+                }
+            }
+        } catch (Exception e) {
+            LOG.warn("解析数据库URL失败，使用默认值: " + e.getMessage());
+        }
+
         if (isPortOpen(host, port)) {
-            LOG.info("MySQL 已在运行 (端口 " + port + ")");
+            LOG.info("MySQL 已在运行 (地址: " + host + ":" + port + ")");
+            return;
+        }
+
+        if (!isWindows()) {
+            LOG.warn("检测到非Windows系统，跳过本地MySQL启动");
+            LOG.warn("请确保MySQL服务已在 " + host + ":" + port + " 运行，或检查 database.url 配置");
             return;
         }
 
@@ -150,53 +178,80 @@ public class MySqlLauncher {
 
     private static String findMySqldPath() {
         List<String> searchPaths = new ArrayList<>();
-        String programFiles = System.getenv("ProgramFiles");
-        String programFilesX86 = System.getenv("ProgramFiles(x86)");
 
-        if (programFiles != null) {
-            searchPaths.add(programFiles + "\\MySQL");
-        }
-        if (programFilesX86 != null) {
-            searchPaths.add(programFilesX86 + "\\MySQL");
-        }
-        searchPaths.add("C:\\xampp\\mysql\\bin");
-        searchPaths.add("C:\\wamp64\\bin\\mysql");
-        searchPaths.add("C:\\wamp\\bin\\mysql");
-        searchPaths.add("D:\\xampp\\mysql\\bin");
-        searchPaths.add("D:\\wamp64\\bin\\mysql");
+        if (isWindows()) {
+            String programFiles = System.getenv("ProgramFiles");
+            String programFilesX86 = System.getenv("ProgramFiles(x86)");
 
-        for (String basePath : searchPaths) {
-            Path base = Paths.get(basePath);
-            if (!Files.isDirectory(base)) {
-                continue;
+            if (programFiles != null) {
+                searchPaths.add(programFiles + "\\MySQL");
             }
-            Path directExe = base.resolve("bin\\mysqld.exe");
-            if (Files.isExecutable(directExe)) {
-                return directExe.toAbsolutePath().toString();
+            if (programFilesX86 != null) {
+                searchPaths.add(programFilesX86 + "\\MySQL");
             }
-            try {
-                String found = Files.list(base)
-                        .filter(Files::isDirectory)
-                        .sorted((a, b) -> b.getFileName().toString().compareTo(a.getFileName().toString()))
-                        .map(dir -> dir.resolve("bin\\mysqld.exe"))
-                        .filter(Files::isExecutable)
-                        .findFirst()
-                        .map(Path::toAbsolutePath)
-                        .map(Path::toString)
-                        .orElse(null);
-                if (found != null) {
-                    return found;
+            searchPaths.add("C:\\xampp\\mysql\\bin");
+            searchPaths.add("C:\\wamp64\\bin\\mysql");
+            searchPaths.add("C:\\wamp\\bin\\mysql");
+            searchPaths.add("D:\\xampp\\mysql\\bin");
+            searchPaths.add("D:\\wamp64\\bin\\mysql");
+
+            for (String basePath : searchPaths) {
+                Path base = Paths.get(basePath);
+                if (!Files.isDirectory(base)) {
+                    continue;
                 }
-            } catch (IOException ignored) {
+                Path directExe = base.resolve("bin\\mysqld.exe");
+                if (Files.isExecutable(directExe)) {
+                    return directExe.toAbsolutePath().toString();
+                }
+                try {
+                    String found = Files.list(base)
+                            .filter(Files::isDirectory)
+                            .sorted((a, b) -> b.getFileName().toString().compareTo(a.getFileName().toString()))
+                            .map(dir -> dir.resolve("bin\\mysqld.exe"))
+                            .filter(Files::isExecutable)
+                            .findFirst()
+                            .map(Path::toAbsolutePath)
+                            .map(Path::toString)
+                            .orElse(null);
+                    if (found != null) {
+                        return found;
+                    }
+                } catch (IOException ignored) {
+                }
             }
-        }
 
-        String pathEnv = System.getenv("PATH");
-        if (pathEnv != null) {
-            for (String dir : pathEnv.split(File.pathSeparator)) {
-                Path exePath = Paths.get(dir, "mysqld.exe");
+            String pathEnv = System.getenv("PATH");
+            if (pathEnv != null) {
+                for (String dir : pathEnv.split(File.pathSeparator)) {
+                    Path exePath = Paths.get(dir, "mysqld.exe");
+                    if (Files.isExecutable(exePath)) {
+                        return exePath.toAbsolutePath().toString();
+                    }
+                }
+            }
+        } else {
+            searchPaths.add("/usr/bin");
+            searchPaths.add("/usr/local/bin");
+            searchPaths.add("/usr/local/mysql/bin");
+            searchPaths.add("/usr/mysql/bin");
+            searchPaths.add("/opt/mysql/bin");
+            searchPaths.add("/var/lib/mysql/bin");
+
+            for (String basePath : searchPaths) {
+                Path exePath = Paths.get(basePath, "mysqld");
                 if (Files.isExecutable(exePath)) {
                     return exePath.toAbsolutePath().toString();
+                }
+            }
+
+            String pathEnv = System.getenv("PATH");
+            if (pathEnv != null) {
+                for (String dir : pathEnv.split(File.pathSeparator)) {
+                    Path exePath = Paths.get(dir, "mysqld");
+                    if (Files.isExecutable(exePath)) {
+                        return exePath.toAbsolutePath().toString();
+                    }
                 }
             }
         }
@@ -205,18 +260,26 @@ public class MySqlLauncher {
     }
 
     private static void reportSearchPaths() {
-        String programFiles = System.getenv("ProgramFiles");
-        String programFilesX86 = System.getenv("ProgramFiles(x86)");
-        if (programFiles != null) {
-            LOG.error("  - " + programFiles + "\\MySQL\\<版本>\\bin\\mysqld.exe");
+        if (isWindows()) {
+            String programFiles = System.getenv("ProgramFiles");
+            String programFilesX86 = System.getenv("ProgramFiles(x86)");
+            if (programFiles != null) {
+                LOG.error("  - " + programFiles + "\\MySQL\\<版本>\\bin\\mysqld.exe");
+            }
+            if (programFilesX86 != null) {
+                LOG.error("  - " + programFilesX86 + "\\MySQL\\<版本>\\bin\\mysqld.exe");
+            }
+            LOG.error("  - C:\\xampp\\mysql\\bin\\mysqld.exe");
+            LOG.error("  - D:\\xampp\\mysql\\bin\\mysqld.exe");
+            LOG.error("  - C:\\wamp64\\bin\\mysql\\<版本>\\bin\\mysqld.exe");
+            LOG.error("  - PATH 环境变量中的 mysqld.exe");
+        } else {
+            LOG.error("  - /usr/bin/mysqld");
+            LOG.error("  - /usr/local/bin/mysqld");
+            LOG.error("  - /usr/local/mysql/bin/mysqld");
+            LOG.error("  - /opt/mysql/bin/mysqld");
+            LOG.error("  - PATH 环境变量中的 mysqld");
         }
-        if (programFilesX86 != null) {
-            LOG.error("  - " + programFilesX86 + "\\MySQL\\<版本>\\bin\\mysqld.exe");
-        }
-        LOG.error("  - C:\\xampp\\mysql\\bin\\mysqld.exe");
-        LOG.error("  - D:\\xampp\\mysql\\bin\\mysqld.exe");
-        LOG.error("  - C:\\wamp64\\bin\\mysql\\<版本>\\bin\\mysqld.exe");
-        LOG.error("  - PATH 环境变量中的 mysqld.exe");
     }
 
     private static boolean isPortOpen(String host, int port) {
