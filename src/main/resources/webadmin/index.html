@@ -678,7 +678,7 @@ function $(id) { return document.getElementById(id); }
 function $h(s) { return (s||'').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;'); }
 
 async function api(path, opts) {
-  const res = await fetch(path, opts);
+  const res = await fetch('/api' + path, opts);
   if (!res.ok) throw new Error('HTTP ' + res.status);
   return await res.json();
 }
