@@ -2074,6 +2074,112 @@ public class AdminResource {
         }
     }
 
+    @GET
+    @Path("/system/info")
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("admin.status")
+    public Response getSystemInfo() {
+        JsonObject data = new JsonObject();
+        data.addProperty("serverVersion", "V1.4.1-beta1");
+        data.addProperty("javaVersion", System.getProperty("java.version"));
+        data.addProperty("osName", System.getProperty("os.name"));
+        data.addProperty("osVersion", System.getProperty("os.version"));
+        data.addProperty("architecture", System.getProperty("os.arch"));
+        
+        Runtime runtime = Runtime.getRuntime();
+        long usedMB = (runtime.totalMemory() - runtime.freeMemory()) / (1024 * 1024);
+        long maxMB = runtime.maxMemory() / (1024 * 1024);
+        long totalMB = runtime.totalMemory() / (1024 * 1024);
+        data.addProperty("usedMemoryMB", usedMB);
+        data.addProperty("maxMemoryMB", maxMB);
+        data.addProperty("totalMemoryMB", totalMB);
+        data.addProperty("freeMemoryMB", (runtime.freeMemory() / (1024 * 1024)));
+        
+        long uptime = System.currentTimeMillis() - Main.serverStartTime;
+        data.addProperty("uptime", uptime);
+        data.addProperty("uptimeFormatted", formatUptime(uptime));
+        
+        data.addProperty("cpuCores", runtime.availableProcessors());
+        
+        int onlineCount = 0;
+        if (Main.gameWebSocketApp != null) {
+            onlineCount = Main.gameWebSocketApp.getOnlineCount();
+        }
+        data.addProperty("onlinePlayers", onlineCount);
+        data.addProperty("totalPlayers", playerService.getPlayerCount());
+        
+        return Response.ok(gson.toJson(data)).build();
+    }
+
+    @POST
+    @Path("/announce")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("admin.status")
+    public Response sendAnnounce(String body) {
+        JsonObject req = com.google.gson.JsonParser.parseString(body).getAsJsonObject();
+        String text = req.has("text") ? req.get("text").getAsString() : "";
+        
+        if (text.isBlank()) {
+            JsonObject err = new JsonObject();
+            err.addProperty("code", 400);
+            err.addProperty("message", "公告内容不能为空");
+            return Response.ok(gson.toJson(err)).build();
+        }
+        
+        if (Main.gameWebSocketApp != null) {
+            JsonObject data = new JsonObject();
+            data.addProperty("announcement", text);
+            Main.gameWebSocketApp.broadcast(new com.mtxgdn.common.GameMessage(0, "announcement", 200, "公告", data));
+        }
+        
+        JsonObject result = new JsonObject();
+        result.addProperty("code", 200);
+        result.addProperty("message", "公告已发送");
+        return Response.ok(gson.toJson(result)).build();
+    }
+
+    @POST
+    @Path("/authority")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("admin.users.manage")
+    public Response setAuthority(String body) {
+        JsonObject req = com.google.gson.JsonParser.parseString(body).getAsJsonObject();
+        String userIdStr = req.has("userId") ? req.get("userId").getAsString() : "";
+        String level = req.has("level") ? req.get("level").getAsString() : "";
+        
+        if (userIdStr.isBlank() || level.isBlank()) {
+            JsonObject err = new JsonObject();
+            err.addProperty("code", 400);
+            err.addProperty("message", "QQ号和权限等级不能为空");
+            return Response.ok(gson.toJson(err)).build();
+        }
+        
+        long userId;
+        try {
+            userId = Long.parseLong(userIdStr);
+        } catch (NumberFormatException e) {
+            JsonObject err = new JsonObject();
+            err.addProperty("code", 400);
+            err.addProperty("message", "无效的QQ号");
+            return Response.ok(gson.toJson(err)).build();
+        }
+        
+        try {
+            PermissionService.assignRole(userId, level);
+            JsonObject result = new JsonObject();
+            result.addProperty("code", 200);
+            result.addProperty("message", "权限设置成功");
+            return Response.ok(gson.toJson(result)).build();
+        } catch (Exception e) {
+            JsonObject err = new JsonObject();
+            err.addProperty("code", 500);
+            err.addProperty("message", "设置失败: " + e.getMessage());
+            return Response.ok(gson.toJson(err)).build();
+        }
+    }
+
     private static String formatUptime(long millis) {
         long seconds = millis / 1000;
         long days = seconds / 86400;

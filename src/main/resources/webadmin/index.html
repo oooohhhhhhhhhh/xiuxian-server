@@ -709,23 +709,23 @@ function refreshAll() {
 
 async function loadHome() {
   try {
-    const d = await api('/stats');
+    const d = await api('/admin/status');
     $('statPlayers').textContent = d.online || 0;
     $('statTotalGold').textContent = (d.totalGold || 0).toLocaleString();
     $('statTotalLingshi').textContent = (d.totalLingshi || 0).toLocaleString();
     $('statAvgAttack').textContent = Math.round(d.avgAttack || 0);
   } catch (x) {}
   try {
-    const p = await api('/players?limit=100');
+    const p = await api('/admin/players?limit=100');
     $('quickStats').innerHTML = '<div class="card" style="border:1px solid var(--border-gold)"><p>道统传承 · 已有 <b>' + (p.total||0) + '</b> 位修士踏入仙途</p></div>';
   } catch (x) {}
 }
 
 async function loadPlayers() {
   const q = $('playerSearch').value.trim();
-  let url = '/players?limit=50';
-  if (q) url += '&name=' + encodeURIComponent(q);
-  try {
+  let url = '/admin/players?limit=50';
+    if (q) url += '&name=' + encodeURIComponent(q);
+    try {
     const d = await api(url);
     if (!d.players || d.players.length === 0) {
       $('playerTable').innerHTML = '<div class="empty"><div class="empty-icon">☯</div>暂无修士记录</div>';
@@ -756,7 +756,7 @@ async function loadPlayers() {
 
 async function openPlayerDetail(id, name) {
   try {
-    const d = await api('/players/' + id);
+    const d = await api('/admin/players/' + id);
     const p = d.player;
     if (!p) { alert('玩家不存在'); return; }
 
@@ -817,7 +817,7 @@ async function openPlayerDetail(id, name) {
     $('modalOverlay').classList.add('show');
 
     try {
-      const items = await api('/items');
+      const items = await api('/admin/items');
       const sel = $('gvItem');
       for (const i of items.items) {
         sel.innerHTML += '<option value="' + i.key + '">' + $h(i.name) + '</option>';
@@ -825,7 +825,7 @@ async function openPlayerDetail(id, name) {
     } catch (x) {}
 
     try {
-      const roots = await api('/spiritual-roots');
+      const roots = await api('/admin/spiritual-roots');
       const sel = $('rootSel');
       let lastTier = '';
       for (const r of roots.roots) {
@@ -859,7 +859,7 @@ async function editPlayer(id) {
     experience: parseInt(g('edExp')), realm: parseInt(g('edRealm'))
   };
   try {
-    const d = await api('/players/' + id + '/edit', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+    const d = await api('/admin/players/' + id + '/edit', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
     $('playerActionMsg').innerHTML = '<div class="msg msg-ok">' + $h(d.message) + '</div>';
     loadPlayers();
   } catch (x) { $('playerActionMsg').innerHTML = '<div class="msg msg-err">修改失败</div>'; }
@@ -877,7 +877,7 @@ async function giveToPlayer(id) {
   if (s) body.spiritStones = parseInt(s);
   if (k && q) { body.itemKey = k; body.itemQty = parseInt(q); }
   try {
-    const d = await api('/players/' + id + '/give', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
+    const d = await api('/admin/players/' + id + '/give', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
     $('playerActionMsg').innerHTML = '<div class="msg msg-ok">' + $h(d.message) + '</div>';
     loadPlayers();
   } catch (x) { $('playerActionMsg').innerHTML = '<div class="msg msg-err">发放失败</div>'; }
@@ -888,7 +888,7 @@ async function setSpiritualRoot(id) {
   if (!root) { alert('请选择灵根'); return; }
   if (!confirm('确定修改灵根？这会重新计算该玩家的基础属性。')) return;
   try {
-    const d = await api('/players/' + id + '/spiritual-root', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({spiritualRoot:root}) });
+    const d = await api('/admin/players/' + id + '/spiritual-root', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({spiritualRoot:root}) });
     $('playerActionMsg').innerHTML = '<div class="msg msg-ok">' + $h(d.message) + '</div>';
     loadPlayers();
     closeModal();
@@ -901,7 +901,7 @@ let dbPage = 0, dbPageSize = 50;
 
 async function loadDbTables() {
   try {
-    const d = await api('/db/tables');
+    const d = await api('/admin/db/tables');
     const list = $('dbTableList');
     if (!d.tables || d.tables.length === 0) {
       list.innerHTML = '<div class="empty">无数据表</div>';
@@ -937,7 +937,7 @@ function selectDbTable(name) {
 async function loadDbTableData() {
   if (!dbCurrentTable) return;
   try {
-    const d = await api('/db/tables/' + dbCurrentTable + '?limit=' + dbPageSize + '&offset=' + (dbPage * dbPageSize));
+    const d = await api('/admin/db/tables/' + dbCurrentTable + '?limit=' + dbPageSize + '&offset=' + (dbPage * dbPageSize));
     dbColumns = d.columns || [];
     const rows = d.rows || [];
     const total = d.total || 0;
@@ -1036,7 +1036,7 @@ async function saveNewRow(tableName) {
     return;
   }
   try {
-    const d = await api('/db/tables/' + tableName, {
+    const d = await api('/admin/db/tables/' + tableName, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
@@ -1056,7 +1056,7 @@ async function saveNewRow(tableName) {
 
 async function openEditRow(tableName, id) {
   try {
-    const d = await api('/db/tables/' + tableName + '/' + id);
+    const d = await api('/admin/db/tables/' + tableName + '/' + id);
     const row = d.row;
     if (!row) { alert('记录不存在'); return; }
 
@@ -1111,7 +1111,7 @@ async function saveEditRow(tableName, id) {
     return;
   }
   try {
-    const d = await api('/db/tables/' + tableName + '/' + id, {
+    const d = await api('/admin/db/tables/' + tableName + '/' + id, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data)
@@ -1131,7 +1131,7 @@ async function saveEditRow(tableName, id) {
 async function deleteDbRow(tableName, id) {
   if (!confirm('确定删除 ' + tableName + ' 表中 ID=' + id + ' 的记录吗？此操作不可撤销！')) return;
   try {
-    const d = await api('/db/tables/' + tableName + '/' + id, { method: 'DELETE' });
+    const d = await api('/admin/db/tables/' + tableName + '/' + id, { method: 'DELETE' });
     if (d.code === 200) {
       $('dbMsg').innerHTML = '<div class="msg msg-ok">删除成功</div>';
       loadDbTableData();
@@ -1146,7 +1146,7 @@ async function deleteDbRow(tableName, id) {
 
 async function dbAction(action) {
   try {
-    const d = await api('/database/' + action, { method: 'POST' });
+    const d = await api('/admin/database/' + action, { method: 'POST' });
     let detail = '';
     if (d.detail) {
       for (const [k, v] of Object.entries(d.detail)) {
@@ -1160,13 +1160,8 @@ async function dbAction(action) {
 
 async function loadCommandStats() {
   try {
-    const d = await api('/admin/commands/stats');
-    let h = '<table><tr><th>指令</th><th>使用次数</th><th>最后使用</th></tr>';
-    for (const c of d.stats) {
-      h += '<tr><td>' + $h(c.name) + '</td><td>' + c.count + '</td><td>' + (c.lastUsed||'从未') + '</td></tr>';
-    }
-    h += '</table>';
-    $('commandStats').innerHTML = h;
+    const d = await api('/admin/status');
+    $('commandStats').innerHTML = '<div class="card" style="border:1px solid var(--border-gold)"><p>服务运行时间: <b>' + $h(d.uptimeFormatted || '') + '</b></p><p>在线玩家: <b>' + $h(d.onlineCount || 0) + '</b></p></div>';
   } catch (x) { $('commandStats').innerHTML = '<div class="empty">加载失败</div>'; }
 }
 
