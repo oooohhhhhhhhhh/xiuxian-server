@@ -880,9 +880,15 @@ select option { background: var(--bg-panel); color: var(--text-primary); }
 const API = '/api/admin';
 let token = '', paused = false, autoScroll = true, lastSeq = 0, firstLoad = true;
 let statusTimer, logsTimer, currentTab = 'overview';
+let currentPermissions = new Set();
+let isSuperAdmin = false;
 
 function $h(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
 function hdrs() { return token ? { 'Authorization': 'Bearer ' + token } : {}; }
+function hasPerm(perm) {
+  if (isSuperAdmin) return true;
+  return currentPermissions.has(perm);
+}
 
 async function api(path, opts) {
   opts = opts || {};
@@ -901,6 +907,11 @@ async function login() {
     const d = await api('/login', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username:u,password:p}) });
     if (d.token) {
       token = d.token;
+      isSuperAdmin = d.highestRole === 'admin';
+      currentPermissions.clear();
+      if (d.permissions && Array.isArray(d.permissions)) {
+        d.permissions.forEach(perm => currentPermissions.add(perm));
+      }
       document.getElementById('loginOverlay').style.display = 'none';
       document.getElementById('app').classList.add('show');
       e.textContent = '';

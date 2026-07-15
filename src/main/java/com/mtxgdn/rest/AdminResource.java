@@ -83,7 +83,11 @@ public class AdminResource {
             result.addProperty("username", username);
             result.addProperty("userId", 0);
             result.addProperty("highestRole", "admin");
-            result.add("permissions", new JsonArray());
+            JsonArray perms = new JsonArray();
+            for (com.mtxgdn.permission.PermissionCode pc : com.mtxgdn.permission.PermissionCode.values()) {
+                perms.add(pc.getCode());
+            }
+            result.add("permissions", perms);
             return Response.ok(gson.toJson(result)).build();
         }
 
