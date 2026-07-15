@@ -137,16 +137,16 @@ public class FarmService {
             return result;
         }
 
-        if (itemService.getItemCount(playerId, seedKey) < 1) {
-            Item seed = ItemRegistry.get(seedKey);
-            String seedName = seed != null ? seed.getName() : seedKey;
-            result.put("success", false);
-            result.put("message", "种子不足：需要 " + seedName);
-            return result;
-        }
-
         return DatabaseManager.runTransaction(conn -> {
             Map<String, Object> txResult = new LinkedHashMap<>();
+
+            if (itemService.getItemCount(conn, playerId, seedKey) < 1) {
+                Item seed = ItemRegistry.get(seedKey);
+                String seedName = seed != null ? seed.getName() : seedKey;
+                txResult.put("success", false);
+                txResult.put("message", "种子不足：需要 " + seedName);
+                return txResult;
+            }
 
             String checkSql = "SELECT state FROM farm_plots WHERE player_id = ? AND plot_index = ? FOR UPDATE";
             String currentState = null;
@@ -172,7 +172,7 @@ public class FarmService {
                 return txResult;
             }
 
-            itemService.removeItem(playerId, seedKey, 1);
+            itemService.removeItem(conn, playerId, seedKey, 1);
 
             double rootBonus = calculateSpiritualRootBonus(playerId, config.getElementType());
             Season currentSeason = Season.getCurrentSeason();

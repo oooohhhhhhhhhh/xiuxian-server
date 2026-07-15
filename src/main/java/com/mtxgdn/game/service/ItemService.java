@@ -280,7 +280,7 @@ public class ItemService {
         }
     }
 
-    private long getItemCount(Connection conn, long playerId, String itemKey) throws SQLException {
+    public long getItemCount(Connection conn, long playerId, String itemKey) throws SQLException {
         String sql = "SELECT quantity FROM players_items WHERE player_id = ? AND item_key = ?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, playerId);
@@ -537,7 +537,7 @@ public class ItemService {
             return DatabaseManager.runTransaction(conn -> {
                 Map<String, Object> innerResult = new LinkedHashMap<>();
 
-                if (!hasItem(playerId, fullKey, 1)) {
+                if (getItemCount(conn, playerId, fullKey) < 1) {
                     innerResult.put("success", false);
                     innerResult.put("message", "背包中没有该物品");
                     return innerResult;

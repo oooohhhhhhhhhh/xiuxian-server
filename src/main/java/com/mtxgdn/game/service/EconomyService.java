@@ -56,20 +56,29 @@ public class EconomyService {
         }
 
         String[] reward = SIGN_IN_REWARDS[newStreak - 1];
-        for (int i = 1; i < reward.length; i += 2) {
-            String itemKey = reward[i];
-            int qty = Integer.parseInt(reward[i + 1]);
-            itemService.addItem(playerId, itemKey, qty);
-        }
 
-        updateSignIn(playerId, today, newStreak);
+        return DatabaseManager.runTransaction(conn -> {
+            Map<String, Object> txResult = new LinkedHashMap<>();
+            try {
+                for (int i = 1; i < reward.length; i += 2) {
+                    String itemKey = reward[i];
+                    int qty = Integer.parseInt(reward[i + 1]);
+                    itemService.addItem(conn, playerId, itemKey, qty);
+                }
 
-        result.put("success", true);
-        result.put("day", newStreak);
-        result.put("streak", newStreak);
-        result.put("reward", reward[0]);
-        result.put("message", "签到成功！第 " + newStreak + " 天\n获得：" + reward[0]);
-        return result;
+                updateSignIn(conn, playerId, today, newStreak);
+
+                txResult.put("success", true);
+                txResult.put("day", newStreak);
+                txResult.put("streak", newStreak);
+                txResult.put("reward", reward[0]);
+                txResult.put("message", "签到成功！第 " + newStreak + " 天\n获得：" + reward[0]);
+            } catch (SQLException e) {
+                txResult.put("success", false);
+                txResult.put("message", "签到失败: " + e.getMessage());
+            }
+            return txResult;
+        });
     }
 
     public SignInRecord getSignInRecord(long playerId) {
@@ -756,20 +765,25 @@ public class EconomyService {
     }
 
     private void updateSignIn(long playerId, String today, int streak) {
+        try (Connection conn = DatabaseManager.getConnection()) {
+            updateSignIn(conn, playerId, today, streak);
+        } catch (SQLException e) {
+            throw new RuntimeException("签到记录更新失败", e);
+        }
+    }
+
+    private void updateSignIn(Connection conn, long playerId, String today, int streak) throws SQLException {
         String sql;
         if (DatabaseManager.isSqlite()) {
             sql = "INSERT INTO player_economy (player_id, last_sign_in, streak) VALUES (?, ?, ?) ON CONFLICT(player_id) DO UPDATE SET last_sign_in = excluded.last_sign_in, streak = excluded.streak";
         } else {
             sql = "INSERT INTO player_economy (player_id, last_sign_in, streak) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE last_sign_in = VALUES(last_sign_in), streak = VALUES(streak)";
         }
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, playerId);
             ps.setString(2, today);
             ps.setInt(3, streak);
             ps.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("签到记录更新失败", e);
         }
     }
 }
