@@ -910,7 +910,8 @@ async function login() {
 }
 
 function logout() {
-  token = ''; clearInterval(statusTimer); clearInterval(logsTimer);
+  token = '';
+  clearInterval(statusTimer); clearInterval(logsTimer); clearInterval(dataTimer);
   document.getElementById('loginOverlay').style.display = 'flex';
   document.getElementById('app').classList.remove('show');
   lastSeq = 0; firstLoad = true;
@@ -920,6 +921,7 @@ function initApp() {
   fetchStatus();
   statusTimer = setInterval(fetchStatus, 2000);
   loadOverview();
+  dataTimer = setInterval(loadAllData, 8000);
 }
 
 async function fetchStatus() {
@@ -933,6 +935,7 @@ async function fetchStatus() {
 }
 
 const TAB_TITLES = { overview:'📊 总览', players:'👥 玩家管理', database:'🗄️ 数据库', users:'🔑 用户/角色', logs:'📜 实时日志', traces:'👣 玩家轨迹', redeemCodes:'🎫 兑换码', statsMessages:'💬 消息统计', statsCommands:'⚡ 指令统计' };
+let dataTimer = null;
 
 function switchTab(name) {
   currentTab = name;
@@ -941,24 +944,30 @@ function switchTab(name) {
   event.target.closest('.nav-item').classList.add('active');
   document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
   document.getElementById('tab-' + name).classList.add('active');
+
+  if (dataTimer) { clearInterval(dataTimer); dataTimer = null; }
+  if (logsTimer) { clearInterval(logsTimer); logsTimer = null; }
+
   if (name === 'logs') {
-    if (logsTimer) { clearInterval(logsTimer); }
     lastSeq = 0; firstLoad = true;
     document.getElementById('logContainer').innerHTML = '<div class="empty">加载中...</div>';
     fetchLogs();
     logsTimer = setInterval(fetchLogs, 500);
-  } else if (name === 'traces' || name === 'database' || name === 'redeemCodes') {
-    if (logsTimer) { clearInterval(logsTimer); logsTimer = null; }
-    if (name === 'redeemCodes') loadRedeemCodes();
+  } else if (name === 'traces') {
+    loadTraces();
+    dataTimer = setInterval(loadTraces, 5000);
+  } else if (name === 'database') {
+    loadDbTables();
+  } else if (name === 'redeemCodes') {
+    loadRedeemCodes();
+    dataTimer = setInterval(loadRedeemCodes, 8000);
   } else if (name === 'statsMessages') {
-    if (logsTimer) { clearInterval(logsTimer); logsTimer = null; }
     loadMessageStats();
   } else if (name === 'statsCommands') {
-    if (logsTimer) { clearInterval(logsTimer); logsTimer = null; }
     loadCommandStats();
   } else {
-    if (logsTimer) { clearInterval(logsTimer); logsTimer = null; }
     loadAllData();
+    dataTimer = setInterval(loadAllData, 8000);
   }
 }
 
@@ -1512,46 +1521,53 @@ async function loadUsers() {
       document.getElementById('userRolesTable').innerHTML = '<div class="empty">暂无用户</div>';
       return;
     }
-    const [roles, perms] = await Promise.all([api('/roles'), api('/permissions')]);
-    const allRoles = [];
-    for (const r of roles.roles) allRoles.push(r.name);
-    const allPerms = perms.permissions || [];
+
+    let allRoles = [], allPerms = [];
+    try {
+      const [roles, perms] = await Promise.all([api('/roles'), api('/permissions')]);
+      for (const r of roles.roles) allRoles.push(r.name);
+      allPerms = perms.permissions || [];
+    } catch (x) {}
 
     let h = '<table><tr><th>ID</th><th>用户名</th><th>角色</th><th>单独权限</th><th>操作</th></tr>';
     for (const u of d.users) {
       const roleTags = (u.roles||[]).map(r =>
-        '<span class="tag">' + $h(r) + ' <span class="tag-x" onclick="removeRole(' + u.id + ',\'' + r + '\')" title="移除角色">&times;</span></span>'
+        '<span class="tag">' + $h(r) + (hasPerm('admin.users.manage') ? ' <span class="tag-x" onclick="removeRole(' + u.id + ',\'' + r + '\')" title="移除角色">&times;</span>' : '') + '</span>'
       ).join(' ');
 
       const directPerms = u.directPermissions || [];
       const permTags = directPerms.map(p =>
-        '<span class="tag tag-perm">' + $h(p) + ' <span class="tag-x" onclick="removePermission(' + u.id + ',\'' + p + '\')" title="移除权限">&times;</span></span>'
+        '<span class="tag tag-perm">' + $h(p) + (hasPerm('admin.users.manage') ? ' <span class="tag-x" onclick="removePermission(' + u.id + ',\'' + p + '\')" title="移除权限">&times;</span>' : '') + '</span>'
       ).join(' ');
 
       const availablePerms = allPerms.filter(p => !directPerms.includes(p.code));
       const permOptions = availablePerms.map(p => '<option value="' + p.code + '">' + $h(p.code) + ' (' + $h(p.category) + ')</option>').join('');
-      const permRow = (hasPerm('admin.users.manage') ?
+      const permRow = (hasPerm('admin.users.manage') && allPerms.length > 0 ?
         '<div style="margin-top:4px;display:flex;gap:4px;align-items:center">' +
           '<select id="permSel_' + u.id + '" style="width:180px;font-size:11px"><option value="">--添加权限--</option>' + permOptions + '</select>' +
           '<button class="btn btn-action btn-sm" onclick="assignPermission(' + u.id + ')">+</button>' +
         '</div>' : '');
+
+      const roleSelect = (hasPerm('admin.users.manage') && allRoles.length > 0 ?
+        '<select id="roleSel_' + u.id + '" style="width:100px">' +
+          allRoles.map(r => '<option value="' + r + '">' + r + '</option>').join('') +
+        '</select> ' +
+        '<button class="btn btn-primary btn-sm" onclick="assignRole(' + u.id + ')">分配</button>' : '');
 
       h += '<tr>' +
         '<td style="color:var(--text-muted)">' + u.id + '</td>' +
         '<td>' + $h(u.username) + '</td>' +
         '<td><span class="tags">' + (roleTags || '<span class="badge badge-gray">无</span>') + '</span></td>' +
         '<td><span class="tags">' + (permTags || '<span class="badge badge-gray">—</span>') + '</span>' + permRow + '</td>' +
-        '<td>' +
-          '<select id="roleSel_' + u.id + '" style="width:100px">' +
-            allRoles.map(r => '<option value="' + r + '">' + r + '</option>').join('') +
-          '</select> ' +
-          '<button class="btn btn-primary btn-sm" onclick="assignRole(' + u.id + ')">分配</button> ' +
-        '</td>' +
+        '<td>' + roleSelect + '</td>' +
         '</tr>';
     }
     h += '</table>';
     document.getElementById('userRolesTable').innerHTML = h;
-  } catch (x) { document.getElementById('userRolesTable').innerHTML = '<div class="empty">加载失败</div>'; }
+  } catch (x) {
+    console.error('加载用户列表失败:', x);
+    document.getElementById('userRolesTable').innerHTML = '<div class="empty">加载失败<br><small>' + $h(x.message || '未知错误') + '</small></div>';
+  }
 }
 
 async function assignPermission(uid) {
