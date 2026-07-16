@@ -19,6 +19,7 @@ public class DatabaseManager {
 
     private static final String DB_TYPE = AppConfig.get("database.type", "mysql");
     private static final boolean IS_SQLITE = "sqlite".equalsIgnoreCase(DB_TYPE);
+    private static final DatabaseDialect DIALECT = IS_SQLITE ? new SQLiteDialect() : new MySQLDialect();
 
     private static final String DB_URL = IS_SQLITE
             ? "jdbc:sqlite:" + AppConfig.get("database.sqlite_path", "xiuxian.db")
@@ -77,11 +78,7 @@ public class DatabaseManager {
 
     public static Connection getConnection() throws SQLException {
         Connection conn = getDataSource().getConnection();
-        if (IS_SQLITE) {
-            try (Statement stmt = conn.createStatement()) {
-                stmt.execute("PRAGMA foreign_keys = ON");
-            }
-        }
+        DIALECT.initConnection(conn);
         return conn;
     }
 
@@ -112,13 +109,10 @@ public class DatabaseManager {
     }
 
     public static void initTable() {
-        String pkMySql = "BIGINT AUTO_INCREMENT PRIMARY KEY";
-        String pkSqlite = "INTEGER PRIMARY KEY AUTOINCREMENT";
-        String pk = IS_SQLITE ? pkSqlite : pkMySql;
-
-        String tsDefault = "TIMESTAMP DEFAULT CURRENT_TIMESTAMP";
-        String tsUpdate = IS_SQLITE ? tsDefault : "TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP";
-        String boolType = IS_SQLITE ? "INTEGER DEFAULT 0" : "BOOLEAN DEFAULT FALSE";
+        String pk = DIALECT.getPkDefinition();
+        String tsDefault = DIALECT.getTimestampDefault();
+        String tsUpdate = DIALECT.getTimestampUpdate();
+        String boolType = DIALECT.getBooleanType();
 
         String userTableSql = "CREATE TABLE IF NOT EXISTS users (" +
                 "id " + pk + ", " +
@@ -160,10 +154,10 @@ public class DatabaseManager {
                 "technique_id BIGINT NOT NULL, " +
                 "level INT NOT NULL DEFAULT 1, " +
                 "proficiency INT DEFAULT 0, " +
-                "is_equipped " + (IS_SQLITE ? "INTEGER DEFAULT 0" : "BOOLEAN DEFAULT FALSE") + ", " +
+                "is_equipped " + boolType + ", " +
                 "created_at " + tsDefault + ", " +
                 "updated_at " + tsUpdate + ", " +
-                (IS_SQLITE ? "" : "FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE, FOREIGN KEY (technique_id) REFERENCES techniques(id) ON DELETE CASCADE, ") +
+                (DIALECT.supportsForeignKeysInCreateTable() ? "FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE, FOREIGN KEY (technique_id) REFERENCES techniques(id) ON DELETE CASCADE, " : "") +
                 "UNIQUE (player_id, technique_id)" +
                 ")";
 
@@ -227,7 +221,7 @@ public class DatabaseManager {
                 "created_at " + tsDefault + ", " +
                 "updated_at " + tsUpdate;
 
-        if (!IS_SQLITE) {
+        if (DIALECT.supportsForeignKeysInCreateTable()) {
             playersTableSql += ", FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE";
         }
         playersTableSql += ")";
@@ -239,7 +233,7 @@ public class DatabaseManager {
                 "quantity BIGINT NOT NULL DEFAULT 1, " +
                 "created_at " + tsDefault + ", " +
                 "updated_at " + tsUpdate + ", " +
-                (IS_SQLITE ? "" : "FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE, ") +
+                (DIALECT.supportsForeignKeysInCreateTable() ? "FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE, " : "") +
                 "UNIQUE (player_id, item_key)" +
                 ")";
 
@@ -251,7 +245,7 @@ public class DatabaseManager {
                 "enhance_level INT DEFAULT 0, " +
                 "created_at " + tsDefault + ", " +
                 "updated_at " + tsUpdate + ", " +
-                (IS_SQLITE ? "" : "FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE, ") +
+                (DIALECT.supportsForeignKeysInCreateTable() ? "FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE, " : "") +
                 "UNIQUE (player_id, slot)" +
                 ")";
 
@@ -279,7 +273,7 @@ public class DatabaseManager {
                 "proficiency INT DEFAULT 0, " +
                 "created_at " + tsDefault + ", " +
                 "updated_at " + tsUpdate + ", " +
-                (IS_SQLITE ? "" : "FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE, FOREIGN KEY (skill_id) REFERENCES skills(id) ON DELETE CASCADE, ") +
+                (DIALECT.supportsForeignKeysInCreateTable() ? "FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE, FOREIGN KEY (skill_id) REFERENCES skills(id) ON DELETE CASCADE, " : "") +
                 "UNIQUE (player_id, skill_id)" +
                 ")";
 
@@ -293,7 +287,7 @@ public class DatabaseManager {
                 "status VARCHAR(16) DEFAULT 'active', " +
                 "created_at " + tsDefault + ", " +
                 "updated_at " + tsUpdate +
-                (IS_SQLITE ? "" : ", FOREIGN KEY (seller_player_id) REFERENCES players(id) ON DELETE CASCADE") +
+                (DIALECT.supportsForeignKeysInCreateTable() ? ", FOREIGN KEY (seller_player_id) REFERENCES players(id) ON DELETE CASCADE" : "") +
                 ")";
 
         String playerDailyTableSql = "CREATE TABLE IF NOT EXISTS player_daily (" +
@@ -312,7 +306,7 @@ public class DatabaseManager {
                 "skill_learn_rewarded INT DEFAULT 0, " +
                 "resonance7_awarded INT DEFAULT 0, " +
                 "resonance30_awarded INT DEFAULT 0" +
-                (IS_SQLITE ? "" : ", FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE") +
+                (DIALECT.supportsForeignKeysInCreateTable() ? ", FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE" : "") +
                 ")";
 
         String qqBindingsTableSql = "CREATE TABLE IF NOT EXISTS qq_bindings (" +
@@ -320,7 +314,7 @@ public class DatabaseManager {
                 "qq_number VARCHAR(32) NOT NULL UNIQUE, " +
                 "user_id BIGINT NOT NULL UNIQUE, " +
                 "created_at " + tsDefault +
-                (IS_SQLITE ? "" : ", FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE") +
+                (DIALECT.supportsForeignKeysInCreateTable() ? ", FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE" : "") +
                 ")";
 
         String mcBindingsTableSql = "CREATE TABLE IF NOT EXISTS mc_bindings (" +
@@ -329,7 +323,7 @@ public class DatabaseManager {
                 "mc_name VARCHAR(32) NOT NULL, " +
                 "user_id BIGINT NOT NULL UNIQUE, " +
                 "created_at " + tsDefault +
-                (IS_SQLITE ? "" : ", FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE") +
+                (DIALECT.supportsForeignKeysInCreateTable() ? ", FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE" : "") +
                 ")";
 
         String rolesTableSql = "CREATE TABLE IF NOT EXISTS roles (" +
@@ -361,7 +355,7 @@ public class DatabaseManager {
                 "user_id BIGINT NOT NULL, " +
                 "role_name VARCHAR(32) NOT NULL, " +
                 "created_at " + tsDefault + ", " +
-                (IS_SQLITE ? "" : "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE, ") +
+                (DIALECT.supportsForeignKeysInCreateTable() ? "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE, " : "") +
                 "UNIQUE (user_id, role_name)" +
                 ")";
 
@@ -372,7 +366,7 @@ public class DatabaseManager {
                 "receiver_player_id BIGINT DEFAULT NULL, " +
                 "content VARCHAR(1024) NOT NULL, " +
                 "created_at " + tsDefault +
-                (IS_SQLITE ? "" : ", INDEX idx_chat_channel (channel), INDEX idx_chat_receiver (receiver_player_id)") +
+                (DIALECT.supportsIndexInCreateTable() ? ", INDEX idx_chat_channel (channel), INDEX idx_chat_receiver (receiver_player_id)" : "") +
                 ")";
 
         String friendsTableSql = "CREATE TABLE IF NOT EXISTS friends (" +
@@ -382,7 +376,7 @@ public class DatabaseManager {
                 "status VARCHAR(16) NOT NULL DEFAULT 'pending', " +
                 "created_at " + tsDefault + ", " +
                 "updated_at " + tsUpdate + ", " +
-                (IS_SQLITE ? "" : "FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE, FOREIGN KEY (friend_player_id) REFERENCES players(id) ON DELETE CASCADE, ") +
+                (DIALECT.supportsForeignKeysInCreateTable() ? "FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE, FOREIGN KEY (friend_player_id) REFERENCES players(id) ON DELETE CASCADE, " : "") +
                 "UNIQUE (player_id, friend_player_id)" +
                 ")";
 
@@ -405,12 +399,9 @@ public class DatabaseManager {
                 "prestige BIGINT DEFAULT 0, " +
                 "max_members INT DEFAULT 20, " +
                 "created_at " + tsDefault + ", " +
-                "updated_at " + tsUpdate;
-
-        if (!IS_SQLITE) {
-            sectsTableSql += ", FOREIGN KEY (leader_player_id) REFERENCES players(id) ON DELETE CASCADE";
-        }
-        sectsTableSql += ")";
+                "updated_at " + tsUpdate +
+                (DIALECT.supportsForeignKeysInCreateTable() ? ", FOREIGN KEY (leader_player_id) REFERENCES players(id) ON DELETE CASCADE" : "") +
+                ")";
 
         String sectMembersTableSql = "CREATE TABLE IF NOT EXISTS sect_members (" +
                 "id " + pk + ", " +
@@ -418,14 +409,10 @@ public class DatabaseManager {
                 "player_id BIGINT NOT NULL, " +
                 "role VARCHAR(16) NOT NULL DEFAULT 'MEMBER', " +
                 "contribution BIGINT DEFAULT 0, " +
-                "joined_at " + tsDefault;
-
-        if (!IS_SQLITE) {
-            sectMembersTableSql += ", FOREIGN KEY (sect_id) REFERENCES sects(id) ON DELETE CASCADE, FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE, UNIQUE (player_id)";
-        } else {
-            sectMembersTableSql += ", UNIQUE (player_id)";
-        }
-        sectMembersTableSql += ")";
+                "joined_at " + tsDefault +
+                (DIALECT.supportsForeignKeysInCreateTable() ? ", FOREIGN KEY (sect_id) REFERENCES sects(id) ON DELETE CASCADE, FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE" : "") +
+                ", UNIQUE (player_id)" +
+                ")";
 
         String sectApplicationsTableSql = "CREATE TABLE IF NOT EXISTS sect_applications (" +
                 "id " + pk + ", " +
@@ -434,12 +421,9 @@ public class DatabaseManager {
                 "message VARCHAR(256) DEFAULT '', " +
                 "status VARCHAR(16) NOT NULL DEFAULT 'pending', " +
                 "created_at " + tsDefault + ", " +
-                "updated_at " + tsUpdate;
-
-        if (!IS_SQLITE) {
-            sectApplicationsTableSql += ", FOREIGN KEY (sect_id) REFERENCES sects(id) ON DELETE CASCADE, FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE";
-        }
-        sectApplicationsTableSql += ")";
+                "updated_at " + tsUpdate +
+                (DIALECT.supportsForeignKeysInCreateTable() ? ", FOREIGN KEY (sect_id) REFERENCES sects(id) ON DELETE CASCADE, FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE" : "") +
+                ")";
 
         String sectWarehouseTableSql = "CREATE TABLE IF NOT EXISTS sect_warehouse (" +
                 "id " + pk + ", " +
@@ -448,14 +432,10 @@ public class DatabaseManager {
                 "quantity INT NOT NULL DEFAULT 1, " +
                 "donated_by_player_id BIGINT DEFAULT NULL, " +
                 "created_at " + tsDefault + ", " +
-                "updated_at " + tsUpdate;
-
-        if (!IS_SQLITE) {
-            sectWarehouseTableSql += ", FOREIGN KEY (sect_id) REFERENCES sects(id) ON DELETE CASCADE, UNIQUE (sect_id, item_key)";
-        } else {
-            sectWarehouseTableSql += ", UNIQUE (sect_id, item_key)";
-        }
-        sectWarehouseTableSql += ")";
+                "updated_at " + tsUpdate +
+                (DIALECT.supportsForeignKeysInCreateTable() ? ", FOREIGN KEY (sect_id) REFERENCES sects(id) ON DELETE CASCADE" : "") +
+                ", UNIQUE (sect_id, item_key)" +
+                ")";
 
         String sectWarsTableSql = "CREATE TABLE IF NOT EXISTS sect_wars (" +
                 "id " + pk + ", " +
@@ -466,13 +446,9 @@ public class DatabaseManager {
                 "defender_wins INT DEFAULT 0, " +
                 "prestige_stake BIGINT DEFAULT 0, " +
                 "battle_log TEXT, " +
-                "created_at " + tsDefault;
-
-        if (!IS_SQLITE) {
-            sectWarsTableSql += ", FOREIGN KEY (attacker_sect_id) REFERENCES sects(id) ON DELETE CASCADE, " +
-                    "FOREIGN KEY (defender_sect_id) REFERENCES sects(id) ON DELETE CASCADE";
-        }
-        sectWarsTableSql += ")";
+                "created_at " + tsDefault +
+                (DIALECT.supportsForeignKeysInCreateTable() ? ", FOREIGN KEY (attacker_sect_id) REFERENCES sects(id) ON DELETE CASCADE, FOREIGN KEY (defender_sect_id) REFERENCES sects(id) ON DELETE CASCADE" : "") +
+                ")";
 
         String mapLocationsTableSql = "CREATE TABLE IF NOT EXISTS map_locations (" +
                 "id BIGINT PRIMARY KEY, " +
@@ -488,13 +464,9 @@ public class DatabaseManager {
                 "from_location_id BIGINT NOT NULL, " +
                 "to_location_id BIGINT NOT NULL, " +
                 "travel_time_seconds INT DEFAULT 5, " +
-                "created_at " + tsDefault;
-
-        if (!IS_SQLITE) {
-            mapConnectionsTableSql += ", FOREIGN KEY (from_location_id) REFERENCES map_locations(id) ON DELETE CASCADE, " +
-                    "FOREIGN KEY (to_location_id) REFERENCES map_locations(id) ON DELETE CASCADE";
-        }
-        mapConnectionsTableSql += ")";
+                "created_at " + tsDefault +
+                (DIALECT.supportsForeignKeysInCreateTable() ? ", FOREIGN KEY (from_location_id) REFERENCES map_locations(id) ON DELETE CASCADE, FOREIGN KEY (to_location_id) REFERENCES map_locations(id) ON DELETE CASCADE" : "") +
+                ")";
 
         String redeemCodesTableSql = "CREATE TABLE IF NOT EXISTS redeem_codes (" +
                 "id " + pk + ", " +
@@ -517,14 +489,10 @@ public class DatabaseManager {
                 "id " + pk + ", " +
                 "code_id BIGINT NOT NULL, " +
                 "player_id BIGINT NOT NULL, " +
-                "redeemed_at " + tsDefault;
-
-        if (!IS_SQLITE) {
-            redeemedCodesTableSql += ", FOREIGN KEY (code_id) REFERENCES redeem_codes(id) ON DELETE CASCADE, FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE, UNIQUE (code_id, player_id)";
-        } else {
-            redeemedCodesTableSql += ", UNIQUE (code_id, player_id)";
-        }
-        redeemedCodesTableSql += ")";
+                "redeemed_at " + tsDefault +
+                (DIALECT.supportsForeignKeysInCreateTable() ? ", FOREIGN KEY (code_id) REFERENCES redeem_codes(id) ON DELETE CASCADE, FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE" : "") +
+                ", UNIQUE (code_id, player_id)" +
+                ")";
 
         try (Connection conn = getConnection();
              Statement stmt = conn.createStatement()) {
@@ -573,8 +541,8 @@ public class DatabaseManager {
                     "last_collect_time BIGINT DEFAULT 0, " +
                     "created_at " + tsDefault + ", " +
                     "updated_at " + tsUpdate +
-                    (IS_SQLITE ? ", " : ", FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE, ") +
-                    "UNIQUE (player_id)" +
+                    (DIALECT.supportsForeignKeysInCreateTable() ? ", FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE" : "") +
+                    ", UNIQUE (player_id)" +
                     ")";
             stmt.execute(cavesTableSql);
 
@@ -595,7 +563,7 @@ public class DatabaseManager {
                     "active BOOLEAN DEFAULT 0, " +
                     "created_at " + tsDefault + ", " +
                     "updated_at " + tsUpdate +
-                    (IS_SQLITE ? "" : ", FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE") +
+                    (DIALECT.supportsForeignKeysInCreateTable() ? ", FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE" : "") +
                     ")";
             stmt.execute(formationsTableSql);
 
@@ -614,7 +582,7 @@ public class DatabaseManager {
                     "cultivation_boost_count INT DEFAULT 0, " +
                     "total_stones_spent BIGINT DEFAULT 0, " +
                     "total_stones_earned BIGINT DEFAULT 0" +
-                    (IS_SQLITE ? "" : ", FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE") +
+                    (DIALECT.supportsForeignKeysInCreateTable() ? ", FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE" : "") +
                     ")";
             stmt.execute(playerEconomyTableSql);
 
@@ -663,7 +631,7 @@ public class DatabaseManager {
             String playerEnergyTableSql = "CREATE TABLE IF NOT EXISTS player_energy (" +
                     "player_id BIGINT PRIMARY KEY, " +
                     "energy BIGINT DEFAULT 0" +
-                    (IS_SQLITE ? "" : ", FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE") +
+                    (DIALECT.supportsForeignKeysInCreateTable() ? ", FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE" : "") +
                     ")";
             stmt.execute(playerEnergyTableSql);
 
@@ -671,9 +639,9 @@ public class DatabaseManager {
                     "id " + pk + ", " +
                     "player_id BIGINT NOT NULL, " +
                     "title_key VARCHAR(64) NOT NULL, " +
-                    "is_equipped " + (IS_SQLITE ? "INTEGER DEFAULT 0" : "BOOLEAN DEFAULT FALSE") + ", " +
+                    "is_equipped " + boolType + ", " +
                     "acquired_at " + tsDefault + ", " +
-                    (IS_SQLITE ? "" : "FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE, ") +
+                    (DIALECT.supportsForeignKeysInCreateTable() ? "FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE, " : "") +
                     "UNIQUE (player_id, title_key)" +
                     ")";
             stmt.execute(playerTitlesTableSql);
@@ -728,7 +696,7 @@ public class DatabaseManager {
             // 迁移：buff表
             try {
                 String buffTableSql = "CREATE TABLE IF NOT EXISTS player_buffs (" +
-                        "id " + (IS_SQLITE ? "INTEGER PRIMARY KEY AUTOINCREMENT" : "BIGINT AUTO_INCREMENT PRIMARY KEY") + ", " +
+                        "id " + DIALECT.getPkDefinition() + ", " +
                         "player_id BIGINT NOT NULL, " +
                         "buff_id VARCHAR(64) NOT NULL, " +
                         "attack_bonus INT DEFAULT 0, " +
@@ -737,7 +705,7 @@ public class DatabaseManager {
                         "spirit_bonus INT DEFAULT 0, " +
                         "expire_time BIGINT NOT NULL, " +
                         "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP" +
-                        (IS_SQLITE ? "" : ", FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE") +
+                        (DIALECT.supportsForeignKeysInCreateTable() ? ", FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE" : "") +
                         ")";
                 stmt.execute(buffTableSql);
             } catch (SQLException ignored) {
@@ -745,7 +713,7 @@ public class DatabaseManager {
             // 迁移：农田表
             try {
                 String farmPlotsTableSql = "CREATE TABLE IF NOT EXISTS farm_plots (" +
-                        "id " + (IS_SQLITE ? "INTEGER PRIMARY KEY AUTOINCREMENT" : "BIGINT AUTO_INCREMENT PRIMARY KEY") + ", " +
+                        "id " + DIALECT.getPkDefinition() + ", " +
                         "player_id BIGINT NOT NULL, " +
                         "plot_index INT NOT NULL, " +
                         "state VARCHAR(16) NOT NULL DEFAULT 'EMPTY', " +
@@ -758,7 +726,7 @@ public class DatabaseManager {
                         "water_level INT DEFAULT 100, " +
                         "fertilizer_level INT DEFAULT 0, " +
                         "yield INT DEFAULT 0" +
-                        (IS_SQLITE ? "" : ", FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE") +
+                        (DIALECT.supportsForeignKeysInCreateTable() ? ", FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE" : "") +
                         ")";
                 stmt.execute(farmPlotsTableSql);
                 try { stmt.execute("ALTER TABLE farm_plots ADD COLUMN wilted_time BIGINT DEFAULT 0"); } catch (SQLException ignored) {}
@@ -779,9 +747,7 @@ public class DatabaseManager {
 
         try (Connection conn = getConnection();
              Statement stmt = conn.createStatement()) {
-            if (!IS_SQLITE) {
-                stmt.execute("SET FOREIGN_KEY_CHECKS = 0");
-            }
+            DIALECT.disableForeignKeyChecks(stmt);
             int ps = stmt.executeUpdate("DELETE FROM players_skills");
             int pt = stmt.executeUpdate("DELETE FROM players_techniques");
             int pi = stmt.executeUpdate("DELETE FROM players_items");
@@ -797,9 +763,7 @@ public class DatabaseManager {
             int sc = stmt.executeUpdate("DELETE FROM sects");
             int pegy = stmt.executeUpdate("DELETE FROM player_energy");
             int pl = stmt.executeUpdate("DELETE FROM players");
-            if (!IS_SQLITE) {
-                stmt.execute("SET FOREIGN_KEY_CHECKS = 1");
-            }
+            DIALECT.enableForeignKeyChecks(stmt);
 
             result.put("players_skills", ps);
             result.put("players_techniques", pt);
@@ -828,9 +792,7 @@ public class DatabaseManager {
 
         try (Connection conn = getConnection();
              Statement stmt = conn.createStatement()) {
-            if (!IS_SQLITE) {
-                stmt.execute("SET FOREIGN_KEY_CHECKS = 0");
-            }
+            DIALECT.disableForeignKeyChecks(stmt);
             int ps = stmt.executeUpdate("DELETE FROM players_skills");
             int pt = stmt.executeUpdate("DELETE FROM players_techniques");
             int pi = stmt.executeUpdate("DELETE FROM players_items");
@@ -852,9 +814,7 @@ public class DatabaseManager {
             int roles = stmt.executeUpdate("DELETE FROM roles");
             int perm = stmt.executeUpdate("DELETE FROM permissions");
             int vc = stmt.executeUpdate("DELETE FROM verification_codes");
-            if (!IS_SQLITE) {
-                stmt.execute("SET FOREIGN_KEY_CHECKS = 1");
-            }
+            DIALECT.enableForeignKeyChecks(stmt);
 
             result.put("players_skills", ps);
             result.put("players_techniques", pt);
@@ -1044,36 +1004,19 @@ public class DatabaseManager {
     public static List<Map<String, Object>> getTableColumns(String tableName) {
         validateTableName(tableName);
         List<Map<String, Object>> columns = new ArrayList<>();
-        if (IS_SQLITE) {
-            try (Connection conn = getConnection();
-                 Statement stmt = conn.createStatement();
-                 ResultSet rs = stmt.executeQuery("PRAGMA table_info(\"" + tableName + "\")")) {
-                while (rs.next()) {
-                    Map<String, Object> col = new LinkedHashMap<>();
-                    col.put("name", rs.getString("name"));
-                    col.put("type", rs.getString("type"));
-                    col.put("notnull", rs.getInt("notnull") == 1);
-                    col.put("pk", rs.getInt("pk") == 1);
-                    columns.add(col);
-                }
-            } catch (SQLException e) {
-                throw new RuntimeException("获取表结构失败: " + tableName, e);
+        try (Connection conn = getConnection();
+             Statement stmt = conn.createStatement();
+             ResultSet rs = stmt.executeQuery(DIALECT.getTableColumnsQuery(tableName))) {
+            while (rs.next()) {
+                Map<String, Object> col = new LinkedHashMap<>();
+                col.put("name", DIALECT.getColumnNameFromMetadata(rs));
+                col.put("type", DIALECT.getColumnTypeFromMetadata(rs));
+                col.put("notnull", DIALECT.getColumnNotNullFromMetadata(rs));
+                col.put("pk", DIALECT.getColumnPkFromMetadata(rs));
+                columns.add(col);
             }
-        } else {
-            try (Connection conn = getConnection();
-                 Statement stmt = conn.createStatement();
-                 ResultSet rs = stmt.executeQuery("DESCRIBE `" + tableName + "`")) {
-                while (rs.next()) {
-                    Map<String, Object> col = new LinkedHashMap<>();
-                    col.put("name", rs.getString("Field"));
-                    col.put("type", rs.getString("Type"));
-                    col.put("notnull", "NO".equalsIgnoreCase(rs.getString("Null")));
-                    col.put("pk", "PRI".equalsIgnoreCase(rs.getString("Key")));
-                    columns.add(col);
-                }
-            } catch (SQLException e) {
-                throw new RuntimeException("获取表结构失败: " + tableName, e);
-            }
+        } catch (SQLException e) {
+            throw new RuntimeException("获取表结构失败: " + tableName, e);
         }
         return columns;
     }
@@ -1083,9 +1026,7 @@ public class DatabaseManager {
      */
     public static List<Map<String, Object>> queryTableData(String tableName, int limit, int offset) {
         validateTableName(tableName);
-        String sql = IS_SQLITE
-                ? "SELECT * FROM \"" + tableName + "\" LIMIT ? OFFSET ?"
-                : "SELECT * FROM `" + tableName + "` LIMIT ? OFFSET ?";
+        String sql = "SELECT * FROM " + DIALECT.quoteTableName(tableName) + " LIMIT ? OFFSET ?";
         List<Map<String, Object>> rows = new ArrayList<>();
         try (Connection conn = getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -1116,9 +1057,7 @@ public class DatabaseManager {
         validateTableName(tableName);
         try (Connection conn = getConnection();
              Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery(IS_SQLITE
-                     ? "SELECT COUNT(*) FROM \"" + tableName + "\""
-                     : "SELECT COUNT(*) FROM `" + tableName + "`")) {
+             ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM " + DIALECT.quoteTableName(tableName))) {
             if (rs.next()) {
                 return rs.getInt(1);
             }
@@ -1133,9 +1072,7 @@ public class DatabaseManager {
      */
     public static Map<String, Object> getRowById(String tableName, long id) {
         validateTableName(tableName);
-        String sql = IS_SQLITE
-                ? "SELECT * FROM \"" + tableName + "\" WHERE id = ?"
-                : "SELECT * FROM `" + tableName + "` WHERE id = ?";
+        String sql = "SELECT * FROM " + DIALECT.quoteTableName(tableName) + " WHERE id = ?";
         try (Connection conn = getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, id);
@@ -1175,39 +1112,22 @@ public class DatabaseManager {
                 cols.append(", ");
                 vals.append(", ");
             }
-            cols.append(IS_SQLITE ? "\"" + entry.getKey() + "\"" : "`" + entry.getKey() + "`");
+            cols.append(DIALECT.quoteColumnName(entry.getKey()));
             vals.append("?");
             params.add(entry.getValue());
         }
 
-        String sql = IS_SQLITE
-                ? "INSERT INTO \"" + tableName + "\" (" + cols + ") VALUES (" + vals + ")"
-                : "INSERT INTO `" + tableName + "` (" + cols + ") VALUES (" + vals + ")";
+        String sql = "INSERT INTO " + DIALECT.quoteTableName(tableName) + " (" + cols + ") VALUES (" + vals + ")";
 
-        try (Connection conn = getConnection()) {
-            if (IS_SQLITE) {
-                try (PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-                    for (int i = 0; i < params.size(); i++) {
-                        ps.setObject(i + 1, params.get(i));
-                    }
-                    ps.executeUpdate();
-                    try (ResultSet rs = ps.getGeneratedKeys()) {
-                        if (rs.next()) {
-                            return rs.getLong(1);
-                        }
-                    }
-                }
-            } else {
-                try (PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-                    for (int i = 0; i < params.size(); i++) {
-                        ps.setObject(i + 1, params.get(i));
-                    }
-                    ps.executeUpdate();
-                    try (ResultSet rs = ps.getGeneratedKeys()) {
-                        if (rs.next()) {
-                            return rs.getLong(1);
-                        }
-                    }
+        try (Connection conn = getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+            for (int i = 0; i < params.size(); i++) {
+                ps.setObject(i + 1, params.get(i));
+            }
+            ps.executeUpdate();
+            try (ResultSet rs = ps.getGeneratedKeys()) {
+                if (rs.next()) {
+                    return rs.getLong(1);
                 }
             }
         } catch (SQLException e) {
@@ -1233,14 +1153,12 @@ public class DatabaseManager {
             if (setClause.length() > 0) {
                 setClause.append(", ");
             }
-            setClause.append(IS_SQLITE ? "\"" + entry.getKey() + "\" = ?" : "`" + entry.getKey() + "` = ?");
+            setClause.append(DIALECT.quoteColumnName(entry.getKey()) + " = ?");
             params.add(entry.getValue());
         }
         params.add(id);
 
-        String sql = IS_SQLITE
-                ? "UPDATE \"" + tableName + "\" SET " + setClause + " WHERE id = ?"
-                : "UPDATE `" + tableName + "` SET " + setClause + " WHERE id = ?";
+        String sql = "UPDATE " + DIALECT.quoteTableName(tableName) + " SET " + setClause + " WHERE id = ?";
 
         try (Connection conn = getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -1258,9 +1176,7 @@ public class DatabaseManager {
      */
     public static int deleteRow(String tableName, long id) {
         validateTableName(tableName);
-        String sql = IS_SQLITE
-                ? "DELETE FROM \"" + tableName + "\" WHERE id = ?"
-                : "DELETE FROM `" + tableName + "` WHERE id = ?";
+        String sql = "DELETE FROM " + DIALECT.quoteTableName(tableName) + " WHERE id = ?";
         try (Connection conn = getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, id);
@@ -1299,9 +1215,7 @@ public class DatabaseManager {
      */
     public static List<Map<String, Object>> queryAllRows(String tableName) {
         validateTableName(tableName);
-        String sql = IS_SQLITE
-                ? "SELECT * FROM \"" + tableName + "\""
-                : "SELECT * FROM `" + tableName + "`";
+        String sql = "SELECT * FROM " + DIALECT.quoteTableName(tableName);
         List<Map<String, Object>> rows = new ArrayList<>();
         try (Connection conn = getConnection();
              Statement stmt = conn.createStatement();
@@ -1393,9 +1307,7 @@ public class DatabaseManager {
         try (Connection conn = getConnection();
              Statement stmt = conn.createStatement()) {
 
-            if (!IS_SQLITE) {
-                stmt.execute("SET FOREIGN_KEY_CHECKS = 0");
-            }
+            DIALECT.disableForeignKeyChecks(stmt);
 
             // 按表名排序，优先删除有外键依赖的表
             List<String> tableNames = new ArrayList<>(tablesJson.keySet());
@@ -1403,9 +1315,7 @@ public class DatabaseManager {
             // 先清除所有备份中包含的表数据
             for (String tableName : tableNames) {
                 try {
-                    String delSql = IS_SQLITE
-                            ? "DELETE FROM \"" + tableName + "\""
-                            : "DELETE FROM `" + tableName + "`";
+                    String delSql = "DELETE FROM " + DIALECT.quoteTableName(tableName);
                     int deleted = stmt.executeUpdate(delSql);
                     result.put(tableName + "_deleted", deleted);
                 } catch (SQLException e) {
@@ -1453,9 +1363,7 @@ public class DatabaseManager {
                 }
             }
 
-            if (!IS_SQLITE) {
-                stmt.execute("SET FOREIGN_KEY_CHECKS = 1");
-            }
+            DIALECT.enableForeignKeyChecks(stmt);
 
         } catch (SQLException e) {
             throw new RuntimeException("导入数据失败", e);

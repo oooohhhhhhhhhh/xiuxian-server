@@ -308,5 +308,23 @@
   "spiritualroot.fire_wood_earth": "火土木灵根",
   "spiritualroot.golden_water_wood": "金水木灵根",
   "spiritualroot.four_elements": "四象灵根",
-  "spiritualroot.chaos_mixed": "混沌灵根"
+  "spiritualroot.chaos_mixed": "混沌灵根",
+
+  "spiritualroot.effect.none": "无",
+  "spiritualroot.effect.crit_chance": "暴击率提升",
+  "spiritualroot.effect.regeneration": "生命回复",
+  "spiritualroot.effect.mp_cost_reduction": "法力消耗降低",
+  "spiritualroot.effect.damage_boost": "伤害提升",
+  "spiritualroot.effect.damage_reduction": "伤害减免",
+  "spiritualroot.effect.exploration_cd": "探索冷却减少",
+  "spiritualroot.effect.crit_damage": "暴击伤害提升",
+  "spiritualroot.effect.skill_damage": "技能伤害提升",
+  "spiritualroot.effect.monster_exp": "怪物经验加成",
+  "spiritualroot.effect.cultivation_efficiency": "修炼效率提升",
+  "spiritualroot.effect.trade_fee_half": "交易手续费减半",
+  "spiritualroot.effect.spirit_stone_drop": "灵石掉落率提升",
+  "spiritualroot.effect.proficiency_boost": "熟练度提升",
+  "spiritualroot.effect.late_bloomer": "大器晚成",
+  "spiritualroot.effect.five_elements_affinity": "五行亲和",
+  "spiritualroot.effect.all_effects_enhance": "全效果增强"
 }

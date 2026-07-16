@@ -20,7 +20,7 @@ public class DebugCommand extends Command {
         super(new String[]{"debug", "调试"},
                 "快速调试所有指令（仅admin）",
                 "/debug <指令名> [参数...]\n/debug list - 列出所有指令\n/debug test <指令名> - 测试指令",
-                "管理", "admin.debug", true);
+                "管理", "admin.debug", false);
 
         addRoute(RouteDefinition.get("admin/debug/list", "admin.debug", this::httpListCommands));
         addRoute(RouteDefinition.post("admin/debug/test", "admin.debug", this::httpTestCommand));
@@ -104,6 +104,9 @@ public class DebugCommand extends Command {
 
         String[] parts = args.trim().split("\\s+", 2);
         String cmdName = parts[0];
+        if (cmdName.startsWith("/")) {
+            cmdName = cmdName.substring(1);
+        }
         String cmdArgs = parts.length > 1 ? parts[1] : "";
 
         Command targetCmd = CommandRegistry.get(cmdName);
@@ -231,6 +234,10 @@ public class DebugCommand extends Command {
                 result.addProperty("code", 400);
                 result.addProperty("message", "command 参数不能为空");
                 return result;
+            }
+
+            if (cmdName.startsWith("/")) {
+                cmdName = cmdName.substring(1);
             }
 
             Command targetCmd = CommandRegistry.get(cmdName);
