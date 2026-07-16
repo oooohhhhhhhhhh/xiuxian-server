@@ -37,13 +37,14 @@ public class SecretAreasCommand extends Command {
 
         StringBuilder sb = new StringBuilder();
         sb.append("===== 可用秘境 =====\n");
+        int index = 1;
         for (SecretRealm area : areas) {
-            sb.append("【").append(area.getName()).append("】\n");
+            sb.append("[").append(index++).append("] 【").append(area.getName()).append("】\n");
             sb.append("  所需境界: ").append(CommandContext.realmName(area.getRequiredRealm())).append("\n");
             sb.append("  冷却: ").append(area.getCooldownMs() / 1000).append(" 秒\n");
             sb.append("  ").append(area.getDescription()).append("\n\n");
         }
-        sb.append("使用 /进入秘境 <秘境名称> 进入");
+        sb.append("使用 /进入秘境 <秘境名称或序号> 进入");
         ctx.reply(sb.toString());
 
         NewbieGuideService.GuideResult guide = ServiceRegistry.getGuideService()
