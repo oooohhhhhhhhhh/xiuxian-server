@@ -48,6 +48,11 @@ public class SecretRealmRegistry {
         if (byKey != null) {
             return byKey;
         }
+        try {
+            int index = Integer.parseInt(input);
+            return getByIndex(index);
+        } catch (NumberFormatException e) {
+        }
         for (SecretRealm realm : realms.values()) {
             String translatedName = realm.getName();
             if (translatedName != null && translatedName.equals(input)) {
@@ -63,6 +68,14 @@ public class SecretRealmRegistry {
             if (realm.getFullKey().toLowerCase().contains(lower)) {
                 return realm;
             }
+        }
+        return null;
+    }
+
+    public static SecretRealm getByIndex(int index) {
+        List<SecretRealm> list = new ArrayList<>(realms.values());
+        if (index >= 1 && index <= list.size()) {
+            return list.get(index - 1);
         }
         return null;
     }
