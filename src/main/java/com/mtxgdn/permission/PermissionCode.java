@@ -46,6 +46,7 @@ public enum PermissionCode {
     ADMIN_ROLES_MANAGE("admin.roles.manage", "管理权限", "管理后台"),
     ADMIN_DATABASE_CLEAR_PLAYERS("admin.database.clear_players", "清除玩家数据", "管理后台"),
     ADMIN_DATABASE_RESET_ALL("admin.database.reset_all", "重置全部数据", "管理后台"),
+    ADMIN_DATABASE_ACCESS("admin.database.access", "数据库访问", "管理后台"),
 
     GAME_REDEEM_CODE("game.redeem.code", "兑换码", "游戏功能"),
     ADMIN_REDEEM_CODE_MANAGE("admin.redeem.code.manage", "管理兑换码", "管理后台"),

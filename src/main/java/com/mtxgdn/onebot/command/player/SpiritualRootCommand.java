@@ -5,6 +5,7 @@ import com.mtxgdn.common.command.CommandContext;
 import com.mtxgdn.game.entity.PlayerInfo;
 import com.mtxgdn.game.entity.SpiritualRoot;
 import com.mtxgdn.common.service.ServiceRegistry;
+import com.mtxgdn.util.LangManager;
 
 public class SpiritualRootCommand extends Command {
 
@@ -59,7 +60,9 @@ public class SpiritualRootCommand extends Command {
         if (root.getSpeedBonus() != 0) sb.append("速度 +").append(root.getSpeedBonus()).append("\n");
 
         if (root.getEffect() != SpiritualRoot.SpecialEffect.NONE) {
-            sb.append("\n特殊效果：").append(root.getEffect().name()).append("\n");
+            String effectKey = "spiritualroot.effect." + root.getEffect().name().toLowerCase();
+            String effectName = LangManager.get(effectKey, root.getEffect().name());
+            sb.append("\n特殊效果：").append(effectName).append("\n");
             if (root.getEffectValue() != 0) {
                 sb.append("效果值：").append(formatEffect(root.getEffect(), root.getEffectValue())).append("\n");
             }
