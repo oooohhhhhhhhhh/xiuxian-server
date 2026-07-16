@@ -1211,7 +1211,7 @@ public class AdminResource {
     @GET
     @Path("/db/tables")
     @Produces(MediaType.APPLICATION_JSON)
-    @RequirePermission("admin.database.reset_all")
+    @RequirePermission("admin.database.access")
     public Response getDbTables() {
         try {
             List<String> tables = DatabaseManager.getAllTableNames();
@@ -1241,7 +1241,7 @@ public class AdminResource {
     @GET
     @Path("/db/tables/{tableName}")
     @Produces(MediaType.APPLICATION_JSON)
-    @RequirePermission("admin.database.reset_all")
+    @RequirePermission("admin.database.access")
     public Response getTableData(
             @PathParam("tableName") String tableName,
             @QueryParam("limit") @DefaultValue("50") int limit,
@@ -1301,7 +1301,7 @@ public class AdminResource {
     @GET
     @Path("/db/tables/{tableName}/{id}")
     @Produces(MediaType.APPLICATION_JSON)
-    @RequirePermission("admin.database.reset_all")
+    @RequirePermission("admin.database.access")
     public Response getTableRow(
             @PathParam("tableName") String tableName,
             @PathParam("id") long id) {
@@ -1349,7 +1349,7 @@ public class AdminResource {
     @Path("/db/tables/{tableName}")
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
-    @RequirePermission("admin.database.reset_all")
+    @RequirePermission("admin.database.access")
     public Response insertTableRow(
             @PathParam("tableName") String tableName,
             String body) {
@@ -1393,7 +1393,7 @@ public class AdminResource {
     @Path("/db/tables/{tableName}/{id}")
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
-    @RequirePermission("admin.database.reset_all")
+    @RequirePermission("admin.database.access")
     public Response updateTableRow(
             @PathParam("tableName") String tableName,
             @PathParam("id") long id,
@@ -1441,7 +1441,7 @@ public class AdminResource {
     @DELETE
     @Path("/db/tables/{tableName}/{id}")
     @Produces(MediaType.APPLICATION_JSON)
-    @RequirePermission("admin.database.reset_all")
+    @RequirePermission("admin.database.access")
     public Response deleteTableRow(
             @PathParam("tableName") String tableName,
             @PathParam("id") long id) {
@@ -1475,8 +1475,8 @@ public class AdminResource {
     @GET
     @Path("/backup")
     @Produces(MediaType.APPLICATION_JSON)
-    @RequirePermission("admin.database.reset_all")
-    public Response downloadBackup() {
+    @RequirePermission("admin.database.access")
+    public Response backupDatabase() {
         try {
             String json = DatabaseManager.exportAllData();
             return Response.ok(json, MediaType.APPLICATION_JSON)
