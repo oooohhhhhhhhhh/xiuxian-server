@@ -32,7 +32,12 @@ public class BackpackCommand extends Command {
         } else {
             for (ItemService.InventoryEntry entry : inventory) {
                 Item item = entry.getItem();
-                sb.append(item.getName()).append(" (").append(item.getFullKey()).append(") x").append(entry.getQuantity()).append("\n");
+                String desc = item.getDescription();
+                sb.append(item.getName()).append(" x").append(entry.getQuantity());
+                if (!desc.isEmpty() && !desc.equals(item.getDescKey())) {
+                    sb.append("\n  └ ").append(desc);
+                }
+                sb.append("\n");
             }
         }
         ctx.reply(sb.toString());
