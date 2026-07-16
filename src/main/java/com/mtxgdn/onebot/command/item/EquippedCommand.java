@@ -30,7 +30,15 @@ public class EquippedCommand extends Command {
             String itemKey = equipment.get(slots[i]);
             if (itemKey != null) {
                 Item item = ItemRegistry.get(itemKey);
-                sb.append(labels[i]).append(": ").append(item != null ? item.getName() : itemKey).append("\n");
+                if (item != null) {
+                    sb.append(labels[i]).append(": ").append(item.getName()).append("\n");
+                    String desc = item.getDescription();
+                    if (!desc.isEmpty() && !desc.equals(item.getDescKey())) {
+                        sb.append("  └ ").append(desc).append("\n");
+                    }
+                } else {
+                    sb.append(labels[i]).append(": ").append(itemKey).append("\n");
+                }
                 hasAny = true;
             } else { sb.append(labels[i]).append(": (空)\n"); }
         }
