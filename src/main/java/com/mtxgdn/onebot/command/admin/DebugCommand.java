@@ -117,6 +117,7 @@ public class DebugCommand extends Command {
 
         ctx.reply("正在测试指令: " + cmdName);
         ctx.reply("参数: " + (cmdArgs.isEmpty() ? "(无)" : cmdArgs));
+        ctx.reply("注意: 测试操作不会修改真实数据（事务已回滚）");
 
         try {
             QqBinding b = new QqBindingService().findByQq(ctx.getSenderId());
@@ -132,9 +133,17 @@ public class DebugCommand extends Command {
             }
 
             DebugCommandContext debugCtx = new DebugCommandContext(ctx.getSenderId(), ctx.getSenderNickname(), cmdArgs, ctx);
-            targetCmd.execute(debugCtx);
 
-            ctx.reply("指令测试完成");
+            try (java.sql.Connection conn = com.mtxgdn.db.DatabaseManager.getConnection()) {
+                conn.setAutoCommit(false);
+                try {
+                    targetCmd.execute(debugCtx);
+                } finally {
+                    conn.rollback();
+                }
+            }
+
+            ctx.reply("指令测试完成（事务已回滚）");
         } catch (Exception e) {
             StringBuilder sb = new StringBuilder();
             sb.append("指令测试异常:\n");
