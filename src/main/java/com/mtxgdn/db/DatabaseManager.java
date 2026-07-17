@@ -704,7 +704,7 @@ public class DatabaseManager {
                         "speed_bonus INT DEFAULT 0, " +
                         "spirit_bonus INT DEFAULT 0, " +
                         "expire_time BIGINT NOT NULL, " +
-                        "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP" +
+                        "created_at " + DIALECT.getTimestampDefault() +
                         (DIALECT.supportsForeignKeysInCreateTable() ? ", FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE" : "") +
                         ")";
                 stmt.execute(buffTableSql);
