@@ -1,38 +1,54 @@
 ---
-name: Bug report
-about: Create a report to help us improve
-title: ''
-labels: ''
+name: Bug报告
+about: 报告游戏中的Bug或问题
+title: "[Bug] "
+labels: bug
 assignees: ''
 
 ---
 
-**Describe the bug**
-A clear and concise description of what the bug is.
+**Bug描述**
+请清晰描述Bug的现象和影响。
 
-**To Reproduce**
-Steps to reproduce the behavior:
-1. Go to '...'
-2. Click on '....'
-3. Scroll down to '....'
-4. See error
+**影响的系统**
+请选择受影响的游戏系统（可多选）：
+- [ ] 修炼系统（打坐/突破/心魔）
+- [ ] 战斗系统（切磋/PVP/技能）
+- [ ] 秘境探索
+- [ ] 坊市交易
+- [ ] 种田系统
+- [ ] 装备系统
+- [ ] 背包/物品
+- [ ] 经济系统（金币/灵石/灵庄）
+- [ ] 社交系统（查人/好友）
+- [ ] 宗门系统
+- [ ] 每日/日常系统
+- [ ] 其他
 
-**Expected behavior**
-A clear and concise description of what you expected to happen.
+**复现步骤**
+详细描述复现Bug的操作步骤：
+1. 使用指令 `/xxx`
+2. 输入参数 `xxx`
+3. 预期结果：xxx
+4. 实际结果：xxx
 
-**Screenshots**
-If applicable, add screenshots to help explain your problem.
+**使用的指令**
+列出涉及的指令，例如：`/打坐`、`/挑战 玩家名`、`/进入秘境 秘境名`
 
-**Desktop (please complete the following information):**
- - OS: [e.g. iOS]
- - Browser [e.g. chrome, safari]
- - Version [e.g. 22]
+**服务端日志**
+如果有报错信息，请粘贴相关日志内容：
 
-**Smartphone (please complete the following information):**
- - Device: [e.g. iPhone6]
- - OS: [e.g. iOS8.1]
- - Browser [e.g. stock browser, safari]
- - Version [e.g. 22]
+```
+在此粘贴日志
+```
 
-**Additional context**
-Add any other context about the problem here.
+**环境信息**
+- 数据库类型：[ ] MySQL [ ] SQLite
+- 服务端版本：（可从 `pom.xml` 查看版本号）
+- 客户端类型：[ ] QQ（OneBot）[ ] WebUI [ ] Minecraft
+
+**截图（可选）**
+如果有相关截图，请附加在此处。
+
+**其他信息**
+任何有助于定位问题的其他信息。

@@ -1,20 +1,44 @@
 ---
-name: Feature request
-about: Suggest an idea for this project
-title: ''
-labels: ''
+name: 功能请求
+about: 提出新功能或改进建议
+title: "[Feature] "
+labels: feature
 assignees: ''
 
 ---
 
-**Is your feature request related to a problem? Please describe.**
-A clear and concise description of what the problem is. Ex. I'm always frustrated when [...]
+**功能描述**
+请清晰描述你想要的功能或改进。
 
-**Describe the solution you'd like**
-A clear and concise description of what you want to happen.
+**涉及的游戏系统**
+请选择相关的游戏系统：
+- [ ] 修炼系统（打坐/突破/心魔）
+- [ ] 战斗系统（切磋/PVP/技能）
+- [ ] 秘境探索
+- [ ] 坊市交易
+- [ ] 种田系统
+- [ ] 装备系统
+- [ ] 背包/物品
+- [ ] 经济系统（金币/灵石/灵庄）
+- [ ] 社交系统（查人/好友）
+- [ ] 宗门系统
+- [ ] 每日/日常系统
+- [ ] 其他（请说明）
 
-**Describe alternatives you've considered**
-A clear and concise description of any alternative solutions or features you've considered.
+**需求背景**
+描述这个功能想要解决什么问题或满足什么需求。
 
-**Additional context**
-Add any other context or screenshots about the feature request here.
+**期望的玩法影响**
+描述这个功能对游戏玩法的影响：
+- 是否会影响玩家之间的平衡性？
+- 是否会改变现有游戏机制？
+- 是否需要新增指令或修改现有指令？
+
+**实现建议**
+如果你有具体的实现想法或建议，请描述：
+
+**参考示例（可选）**
+如果有类似游戏或功能可以参考，请说明：
+
+**其他信息**
+任何其他相关信息或想法。

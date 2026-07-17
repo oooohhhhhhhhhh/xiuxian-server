@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: 游戏帮助文档
+    url: https://github.com/oooohhhhhhhhhh/xiuxian-server/wiki
+    about: 查看游戏帮助文档和指令说明
+  - name: 开发讨论
+    url: https://github.com/oooohhhhhhhhhh/xiuxian-server/discussions
+    about: 参与开发讨论和功能建议
