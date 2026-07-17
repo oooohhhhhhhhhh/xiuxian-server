@@ -1,0 +1,96 @@
+name: Bug报告
+description: 报告游戏中的Bug或问题
+title: "[Bug] "
+labels:
+  - bug
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: Bug描述
+      description: 请清晰描述Bug的现象和影响
+      placeholder: 描述Bug...
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: systems
+    attributes:
+      label: 影响的系统
+      description: 请选择受影响的游戏系统（可多选）
+      options:
+        - label: 修炼系统（打坐/突破/心魔）
+        - label: 战斗系统（切磋/PVP/技能）
+        - label: 秘境探索
+        - label: 坊市交易
+        - label: 种田系统
+        - label: 装备系统
+        - label: 背包/物品
+        - label: 经济系统（金币/灵石/灵庄）
+        - label: 社交系统（查人/好友）
+        - label: 宗门系统
+        - label: 每日/日常系统
+        - label: 其他
+
+  - type: textarea
+    id: steps
+    attributes:
+      label: 复现步骤
+      description: 详细描述复现Bug的操作步骤
+      placeholder: |
+        1. 使用指令 /xxx
+        2. 输入参数 xxx
+        3. 预期结果：xxx
+        4. 实际结果：xxx
+    validations:
+      required: true
+
+  - type: input
+    id: commands
+    attributes:
+      label: 使用的指令
+      description: 列出涉及的指令，例如：/打坐、/挑战 玩家名、/进入秘境 秘境名
+      placeholder: /打坐、/挑战 玩家名
+
+  - type: textarea
+    id: logs
+    attributes:
+      label: 服务端日志
+      description: 如果有报错信息，请粘贴相关日志内容
+      placeholder: 在此粘贴日志...
+
+  - type: dropdown
+    id: database
+    attributes:
+      label: 数据库类型
+      options:
+        - MySQL
+        - SQLite
+
+  - type: input
+    id: version
+    attributes:
+      label: 服务端版本
+      description: 可从 pom.xml 查看版本号
+      placeholder: 例如：1.0.0
+
+  - type: checkboxes
+    id: client
+    attributes:
+      label: 客户端类型
+      options:
+        - label: QQ（OneBot）
+        - label: WebUI
+        - label: Minecraft
+
+  - type: textarea
+    id: screenshots
+    attributes:
+      label: 截图（可选）
+      description: 如果有相关截图，请附加在此处
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: 其他信息
+      description: 任何有助于定位问题的其他信息

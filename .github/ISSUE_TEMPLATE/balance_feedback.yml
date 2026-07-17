@@ -1,0 +1,70 @@
+name: 平衡性反馈
+description: 反馈游戏数值或机制的平衡性问题
+title: "[Balance] "
+labels:
+  - balance
+body:
+  - type: textarea
+    id: description
+    attributes:
+      label: 问题描述
+      description: 请描述你认为不平衡的具体问题
+      placeholder: 描述平衡性问题...
+    validations:
+      required: true
+
+  - type: checkboxes
+    id: systems
+    attributes:
+      label: 涉及的游戏系统
+      description: 请选择相关的游戏系统
+      options:
+        - label: 修炼系统（打坐/突破/心魔）
+        - label: 战斗系统（切磋/PVP/技能）
+        - label: 秘境探索
+        - label: 坊市交易
+        - label: 种田系统
+        - label: 装备系统
+        - label: 经济系统（金币/灵石/灵庄）
+        - label: 灵根系统
+        - label: 其他（请说明）
+
+  - type: textarea
+    id: problems
+    attributes:
+      label: 具体问题
+      description: 详细描述你发现的平衡性问题
+      placeholder: |
+        - 哪些数值或机制感觉太强/太弱？
+        - 哪些职业/灵根/装备存在明显优势或劣势？
+        - 是否存在刷资源的漏洞？
+    validations:
+      required: true
+
+  - type: textarea
+    id: suggestions
+    attributes:
+      label: 你的建议
+      description: 你认为应该如何调整
+      placeholder: |
+        - 调整哪些数值？
+        - 修改哪些机制？
+        - 预期的效果是什么？
+    validations:
+      required: true
+
+  - type: textarea
+    id: data
+    attributes:
+      label: 当前数据（可选）
+      description: 如果方便，请提供相关数据
+      placeholder: |
+        - 你的角色等级/境界
+        - 相关属性数值
+        - 涉及的物品/技能名称
+
+  - type: textarea
+    id: additional
+    attributes:
+      label: 其他信息
+      description: 任何其他相关信息或想法
