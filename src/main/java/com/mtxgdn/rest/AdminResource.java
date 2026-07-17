@@ -1064,6 +1064,48 @@ public class AdminResource {
     }
 
     @POST
+    @Path("/players/{id}/rename")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("admin.users.manage")
+    public Response renamePlayer(@PathParam("id") long playerId, String body) {
+        var p = playerService.getPlayerById(playerId);
+        if (p == null) {
+            JsonObject err = new JsonObject();
+            err.addProperty("code", 404);
+            err.addProperty("message", "玩家不存在");
+            return Response.ok(gson.toJson(err)).build();
+        }
+
+        JsonObject req = com.google.gson.JsonParser.parseString(body).getAsJsonObject();
+        String newName = req.has("name") ? req.get("name").getAsString() : null;
+
+        if (newName == null || newName.trim().isEmpty()) {
+            JsonObject err = new JsonObject();
+            err.addProperty("code", 400);
+            err.addProperty("message", "名称不能为空");
+            return Response.ok(gson.toJson(err)).build();
+        }
+
+        String oldName = p.getName();
+        boolean success = playerService.updatePlayerName(playerId, newName);
+
+        if (success) {
+            JsonObject result = new JsonObject();
+            result.addProperty("code", 200);
+            result.addProperty("message", "名称修改成功");
+            result.addProperty("oldName", oldName);
+            result.addProperty("newName", newName);
+            return Response.ok(gson.toJson(result)).build();
+        } else {
+            JsonObject err = new JsonObject();
+            err.addProperty("code", 500);
+            err.addProperty("message", "修改失败");
+            return Response.ok(gson.toJson(err)).build();
+        }
+    }
+
+    @POST
     @Path("/players/{id}/spiritual-root")
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)

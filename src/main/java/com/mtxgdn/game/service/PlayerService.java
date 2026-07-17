@@ -180,6 +180,22 @@ public class PlayerService {
         }
     }
 
+    public boolean updatePlayerName(long playerId, String newName) {
+        if (newName == null || newName.trim().isEmpty()) {
+            return false;
+        }
+        String sql = "UPDATE players SET name = ? WHERE id = ?";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, newName.trim());
+            ps.setLong(2, playerId);
+            int affected = ps.executeUpdate();
+            return affected > 0;
+        } catch (SQLException e) {
+            throw new RuntimeException("修改玩家名称失败", e);
+        }
+    }
+
     public void addExperience(long playerId, long exp) {
         try (Connection conn = DatabaseManager.getConnection()) {
             addExperience(conn, playerId, exp);
