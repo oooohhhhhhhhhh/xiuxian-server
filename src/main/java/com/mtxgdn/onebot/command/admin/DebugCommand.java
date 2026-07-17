@@ -11,7 +11,6 @@ import com.mtxgdn.permission.PermissionService;
 import com.mtxgdn.onebot.QqBinding;
 import com.mtxgdn.onebot.QqBindingService;
 
-import java.util.ArrayList;
 import java.util.List;
 
 public class DebugCommand extends Command {

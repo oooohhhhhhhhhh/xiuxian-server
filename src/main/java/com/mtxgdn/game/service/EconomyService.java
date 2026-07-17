@@ -764,14 +764,6 @@ public class EconomyService {
         return new SignInRecord();
     }
 
-    private void updateSignIn(long playerId, String today, int streak) {
-        try (Connection conn = DatabaseManager.getConnection()) {
-            updateSignIn(conn, playerId, today, streak);
-        } catch (SQLException e) {
-            throw new RuntimeException("签到记录更新失败", e);
-        }
-    }
-
     private void updateSignIn(Connection conn, long playerId, String today, int streak) throws SQLException {
         String sql;
         if (DatabaseManager.isSqlite()) {
