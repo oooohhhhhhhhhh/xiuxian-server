@@ -139,17 +139,52 @@ public class FarmCommand extends Command {
 
     private String plant(long playerId, String[] args) {
         if (args.length < 3) {
-            return "用法: /种田 种植 [地块索引] [种子key]\n可用种子: " + listAvailableSeeds(playerId);
+            return "用法: /种田 种植 [地块索引] [种子名称/key]\n可用种子: " + listAvailableSeeds(playerId);
         }
 
         try {
             int plotIndex = Integer.parseInt(args[1]);
-            String seedKey = args[2];
+            String seedInput = args[2];
+            String seedKey = resolveSeedKey(seedInput);
+            if (seedKey == null) {
+                return "未知种子: " + seedInput + "\n可用种子: " + listAvailableSeeds(playerId);
+            }
             Map<String, Object> result = farmService.plant(playerId, plotIndex, seedKey);
             return (String) result.get("message");
         } catch (NumberFormatException e) {
             return "地块索引必须是数字";
         }
+    }
+
+    private String resolveSeedKey(String input) {
+        if (input.contains(":")) {
+            return input;
+        }
+        String[] seedKeys = {
+            "mtxgdn:spirit_grass_seed",
+            "mtxgdn:thousand_year_ginseng_seed",
+            "mtxgdn:dark_ice_grass_seed",
+            "mtxgdn:fire_vine_seed",
+            "mtxgdn:nether_flower_seed",
+            "mtxgdn:star_grass_seed",
+            "mtxgdn:blood_lingzhi_seed",
+            "mtxgdn:tianshan_snow_lotus_seed",
+            "mtxgdn:peach_seed",
+            "mtxgdn:ginseng_fruit_seed",
+            "mtxgdn:dragon_fruit_seed",
+            "mtxgdn:immortal_date_seed",
+            "mtxgdn:nine_turn_grass_seed",
+            "mtxgdn:he_shou_wu_seed",
+            "mtxgdn:wan_ling_grass_seed",
+            "mtxgdn:purple_river_cart_seed"
+        };
+        for (String key : seedKeys) {
+            Item item = ItemRegistry.get(key);
+            if (item != null && item.getName().contains(input)) {
+                return key;
+            }
+        }
+        return null;
     }
 
     private String water(long playerId, String[] args) {

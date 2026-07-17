@@ -45,8 +45,17 @@ public class PlayerSearchCommand extends Command {
         for (int i = 0; i < results.size(); i++) {
             PlayerInfo fp = results.get(i);
             String realmName = fp.getRealmName() != null ? fp.getRealmName() : "凡人";
+            String rootName = fp.getSpiritualRoot() != null ? fp.getSpiritualRoot().getDisplayName() : "无";
             sb.append(i + 1).append(". ").append(fp.getName())
-              .append(" | 境界: ").append(realmName)
+              .append(" | Lv.").append(fp.getLevel())
+              .append(" | ").append(realmName)
+              .append("\n  ")
+              .append("灵根: ").append(rootName)
+              .append(" | 攻击: ").append(fp.getAttack())
+              .append(" | 防御: ").append(fp.getDefense())
+              .append("\n  ")
+              .append("金币: ").append(fp.getGold())
+              .append(" | ").append(fp.isCultivating() ? "⏳修炼中" : "空闲")
               .append("\n");
         }
         if (results.size() >= MAX_RESULTS) {

@@ -124,8 +124,9 @@ public class TradeService {
                 itemService.addItem(conn, buyerPlayerId, listing.itemKey, listing.quantity);
 
                 long sellerReceive = totalCost - listing.fee;
-                itemService.addItem(conn, listing.sellerPlayerId, com.mtxgdn.game.item.CurrencyEffect.SPIRIT_STONE_KEY, sellerReceive);
-                itemService.addSpiritStones(0, listing.fee);
+                if (!itemService.addSpiritStones(conn, listing.sellerPlayerId, sellerReceive)) {
+                    throw new SQLException("发放灵石失败");
+                }
                 return null;
             });
 

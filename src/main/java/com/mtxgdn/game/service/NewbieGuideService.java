@@ -284,7 +284,7 @@ public class NewbieGuideService {
         }
         sb.append("════ 新手引导 ════\n");
         sb.append("主线任务 丨 自由探索（💡）\n\n");
-        sb.append("1️⃣ 先来闭关修炼：/修炼\n");
+        sb.append("1️⃣ 先来闭关修炼：/打坐\n");
         sb.append("2️⃣ 停止修炼：/停止\n");
         sb.append("3️⃣ 游历探索：/游历\n");
         sb.append("4️⃣ 秘境探宝：/秘境 → /进入秘境\n");

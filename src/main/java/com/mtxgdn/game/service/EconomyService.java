@@ -308,12 +308,13 @@ public class EconomyService {
             maturesAt = System.currentTimeMillis() + days * 86400000L;
         }
 
+        long depositId = 0;
         try {
-            DatabaseManager.runTransaction(conn -> {
+            depositId = DatabaseManager.runTransaction(conn -> {
                 itemService.removeItem(conn, playerId, com.mtxgdn.game.item.CurrencyEffect.SPIRIT_STONE_LOW, amount);
 
                 String sql = "INSERT INTO player_bank (player_id, deposit_type, principal, rate, deposited_at, matures_at) VALUES (?, ?, ?, ?, ?, ?)";
-                try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                try (PreparedStatement ps = conn.prepareStatement(sql, java.sql.Statement.RETURN_GENERATED_KEYS)) {
                     ps.setLong(1, playerId);
                     ps.setString(2, type);
                     ps.setLong(3, amount);
@@ -321,8 +322,11 @@ public class EconomyService {
                     ps.setLong(5, System.currentTimeMillis());
                     ps.setLong(6, maturesAt);
                     ps.executeUpdate();
+                    try (var rs = ps.getGeneratedKeys()) {
+                        if (rs.next()) return rs.getLong(1);
+                    }
                 }
-                return null;
+                return 0L;
             });
         } catch (Exception e) {
             throw new RuntimeException("灵庄存入失败", e);
@@ -330,13 +334,14 @@ public class EconomyService {
 
         result.put("success", true);
         if ("current".equals(type)) {
-            result.put("message", "已将 " + amount + " 下品灵石存入灵庄（活期，日利 " + String.format("%.1f", rate * 100) + "%）。随时可取，利息按日结算。");
+            result.put("message", "已将 " + amount + " 下品灵石存入灵庄（活期，日利 " + String.format("%.1f", rate * 100) + "%）。随时可取，利息按日结算。\n编号: #" + depositId);
         } else {
             long expectedInterest = (long)(amount * rate);
-            result.put("message", "已将 " + amount + " 下品灵石存入灵庄【" + typeName + "】（" + days + "天，到期利息 " + expectedInterest + " 下品灵石）。到期前取出将损失全部利息！");
+            result.put("message", "已将 " + amount + " 下品灵石存入灵庄【" + typeName + "】（" + days + "天，到期利息 " + expectedInterest + " 下品灵石）。到期前取出将损失全部利息！\n编号: #" + depositId);
         }
         result.put("principal", amount);
         result.put("depositType", type);
+        result.put("depositId", depositId);
         return result;
     }
 

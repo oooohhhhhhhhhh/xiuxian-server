@@ -81,7 +81,7 @@ public class SecretRealmService {
         });
 
         if (!canEnter) {
-            return SecretRealmResult.failure("你刚探索过【" + areaName + "】秘境，还需要等待一段时间才能再次进入");
+            return SecretRealmResult.failure("你刚探索过【" + area.getName() + "】秘境，还需要等待一段时间才能再次进入");
         }
 
         SecretRealmResult result = generateRealmEvent(player, area);

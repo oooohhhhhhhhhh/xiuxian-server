@@ -16,7 +16,7 @@ public class PvpCommand extends Command {
     private static final QqBindingService bindingService = new QqBindingService();
 
     public PvpCommand() {
-        super(new String[]{"挑战", "pvp"}, "挑战其他修士", "/挑战 <角色名>\n/接受 — 接受正在进行的切磋\n/拒绝 — 拒绝切磋", "战斗", "game.pvp.challenge");
+        super(new String[]{"挑战", "pvp"}, "挑战其他修士", "/挑战 <角色名>\n/挑战 接受 — 接受正在进行的切磋\n/挑战 拒绝 — 拒绝切磋", "战斗", "game.pvp.challenge");
 
         registerSub("接受", (ctx, p, parts) -> {
             var combatService = ServiceRegistry.getCombatService();
@@ -50,7 +50,7 @@ public class PvpCommand extends Command {
         String targetName = ctx.getArg().trim();
         if (targetName.isEmpty()) {
             String tactic = getTacticDisplay(p);
-            ctx.reply("用法: /挑战 <角色名>\n" + tactic + "\n💡 也可用 /接受 或 /拒绝 回应切磋");
+            ctx.reply("用法: /挑战 <角色名>\n" + tactic + "\n💡 也可用 /挑战 接受 或 /挑战 拒绝 回应切磋");
             return;
         }
 
@@ -91,7 +91,7 @@ public class PvpCommand extends Command {
             OneBotCommandContext oCtx = (OneBotCommandContext) ctx;
             oCtx.sendPrivateMsg(binding.getQqNumber(),
                     "⚔ 【" + challengerName + "】向你发起了切磋挑战！" + targetTactic + "\n"
-                  + "回复 /接受 迎战，/拒绝 回避（30秒超时自动取消）");
+                  + "回复 /挑战 接受 迎战，/挑战 拒绝 回避（30秒超时自动取消）");
         } catch (Exception ignored) {}
     }
 

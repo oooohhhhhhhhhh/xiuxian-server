@@ -568,21 +568,6 @@ public class ItemService {
 
                 // 2. 从背包移除
                 if (!removeItem(conn, playerId, fullKey, 1)) {
-                    // 回滚旧装备
-                    if (occupied != null) {
-                        Item oldItem = ItemRegistry.get(occupied);
-                        if (oldItem != null) {
-                            removeItem(conn, playerId, occupied, 1);
-                            for (ItemEffect effect : oldItem.getEffects()) {
-                                if (effect instanceof BuffEffect be) {
-                                    if (be.getAttackBonus() > 0) playerService.addAttack(conn, playerId, be.getAttackBonus());
-                                    if (be.getDefenseBonus() > 0) playerService.addDefense(conn, playerId, be.getDefenseBonus());
-                                    if (be.getSpeedBonus() > 0) playerService.addSpeed(conn, playerId, be.getSpeedBonus());
-                                    if (be.getSpiritBonus() > 0) playerService.addSpirit(conn, playerId, be.getSpiritBonus());
-                                }
-                            }
-                        }
-                    }
                     throw new SQLException("背包物品扣除失败: " + fullKey);
                 }
 
