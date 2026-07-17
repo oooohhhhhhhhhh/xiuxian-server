@@ -37,13 +37,44 @@ public class SecretRealmService {
         return SecretRealmRegistry.getByRealm(player.getRealm());
     }
 
+    private SecretRealm resolveArea(String input, List<SecretRealm> availableAreas) {
+        if (input == null || input.isEmpty()) {
+            return null;
+        }
+        try {
+            int index = Integer.parseInt(input);
+            if (index >= 1 && index <= availableAreas.size()) {
+                return availableAreas.get(index - 1);
+            }
+        } catch (NumberFormatException e) {
+        }
+        for (SecretRealm realm : availableAreas) {
+            String translatedName = realm.getName();
+            if (translatedName != null && translatedName.equals(input)) {
+                return realm;
+            }
+        }
+        String lower = input.toLowerCase();
+        for (SecretRealm realm : availableAreas) {
+            String translatedName = realm.getName();
+            if (translatedName != null && translatedName.toLowerCase().contains(lower)) {
+                return realm;
+            }
+            if (realm.getFullKey().toLowerCase().contains(lower)) {
+                return realm;
+            }
+        }
+        return SecretRealmRegistry.resolve(input);
+    }
+
     public SecretRealmResult enterSecretRealm(long userId, String areaName) {
         Player player = playerService.getPlayerRaw(userId);
         if (player == null) {
             return SecretRealmResult.failure("角色不存在，请先创建角色");
         }
 
-        SecretRealm area = SecretRealmRegistry.resolve(areaName);
+        List<SecretRealm> availableAreas = getAvailableAreas(userId);
+        SecretRealm area = resolveArea(areaName, availableAreas);
 
         if (area == null) {
             return SecretRealmResult.failure("未知的秘境: " + areaName);
@@ -364,7 +395,8 @@ public class SecretRealmService {
             return SecretRealmResult.failure("角色不存在，请先创建角色");
         }
 
-        SecretRealm area = SecretRealmRegistry.resolve(areaName);
+        List<SecretRealm> availableAreas = getAvailableAreas(leaderId);
+        SecretRealm area = resolveArea(areaName, availableAreas);
         if (area == null) {
             return SecretRealmResult.failure("未知的秘境: " + areaName);
         }
