@@ -5,6 +5,7 @@ import com.mtxgdn.util.GameLogger;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Collections;
+import java.util.Comparator;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -72,8 +73,14 @@ public class SecretRealmRegistry {
         return null;
     }
 
+    private static List<SecretRealm> getSortedRealms() {
+        return realms.values().stream()
+                .sorted(Comparator.comparingInt(SecretRealm::getRequiredRealm))
+                .toList();
+    }
+
     public static SecretRealm getByIndex(int index) {
-        List<SecretRealm> list = new ArrayList<>(realms.values());
+        List<SecretRealm> list = getSortedRealms();
         if (index >= 1 && index <= list.size()) {
             return list.get(index - 1);
         }
@@ -81,13 +88,9 @@ public class SecretRealmRegistry {
     }
 
     public static List<SecretRealm> getByRealm(int requiredRealm) {
-        List<SecretRealm> result = new ArrayList<>();
-        for (SecretRealm realm : realms.values()) {
-            if (realm.getRequiredRealm() <= requiredRealm) {
-                result.add(realm);
-            }
-        }
-        return result;
+        return getSortedRealms().stream()
+                .filter(realm -> realm.getRequiredRealm() <= requiredRealm)
+                .toList();
     }
 
     public static List<SecretRealm> getRaidRealms(int requiredRealm) {
