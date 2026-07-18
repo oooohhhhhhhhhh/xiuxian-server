@@ -229,7 +229,7 @@ public class OneBotWebSocketServer extends WebSocketApplication
         log.info("黑名单自动续期禁言定时任务已停止");
     }
 
-    private void processOfflineReward(WebSocket socket, String selfId, String senderQq, Long groupId, Long userId) {
+    private void processOfflineReward(WebSocket socket, String selfId, String senderQq, Long userId) {
         OfflineRewardService offlineService = new OfflineRewardService();
         OfflineRewardService.OfflineRewardResult result = offlineService.processOfflineRewards(userId);
 
@@ -261,7 +261,7 @@ public class OneBotWebSocketServer extends WebSocketApplication
             }
         }
 
-        replyToSource(socket, selfId, senderQq, groupId, sb.toString());
+        sendPrivateMsg(socket, selfId, senderQq, sb.toString());
     }
 
     private void handleMetaEvent(WebSocket socket, JsonObject json) {
@@ -310,6 +310,11 @@ public class OneBotWebSocketServer extends WebSocketApplication
         String trimmed = rawMessage.trim();
         StatsCollector.getInstance().recordMessage(senderQq, null);
 
+        QqBinding binding = bindingService.findByQq(senderQq);
+        if (binding != null) {
+            processOfflineReward(socket, selfId, senderQq, binding.getUserId());
+        }
+
         PendingSession session = pendingSessions.get(senderQq);
         if (session != null) {
             handlePendingFlow(socket, selfId, senderQq, session, trimmed);
@@ -335,6 +340,11 @@ public class OneBotWebSocketServer extends WebSocketApplication
         log.info("[群聊:" + groupId + "] [QQ:" + senderQq + "] " + senderNickname + ": " + rawMessage);
         String trimmed = rawMessage.trim();
         StatsCollector.getInstance().recordMessage(senderQq, groupId);
+
+        QqBinding binding = bindingService.findByQq(senderQq);
+        if (binding != null) {
+            processOfflineReward(socket, selfId, senderQq, binding.getUserId());
+        }
 
         // 黑名单检查：如果在黑名单中且群组启用了自动禁言，则禁言
         if (blacklistService.isBlacklisted(senderQq)) {
@@ -382,10 +392,6 @@ public class OneBotWebSocketServer extends WebSocketApplication
                                   String senderNickname, Long groupId, String cmd, String arg) {
         StatsCollector.getInstance().recordCommand(cmd, groupId);
 
-        QqBinding binding = bindingService.findByQq(senderQq);
-        if (binding != null) {
-            processOfflineReward(socket, selfId, senderQq, groupId, binding.getUserId());
-        }
         Command command = CommandRegistry.get(cmd);
         if (command == null) {
             return;
