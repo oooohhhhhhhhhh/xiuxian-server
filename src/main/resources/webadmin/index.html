@@ -673,6 +673,9 @@ select option { background: var(--bg-panel); color: var(--text-primary); }
       <div class="nav-item" onclick="switchTab('redeemCodes')">
         <span class="nav-icon">🎫</span> 兑换码
       </div>
+      <div class="nav-item" onclick="switchTab('titles')">
+        <span class="nav-icon">🏆</span> 称号管理
+      </div>
     </div>
     <div class="sidebar-footer">
       <div style="display:flex;align-items:center;justify-content:space-between">
@@ -781,6 +784,28 @@ select option { background: var(--bg-panel); color: var(--text-primary); }
             <div class="empty">加载中...</div>
           </div>
           <div id="redeemMsg"></div>
+        </div>
+      </div>
+
+      <div class="tab" id="tab-titles">
+        <div class="card">
+          <div class="card-title">🏆 称号管理</div>
+          <div class="row">
+            <input class="grow" id="titleSearch" placeholder="🔍 搜索称号名..." onkeydown="if(event.key==='Enter')loadTitles()">
+            <button class="btn btn-primary" onclick="loadTitles()">搜索</button>
+            <button class="btn-sm" onclick="document.getElementById('titleSearch').value='';loadTitles()">全部称号</button>
+          </div>
+          <div id="titleTable" class="table-wrap"></div>
+          <div id="titleMsg"></div>
+        </div>
+        <div class="card">
+          <div class="card-title">🎯 授予玩家称号</div>
+          <div class="row">
+            <input id="titlePlayerName" placeholder="玩家名" style="width:180px">
+            <select id="titleGiveSel" style="flex:1"><option value="">--选择称号--</option></select>
+            <button class="btn btn-action" onclick="giveTitleToPlayer()">授予称号</button>
+          </div>
+          <div id="titleGiveMsg"></div>
         </div>
       </div>
 
@@ -945,7 +970,7 @@ async function fetchStatus() {
   } catch (x) { document.getElementById('connDot').className = 'conn-dot off'; }
 }
 
-const TAB_TITLES = { overview:'📊 总览', players:'👥 玩家管理', database:'🗄️ 数据库', users:'🔑 用户/角色', logs:'📜 实时日志', traces:'👣 玩家轨迹', redeemCodes:'🎫 兑换码', statsMessages:'💬 消息统计', statsCommands:'⚡ 指令统计' };
+const TAB_TITLES = { overview:'📊 总览', players:'👥 玩家管理', database:'🗄️ 数据库', users:'🔑 用户/角色', logs:'📜 实时日志', traces:'👣 玩家轨迹', redeemCodes:'🎫 兑换码', titles:'🏆 称号管理', statsMessages:'💬 消息统计', statsCommands:'⚡ 指令统计' };
 let dataTimer = null;
 
 function switchTab(name) {
@@ -972,6 +997,8 @@ function switchTab(name) {
   } else if (name === 'redeemCodes') {
     loadRedeemCodes();
     dataTimer = setInterval(loadRedeemCodes, 8000);
+  } else if (name === 'titles') {
+    loadTitles();
   } else if (name === 'statsMessages') {
     loadMessageStats();
   } else if (name === 'statsCommands') {
@@ -1073,7 +1100,7 @@ async function openPlayerDetail(id, name) {
         '<div><label>等级</label><input id="edLvl" value="' + p.level + '"></div>' +
         '<div><label>金币</label><input id="edGold" value="' + p.gold + '"></div>' +
         '<div><label>灵力</label><input id="edExp" value="' + p.experience + '"></div>' +
-        '<div><label>境界</label><input id="edRealm" value="' + p.realm + '"></div>' +
+        '<div><label>境界</label><select id="edRealm"></select></div>' +
       '</div>' +
       '<div style="margin-top:16px;padding:12px;background:rgba(212,168,83,0.05);border-radius:8px;font-size:13px;color:var(--text-secondary)">' +
         '灵根: <b style="color:var(--gold)">' + $h(p.spiritualRoot||'—') + '</b>' +
@@ -1127,6 +1154,19 @@ async function openPlayerDetail(id, name) {
         sel.innerHTML += '<option value="' + r.name + '">' + $h(r.displayName) + ' [' + $h(r.tier) + ']</option>';
       }
     } catch (x) {}
+
+    try {
+      const d = await api('/realms');
+      const sel = document.getElementById('edRealm');
+      let lastId = -1;
+      for (const r of d.realms) {
+        if (r.id !== lastId) {
+          if (lastId >= 0) sel.innerHTML += '<option disabled>──────────</option>';
+          lastId = r.id;
+        }
+        sel.innerHTML += '<option value="' + r.id + '-' + r.subRealm + '"' + (p.realm === r.id && p.subRealm === r.subRealm ? ' selected' : '') + '>' + $h(r.name) + '</option>';
+      }
+    } catch (x) {}
   } catch (x) { alert('加载失败'); }
 }
 
@@ -1140,13 +1180,17 @@ document.getElementById('modalOverlay').addEventListener('click', function(e) {
 
 async function editPlayer(id) {
   const g = function(id) { return document.getElementById(id).value; };
+  const realmVal = g('edRealm');
+  const realmParts = realmVal.split('-');
   const body = {
     hp: parseInt(g('edHp')), maxHp: parseInt(g('edMaxHp')),
     mp: parseInt(g('edMp')), maxMp: parseInt(g('edMaxMp')),
     attack: parseInt(g('edAtk')), defense: parseInt(g('edDef')),
     speed: parseInt(g('edSpd')), spirit: parseInt(g('edSpi')),
     level: parseInt(g('edLvl')), gold: parseInt(g('edGold')),
-    experience: parseInt(g('edExp')), realm: parseInt(g('edRealm'))
+    experience: parseInt(g('edExp')), 
+    realm: parseInt(realmParts[0]),
+    subRealm: parseInt(realmParts[1])
   };
   try {
     const d = await api('/players/' + id + '/edit', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
@@ -1985,6 +2029,100 @@ async function deleteRedeemCode(id, code) {
     }
   } catch (x) {
     alert('删除失败: ' + (x.message || ''));
+  }
+}
+
+// ========== 称号管理 ==========
+
+async function loadTitles() {
+  const q = document.getElementById('titleSearch').value.trim();
+  try {
+    const d = await api('/titles');
+    let titles = d.titles || [];
+    if (q) {
+      titles = titles.filter(t => t.name && t.name.includes(q));
+    }
+    if (titles.length === 0) {
+      document.getElementById('titleTable').innerHTML = '<div class="empty"><div class="empty-icon">🏆</div>暂无称号</div>';
+      return;
+    }
+    let h = '<table><tr><th>Key</th><th>名称</th><th>稀有度</th><th>所需境界</th><th>属性加成</th><th>描述</th></tr>';
+    for (const t of titles) {
+      const rarityColors = {
+        'COMMON': 'color:var(--text-muted)',
+        'UNCOMMON': 'color:var(--jade)',
+        'RARE': 'color:var(--info)',
+        'EPIC': 'color:var(--gold)',
+        'LEGENDARY': 'color:#f59e0b',
+        'MYTHIC': 'color:#ef4444'
+      };
+      const rarityNames = {
+        'COMMON': '凡品',
+        'UNCOMMON': '良品',
+        'RARE': '珍品',
+        'EPIC': '仙品',
+        'LEGENDARY': '神品',
+        'MYTHIC': '圣品'
+      };
+      let bonuses = [];
+      if (t.attackBonus > 0) bonuses.push('攻击+' + t.attackBonus);
+      if (t.defenseBonus > 0) bonuses.push('防御+' + t.defenseBonus);
+      if (t.speedBonus > 0) bonuses.push('速度+' + t.speedBonus);
+      if (t.spiritBonus > 0) bonuses.push('神识+' + t.spiritBonus);
+      if (t.hpBonus > 0) bonuses.push('生命+' + t.hpBonus);
+      if (t.mpBonus > 0) bonuses.push('法力+' + t.mpBonus);
+      if (t.experienceBonus > 0) bonuses.push('经验+' + t.experienceBonus + '%');
+      if (t.dropRateBonus > 0) bonuses.push('掉落+' + t.dropRateBonus + '%');
+      if (t.cultivationSpeedBonus > 0) bonuses.push('修炼+' + t.cultivationSpeedBonus + '%');
+      h += '<tr>' +
+        '<td style="color:var(--text-muted);font-size:11px;font-family:monospace">' + $h(t.key) + '</td>' +
+        '<td style="color:var(--gold)">' + $h(t.name) + '</td>' +
+        '<td style="' + (rarityColors[t.rarity] || 'color:var(--text-muted)') + '">' + (rarityNames[t.rarity] || t.rarity) + '</td>' +
+        '<td>' + t.requiredRealm + '</td>' +
+        '<td style="font-size:11px;color:var(--text-secondary)">' + (bonuses.join(', ') || '无') + '</td>' +
+        '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + $h(t.description || '') + '">' + $h(t.description || '-') + '</td>' +
+        '</tr>';
+    }
+    h += '</table>';
+    document.getElementById('titleTable').innerHTML = h;
+
+    const sel = document.getElementById('titleGiveSel');
+    sel.innerHTML = '<option value="">--选择称号--</option>';
+    for (const t of titles) {
+      sel.innerHTML += '<option value="' + $h(t.key) + '">' + $h(t.name) + '</option>';
+    }
+  } catch (x) {
+    document.getElementById('titleTable').innerHTML = '<div class="empty">加载失败</div>';
+  }
+}
+
+async function giveTitleToPlayer() {
+  const playerName = document.getElementById('titlePlayerName').value.trim();
+  const titleKey = document.getElementById('titleGiveSel').value;
+  if (!playerName) {
+    document.getElementById('titleGiveMsg').innerHTML = '<div class="msg msg-err">请输入玩家名</div>';
+    return;
+  }
+  if (!titleKey) {
+    document.getElementById('titleGiveMsg').innerHTML = '<div class="msg msg-err">请选择称号</div>';
+    return;
+  }
+  try {
+    const d = await api('/players?name=' + encodeURIComponent(playerName));
+    if (!d.players || d.players.length === 0) {
+      document.getElementById('titleGiveMsg').innerHTML = '<div class="msg msg-err">玩家不存在</div>';
+      return;
+    }
+    const player = d.players[0];
+    const r = await api('/players/' + player.id + '/title/add', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ titleKey })
+    });
+    document.getElementById('titleGiveMsg').innerHTML = '<div class="msg msg-ok">' + $h(r.message) + '</div>';
+    document.getElementById('titlePlayerName').value = '';
+  } catch (x) {
+    document.getElementById('titleGiveMsg').innerHTML = '<div class="msg msg-err">操作失败</div>';
   }
 }
 

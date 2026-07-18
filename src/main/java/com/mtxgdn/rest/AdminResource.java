@@ -8,12 +8,15 @@ import com.mtxgdn.db.DatabaseManager;
 import com.mtxgdn.game.entity.PlayerInfo;
 import com.mtxgdn.game.item.Item;
 import com.mtxgdn.game.item.ItemRegistry;
+import com.mtxgdn.game.config.GameConfigLoader;
+import com.mtxgdn.game.entity.RealmConfig;
 import com.mtxgdn.game.service.CraftingService;
 import com.mtxgdn.game.service.ItemService;
 import com.mtxgdn.game.service.PlayerService;
 import com.mtxgdn.game.service.SkillService;
 import com.mtxgdn.game.service.TechniqueService;
 import com.mtxgdn.game.title.TitleRegistry;
+import com.mtxgdn.game.title.Title;
 import com.mtxgdn.common.service.ServiceRegistry;
 import com.mtxgdn.entity.User;
 import com.mtxgdn.permission.PermissionCode;
@@ -1027,6 +1030,7 @@ public class AdminResource {
         if (req.has("gold")) p.setGold(req.get("gold").getAsLong());
         if (req.has("experience")) p.setExperience(req.get("experience").getAsLong());
         if (req.has("realm")) p.setRealm(req.get("realm").getAsInt());
+        if (req.has("subRealm")) p.setSubRealm(req.get("subRealm").getAsInt());
 
         playerService.updatePlayer(playerId, p);
 
@@ -1193,6 +1197,174 @@ public class AdminResource {
         JsonObject result = new JsonObject();
         result.addProperty("code", 200);
         result.add("items", arr);
+        return Response.ok(gson.toJson(result)).build();
+    }
+
+    @GET
+    @Path("/realms")
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("admin.status")
+    public Response getRealms() {
+        JsonArray arr = new JsonArray();
+        for (RealmConfig config : GameConfigLoader.getRealmConfigs()) {
+            JsonObject obj = new JsonObject();
+            obj.addProperty("id", config.getId());
+            obj.addProperty("subRealm", config.getSubRealm());
+            obj.addProperty("name", config.getName());
+            obj.addProperty("description", config.getDescription());
+            obj.addProperty("requiredExp", config.getRequiredExp());
+            obj.addProperty("requiredSpiritStones", config.getRequiredSpiritStones());
+            arr.add(obj);
+        }
+        JsonObject result = new JsonObject();
+        result.addProperty("code", 200);
+        result.add("realms", arr);
+        return Response.ok(gson.toJson(result)).build();
+    }
+
+    @GET
+    @Path("/titles")
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("admin.status")
+    public Response getTitles() {
+        JsonArray arr = new JsonArray();
+        for (Title title : TitleRegistry.getTitles()) {
+            JsonObject obj = new JsonObject();
+            obj.addProperty("key", title.getKey());
+            obj.addProperty("name", title.getName());
+            obj.addProperty("description", title.getDescription());
+            obj.addProperty("rarity", title.getRarity().name());
+            obj.addProperty("requiredRealm", title.getRequiredRealm());
+            obj.addProperty("attackBonus", title.getAttackBonus());
+            obj.addProperty("defenseBonus", title.getDefenseBonus());
+            obj.addProperty("speedBonus", title.getSpeedBonus());
+            obj.addProperty("spiritBonus", title.getSpiritBonus());
+            obj.addProperty("hpBonus", title.getHpBonus());
+            obj.addProperty("mpBonus", title.getMpBonus());
+            obj.addProperty("experienceBonus", title.getExperienceBonus());
+            obj.addProperty("dropRateBonus", title.getDropRateBonus());
+            obj.addProperty("cultivationSpeedBonus", title.getCultivationSpeedBonus());
+            obj.addProperty("damageBonus", title.getDamageBonus());
+            obj.addProperty("damageReduction", title.getDamageReduction());
+            arr.add(obj);
+        }
+        JsonObject result = new JsonObject();
+        result.addProperty("code", 200);
+        result.add("titles", arr);
+        return Response.ok(gson.toJson(result)).build();
+    }
+
+    @GET
+    @Path("/players/{id}/titles")
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("admin.status")
+    public Response getPlayerTitles(@PathParam("id") long playerId) {
+        var p = playerService.getPlayerById(playerId);
+        if (p == null) {
+            JsonObject err = new JsonObject();
+            err.addProperty("code", 404);
+            err.addProperty("message", "玩家不存在");
+            return Response.ok(gson.toJson(err)).build();
+        }
+
+        JsonObject result = new JsonObject();
+        result.addProperty("code", 200);
+        result.addProperty("currentTitle", p.getCurrentTitle() != null ? p.getCurrentTitle() : "");
+
+        JsonArray owned = new JsonArray();
+        for (String titleKey : p.getOwnedTitles()) {
+            Title title = TitleRegistry.get(titleKey);
+            JsonObject obj = new JsonObject();
+            obj.addProperty("key", titleKey);
+            obj.addProperty("name", title != null ? title.getName() : titleKey);
+            owned.add(obj);
+        }
+        result.add("ownedTitles", owned);
+
+        return Response.ok(gson.toJson(result)).build();
+    }
+
+    @POST
+    @Path("/players/{id}/title")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("admin.users.manage")
+    public Response setPlayerTitle(@PathParam("id") long playerId, String body) {
+        var p = playerService.getPlayerById(playerId);
+        if (p == null) {
+            JsonObject err = new JsonObject();
+            err.addProperty("code", 404);
+            err.addProperty("message", "玩家不存在");
+            return Response.ok(gson.toJson(err)).build();
+        }
+
+        JsonObject req = com.google.gson.JsonParser.parseString(body).getAsJsonObject();
+        String titleKey = req.has("titleKey") ? req.get("titleKey").getAsString() : null;
+
+        if (titleKey == null || titleKey.isBlank()) {
+            p.setCurrentTitle(null);
+            playerService.updatePlayer(playerId, p);
+            JsonObject result = new JsonObject();
+            result.addProperty("code", 200);
+            result.addProperty("message", "已卸下称号");
+            return Response.ok(gson.toJson(result)).build();
+        }
+
+        Title title = TitleRegistry.get(titleKey);
+        if (title == null) {
+            JsonObject err = new JsonObject();
+            err.addProperty("code", 400);
+            err.addProperty("message", "称号不存在");
+            return Response.ok(gson.toJson(err)).build();
+        }
+
+        p.setCurrentTitle(titleKey);
+        playerService.updatePlayer(playerId, p);
+
+        JsonObject result = new JsonObject();
+        result.addProperty("code", 200);
+        result.addProperty("message", "称号已切换为 " + title.getName());
+        return Response.ok(gson.toJson(result)).build();
+    }
+
+    @POST
+    @Path("/players/{id}/title/add")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("admin.users.manage")
+    public Response addPlayerTitle(@PathParam("id") long playerId, String body) {
+        var p = playerService.getPlayerById(playerId);
+        if (p == null) {
+            JsonObject err = new JsonObject();
+            err.addProperty("code", 404);
+            err.addProperty("message", "玩家不存在");
+            return Response.ok(gson.toJson(err)).build();
+        }
+
+        JsonObject req = com.google.gson.JsonParser.parseString(body).getAsJsonObject();
+        String titleKey = req.has("titleKey") ? req.get("titleKey").getAsString() : null;
+
+        if (titleKey == null || titleKey.isBlank()) {
+            JsonObject err = new JsonObject();
+            err.addProperty("code", 400);
+            err.addProperty("message", "称号key不能为空");
+            return Response.ok(gson.toJson(err)).build();
+        }
+
+        Title title = TitleRegistry.get(titleKey);
+        if (title == null) {
+            JsonObject err = new JsonObject();
+            err.addProperty("code", 400);
+            err.addProperty("message", "称号不存在");
+            return Response.ok(gson.toJson(err)).build();
+        }
+
+        p.addOwnedTitle(titleKey);
+        playerService.updatePlayer(playerId, p);
+
+        JsonObject result = new JsonObject();
+        result.addProperty("code", 200);
+        result.addProperty("message", "已授予称号: " + title.getName());
         return Response.ok(gson.toJson(result)).build();
     }
 
