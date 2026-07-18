@@ -18,6 +18,7 @@ import java.io.BufferedReader;
 import java.io.InputStreamReader;
 
 import com.mtxgdn.game.service.CraftingService;
+import com.mtxgdn.game.service.EquipmentFixService;
 import com.mtxgdn.game.service.SkillService;
 import com.mtxgdn.game.service.TechniqueService;
 import com.mtxgdn.minecraft.MinecraftMotdServer;
@@ -177,6 +178,9 @@ public class Main {
         LOG.info("正在扫描并注册物品...");
         ItemScanner.ScanResult scanResult = ItemScanner.scanAndRegister();
         LOG.info(scanResult.toString());
+
+        LOG.info("正在检查装备数据一致性...");
+        new EquipmentFixService().fixEquipmentData();
 
         LOG.info("正在扫描并注册秘境...");
         SecretRealmScanner.ScanResult realmScanResult = SecretRealmScanner.scanAndRegister();
