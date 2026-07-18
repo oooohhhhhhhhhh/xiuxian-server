@@ -373,6 +373,7 @@ public class SkillService {
                 "INSERT INTO skills (id, name, description, required_realm, learn_cost_gold, learn_cost_spirit_stones, damage, mp_cost, cooldown_seconds, skill_type, heal_amount, max_level) VALUES (6, '甘霖普降', '天降甘霖，大量恢复生命', 2, 800, 300, 0, 30, 15, 1, 150, 10)",
                 "INSERT INTO skills (id, name, description, required_realm, learn_cost_gold, learn_cost_spirit_stones, damage, mp_cost, cooldown_seconds, skill_type, heal_amount, max_level) VALUES (7, '风驰电掣', '身法如电，闪避致命一击', 1, 300, 150, 0, 10, 20, 2, 0, 10)",
                 "INSERT INTO skills (id, name, description, required_realm, learn_cost_gold, learn_cost_spirit_stones, damage, mp_cost, cooldown_seconds, skill_type, heal_amount, max_level) VALUES (8, '金刚护体', '灵气化盾，坚如金刚', 2, 600, 250, 0, 20, 30, 2, 0, 10)",
+                "INSERT INTO skills (id, name, description, required_realm, learn_cost_gold, learn_cost_spirit_stones, damage, mp_cost, cooldown_seconds, skill_type, heal_amount, max_level) VALUES (9, '基础剑诀', '记载了基础剑法的口诀，适合初学者练习', 0, 50, 20, 20, 8, 2, 0, 0, 10)",
             };
             try (Connection conn = DatabaseManager.getConnection();
                  var stmt = conn.createStatement()) {
