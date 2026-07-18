@@ -218,6 +218,8 @@ public class DatabaseManager {
                 "tutorial_step INT DEFAULT 0, " +
                 "tutorial_tips INT DEFAULT 0, " +
                 "last_offline_time BIGINT DEFAULT 0, " +
+                "current_location_id BIGINT DEFAULT 1, " +
+                "last_travel_time BIGINT DEFAULT 0, " +
                 "created_at " + tsDefault + ", " +
                 "updated_at " + tsUpdate;
 
