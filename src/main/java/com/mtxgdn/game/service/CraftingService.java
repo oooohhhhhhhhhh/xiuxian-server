@@ -108,7 +108,9 @@ public class CraftingService {
 
                 // 扣除金币和灵石
                 playerService.addGold(conn, playerId, -recipe.getCostGold());
-                itemService.removeItem(conn, playerId, com.mtxgdn.game.item.CurrencyEffect.SPIRIT_STONE_KEY, recipe.getCostSpiritStones());
+                if (!itemService.removeSpiritStones(conn, playerId, recipe.getCostSpiritStones())) {
+                    throw new SQLException("灵石扣除失败");
+                }
 
                 boolean success = random.nextDouble() < recipe.getSuccessRate();
 

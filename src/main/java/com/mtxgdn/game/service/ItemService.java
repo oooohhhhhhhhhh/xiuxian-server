@@ -332,42 +332,50 @@ public class ItemService {
 
     private boolean removeSpiritStonesFromAllGrades(long playerId, long amount) {
         if (amount <= 0) return true;
-        long remaining = amount;
-
         try (Connection conn = DatabaseManager.getConnection()) {
-            long oldCount = getItemCount(conn, playerId, CurrencyEffect.SPIRIT_STONE_OLD_KEY);
-            if (oldCount > 0) {
-                if (oldCount >= remaining) {
-                    removeItem(conn, playerId, CurrencyEffect.SPIRIT_STONE_OLD_KEY, remaining);
-                    return true;
-                } else {
-                    removeItem(conn, playerId, CurrencyEffect.SPIRIT_STONE_OLD_KEY, oldCount);
-                    remaining -= oldCount;
-                }
-            }
-
-            for (int i = 0; i < 4; i++) {
-                String key = CurrencyEffect.getStoneKey(i);
-                long rate = CurrencyEffect.getExchangeRate(i);
-                long count = getItemCount(conn, playerId, key);
-                long value = count * rate;
-
-                if (value >= remaining) {
-                    long toRemove = (remaining + rate - 1) / rate;
-                    removeItem(conn, playerId, key, toRemove);
-                    if (remaining % rate > 0 && i < 3) {
-                        addItem(conn, playerId, CurrencyEffect.getStoneKey(i + 1), remaining / rate);
-                    }
-                    return true;
-                } else {
-                    removeItem(conn, playerId, key, count);
-                    remaining -= value;
-                }
-            }
-            return false;
+            return removeSpiritStonesFromAllGrades(conn, playerId, amount);
         } catch (SQLException e) {
             throw new RuntimeException("扣除灵石失败", e);
         }
+    }
+
+    public boolean removeSpiritStones(Connection conn, long playerId, long amount) throws SQLException {
+        if (amount <= 0) return true;
+        return removeSpiritStonesFromAllGrades(conn, playerId, amount);
+    }
+
+    private boolean removeSpiritStonesFromAllGrades(Connection conn, long playerId, long amount) throws SQLException {
+        long remaining = amount;
+        long oldCount = getItemCount(conn, playerId, CurrencyEffect.SPIRIT_STONE_OLD_KEY);
+        if (oldCount > 0) {
+            if (oldCount >= remaining) {
+                removeItem(conn, playerId, CurrencyEffect.SPIRIT_STONE_OLD_KEY, remaining);
+                return true;
+            } else {
+                removeItem(conn, playerId, CurrencyEffect.SPIRIT_STONE_OLD_KEY, oldCount);
+                remaining -= oldCount;
+            }
+        }
+
+        for (int i = 0; i < 4; i++) {
+            String key = CurrencyEffect.getStoneKey(i);
+            long rate = CurrencyEffect.getExchangeRate(i);
+            long count = getItemCount(conn, playerId, key);
+            long value = count * rate;
+
+            if (value >= remaining) {
+                long toRemove = (remaining + rate - 1) / rate;
+                removeItem(conn, playerId, key, toRemove);
+                if (remaining % rate > 0 && i < 3) {
+                    addItem(conn, playerId, CurrencyEffect.getStoneKey(i + 1), remaining / rate);
+                }
+                return true;
+            } else {
+                removeItem(conn, playerId, key, count);
+                remaining -= value;
+            }
+        }
+        return false;
     }
 
     public boolean addSpiritStones(long playerId, long amount) {
