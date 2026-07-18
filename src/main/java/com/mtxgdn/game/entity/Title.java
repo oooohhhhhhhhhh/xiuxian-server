@@ -18,6 +18,8 @@ public class Title {
     private double expBonus;
     private double dropRateBonus;
     private int requiredRealm;
+    private double damageBonus;
+    private double damageReduction;
 
     public Title() {}
 
@@ -49,6 +51,12 @@ public class Title {
     public void setDropRateBonus(double dropRateBonus) { this.dropRateBonus = dropRateBonus; }
     public int getRequiredRealm() { return requiredRealm; }
     public void setRequiredRealm(int requiredRealm) { this.requiredRealm = requiredRealm; }
+
+    public double getExperienceBonus() { return expBonus; }
+    public double getDamageBonus() { return damageBonus; }
+    public void setDamageBonus(double damageBonus) { this.damageBonus = damageBonus; }
+    public double getDamageReduction() { return damageReduction; }
+    public void setDamageReduction(double damageReduction) { this.damageReduction = damageReduction; }
 
     public String getRarityLabel() {
         return switch (rarity) {

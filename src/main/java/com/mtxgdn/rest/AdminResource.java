@@ -16,7 +16,7 @@ import com.mtxgdn.game.service.PlayerService;
 import com.mtxgdn.game.service.SkillService;
 import com.mtxgdn.game.service.TechniqueService;
 import com.mtxgdn.game.title.TitleRegistry;
-import com.mtxgdn.game.title.Title;
+import com.mtxgdn.game.entity.Title;
 import com.mtxgdn.common.service.ServiceRegistry;
 import com.mtxgdn.entity.User;
 import com.mtxgdn.permission.PermissionCode;
@@ -1228,7 +1228,7 @@ public class AdminResource {
     @RequirePermission("admin.status")
     public Response getTitles() {
         JsonArray arr = new JsonArray();
-        for (Title title : TitleRegistry.getTitles()) {
+        for (Title title : TitleRegistry.getAll()) {
             JsonObject obj = new JsonObject();
             obj.addProperty("key", title.getKey());
             obj.addProperty("name", title.getName());
@@ -1254,35 +1254,7 @@ public class AdminResource {
         return Response.ok(gson.toJson(result)).build();
     }
 
-    @GET
-    @Path("/players/{id}/titles")
-    @Produces(MediaType.APPLICATION_JSON)
-    @RequirePermission("admin.status")
-    public Response getPlayerTitles(@PathParam("id") long playerId) {
-        var p = playerService.getPlayerById(playerId);
-        if (p == null) {
-            JsonObject err = new JsonObject();
-            err.addProperty("code", 404);
-            err.addProperty("message", "玩家不存在");
-            return Response.ok(gson.toJson(err)).build();
-        }
-
-        JsonObject result = new JsonObject();
-        result.addProperty("code", 200);
-        result.addProperty("currentTitle", p.getCurrentTitle() != null ? p.getCurrentTitle() : "");
-
-        JsonArray owned = new JsonArray();
-        for (String titleKey : p.getOwnedTitles()) {
-            Title title = TitleRegistry.get(titleKey);
-            JsonObject obj = new JsonObject();
-            obj.addProperty("key", titleKey);
-            obj.addProperty("name", title != null ? title.getName() : titleKey);
-            owned.add(obj);
-        }
-        result.add("ownedTitles", owned);
-
-        return Response.ok(gson.toJson(result)).build();
-    }
+    
 
     @POST
     @Path("/players/{id}/title")

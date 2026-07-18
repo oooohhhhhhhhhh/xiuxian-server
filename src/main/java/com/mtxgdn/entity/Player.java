@@ -2,6 +2,9 @@ package com.mtxgdn.entity;
 
 import com.mtxgdn.game.entity.SpiritualRoot;
 
+import java.util.ArrayList;
+import java.util.List;
+
 public class Player {
 
     private Long id;
@@ -11,6 +14,9 @@ public class Player {
     private int level;
     private long experience;
     private int realm;
+    private int subRealm;
+    private String currentTitle;
+    private List<String> ownedTitles = new ArrayList<>();
     private int hp;
     private int maxHp;
     private int mp;
@@ -91,6 +97,36 @@ public class Player {
 
     public void setRealm(int realm) {
         this.realm = realm;
+    }
+
+    public int getSubRealm() {
+        return subRealm;
+    }
+
+    public void setSubRealm(int subRealm) {
+        this.subRealm = subRealm;
+    }
+
+    public String getCurrentTitle() {
+        return currentTitle;
+    }
+
+    public void setCurrentTitle(String currentTitle) {
+        this.currentTitle = currentTitle;
+    }
+
+    public List<String> getOwnedTitles() {
+        return ownedTitles;
+    }
+
+    public void setOwnedTitles(List<String> ownedTitles) {
+        this.ownedTitles = ownedTitles;
+    }
+
+    public void addOwnedTitle(String titleKey) {
+        if (!ownedTitles.contains(titleKey)) {
+            ownedTitles.add(titleKey);
+        }
     }
 
     public int getHp() {
