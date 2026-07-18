@@ -109,6 +109,7 @@ public class FriendService {
         String sql = "SELECT f.id, f.player_id, f.friend_player_id, f.status, f.created_at, f.updated_at FROM friends f " +
                 "WHERE ((f.player_id = ?) OR (f.friend_player_id = ? AND f.status = 'accepted')) AND f.status = 'accepted'";
         List<Friend> friends = new ArrayList<>();
+        java.util.Set<Long> seenFriendIds = new java.util.HashSet<>();
         try (Connection conn = DatabaseManager.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, playerId);
@@ -124,6 +125,11 @@ public class FriendService {
                     f.setUpdatedAt(rs.getString("updated_at"));
 
                     long friendId = (f.getPlayerId() == playerId) ? f.getFriendPlayerId() : f.getPlayerId();
+                    if (seenFriendIds.contains(friendId)) {
+                        continue;
+                    }
+                    seenFriendIds.add(friendId);
+
                     Player friendPlayer = playerService.getPlayerById(friendId);
                     if (friendPlayer != null) {
                         f.setFriendName(friendPlayer.getName());

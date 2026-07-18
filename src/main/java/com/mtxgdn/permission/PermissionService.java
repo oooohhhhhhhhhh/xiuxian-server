@@ -227,9 +227,23 @@ public class PermissionService {
         return Collections.unmodifiableMap(pluginPermissions);
     }
 
-    /** 判断权限码是否有效（内置枚举或插件注册）。 */
+    /** 判断权限码是否有效（内置枚举、插件注册或数据库中已存在）。 */
     public static boolean isValidPermissionCode(String code) {
-        return PermissionCode.fromCode(code) != null || pluginPermissions.containsKey(code);
+        if (PermissionCode.fromCode(code) != null || pluginPermissions.containsKey(code)) {
+            return true;
+        }
+        String sql = "SELECT COUNT(*) FROM permissions WHERE code = ?";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, code);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next() && rs.getInt(1) > 0) {
+                    return true;
+                }
+            }
+        } catch (SQLException ignored) {
+        }
+        return false;
     }
 
     // ==================== 权限组查询 ====================

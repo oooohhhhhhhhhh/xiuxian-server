@@ -363,27 +363,28 @@ public class SkillService {
     }
 
     public void insertDefaultSkills() {
-        if (getAllSkills().isEmpty()) {
-            String[] skills = {
-                "INSERT INTO skills (id, name, description, required_realm, learn_cost_gold, learn_cost_spirit_stones, damage, mp_cost, cooldown_seconds, skill_type, heal_amount, max_level) VALUES (1, '烈火掌', '以灵力催动烈焰，掌风如火', 1, 100, 50, 30, 10, 3, 0, 0, 10)",
-                "INSERT INTO skills (id, name, description, required_realm, learn_cost_gold, learn_cost_spirit_stones, damage, mp_cost, cooldown_seconds, skill_type, heal_amount, max_level) VALUES (2, '玄冰刺', '凝聚寒气成冰刺，锐不可当', 2, 500, 200, 60, 20, 5, 0, 0, 10)",
-                "INSERT INTO skills (id, name, description, required_realm, learn_cost_gold, learn_cost_spirit_stones, damage, mp_cost, cooldown_seconds, skill_type, heal_amount, max_level) VALUES (3, '天雷咒', '引九天神雷，威势惊人', 3, 2000, 500, 100, 35, 8, 0, 0, 10)",
-                "INSERT INTO skills (id, name, description, required_realm, learn_cost_gold, learn_cost_spirit_stones, damage, mp_cost, cooldown_seconds, skill_type, heal_amount, max_level) VALUES (4, '万剑诀', '剑气万千，遮天蔽日', 4, 5000, 1000, 180, 50, 10, 0, 0, 10)",
-                "INSERT INTO skills (id, name, description, required_realm, learn_cost_gold, learn_cost_spirit_stones, damage, mp_cost, cooldown_seconds, skill_type, heal_amount, max_level) VALUES (5, '回春术', '以灵力治愈自身伤势', 0, 200, 100, 0, 15, 10, 1, 60, 10)",
-                "INSERT INTO skills (id, name, description, required_realm, learn_cost_gold, learn_cost_spirit_stones, damage, mp_cost, cooldown_seconds, skill_type, heal_amount, max_level) VALUES (6, '甘霖普降', '天降甘霖，大量恢复生命', 2, 800, 300, 0, 30, 15, 1, 150, 10)",
-                "INSERT INTO skills (id, name, description, required_realm, learn_cost_gold, learn_cost_spirit_stones, damage, mp_cost, cooldown_seconds, skill_type, heal_amount, max_level) VALUES (7, '风驰电掣', '身法如电，闪避致命一击', 1, 300, 150, 0, 10, 20, 2, 0, 10)",
-                "INSERT INTO skills (id, name, description, required_realm, learn_cost_gold, learn_cost_spirit_stones, damage, mp_cost, cooldown_seconds, skill_type, heal_amount, max_level) VALUES (8, '金刚护体', '灵气化盾，坚如金刚', 2, 600, 250, 0, 20, 30, 2, 0, 10)",
-                "INSERT INTO skills (id, name, description, required_realm, learn_cost_gold, learn_cost_spirit_stones, damage, mp_cost, cooldown_seconds, skill_type, heal_amount, max_level) VALUES (9, '基础剑诀', '记载了基础剑法的口诀，适合初学者练习', 0, 50, 20, 20, 8, 2, 0, 0, 10)",
-            };
-            try (Connection conn = DatabaseManager.getConnection();
-                 var stmt = conn.createStatement()) {
-                for (String skillSql : skills) {
+        String[] skills = {
+            "INSERT INTO skills (id, name, description, required_realm, learn_cost_gold, learn_cost_spirit_stones, damage, mp_cost, cooldown_seconds, skill_type, heal_amount, max_level) VALUES (1, '烈火掌', '以灵力催动烈焰，掌风如火', 1, 100, 50, 30, 10, 3, 0, 0, 10)",
+            "INSERT INTO skills (id, name, description, required_realm, learn_cost_gold, learn_cost_spirit_stones, damage, mp_cost, cooldown_seconds, skill_type, heal_amount, max_level) VALUES (2, '玄冰刺', '凝聚寒气成冰刺，锐不可当', 2, 500, 200, 60, 20, 5, 0, 0, 10)",
+            "INSERT INTO skills (id, name, description, required_realm, learn_cost_gold, learn_cost_spirit_stones, damage, mp_cost, cooldown_seconds, skill_type, heal_amount, max_level) VALUES (3, '天雷咒', '引九天神雷，威势惊人', 3, 2000, 500, 100, 35, 8, 0, 0, 10)",
+            "INSERT INTO skills (id, name, description, required_realm, learn_cost_gold, learn_cost_spirit_stones, damage, mp_cost, cooldown_seconds, skill_type, heal_amount, max_level) VALUES (4, '万剑诀', '剑气万千，遮天蔽日', 4, 5000, 1000, 180, 50, 10, 0, 0, 10)",
+            "INSERT INTO skills (id, name, description, required_realm, learn_cost_gold, learn_cost_spirit_stones, damage, mp_cost, cooldown_seconds, skill_type, heal_amount, max_level) VALUES (5, '回春术', '以灵力治愈自身伤势', 0, 200, 100, 0, 15, 10, 1, 60, 10)",
+            "INSERT INTO skills (id, name, description, required_realm, learn_cost_gold, learn_cost_spirit_stones, damage, mp_cost, cooldown_seconds, skill_type, heal_amount, max_level) VALUES (6, '甘霖普降', '天降甘霖，大量恢复生命', 2, 800, 300, 0, 30, 15, 1, 150, 10)",
+            "INSERT INTO skills (id, name, description, required_realm, learn_cost_gold, learn_cost_spirit_stones, damage, mp_cost, cooldown_seconds, skill_type, heal_amount, max_level) VALUES (7, '风驰电掣', '身法如电，闪避致命一击', 1, 300, 150, 0, 10, 20, 2, 0, 10)",
+            "INSERT INTO skills (id, name, description, required_realm, learn_cost_gold, learn_cost_spirit_stones, damage, mp_cost, cooldown_seconds, skill_type, heal_amount, max_level) VALUES (8, '金刚护体', '灵气化盾，坚如金刚', 2, 600, 250, 0, 20, 30, 2, 0, 10)",
+            "INSERT INTO skills (id, name, description, required_realm, learn_cost_gold, learn_cost_spirit_stones, damage, mp_cost, cooldown_seconds, skill_type, heal_amount, max_level) VALUES (9, '基础剑诀', '记载了基础剑法的口诀，适合初学者练习', 0, 50, 20, 20, 8, 2, 0, 0, 10)",
+        };
+        try (Connection conn = DatabaseManager.getConnection();
+             var stmt = conn.createStatement()) {
+            for (String skillSql : skills) {
+                try {
                     stmt.executeUpdate(skillSql);
+                } catch (SQLException e) {
                 }
-                LOG.info("已插入默认技能数据");
-            } catch (SQLException e) {
-                throw new RuntimeException("插入默认技能失败", e);
             }
+            LOG.info("已初始化默认技能数据");
+        } catch (SQLException e) {
+            throw new RuntimeException("初始化默认技能失败", e);
         }
     }
 }

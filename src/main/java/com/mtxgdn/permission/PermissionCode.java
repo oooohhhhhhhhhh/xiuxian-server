@@ -60,7 +60,8 @@ public enum PermissionCode {
     ADMIN_ONEBOT_GROUP_CONFIG("admin.onebot.group.config", "管理OneBot群组配置", "管理后台"),
     ADMIN_PLUGINS_MANAGE("admin.plugins.manage", "管理插件", "管理后台"),
     ADMIN_TITLES_MANAGE("admin.titles.manage", "管理称号", "管理后台"),
-    ADMIN_DEBUG("admin.debug", "调试指令", "管理后台");
+    ADMIN_DEBUG("admin.debug", "调试指令", "管理后台"),
+    ADMIN_FIX_EQUIPMENT("admin.fix.equipment", "修复装备数据", "管理后台");
 
     private final String code;
     private final String name;

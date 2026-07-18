@@ -660,6 +660,10 @@ public class DatabaseManager {
         try (Connection conn = getConnection();
              Statement stmt = conn.createStatement()) {
             try {
+                stmt.execute("ALTER TABLE players ADD COLUMN last_breakthrough_time BIGINT DEFAULT 0");
+            } catch (SQLException ignored) {
+            }
+            try {
                 stmt.execute("ALTER TABLE players_equipment ADD COLUMN enhance_level INT DEFAULT 0");
             } catch (SQLException ignored) {
             }

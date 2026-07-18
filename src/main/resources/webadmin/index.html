@@ -801,7 +801,12 @@ select option { background: var(--bg-panel); color: var(--text-primary); }
         <div class="card">
           <div class="card-title">🎯 授予玩家称号</div>
           <div class="row">
-            <input id="titlePlayerName" placeholder="玩家名" style="width:180px">
+            <input id="titlePlayerSearch" placeholder="搜索玩家名..." style="flex:1" onkeydown="if(event.key==='Enter')loadTitlePlayerList()">
+            <button class="btn btn-primary" onclick="loadTitlePlayerList()">搜索玩家</button>
+            <button class="btn-sm" onclick="toggleSelectAllTitlePlayers()">全选/取消</button>
+          </div>
+          <div id="titlePlayerList" class="table-wrap" style="max-height:200px;overflow-y:auto;margin:12px 0"></div>
+          <div class="row">
             <select id="titleGiveSel" style="flex:1"><option value="">--选择称号--</option></select>
             <button class="btn btn-action" onclick="giveTitleToPlayer()">授予称号</button>
           </div>
@@ -2096,34 +2101,72 @@ async function loadTitles() {
   }
 }
 
-async function giveTitleToPlayer() {
-  const playerName = document.getElementById('titlePlayerName').value.trim();
-  const titleKey = document.getElementById('titleGiveSel').value;
-  if (!playerName) {
-    document.getElementById('titleGiveMsg').innerHTML = '<div class="msg msg-err">请输入玩家名</div>';
-    return;
+async function loadTitlePlayerList() {
+  const q = document.getElementById('titlePlayerSearch').value.trim();
+  let url = '/players?limit=20';
+  if (q) url += '&name=' + encodeURIComponent(q);
+  try {
+    const d = await api(url);
+    if (!d.players || d.players.length === 0) {
+      document.getElementById('titlePlayerList').innerHTML = '<div class="empty"><div class="empty-icon">👥</div>暂无玩家</div>';
+      return;
+    }
+    let h = '<table><tr><th><input type="checkbox" onchange="toggleSelectAllTitlePlayers(this)">全选</th><th>ID</th><th>道号</th><th>境界</th></tr>';
+    for (const p of d.players) {
+      h += '<tr>' +
+        '<td><input type="checkbox" class="title-player-chk" data-id="' + p.id + '" data-name="' + $h(p.name) + '"></td>' +
+        '<td style="color:var(--text-muted);font-size:11px">' + p.id + '</td>' +
+        '<td style="color:var(--gold)">' + $h(p.name) + '</td>' +
+        '<td>' + $h(p.realm) + '</td>' +
+        '</tr>';
+    }
+    h += '</table>';
+    document.getElementById('titlePlayerList').innerHTML = h;
+  } catch (x) {
+    document.getElementById('titlePlayerList').innerHTML = '<div class="empty">加载失败</div>';
   }
+}
+
+function toggleSelectAllTitlePlayers(chk) {
+  const checkboxes = document.querySelectorAll('.title-player-chk');
+  let checked = true;
+  if (chk && typeof chk.checked === 'boolean') {
+    checked = chk.checked;
+  } else {
+    const someChecked = Array.from(checkboxes).some(c => c.checked);
+    checked = !someChecked;
+  }
+  checkboxes.forEach(c => c.checked = checked);
+}
+
+async function giveTitleToPlayer() {
+  const titleKey = document.getElementById('titleGiveSel').value;
   if (!titleKey) {
     document.getElementById('titleGiveMsg').innerHTML = '<div class="msg msg-err">请选择称号</div>';
     return;
   }
-  try {
-    const d = await api('/players?name=' + encodeURIComponent(playerName));
-    if (!d.players || d.players.length === 0) {
-      document.getElementById('titleGiveMsg').innerHTML = '<div class="msg msg-err">玩家不存在</div>';
-      return;
-    }
-    const player = d.players[0];
-    const r = await api('/players/' + player.id + '/title/add', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ titleKey })
-    });
-    document.getElementById('titleGiveMsg').innerHTML = '<div class="msg msg-ok">' + $h(r.message) + '</div>';
-    document.getElementById('titlePlayerName').value = '';
-  } catch (x) {
-    document.getElementById('titleGiveMsg').innerHTML = '<div class="msg msg-err">操作失败</div>';
+  const checkboxes = document.querySelectorAll('.title-player-chk:checked');
+  if (checkboxes.length === 0) {
+    document.getElementById('titleGiveMsg').innerHTML = '<div class="msg msg-err">请至少选择一个玩家</div>';
+    return;
   }
+  const selectedPlayers = Array.from(checkboxes).map(c => ({ id: parseInt(c.dataset.id), name: c.dataset.name }));
+  document.getElementById('titleGiveMsg').innerHTML = '<div class="msg msg-ok">正在授予称号，请稍候...</div>';
+  let successCount = 0;
+  let failCount = 0;
+  for (const p of selectedPlayers) {
+    try {
+      await api('/players/' + p.id + '/title/add', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ titleKey })
+      });
+      successCount++;
+    } catch (x) {
+      failCount++;
+    }
+  }
+  document.getElementById('titleGiveMsg').innerHTML = '<div class="msg msg-ok">授予完成！成功 ' + successCount + ' 人，失败 ' + failCount + ' 人</div>';
 }
 
 // ========== 玩家操作轨迹 ==========

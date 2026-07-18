@@ -89,11 +89,10 @@ public class TraceCommand extends Command {
             }
         }
 
-        String qqFilter = targetQq != null ? targetQq : (isAdmin ? null : ctx.getSenderId());
+        String qqFilter = targetQq != null ? targetQq : (isAdmin ? null : null);
 
         List<Map<String, Object>> logs;
         if (isAdmin && targetPlayerName != null) {
-            // admin按玩家名搜索
             logs = DatabaseManager.queryPlayerActionLogs(null, targetPlayerName, null, null, null, null, limit, 0);
         } else {
             logs = DatabaseManager.queryPlayerActionLogs(targetUserId, null, null, qqFilter, null, null, limit, 0);
