@@ -146,7 +146,7 @@ public class PlayerService {
 
     public void updatePlayer(long playerId, Player player) {
         String sql = """
-            UPDATE players SET level = ?, experience = ?, realm = ?,
+            UPDATE players SET level = ?, experience = ?, realm = ?, sub_realm = ?,
                 hp = ?, max_hp = ?, mp = ?, max_mp = ?, attack = ?, defense = ?,
                 speed = ?, spirit = ?, gold = ?,
                 cultivation_progress = ?, is_cultivating = ?, cultivation_start_time = ?,
@@ -158,22 +158,23 @@ public class PlayerService {
             ps.setInt(1, player.getLevel());
             ps.setLong(2, player.getExperience());
             ps.setInt(3, player.getRealm());
-            ps.setInt(4, player.getHp());
-            ps.setInt(5, player.getMaxHp());
-            ps.setInt(6, player.getMp());
-            ps.setInt(7, player.getMaxMp());
-            ps.setInt(8, player.getAttack());
-            ps.setInt(9, player.getDefense());
-            ps.setInt(10, player.getSpeed());
-            ps.setInt(11, player.getSpirit());
-            ps.setLong(12, player.getGold());
-            ps.setInt(13, player.getCultivationProgress());
-            ps.setBoolean(14, player.isCultivating());
-            ps.setLong(15, player.getCultivationStartTime());
-            ps.setLong(16, player.getLastSecretRealmTime());
-            ps.setLong(17, player.getLastExplorationTime());
-            ps.setLong(18, player.getLastOfflineTime());
-            ps.setLong(19, playerId);
+            ps.setInt(4, player.getSubRealm());
+            ps.setInt(5, player.getHp());
+            ps.setInt(6, player.getMaxHp());
+            ps.setInt(7, player.getMp());
+            ps.setInt(8, player.getMaxMp());
+            ps.setInt(9, player.getAttack());
+            ps.setInt(10, player.getDefense());
+            ps.setInt(11, player.getSpeed());
+            ps.setInt(12, player.getSpirit());
+            ps.setLong(13, player.getGold());
+            ps.setInt(14, player.getCultivationProgress());
+            ps.setBoolean(15, player.isCultivating());
+            ps.setLong(16, player.getCultivationStartTime());
+            ps.setLong(17, player.getLastSecretRealmTime());
+            ps.setLong(18, player.getLastExplorationTime());
+            ps.setLong(19, player.getLastOfflineTime());
+            ps.setLong(20, playerId);
             ps.executeUpdate();
         } catch (SQLException e) {
             throw new RuntimeException("更新玩家失败", e);
@@ -775,6 +776,7 @@ public class PlayerService {
         p.setLevel(rs.getInt("level"));
         p.setExperience(rs.getLong("experience"));
         p.setRealm(rs.getInt("realm"));
+        p.setSubRealm(rs.getInt("sub_realm"));
         p.setHp(rs.getInt("hp"));
         p.setMaxHp(rs.getInt("max_hp"));
         p.setMp(rs.getInt("mp"));

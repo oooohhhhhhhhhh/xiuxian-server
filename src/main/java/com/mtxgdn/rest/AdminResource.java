@@ -919,6 +919,7 @@ public class AdminResource {
         obj.addProperty("level", p.getLevel());
         obj.addProperty("experience", p.getExperience());
         obj.addProperty("realm", p.getRealm());
+        obj.addProperty("subRealm", p.getSubRealm());
         obj.addProperty("hp", p.getHp());
         obj.addProperty("maxHp", p.getMaxHp());
         obj.addProperty("mp", p.getMp());
@@ -1273,30 +1274,21 @@ public class AdminResource {
         JsonObject req = com.google.gson.JsonParser.parseString(body).getAsJsonObject();
         String titleKey = req.has("titleKey") ? req.get("titleKey").getAsString() : null;
 
+        var ts = ServiceRegistry.getTitleService();
+
         if (titleKey == null || titleKey.isBlank()) {
-            p.setCurrentTitle(null);
-            playerService.updatePlayer(playerId, p);
-            JsonObject result = new JsonObject();
-            result.addProperty("code", 200);
-            result.addProperty("message", "已卸下称号");
-            return Response.ok(gson.toJson(result)).build();
+            var result = ts.unequipTitle(playerId);
+            JsonObject resp = new JsonObject();
+            resp.addProperty("code", (boolean) result.get("success") ? 200 : 400);
+            resp.addProperty("message", result.get("message").toString());
+            return Response.ok(gson.toJson(resp)).build();
         }
 
-        Title title = TitleRegistry.get(titleKey);
-        if (title == null) {
-            JsonObject err = new JsonObject();
-            err.addProperty("code", 400);
-            err.addProperty("message", "称号不存在");
-            return Response.ok(gson.toJson(err)).build();
-        }
-
-        p.setCurrentTitle(titleKey);
-        playerService.updatePlayer(playerId, p);
-
-        JsonObject result = new JsonObject();
-        result.addProperty("code", 200);
-        result.addProperty("message", "称号已切换为 " + title.getName());
-        return Response.ok(gson.toJson(result)).build();
+        var result = ts.equipTitle(playerId, titleKey);
+        JsonObject resp = new JsonObject();
+        resp.addProperty("code", (boolean) result.get("success") ? 200 : 400);
+        resp.addProperty("message", result.get("message").toString());
+        return Response.ok(gson.toJson(resp)).build();
     }
 
     @POST
@@ -1323,21 +1315,13 @@ public class AdminResource {
             return Response.ok(gson.toJson(err)).build();
         }
 
-        Title title = TitleRegistry.get(titleKey);
-        if (title == null) {
-            JsonObject err = new JsonObject();
-            err.addProperty("code", 400);
-            err.addProperty("message", "称号不存在");
-            return Response.ok(gson.toJson(err)).build();
-        }
+        var ts = ServiceRegistry.getTitleService();
+        var result = ts.grantTitle(playerId, titleKey);
 
-        p.addOwnedTitle(titleKey);
-        playerService.updatePlayer(playerId, p);
-
-        JsonObject result = new JsonObject();
-        result.addProperty("code", 200);
-        result.addProperty("message", "已授予称号: " + title.getName());
-        return Response.ok(gson.toJson(result)).build();
+        JsonObject resp = new JsonObject();
+        resp.addProperty("code", (boolean) result.get("success") ? 200 : 400);
+        resp.addProperty("message", result.get("message").toString());
+        return Response.ok(gson.toJson(resp)).build();
     }
 
     @GET
