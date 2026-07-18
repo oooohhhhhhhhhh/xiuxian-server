@@ -220,6 +220,7 @@ public class DatabaseManager {
                 "last_offline_time BIGINT DEFAULT 0, " +
                 "current_location_id BIGINT DEFAULT 1, " +
                 "last_travel_time BIGINT DEFAULT 0, " +
+                "last_breakthrough_time BIGINT DEFAULT 0, " +
                 "created_at " + tsDefault + ", " +
                 "updated_at " + tsUpdate;
 

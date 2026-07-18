@@ -150,7 +150,8 @@ public class PlayerService {
                 hp = ?, max_hp = ?, mp = ?, max_mp = ?, attack = ?, defense = ?,
                 speed = ?, spirit = ?, gold = ?,
                 cultivation_progress = ?, is_cultivating = ?, cultivation_start_time = ?,
-                last_secret_realm_time = ?, last_exploration_time = ?, last_offline_time = ?
+                last_secret_realm_time = ?, last_exploration_time = ?, last_offline_time = ?,
+                last_breakthrough_time = ?
             WHERE id = ?
             """;
         try (Connection conn = DatabaseManager.getConnection();
@@ -174,7 +175,8 @@ public class PlayerService {
             ps.setLong(17, player.getLastSecretRealmTime());
             ps.setLong(18, player.getLastExplorationTime());
             ps.setLong(19, player.getLastOfflineTime());
-            ps.setLong(20, playerId);
+            ps.setLong(20, player.getLastBreakthroughTime());
+            ps.setLong(21, playerId);
             ps.executeUpdate();
         } catch (SQLException e) {
             throw new RuntimeException("更新玩家失败", e);
@@ -797,6 +799,7 @@ public class PlayerService {
         try { p.setBattleStrategy(rs.getString("battle_strategy")); } catch (Exception ignored) {}
         try { p.setCurrentLocationId(rs.getLong("current_location_id")); } catch (Exception ignored) {}
         try { p.setLastTravelTime(rs.getLong("last_travel_time")); } catch (Exception ignored) {}
+        try { p.setLastBreakthroughTime(rs.getLong("last_breakthrough_time")); } catch (Exception ignored) {}
         p.setCreatedAt(rs.getString("created_at"));
         p.setUpdatedAt(rs.getString("updated_at"));
         return p;

@@ -37,6 +37,7 @@ public class Player {
     private String battleStrategy = "balanced";
     private long currentLocationId = 1;
     private long lastTravelTime;
+    private long lastBreakthroughTime;
     private String createdAt;
     private String updatedAt;
 
@@ -273,5 +274,13 @@ public class Player {
 
     public void setUpdatedAt(String updatedAt) {
         this.updatedAt = updatedAt;
+    }
+
+    public long getLastBreakthroughTime() {
+        return lastBreakthroughTime;
+    }
+
+    public void setLastBreakthroughTime(long lastBreakthroughTime) {
+        this.lastBreakthroughTime = lastBreakthroughTime;
     }
 }

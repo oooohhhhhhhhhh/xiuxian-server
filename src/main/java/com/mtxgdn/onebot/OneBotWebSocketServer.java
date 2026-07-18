@@ -10,6 +10,7 @@ import com.mtxgdn.common.service.ServiceRegistry;
 import com.mtxgdn.db.DatabaseManager;
 import com.mtxgdn.game.entity.PlayerInfo;
 import com.mtxgdn.game.service.NewbieGuideService;
+import com.mtxgdn.game.service.OfflineRewardService;
 import com.mtxgdn.onebot.command.OneBotCommandContext;
 import com.mtxgdn.permission.PermissionService;
 import com.mtxgdn.service.UserService;
@@ -228,6 +229,41 @@ public class OneBotWebSocketServer extends WebSocketApplication
         log.info("黑名单自动续期禁言定时任务已停止");
     }
 
+    private void processOfflineReward(WebSocket socket, String selfId, String senderQq, Long groupId, Long userId) {
+        OfflineRewardService offlineService = new OfflineRewardService();
+        OfflineRewardService.OfflineRewardResult result = offlineService.processOfflineRewards(userId);
+
+        if (!result.hasReward) {
+            return;
+        }
+
+        StringBuilder sb = new StringBuilder();
+        sb.append("===== 离线奖励 =====\n");
+        sb.append("离线时长: ").append(result.offlineHours).append("小时").append(result.offlineMinutes % 60).append("分钟\n");
+
+        if (result.hpRecovered > 0) {
+            sb.append("生命恢复: +").append(result.hpRecovered).append("\n");
+        }
+        if (result.mpRecovered > 0) {
+            sb.append("法力恢复: +").append(result.mpRecovered).append("\n");
+        }
+
+        if (result.wasCultivating) {
+            sb.append("修炼获得经验: +").append(result.expGained).append("\n");
+            if (result.rawExpGained != result.expGained) {
+                sb.append("(原始经验: ").append(result.rawExpGained).append(")\n");
+            }
+
+            if (result.heartDemonTriggered) {
+                sb.append("\n⚠️ 心魔发作！\n");
+                sb.append(result.heartDemonNarrative).append("\n");
+                sb.append("损失经验: ").append(result.heartDemonExpLost).append("\n");
+            }
+        }
+
+        replyToSource(socket, selfId, senderQq, groupId, sb.toString());
+    }
+
     private void handleMetaEvent(WebSocket socket, JsonObject json) {
         String metaType = json.get("meta_event_type").getAsString();
         if ("lifecycle".equals(metaType)) {
@@ -345,6 +381,11 @@ public class OneBotWebSocketServer extends WebSocketApplication
     private void dispatchCommand(WebSocket socket, String selfId, String senderQq,
                                   String senderNickname, Long groupId, String cmd, String arg) {
         StatsCollector.getInstance().recordCommand(cmd, groupId);
+
+        QqBinding binding = bindingService.findByQq(senderQq);
+        if (binding != null) {
+            processOfflineReward(socket, selfId, senderQq, groupId, binding.getUserId());
+        }
         Command command = CommandRegistry.get(cmd);
         if (command == null) {
             return;

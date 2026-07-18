@@ -17,6 +17,19 @@ public class RealmService {
 
     private static final int[] BASE_SUCCESS_RATES = { 80, 80, 70, 60, 50, 40, 30, 20, 15, 10 };
 
+    private static final long[] BREAKTHROUGH_COOLDOWN_SECONDS = {
+            600,   // 凡人: 10分钟
+            1800,  // 练气: 30分钟
+            3600,  // 筑基: 1小时
+            7200,  // 金丹: 2小时
+            14400, // 元婴: 4小时
+            28800, // 化神: 8小时
+            43200, // 大乘: 12小时
+            86400, // 渡劫: 1天
+            172800,// 地仙: 2天
+            259200 // 天仙: 3天
+    };
+
     private static final String[][] TRIBULATION_TYPES = {
         {"雷劫", "九天神雷", "九天之上雷云翻滚，一道水桶粗的紫色天雷当头劈下！"},
         {"心魔劫", "心魔噬魂", "一股黑气自丹田涌出，眼前浮现过往种种执念，心神剧震..."},
@@ -46,6 +59,12 @@ public class RealmService {
         Player player = playerService.getPlayerRaw(userId);
         if (player == null) {
             return failure("玩家不存在");
+        }
+
+        long remainingCooldown = checkBreakthroughCooldown(player);
+        if (remainingCooldown > 0) {
+            String cooldownMsg = formatCooldown(remainingCooldown);
+            return failure("突破冷却中，还需等待 " + cooldownMsg + " 才能再次突破");
         }
 
         RealmConfig currentConfig = GameConfigLoader.getRealmConfig(player.getRealm(), 0);
@@ -196,6 +215,7 @@ public class RealmService {
         player.setSpeed(player.getSpeed() + nextConfig.getSpeedBonus());
         player.setSpirit(player.getSpirit() + nextConfig.getSpiritBonus());
         player.setExperience(player.getExperience() - nextConfig.getRequiredExp());
+        player.setLastBreakthroughTime(System.currentTimeMillis());
 
         SpiritualRoot root = player.getSpiritualRoot();
         if (root != null && root.hasEffect(SpiritualRoot.SpecialEffect.LATE_BLOOMER)) {
@@ -265,6 +285,40 @@ public class RealmService {
             return TRIBULATION_TYPES[random.nextInt(TRIBULATION_TYPES.length)];
         }
         return available.get(random.nextInt(available.size()));
+    }
+
+    private long checkBreakthroughCooldown(Player player) {
+        long lastBreakthrough = player.getLastBreakthroughTime();
+        if (lastBreakthrough <= 0) {
+            return 0;
+        }
+
+        int realmIndex = player.getRealm();
+        if (realmIndex >= BREAKTHROUGH_COOLDOWN_SECONDS.length) {
+            realmIndex = BREAKTHROUGH_COOLDOWN_SECONDS.length - 1;
+        }
+
+        long cooldownSeconds = BREAKTHROUGH_COOLDOWN_SECONDS[realmIndex];
+        long now = System.currentTimeMillis();
+        long elapsedSeconds = (now - lastBreakthrough) / 1000;
+
+        return Math.max(0, cooldownSeconds - elapsedSeconds);
+    }
+
+    private String formatCooldown(long remainingSeconds) {
+        if (remainingSeconds < 60) {
+            return remainingSeconds + "秒";
+        } else if (remainingSeconds < 3600) {
+            return (remainingSeconds / 60) + "分钟";
+        } else if (remainingSeconds < 86400) {
+            long hours = remainingSeconds / 3600;
+            long minutes = (remainingSeconds % 3600) / 60;
+            return hours + "小时" + (minutes > 0 ? minutes + "分钟" : "");
+        } else {
+            long days = remainingSeconds / 86400;
+            long hours = (remainingSeconds % 86400) / 3600;
+            return days + "天" + (hours > 0 ? hours + "小时" : "");
+        }
     }
 
     private RealmBreakthroughResult failure(String message) {

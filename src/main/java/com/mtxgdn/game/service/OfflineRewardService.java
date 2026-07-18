@@ -44,6 +44,7 @@ public class OfflineRewardService {
         elapsedSeconds = Math.min(elapsedSeconds, MAX_OFFLINE_SECONDS);
 
         OfflineRewardResult result = new OfflineRewardResult();
+        result.hasReward = true;
         result.offlineSeconds = elapsedSeconds;
         result.offlineMinutes = elapsedSeconds / 60;
         result.offlineHours = result.offlineMinutes / 60;
