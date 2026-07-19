@@ -252,6 +252,27 @@ public class DailyService {
         fortunes.put("skillLearn", Map.of("current", daily.skillLearnCount, "target", 1, "rewarded", daily.skillLearnRewarded));
         result.put("fortunes", fortunes);
 
+        String dailyTask = "";
+        String taskReward = "";
+        if (!daily.explorationRewarded && daily.explorationCount < 3) {
+            dailyTask = "探索秘境 3 次";
+            taskReward = "经验值";
+        } else if (!daily.battleRewarded && daily.battleCount < 1) {
+            dailyTask = "参与战斗 1 次";
+            taskReward = "金币";
+        } else if (!daily.secretRealmRewarded && daily.secretRealmCount < 1) {
+            dailyTask = "进入秘境 1 次";
+            taskReward = "灵石";
+        } else if (!daily.skillLearnRewarded && daily.skillLearnCount < 1) {
+            dailyTask = "学习技能 1 次";
+            taskReward = "经验值";
+        } else {
+            dailyTask = "今日机缘已全部完成";
+            taskReward = "";
+        }
+        result.put("dailyTask", dailyTask);
+        result.put("taskReward", taskReward.isEmpty() ? null : taskReward);
+
         return result;
     }
 

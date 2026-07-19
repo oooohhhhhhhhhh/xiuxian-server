@@ -2,4 +2,4 @@
 # 所有功能默认关闭，设置为 true 即可启用
 experimental:
   sect_war: false      # 宗门战（暂未启用开关）
-  energy_exchange: false  # 能量转化系统（等价交换）
+  energy_exchange: true  # 能量转化系统（等价交换）

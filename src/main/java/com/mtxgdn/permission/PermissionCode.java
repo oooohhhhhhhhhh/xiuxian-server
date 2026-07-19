@@ -30,6 +30,7 @@ public enum PermissionCode {
     GAME_SECT_MANAGE("game.sect.manage", "宗门管理", "游戏功能"),
     GAME_SECT_DONATE("game.sect.donate", "宗门捐献", "游戏功能"),
     GAME_SECT_WAREHOUSE("game.sect.warehouse", "宗门仓库", "游戏功能"),
+    GAME_CAVE_MANAGE("game.cave.manage", "洞府管理", "游戏功能"),
 
     QQ_BIND("qq.bind", "绑定QQ", "QQ指令"),
     QQ_UNBIND("qq.unbind", "解绑QQ", "QQ指令"),

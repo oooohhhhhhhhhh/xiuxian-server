@@ -47,13 +47,21 @@ public class PvpCommand extends Command {
         PlayerInfo p = ctx.requirePlayer(userId);
         if (p == null) return;
 
-        String targetName = ctx.getArg().trim();
-        if (targetName.isEmpty()) {
+        String arg = ctx.getArg();
+        if (arg == null || arg.trim().isEmpty()) {
             String tactic = getTacticDisplay(p);
             ctx.reply("用法: /挑战 <角色名>\n" + tactic + "\n💡 也可用 /挑战 接受 或 /挑战 拒绝 回应切磋");
             return;
         }
 
+        String[] parts = arg.trim().split("\\s+", 2);
+        String sub = parts[0].toLowerCase();
+        if ("接受".equals(sub) || "accept".equals(sub) || "拒绝".equals(sub) || "reject".equals(sub)) {
+            super.execute(ctx);
+            return;
+        }
+
+        String targetName = arg.trim();
         var playerService = ServiceRegistry.getPlayerService();
         List<PlayerInfo> targets = playerService.searchPlayersByName(targetName, 1, 0);
         if (targets.isEmpty()) { ctx.reply("找不到玩家: " + targetName); return; }

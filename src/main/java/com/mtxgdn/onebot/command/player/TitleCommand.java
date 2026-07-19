@@ -96,21 +96,27 @@ public class TitleCommand extends Command {
     }
 
     private void equipTitle(CommandContext ctx, PlayerInfo p, String[] parts) {
-        if (parts.length < 2) {
+        String arg = ctx.getArg();
+        String name = "";
+        if (arg != null) {
+            name = arg.trim().replaceFirst("^装备\\s*", "").replaceFirst("^equip\\s*", "");
+        }
+        if (name.isEmpty()) {
             ctx.reply("用法: /称号 装备 <名称>\n先用 /称号 查看你拥有的称号");
             return;
         }
 
-        String name = parts[1];
         var ts = ServiceRegistry.getTitleService();
         List<Map<String, Object>> titles = ts.getPlayerTitles(p.getId());
 
-        // 按名称模糊匹配
         String matchedKey = null;
+        String matchedName = null;
         for (var t : titles) {
             String tName = (String) t.get("name");
-            if (tName.equals(name) || tName.contains(name)) {
-                matchedKey = (String) t.get("titleKey");
+            String tKey = (String) t.get("titleKey");
+            if (tName.equals(name) || tName.contains(name) || tKey.equals(name)) {
+                matchedKey = tKey;
+                matchedName = tName;
                 break;
             }
         }

@@ -168,6 +168,28 @@ public class PermissionService {
                 displayNames.put(name, name);
             }
             perms = buildDefaultGroupPermissions();
+        } else {
+            Map<String, Set<String>> defaultPerms = buildDefaultGroupPermissions();
+            for (Map.Entry<String, Set<String>> entry : defaultPerms.entrySet()) {
+                String groupName = entry.getKey();
+                Set<String> defaultGroupPerms = entry.getValue();
+                Set<String> existingPerms = perms.get(groupName);
+                if (existingPerms != null) {
+                    for (String permCode : defaultGroupPerms) {
+                        if (!existingPerms.contains(permCode)) {
+                            existingPerms.add(permCode);
+                            String sql = INSERT_OR_IGNORE + " INTO role_permissions (role_name, permission_code) VALUES (?, ?)";
+                            try (Connection conn = DatabaseManager.getConnection();
+                                 PreparedStatement ps = conn.prepareStatement(sql)) {
+                                ps.setString(1, groupName);
+                                ps.setString(2, permCode);
+                                ps.executeUpdate();
+                            } catch (SQLException ignored) {
+                            }
+                        }
+                    }
+                }
+            }
         }
 
         groupHierarchy = hierarchy;

@@ -238,8 +238,8 @@ public class RealmService {
     }
 
     private double getBaseSuccessRate(int currentRealm) {
-        if (currentRealm >= 1 && currentRealm <= BASE_SUCCESS_RATES.length) {
-            return BASE_SUCCESS_RATES[currentRealm - 1];
+        if (currentRealm >= 0 && currentRealm < BASE_SUCCESS_RATES.length) {
+            return BASE_SUCCESS_RATES[currentRealm];
         }
         return 80.0;
     }

@@ -109,7 +109,7 @@ public abstract class CommandContext {
         return "【" + p.getName() + "】" +
                 "\n灵根: " + rootStr +
                 "\n境界: " + p.getRealmName() + " (Lv." + p.getLevel() + ")" +
-                "\n灵力: " + p.getExperience() +
+                "\n经验: " + p.getExperience() +
                 "\n生命: " + p.getHp() + "/" + p.getMaxHp() +
                 "  法力: " + p.getMp() + "/" + p.getMaxMp() +
                 "\n攻击: " + p.getAttack() +

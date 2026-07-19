@@ -133,6 +133,10 @@ public class EconomyService {
         {"强化石", "mtxgdn:enhance_stone", "100", "强化装备所需"},
         {"灵草", "mtxgdn:spirit_grass", "20", "炼丹基本材料"},
         {"铁矿石", "mtxgdn:iron_ore", "15", "炼器基本材料"},
+        {"低级肥料", "mtxgdn:low_grade_fertilizer", "20", "提高肥力25%，助力作物生长"},
+        {"中级肥料", "mtxgdn:mid_grade_fertilizer", "50", "提高肥力40%，更好的收成"},
+        {"高级肥料", "mtxgdn:high_grade_fertilizer", "100", "提高肥力60%，顶级收成"},
+        {"杀虫剂", "mtxgdn:pesticide", "30", "清除农田病虫害"},
         {"灵草种子", "mtxgdn:spirit_grass_seed", "50", "种植灵草，60秒成熟"},
         {"千年人参种子", "mtxgdn:thousand_year_ginseng_seed", "200", "种植千年人参，180秒成熟"},
         {"暗冰草种子", "mtxgdn:dark_ice_grass_seed", "120", "种植暗冰草，90秒成熟"},
@@ -585,7 +589,7 @@ public class EconomyService {
                     itemService.addSpiritStones(conn, listing.currentBidderId, listing.currentBid);
                 }
 
-                if (!itemService.removeItem(conn, bidderPlayerId, com.mtxgdn.game.item.CurrencyEffect.SPIRIT_STONE_LOW, amount)) {
+                if (!itemService.removeSpiritStones(conn, bidderPlayerId, amount)) {
                     throw new SQLException("灵石扣除失败");
                 }
 
