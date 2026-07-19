@@ -67,16 +67,16 @@ public class RealmService {
             return failure("突破冷却中，还需等待 " + cooldownMsg + " 才能再次突破");
         }
 
-        RealmConfig currentConfig = GameConfigLoader.getRealmConfig(player.getRealm(), 0);
+        RealmConfig currentConfig = GameConfigLoader.getRealmConfig(player.getRealm(), player.getSubRealm());
         if (currentConfig == null) {
             return failure("当前境界配置不存在");
         }
 
-        if (GameConfigLoader.isMaxRealm(player.getRealm(), 0)) {
+        if (GameConfigLoader.isMaxRealm(player.getRealm(), player.getSubRealm())) {
             return failure("已达最高境界，无法继续突破");
         }
 
-        RealmConfig nextConfig = GameConfigLoader.getNextRealmConfig(player.getRealm(), 0);
+        RealmConfig nextConfig = GameConfigLoader.getNextRealmConfig(player.getRealm(), player.getSubRealm());
         if (nextConfig == null) {
             return failure("已是最高境界");
         }
@@ -206,6 +206,7 @@ public class RealmService {
     private RealmBreakthroughResult applyBreakthroughSuccess(Player player, RealmConfig nextConfig,
                                                               RealmBreakthroughResult result, String message) {
         player.setRealm(nextConfig.getId());
+        player.setSubRealm(nextConfig.getSubRealm());
         player.setMaxHp(player.getMaxHp() + nextConfig.getHpBonus());
         player.setHp(player.getMaxHp());
         player.setMaxMp(player.getMaxMp() + nextConfig.getMpBonus());
