@@ -1,6 +1,5 @@
 package com.mtxgdn.plugin;
 
-import com.mtxgdn.common.ExperimentalConfig;
 import com.mtxgdn.common.command.Command;
 import com.mtxgdn.common.command.CommandRegistry;
 import com.mtxgdn.common.service.ServiceRegistry;
@@ -43,6 +42,15 @@ public final class PluginContext {
         this.dataFolder = dataFolder;
         this.classLoader = classLoader;
         this.log = GameLogger.getLogger("Plugin[" + info.getName() + "]");
+    }
+
+    /**
+     * 创建一个指向服务端核心的共享 PluginContext。
+     * 内置插件通过此 context 访问核心服务。
+     */
+    public static PluginContext createSharedContext(File dataFolder, ClassLoader classLoader) {
+        PluginInfo info = new PluginInfo("server", "1.0.0", "xiuxian", "核心服务", "Server");
+        return new PluginContext(info, dataFolder, classLoader);
     }
 
     /** 获取插件元数据。 */
@@ -335,17 +343,15 @@ public final class PluginContext {
     }
 
     /**
-     * 获取实验性功能配置。
-     * @param key 功能键名（在 experimental.yml 中定义）
-     * @return true 表示该功能已启用
+     * 获取实验性插件是否启用。
+     * <p>实验性内容已插件化（见 {@code com.mtxgdn.plugin.experimental} 与 config/plugins.yml
+     * 的 {@code plugins.experimental_*}&nbsp;键），本方法按内置插件门控查询。
+     *
+     * @param key 实验性插件名，如 {@code experimental_sect_war}、{@code experimental_energy_exchange}
+     * @return true 表示该实验性插件已启用
      */
     public boolean isExperimentalFeatureEnabled(String key) {
-        return ExperimentalConfig.isEnabled(key);
-    }
-
-    /** 获取实验性功能配置的值。 */
-    public String getExperimentalFeatureValue(String key, String defaultValue) {
-        return ExperimentalConfig.get(key, defaultValue);
+        return BuiltInPluginRegistry.isModuleEnabled(key);
     }
 
     /**
@@ -435,5 +441,38 @@ public final class PluginContext {
     public void registerWebSocketHandler(String messageType,
                                           PluginWebManager.PluginWsHandler handler) {
         PluginWebManager.getInstance().registerWsHandler(info.getName(), messageType, handler);
+    }
+
+    /**
+     * 注册一个第三方消息适配器类型（适配器插件化扩展点）。
+     * <p>
+     * 注册后即可在 config/adapters.json 中新增该类型的实例并正常启停：
+     * <pre>{@code
+     * // onEnable 中注册
+     * context.registerAdapterFactory(new AdapterFactory() {
+     *     public String getType() { return "my-channel"; }
+     *     public ManagedAdapter create(AdapterConfig config) {
+     *         return new ManagedAdapter() {
+     *             public String getType() { return "my-channel"; }
+     *             public void start(AdapterConfig cfg) throws Exception { /* 建立连接 * / }
+     *             public void stop() { /* 释放资源 * / }
+     *         };
+     *     }
+     * });
+     * }</pre>
+     *
+     * @param factory 适配器工厂（type 不能与内置类型 onebot/qq/minecraft 等重名）
+     */
+    public void registerAdapterFactory(com.mtxgdn.adapter.AdapterFactory factory) {
+        com.mtxgdn.adapter.AdapterManager.registerAdapterFactory(factory);
+    }
+
+    /**
+     * 注销第三方适配器类型并停止其运行中的实例（建议在 onDisable 中调用）。
+     *
+     * @param type 适配器类型名
+     */
+    public void unregisterAdapterType(String type) {
+        com.mtxgdn.adapter.AdapterManager.unregisterAdapterType(type);
     }
 }

@@ -25,6 +25,7 @@ public class SectCommand extends Command {
         super(new String[]{"宗门", "sect"},
                 "宗门管理：输入 /宗门 help 查看所有子命令",
                 "/宗门 <子命令> [参数]", "宗门", "game.sect.manage");
+        setModule("sect");
 
         // ======== OneBot 子命令（仅 OneBot）========
         registerSub(new String[]{"create", "创建"}, this::handleCreate);
@@ -163,7 +164,7 @@ public class SectCommand extends Command {
     private void handlePendingList(CommandContext ctx, PlayerInfo p, String[] parts) {
         SectMember member = sectService.getPlayerMember(p.getId());
         if (member == null) { ctx.reply("你还没有加入宗门"); return; }
-        if (!member.canManage()) { ctx.reply("只有宗主和长老才能查看申请列表"); return; }
+        if (!member.canManage()) { ctx.reply("只有宗主、副宗主和长老才能查看申请列表"); return; }
 
         List<SectApplication> apps = sectService.getPendingApplications(member.getSectId());
         if (apps.isEmpty()) { ctx.reply("目前没有待处理的入宗申请"); return; }
@@ -462,18 +463,18 @@ public class SectCommand extends Command {
 /宗门 info [名称]            查看宗门信息（不填则查看自己的宗门）
 /宗门 members                查看宗门成员
 /宗门 apply <宗门名>         申请加入宗门
-/宗门 pending                查看待处理申请（宗主/长老）
+/宗门 pending                查看待处理申请（宗主/副宗主/长老）
 /宗门 approve <玩家名>       通过申请
 /宗门 reject <玩家名>        拒绝申请
 /宗门 leave                  退出宗门
-/宗门 kick <玩家名>          踢出成员（宗主/长老）
+/宗门 kick <玩家名>          踢出成员（宗主/副宗主/长老）
 /宗门 appoint <玩家名> <副宗主|长老|内门弟子|外门弟子>  任命职位（宗主可任命所有，副宗主可任命长老及以下，长老可任命内门外门）
 /宗门 transfer <玩家名>      转让宗主之位（宗主，需200灵石）
 /宗门 levelup                升级宗门（宗主，消耗声望）
 /宗门 war <宗门名>           向其他宗门宣战（宗主，消耗1000声望+300灵石）
 /宗门 donate <物品key> <数量>  向宗门仓库捐献
 /宗门 warehouse              查看宗门仓库
-/宗门 take <物品key> <数量>  从仓库取出（宗主/长老）
+/宗门 take <物品key> <数量>  从仓库取出（宗主/副宗主/长老）
 /宗门 disband                解散宗门（宗主）
 /宗门 top                    宗门排行""";
     }

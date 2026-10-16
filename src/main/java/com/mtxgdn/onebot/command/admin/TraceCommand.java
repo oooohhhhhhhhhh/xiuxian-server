@@ -20,7 +20,7 @@ public class TraceCommand extends Command {
 
     @Override
     public void execute(CommandContext ctx) {
-        QqBinding b = new QqBindingService().findByQq(ctx.getSenderId());
+        QqBinding b = ctx.resolveBoundBinding();
         if (b == null) {
             ctx.reply("请先绑定账号。\n私聊使用 /bind");
             return;
@@ -89,7 +89,7 @@ public class TraceCommand extends Command {
             }
         }
 
-        String qqFilter = targetQq != null ? targetQq : (isAdmin ? null : null);
+        String qqFilter = targetQq;
 
         List<Map<String, Object>> logs;
         if (isAdmin && targetPlayerName != null) {
@@ -111,7 +111,8 @@ public class TraceCommand extends Command {
         }
 
         for (Map<String, Object> log : logs) {
-            String time = ((String) log.get("createdAt")).substring(5, 16); // MM-dd HH:mm
+            String createdAt = (String) log.get("createdAt");
+            String time = (createdAt != null && createdAt.length() >= 16) ? createdAt.substring(5, 16) : "?";
             String pName = (String) log.get("playerName");
             String action = (String) log.get("action");
             String detail = (String) log.get("detail");

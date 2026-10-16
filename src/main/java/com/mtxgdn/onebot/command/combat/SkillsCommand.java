@@ -15,14 +15,13 @@ import java.util.List;
 public class SkillsCommand extends Command {
     public SkillsCommand() {
         super(new String[]{"技能", "skills"}, "查看可用技能列表", "/技能", "战斗", "game.player.info");
+        setModule("skill");
 
         registerSub(new String[]{"升级", "upgrade"}, this::upgradeSkill);
     }
     @Override
     public void execute(CommandContext ctx) {
-        Long userId = ctx.requireBinding();
-        if (userId == null) return;
-        PlayerInfo p = ctx.requirePlayer(userId);
+        PlayerInfo p = requirePlayerInfo(ctx);
         if (p == null) return;
         var skillService = ServiceRegistry.getSkillService();
         var guideService = ServiceRegistry.getGuideService();

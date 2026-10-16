@@ -18,6 +18,7 @@ public class StoneExchangeCommand extends Command {
         super(new String[]{"灵石兑换", "石兑"}, "兑换不同品质的灵石",
                 "/灵石兑换 [数量] <从> <到>\n示例: /灵石兑换 1 极品 下品",
                 "经济", "game.player.info");
+        setModule("economy");
     }
 
     @Override

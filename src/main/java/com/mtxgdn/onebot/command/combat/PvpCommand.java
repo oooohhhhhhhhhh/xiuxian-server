@@ -2,6 +2,7 @@ package com.mtxgdn.onebot.command.combat;
 
 import com.mtxgdn.common.command.Command;
 import com.mtxgdn.common.command.CommandContext;
+import com.mtxgdn.common.command.CommandUtils;
 import com.mtxgdn.game.entity.PlayerInfo;
 import com.mtxgdn.game.service.CombatService;
 import com.mtxgdn.common.service.ServiceRegistry;
@@ -13,10 +14,9 @@ import java.util.List;
 
 public class PvpCommand extends Command {
 
-    private static final QqBindingService bindingService = new QqBindingService();
-
     public PvpCommand() {
         super(new String[]{"挑战", "pvp"}, "挑战其他修士", "/挑战 <角色名>\n/挑战 接受 — 接受正在进行的切磋\n/挑战 拒绝 — 拒绝切磋", "战斗", "game.pvp.challenge");
+        setModule("pvp");
 
         registerSub("接受", (ctx, p, parts) -> {
             var combatService = ServiceRegistry.getCombatService();
@@ -41,14 +41,11 @@ public class PvpCommand extends Command {
 
     @Override
     public void execute(CommandContext ctx) {
-        Long userId = ctx.requireBinding();
-        if (userId == null) return;
-        if (!ctx.checkPermission("game.pvp.challenge")) return;
-        PlayerInfo p = ctx.requirePlayer(userId);
+        PlayerInfo p = requirePlayerInfo(ctx);
         if (p == null) return;
 
         String arg = ctx.getArg();
-        if (arg == null || arg.trim().isEmpty()) {
+        if (CommandUtils.isBlank(arg)) {
             String tactic = getTacticDisplay(p);
             ctx.reply("用法: /挑战 <角色名>\n" + tactic + "\n💡 也可用 /挑战 接受 或 /挑战 拒绝 回应切磋");
             return;
@@ -86,8 +83,9 @@ public class PvpCommand extends Command {
 
     private void notifyTarget(CommandContext ctx, PlayerInfo target, String challengerName) {
         try {
-            QqBinding binding = bindingService.findByUserId(target.getUserId());
-            if (binding == null) return;
+            QqBinding official = new com.mtxgdn.onebot.QqOfficialBindingService().findByUserId(target.getUserId());
+            QqBinding onebot = new QqBindingService().findByUserId(target.getUserId());
+            if (official == null && onebot == null) return;
 
             var playerService = ServiceRegistry.getPlayerService();
             var targetPlayer = playerService.getPlayerRaw(target.getUserId());
@@ -95,11 +93,23 @@ public class PvpCommand extends Command {
             if (targetPlayer != null && targetPlayer.getBattleStrategy() != null) {
                 targetTactic = getTacticDisplay(targetPlayer);
             }
+            String msg = "⚔ 【" + challengerName + "】向你发起了切磋挑战！" + targetTactic + "\n"
+                    + "回复 /挑战 接受 迎战，/挑战 拒绝 回避（30秒超时自动取消）";
 
-            OneBotCommandContext oCtx = (OneBotCommandContext) ctx;
-            oCtx.sendPrivateMsg(binding.getQqNumber(),
-                    "⚔ 【" + challengerName + "】向你发起了切磋挑战！" + targetTactic + "\n"
-                  + "回复 /挑战 接受 迎战，/挑战 拒绝 回避（30秒超时自动取消）");
+            // 当前渠道是 QQ 官方：必须用「本机器人」的绑定——
+            // openid 是按 AppID 隔离的，拿别的机器人的 openid 通过本适配器发送必然失败
+            if (ctx instanceof com.mtxgdn.onebot.command.OneBotClientCommandContext occ
+                    && occ.getSession() instanceof com.mtxgdn.qq.QqOfficialAdapter qq) {
+                QqBinding scoped = new com.mtxgdn.onebot.QqOfficialBindingService(qq.getAppId())
+                        .findByUserId(target.getUserId());
+                if (scoped == null) return;
+                qq.sendPrivateMsg(qq, qq.getSelfId(), scoped.getQqNumber(), msg);
+                return;
+            }
+            // OneBot 渠道：给目标发 QQ 号私聊
+            if (onebot != null && ctx instanceof OneBotCommandContext oCtx) {
+                oCtx.sendPrivateMsg(onebot.getQqNumber(), msg);
+            }
         } catch (Exception ignored) {}
     }
 

@@ -43,7 +43,7 @@ public class Sect {
     public String getCreatedAt() { return createdAt; }
     public void setCreatedAt(String createdAt) { this.createdAt = createdAt; }
 
-    public static final int MIN_LEVEL_CREATE = 4;                  // 金丹期
+    public static final int MIN_LEVEL_CREATE = 4;                  // 元婴期（按 realm_config 大境界序号，realm>=4）
     public static final long CREATE_COST_SPIRIT_STONES = 500;      // 灵石
     public static final int MAX_LEVEL = 10;
     public static final int MAX_MEMBERS_BASE = 20;

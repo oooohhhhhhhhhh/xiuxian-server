@@ -13,15 +13,15 @@ import java.util.List;
 
 public class ItemsQueryCommand extends Command {
     public ItemsQueryCommand() {
-        super(new String[]{"物品列表", "items", "allitems"},
+        super(new String[]{"全物品列表", "items", "allitems"},
                 "查看所有物品列表（仅私聊，支持分页）",
-                "/物品列表 [页数=1]",
+                "/全物品列表 [页数=1]",
                 "管理", "admin.status", true);
     }
 
     @Override
     public void execute(CommandContext ctx) {
-        QqBinding b = new QqBindingService().findByQq(ctx.getSenderId());
+        QqBinding b = ctx.resolveBoundBinding();
         if (b == null) {
             ctx.reply("请先绑定账号。");
             return;
@@ -60,7 +60,7 @@ public class ItemsQueryCommand extends Command {
         }
 
         if (totalPages > 1) {
-            sb.append("\n输入 /物品列表 ").append(page + 1 > totalPages ? 1 : page + 1).append(" 查看下一页");
+            sb.append("\n输入 /全物品列表 ").append(page + 1 > totalPages ? 1 : page + 1).append(" 查看下一页");
         }
         ctx.reply(sb.toString());
     }

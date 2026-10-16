@@ -164,6 +164,20 @@ public enum SpiritualRoot {
     public SpecialEffect getEffect() { return effect; }
     public double getEffectValue() { return effectValue; }
 
+    /**
+     * 「所有灵根效果增强 50%」（鸿蒙灵根，ALL_EFFECTS_ENHANCE）的增强系数。
+     * 单灵根设定下当前可被放大的只有农场契合加成路径（FarmService 已 ×1.5），
+     * 这里提供统一的语义入口，供所有消费灵根数值特效的位置复用，并兼容未来多特效/多灵根场景。
+     */
+    public double effectEnhancementMultiplier() {
+        return hasEffect(SpecialEffect.ALL_EFFECTS_ENHANCE) ? 1.5 : 1.0;
+    }
+
+    /** 数值型特效的增强后取值：未持有该特效返回 0，持有则 = 原始值 × 增强系数。 */
+    public double getEnhancedEffectValue(SpecialEffect e) {
+        return effect == e ? effectValue * effectEnhancementMultiplier() : 0;
+    }
+
     public int applyAttackBonus(int base) { return base + (int)(base * attackBonus); }
     public int applyHpBonus(int base) { return base + (int)(base * hpBonus); }
     public int applyMpBonus(int base) { return base + (int)(base * mpBonus); }

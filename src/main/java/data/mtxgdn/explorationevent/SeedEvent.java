@@ -28,7 +28,7 @@ public class SeedEvent extends ExplorationEvent {
             {"mtxgdn:fire_vine_seed", "火焰藤种子"},
             {"mtxgdn:thousand_year_ginseng_seed", "千年人参种子"},
             {"mtxgdn:nether_flower_seed", "幽冥花种子"},
-            {"mtxgdn:star_grass_seed", "星辰草种子"},
+            {"mtxgdn:star_grass_seed", "星草种子"},
             {"mtxgdn:blood_lingzhi_seed", "血灵芝种子"},
             {"mtxgdn:tianshan_snow_lotus_seed", "天山雪莲种子"},
         };

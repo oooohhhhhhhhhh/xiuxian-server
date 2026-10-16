@@ -5,617 +5,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>修仙世界 · 管理后台</title>
-<style>
-:root {
-  --bg-deep: #060912;
-  --bg-panel: #0d1220;
-  --bg-card: #121828;
-  --bg-input: #0a0f1a;
-  --border: #1e2a45;
-  --border-gold: #5a4a2a;
-  --text-primary: #f0f4f8;
-  --text-secondary: #94a3b8;
-  --text-muted: #64748b;
-  --gold: #d4a853;
-  --gold-light: #f5e6a3;
-  --gold-dark: #b88a3a;
-  --gold-glow: rgba(212,168,83,0.15);
-  --jade: #2dd4bf;
-  --jade-light: #5eead4;
-  --jade-dark: #14b8a6;
-  --crimson: #ef4444;
-  --crimson-light: #f87171;
-  --amber: #f59e0b;
-  --info: #60a5fa;
-  --radius: 12px;
-  --radius-sm: 8px;
-  --radius-lg: 16px;
-  --shadow: 0 8px 32px rgba(0,0,0,0.4);
-  --shadow-gold: 0 0 20px rgba(212,168,83,0.12);
-  --transition: 0.25s cubic-bezier(0.4,0,0.2,1);
-}
-
-* { margin:0; padding:0; box-sizing:border-box; }
-
-body {
-  background: var(--bg-deep);
-  color: var(--text-primary);
-  font-family: 'Microsoft YaHei', 'PingFang SC', 'Noto Sans SC', sans-serif;
-  height: 100vh;
-  display: flex;
-  overflow: hidden;
-}
-
-::-webkit-scrollbar { width: 6px; }
-::-webkit-scrollbar-track { background: var(--bg-panel); }
-::-webkit-scrollbar-thumb { background: #2d3a55; border-radius: 3px; }
-::-webkit-scrollbar-thumb:hover { background: #3d4a65; }
-
-@keyframes fadeIn { from { opacity:0; transform: translateY(8px); } to { opacity:1; transform: translateY(0); } }
-@keyframes pulse-gold { 0%,100% { box-shadow: 0 0 5px var(--gold-glow); } 50% { box-shadow: 0 0 15px var(--gold-glow), 0 0 25px var(--gold-glow); } }
-@keyframes glow { 0%,100% { opacity:0.6; } 50% { opacity:1; } }
-@keyframes shimmer { 0% { background-position: -200% 0; } 100% { background-position: 200% 0; } }
-
-/* Login */
-.login-overlay {
-  position: fixed; inset: 0;
-  background: radial-gradient(ellipse at center, #1a2a45 0%, #060912 70%);
-  display: flex; align-items: center; justify-content: center;
-  z-index: 999;
-}
-.login-box {
-  background: linear-gradient(145deg, var(--bg-panel), #0a0f1a);
-  padding: 52px 48px;
-  border-radius: var(--radius-lg);
-  border: 1px solid var(--border-gold);
-  width: 420px;
-  text-align: center;
-  box-shadow: 0 20px 80px rgba(0,0,0,0.5), 0 0 100px rgba(212,168,83,0.08);
-  animation: fadeIn 0.4s ease-out;
-}
-.login-box .logo {
-  font-size: 36px;
-  margin-bottom: 4px;
-}
-.login-box h2 {
-  font-size: 26px;
-  font-weight: 600;
-  background: linear-gradient(135deg, var(--gold-light), var(--gold));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-  margin-bottom: 6px;
-  letter-spacing: 2px;
-}
-.login-box .subtitle {
-  color: var(--text-muted);
-  font-size: 14px;
-  margin-bottom: 32px;
-  letter-spacing: 4px;
-}
-.login-box .input-group {
-  position: relative;
-  margin-bottom: 16px;
-  text-align: left;
-}
-.login-box .input-group .icon {
-  position: absolute;
-  left: 14px; top: 50%;
-  transform: translateY(-50%);
-  color: var(--text-muted);
-  font-size: 16px;
-}
-.login-box input {
-  width: 100%; padding: 12px 14px 12px 42px;
-  background: var(--bg-input);
-  border: 1px solid var(--border);
-  border-radius: 8px;
-  color: var(--text-primary);
-  font-size: 14px;
-  outline: none;
-  transition: var(--transition);
-}
-.login-box input:focus {
-  border-color: var(--gold);
-  box-shadow: 0 0 0 3px var(--gold-glow);
-}
-.login-box .btn-login {
-  width: 100%; padding: 14px;
-  background: linear-gradient(135deg, var(--gold), var(--gold-dark));
-  color: #1a1a1a;
-  border: none; border-radius: var(--radius-sm);
-  font-size: 16px; font-weight: 700;
-  cursor: pointer;
-  letter-spacing: 3px;
-  transition: var(--transition);
-  margin-top: 12px;
-  box-shadow: 0 4px 15px rgba(212,168,83,0.25);
-}
-.login-box .btn-login:hover {
-  background: linear-gradient(135deg, var(--gold-light), var(--gold));
-  box-shadow: 0 6px 25px rgba(212,168,83,0.4);
-  transform: translateY(-1px);
-}
-.login-error { color: var(--crimson); font-size: 13px; margin-top: 14px; min-height: 20px; }
-
-/* App Layout */
-.app { display: none; flex: 1; }
-.app.show { display: flex; }
-
-/* Sidebar */
-.sidebar {
-  width: 220px; min-width: 220px;
-  background: var(--bg-panel);
-  border-right: 1px solid var(--border);
-  display: flex; flex-direction: column;
-  position: relative;
-  z-index: 10;
-}
-.sidebar-header {
-  padding: 20px 20px 16px;
-  border-bottom: 1px solid var(--border);
-}
-.sidebar-header .brand {
-  font-size: 15px; font-weight: 700;
-  color: var(--gold);
-  letter-spacing: 1px;
-  display: flex; align-items: center; gap: 8px;
-}
-.sidebar-header .brand .dot {
-  width: 8px; height: 8px; border-radius: 50%;
-  background: var(--jade);
-  box-shadow: 0 0 8px var(--jade);
-}
-.sidebar-nav {
-  flex: 1; overflow-y: auto;
-  padding: 8px;
-}
-.nav-section {
-  padding: 6px 12px 4px;
-  font-size: 10px; font-weight: 600;
-  color: var(--text-muted);
-  letter-spacing: 2px;
-  text-transform: uppercase;
-}
-.nav-item {
-  display: flex; align-items: center; gap: 11px;
-  padding: 11px 16px; margin: 3px 4px;
-  border-radius: var(--radius-sm);
-  color: var(--text-secondary);
-  cursor: pointer; font-size: 13px;
-  transition: var(--transition);
-  user-select: none;
-  border: 1px solid transparent;
-}
-.nav-item:hover { background: rgba(212,168,83,0.05); color: var(--text-primary); border-color: rgba(212,168,83,0.1); }
-.nav-item.active {
-  background: linear-gradient(135deg, rgba(212,168,83,0.12), rgba(212,168,83,0.05));
-  color: var(--gold);
-  font-weight: 600;
-  border-color: rgba(212,168,83,0.25);
-  box-shadow: 0 0 15px rgba(212,168,83,0.08);
-}
-.nav-item .nav-icon { font-size: 17px; width: 22px; text-align: center; }
-.sidebar-footer {
-  padding: 12px;
-  border-top: 1px solid var(--border);
-}
-.sidebar-footer .user-info {
-  display: flex; align-items: center; gap: 8px;
-  font-size: 12px; color: var(--text-secondary);
-}
-.sidebar-footer .conn-dot {
-  width: 7px; height: 7px; border-radius: 50%;
-  margin-left: auto;
-}
-.conn-dot.on { background: var(--jade); box-shadow: 0 0 6px var(--jade); }
-.conn-dot.off { background: var(--crimson); }
-.sidebar-footer .btn-logout {
-  background: none; border: 1px solid var(--border);
-  color: var(--text-muted); border-radius: 6px;
-  padding: 4px 12px; font-size: 11px; cursor: pointer;
-  transition: var(--transition);
-}
-.sidebar-footer .btn-logout:hover { border-color: var(--crimson); color: var(--crimson); }
-
-/* Main */
-.main {
-  flex: 1; display: flex; flex-direction: column;
-  overflow: hidden; min-width: 0;
-}
-.top-bar {
-  background: linear-gradient(180deg, var(--bg-panel), rgba(255,255,255,0.01));
-  padding: 0 28px; height: 56px; min-height: 56px;
-  display: flex; align-items: center; justify-content: space-between;
-  border-bottom: 1px solid var(--border);
-  position: relative;
-}
-.top-bar::after {
-  content: ''; position: absolute; bottom: 0; left: 0; right: 0;
-  height: 1px; background: linear-gradient(90deg, transparent, var(--gold), transparent);
-  opacity: 0.5;
-}
-.top-bar .page-title {
-  font-size: 16px; font-weight: 600; color: var(--text-primary);
-  letter-spacing: 1px;
-}
-.top-stats { display: flex; gap: 24px; align-items: center; font-size: 12px; }
-.top-stats .stat { color: var(--text-muted); display: flex; align-items: center; gap: 6px; }
-.top-stats .stat b { color: var(--text-secondary); font-weight: 600; }
-.top-stats .stat .val-green { color: var(--jade); font-weight: 700; }
-
-.content {
-  flex: 1; overflow-y: auto; padding: 24px;
-  position: relative;
-}
-.tab { display: none; }
-.tab.active { display: block; }
-#tab-database.active { display: flex; flex-direction: column; position: absolute; top: 24px; right: 24px; bottom: 24px; left: 24px; overflow: hidden; }
-
-/* Stats Grid */
-.stats-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(170px, 1fr)); gap: 16px; margin-bottom: 28px; }
-.stat-card {
-  background: linear-gradient(145deg, var(--bg-card), rgba(255,255,255,0.02));
-  padding: 20px 22px; border-radius: var(--radius);
-  border: 1px solid var(--border);
-  transition: var(--transition);
-  position: relative;
-  overflow: hidden;
-}
-.stat-card::before {
-  content: ''; position: absolute; top: 0; left: 0; right: 0;
-  height: 2px; background: linear-gradient(90deg, transparent, var(--gold), transparent);
-  opacity: 0; transition: var(--transition);
-}
-.stat-card:hover {
-  border-color: var(--border-gold);
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-gold);
-}
-.stat-card:hover::before { opacity: 1; }
-.stat-card .label {
-  font-size: 12px; color: var(--text-muted);
-  letter-spacing: 1.5px; margin-bottom: 10px;
-  text-transform: uppercase;
-}
-.stat-card .value {
-  font-size: 32px; font-weight: 800;
-  background: linear-gradient(135deg, var(--gold-light), var(--gold));
-  -webkit-background-clip: text;
-  -webkit-text-fill-color: transparent;
-}
-.stat-card .desc {
-  font-size: 11px; color: var(--text-muted);
-  margin-top: 6px;
-}
-
-/* Card */
-.card {
-  background: linear-gradient(145deg, var(--bg-card), rgba(255,255,255,0.01));
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  padding: 22px; margin-bottom: 20px;
-  transition: var(--transition);
-}
-.card:hover { border-color: rgba(212,168,83,0.2); }
-.card-header {
-  display: flex; align-items: center; justify-content: space-between;
-  margin-bottom: 18px; padding-bottom: 14px;
-  border-bottom: 1px solid var(--border);
-  position: relative;
-}
-.card-header::after {
-  content: ''; position: absolute; bottom: -1px; left: 0; width: 60px;
-  height: 2px; background: var(--gold); border-radius: 1px;
-}
-.card-title {
-  font-size: 15px; font-weight: 700;
-  color: var(--gold);
-  letter-spacing: 1.5px;
-}
-
-/* Table */
-.table-wrap { overflow-x: auto; border-radius: var(--radius-sm); }
-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-th {
-  text-align: left; padding: 12px 14px;
-  color: var(--text-muted); font-weight: 600; font-size: 11px;
-  letter-spacing: 1.5px; border-bottom: 2px solid var(--border);
-  white-space: nowrap;
-  text-transform: uppercase;
-}
-td { padding: 11px 14px; border-bottom: 1px solid rgba(30,42,69,0.6); color: var(--text-secondary); }
-tr:hover td { background: rgba(212,168,83,0.05); }
-tr:last-child td { border-bottom: none; }
-td:first-child, th:first-child { padding-left: 0; }
-td:last-child, th:last-child { padding-right: 0; }
-
-/* Forms */
-input, select {
-  padding: 9px 14px;
-  background: var(--bg-input);
-  border: 1px solid var(--border);
-  border-radius: var(--radius-sm);
-  color: var(--text-primary);
-  font-size: 13px; outline: none;
-  transition: var(--transition);
-}
-input:focus, select:focus {
-  border-color: var(--gold);
-  box-shadow: 0 0 0 3px var(--gold-glow);
-}
-select { cursor: pointer; }
-select option { background: var(--bg-panel); color: var(--text-primary); }
-
-.btn {
-  padding: 9px 20px; border: none; border-radius: var(--radius-sm);
-  cursor: pointer; font-size: 13px; font-weight: 600;
-  transition: var(--transition); letter-spacing: 1px;
-  white-space: nowrap;
-  position: relative;
-  overflow: hidden;
-}
-.btn:hover { transform: translateY(-1px); }
-.btn:active { transform: translateY(0); }
-.btn-primary {
-  background: linear-gradient(135deg, var(--gold), var(--gold-dark));
-  color: #1a1a1a;
-  box-shadow: 0 4px 12px rgba(212,168,83,0.2);
-}
-.btn-primary:hover { box-shadow: 0 6px 20px rgba(212,168,83,0.4); }
-.btn-action {
-  background: linear-gradient(135deg, var(--jade), var(--jade-dark));
-  color: #0a1a18;
-  box-shadow: 0 4px 12px rgba(45,212,191,0.2);
-}
-.btn-action:hover { box-shadow: 0 6px 20px rgba(45,212,191,0.4); }
-.btn-danger {
-  background: transparent;
-  border: 1px solid var(--crimson);
-  color: var(--crimson);
-}
-.btn-danger:hover { background: var(--crimson); color: #fff; }
-.btn-sm {
-  padding: 5px 12px; font-size: 12px;
-  background: transparent; border: 1px solid var(--border);
-  color: var(--text-secondary); border-radius: 5px;
-  cursor: pointer; transition: var(--transition);
-}
-.btn-sm:hover { border-color: var(--gold); color: var(--gold); }
-.btn-ghost {
-  background: transparent; border: 1px solid var(--border);
-  color: var(--text-secondary); cursor: pointer;
-  padding: 4px 12px; border-radius: 5px;
-  font-size: 12px;
-}
-
-.row { display: flex; gap: 10px; align-items: center; margin-bottom: 12px; flex-wrap: wrap; }
-.grow { flex: 1; }
-.spacer { flex: 1; }
-
-/* Msg */
-.msg {
-  font-size: 13px; padding: 12px 16px; border-radius: var(--radius-sm);
-  margin-top: 12px;
-  display: flex; align-items: center; gap: 8px;
-}
-.msg-ok {
-  background: linear-gradient(135deg, rgba(45,212,191,0.1), rgba(45,212,191,0.05));
-  color: var(--jade-light);
-  border: 1px solid rgba(45,212,191,0.3);
-}
-.msg-err {
-  background: linear-gradient(135deg, rgba(239,68,68,0.1), rgba(239,68,68,0.05));
-  color: var(--crimson-light);
-  border: 1px solid rgba(239,68,68,0.3);
-}
-
-/* Badge/Tag */
-.badge {
-  display: inline-flex; align-items: center;
-  padding: 3px 12px; border-radius: 20px;
-  font-size: 11px; font-weight: 600;
-  letter-spacing: 0.5px;
-  border: 1px solid transparent;
-}
-.badge-gold {
-  background: linear-gradient(135deg, rgba(212,168,83,0.18), rgba(212,168,83,0.08));
-  color: var(--gold);
-  border-color: rgba(212,168,83,0.25);
-}
-.badge-jade {
-  background: linear-gradient(135deg, rgba(45,212,191,0.18), rgba(45,212,191,0.08));
-  color: var(--jade);
-  border-color: rgba(45,212,191,0.25);
-}
-.badge-gray {
-  background: linear-gradient(135deg, rgba(100,116,139,0.15), rgba(100,116,139,0.05));
-  color: var(--text-muted);
-  border-color: rgba(100,116,139,0.2);
-}
-
-.tags { display: flex; gap: 5px; flex-wrap: wrap; }
-.tag {
-  background: rgba(91,155,213,0.15); color: var(--info);
-  padding: 3px 10px; border-radius: 20px; font-size: 11px;
-  display: inline-flex; align-items: center; gap: 4px;
-}
-.tag-perm {
-  background: rgba(212,168,83,0.15); color: var(--gold);
-}
-.tag .tag-x {
-  cursor: pointer; color: var(--crimson);
-  font-weight: bold; font-size: 14px; line-height: 1;
-}
-.tag .tag-x:hover { color: var(--crimson-light); }
-
-/* Modal */
-.modal-overlay {
-  position: fixed; inset: 0;
-  background: rgba(10,15,24,0.85); backdrop-filter: blur(4px);
-  display: none; align-items: center; justify-content: center;
-  z-index: 998;
-}
-.modal-overlay.show { display: flex; }
-.modal {
-  background: linear-gradient(145deg, var(--bg-panel), #0a0f1a);
-  border: 1px solid var(--border-gold);
-  border-radius: var(--radius-lg); padding: 32px;
-  width: 95%; max-width: 720px; max-height: 85vh; overflow-y: auto;
-  box-shadow: 0 20px 80px rgba(0,0,0,0.7), 0 0 60px rgba(212,168,83,0.06);
-  position: relative;
-}
-.modal::before {
-  content: ''; position: absolute; top: 0; left: 0; right: 0;
-  height: 2px; background: linear-gradient(90deg, transparent, var(--gold), transparent);
-  opacity: 0.6;
-  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
-}
-.modal h3 {
-  font-size: 18px; font-weight: 600;
-  color: var(--gold); margin-bottom: 20px;
-  letter-spacing: 1px;
-}
-.modal .close {
-  float: right; background: none; border: none;
-  color: var(--text-muted); font-size: 24px; cursor: pointer;
-  transition: var(--transition);
-}
-.modal .close:hover { color: var(--crimson); }
-.modal .form-grid {
-  display: grid; grid-template-columns: 1fr 1fr 1fr;
-  gap: 12px;
-}
-.modal label { display: block; color: var(--text-muted); font-size: 11px; margin-bottom: 4px; letter-spacing: 1px; }
-.modal input, .modal select { width: 100%; }
-.modal .actions { display: flex; gap: 8px; margin-top: 16px; justify-content: flex-end; }
-.modal .section-title {
-  font-size: 13px; font-weight: 600;
-  color: var(--jade); margin-top: 20px; margin-bottom: 10px;
-  letter-spacing: 1px;
-}
-
-/* Empty */
-.empty {
-  text-align: center; padding: 50px 20px;
-  color: var(--text-muted); font-size: 14px;
-  background: linear-gradient(145deg, rgba(255,255,255,0.02), transparent);
-  border: 1px dashed var(--border);
-  border-radius: var(--radius);
-}
-.empty .empty-icon {
-  font-size: 56px; margin-bottom: 16px;
-  opacity: 0.3;
-  filter: drop-shadow(0 0 10px rgba(212,168,83,0.1));
-}
-
-/* Log */
-.log-container {
-  background: var(--bg-deep); border: 1px solid var(--border);
-  border-radius: var(--radius); padding: 14px 18px;
-  font-size: 13px; line-height: 1.7;
-  font-family: 'Cascadia Code', 'Fira Code', 'Consolas', monospace;
-  white-space: pre-wrap; word-break: break-all;
-  min-height: 400px; max-height: calc(100vh - 220px);
-  overflow-y: auto;
-}
-.log-line { padding: 1px 0; }
-
-/* Quick info */
-.quick-info {
-  display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
-  gap: 14px;
-}
-.quick-info .card p {
-  font-size: 13px; color: var(--text-secondary);
-  padding: 4px 0;
-}
-.quick-info .card p b { color: var(--text-primary); font-weight: 500; }
-
-/* Db Browser */
-.db-layout {
-  display: flex; gap: 14px; flex: 1; min-height: 0;
-}
-.db-sidebar {
-  width: 200px; min-width: 200px;
-  background: var(--bg-panel);
-  border: 1px solid var(--border);
-  border-radius: var(--radius);
-  display: flex; flex-direction: column;
-  overflow: hidden;
-}
-.db-sidebar-header {
-  padding: 12px 14px; flex-shrink: 0;
-  font-size: 13px; font-weight: 600;
-  color: var(--gold);
-  border-bottom: 1px solid var(--border);
-  letter-spacing: 1px;
-}
-.db-table-list {
-  flex: 1; min-height: 0; overflow-y: auto; padding: 6px;
-}
-.db-table-item {
-  padding: 8px 12px; border-radius: 6px;
-  cursor: pointer; font-size: 12px;
-  color: var(--text-secondary);
-  display: flex; align-items: center; justify-content: space-between;
-  transition: var(--transition);
-  margin: 2px 0;
-}
-.db-table-item:hover { background: rgba(255,255,255,0.04); color: var(--text-primary); }
-.db-table-item.active {
-  background: rgba(212,168,83,0.12);
-  color: var(--gold); font-weight: 500;
-}
-.db-table-item .row-count {
-  font-size: 10px; color: var(--text-muted);
-  background: rgba(0,0,0,0.2);
-  padding: 1px 8px; border-radius: 10px;
-}
-.db-table-item.active .row-count { color: var(--gold); }
-.db-sidebar-footer {
-  padding: 8px; flex-shrink: 0;
-  border-top: 1px solid var(--border);
-}
-.db-main {
-  flex: 1; min-width: 0;
-  display: flex; flex-direction: column;
-  overflow: hidden;
-}
-
-/* Editable cell */
-.db-cell-editable {
-  cursor: pointer; transition: var(--transition);
-  border-radius: 3px; padding: 2px 4px; margin: -2px -4px;
-}
-.db-cell-editable:hover { background: rgba(212,168,83,0.1); }
-
-/* Inline edit */
-.db-edit-grid {
-  display: grid; grid-template-columns: 180px 1fr;
-  gap: 8px; align-items: center; max-height: 50vh; overflow-y: auto;
-}
-.db-edit-grid label {
-  color: var(--text-muted); font-size: 12px;
-  text-align: right;
-}
-.db-edit-grid input {
-  width: 100%;
-}
-
-@media (max-width: 768px) {
-  .sidebar { width: 64px; min-width: 64px; }
-  .sidebar-header .brand span { display: none; }
-  .nav-item span { display: none; }
-  .nav-item { justify-content: center; padding: 12px; }
-  .nav-item .nav-icon { font-size: 20px; }
-  .sidebar-footer .user-info span { display: none; }
-  .content { padding: 16px; }
-  .stats-grid { grid-template-columns: repeat(2, 1fr); gap: 12px; }
-  .card { padding: 16px; }
-  .top-bar { padding: 0 16px; }
-  .modal { padding: 20px; }
-}
-</style>
+<link rel="stylesheet" href="assets/css/styles.css?v=2026072002">
 </head>
 <body>
 
@@ -624,67 +14,91 @@ select option { background: var(--bg-panel); color: var(--text-primary); }
     <div class="logo">☯</div>
     <h2>修仙世界</h2>
     <div class="subtitle">管 理 后 台</div>
+    <div class="login-type-switch">
+      <label><input type="radio" name="loginType" id="loginTypeAdmin" value="admin" checked> <span>管理员登录</span></label>
+      <label><input type="radio" name="loginType" id="loginTypePlayer" value="player"> <span>玩家登录</span></label>
+    </div>
+    <input type="hidden" id="loginType" value="admin">
     <div class="input-group">
       <span class="icon">👤</span>
       <input id="usr" placeholder="用户名" autocomplete="off">
     </div>
     <div class="input-group">
       <span class="icon">🔒</span>
-      <input id="pwd" type="password" placeholder="密码" onkeydown="if(event.key==='Enter')login()">
+      <input id="pwd" type="password" placeholder="密码">
     </div>
-    <button class="btn-login" onclick="login()">进 入 洞 府</button>
+    <button class="btn-login" onclick="window.app.login()">进 入 洞 府</button>
     <div class="login-error" id="loginError"></div>
+    <div class="login-hint" id="loginHint">管理员可管理整个系统，玩家仅可查看自己的角色信息</div>
   </div>
 </div>
 
 <div class="app" id="app">
   <div class="sidebar">
     <div class="sidebar-header">
-      <div class="brand"><span class="dot"></span>修仙世界</div>
+      <div class="brand"><span class="dot"></span><span>修仙世界</span></div>
     </div>
     <div class="sidebar-nav">
       <div class="nav-section">主菜单</div>
-      <div class="nav-item active" onclick="switchTab('overview')">
-        <span class="nav-icon">📊</span> 总览
+      <div class="nav-item active" data-tab="overview">
+        <span class="nav-icon">📊</span><span>总览</span>
       </div>
-      <div class="nav-item" onclick="switchTab('players')">
-        <span class="nav-icon">👥</span> 玩家管理
+      <div class="nav-item" data-tab="players">
+        <span class="nav-icon">👥</span><span>玩家管理</span>
+      </div>
+      <div class="nav-item" data-tab="map">
+        <span class="nav-icon">🗺️</span><span>地图管理</span>
       </div>
       <div class="nav-section" style="margin-top:8px">统计</div>
-      <div class="nav-item" onclick="switchTab('statsMessages')">
-        <span class="nav-icon">💬</span> 消息统计
+      <div class="nav-item" data-tab="statsMessages">
+        <span class="nav-icon">💬</span><span>消息统计</span>
       </div>
-      <div class="nav-item" onclick="switchTab('statsCommands')">
-        <span class="nav-icon">⚡</span> 指令统计
+      <div class="nav-item" data-tab="statsCommands">
+        <span class="nav-icon">⚡</span><span>指令统计</span>
       </div>
       <div class="nav-section" style="margin-top:8px">系统</div>
-      <div class="nav-item" onclick="switchTab('database')">
-        <span class="nav-icon">🗄️</span> 数据库
+      <div class="nav-item" data-tab="database">
+        <span class="nav-icon">🗄️</span><span>数据库</span>
       </div>
-      <div class="nav-item" onclick="switchTab('users')">
-        <span class="nav-icon">🔑</span> 用户/角色
+      <div class="nav-item" data-tab="users">
+        <span class="nav-icon">🔑</span><span>用户/角色</span>
       </div>
-      <div class="nav-item" onclick="switchTab('logs')">
-        <span class="nav-icon">📜</span> 实时日志
+      <div class="nav-item" data-tab="logs">
+        <span class="nav-icon">📜</span><span>实时日志</span>
       </div>
-      <div class="nav-item" onclick="switchTab('traces')">
-        <span class="nav-icon">👣</span> 玩家轨迹
+      <div class="nav-item" data-tab="traces">
+        <span class="nav-icon">👣</span><span>玩家轨迹</span>
       </div>
-      <div class="nav-item" onclick="switchTab('redeemCodes')">
-        <span class="nav-icon">🎫</span> 兑换码
+      <div class="nav-item" data-tab="redeemCodes">
+        <span class="nav-icon">🎫</span><span>兑换码</span>
       </div>
-      <div class="nav-item" onclick="switchTab('titles')">
-        <span class="nav-icon">🏆</span> 称号管理
+      <div class="nav-item" data-tab="titles">
+        <span class="nav-icon">🏆</span><span>称号管理</span>
+      </div>
+      <div class="nav-item" data-tab="market">
+        <span class="nav-icon">🏪</span><span>坊市管理</span>
+      </div>
+      <div class="nav-item" data-tab="adapters">
+        <span class="nav-icon">🔌</span><span>适配器</span>
+      </div>
+      <div class="nav-item" data-tab="plugins">
+        <span class="nav-icon">🧩</span><span>插件管理</span>
+      </div>
+      <div class="nav-item" data-tab="oauth">
+        <span class="nav-icon">🔐</span><span>OAuth2</span>
+      </div>
+      <div class="nav-item" data-tab="myProfile" style="display:none">
+        <span class="nav-icon">👤</span><span>我的信息</span>
       </div>
     </div>
     <div class="sidebar-footer">
       <div style="display:flex;align-items:center;justify-content:space-between">
         <div class="user-info">
           <span>☯</span>
-          <span>管理员</span>
+          <span id="currentUserLabel">未登录</span>
           <span class="conn-dot on" id="connDot"></span>
         </div>
-        <button class="btn-logout" onclick="logout()">退出</button>
+        <button class="btn-logout" onclick="window.app.logout()">退出</button>
       </div>
     </div>
   </div>
@@ -711,12 +125,47 @@ select option { background: var(--bg-panel); color: var(--text-primary); }
       <div class="tab" id="tab-players">
         <div class="card">
           <div class="row">
-            <input class="grow" id="playerSearch" placeholder="🔍 搜索角色名..." onkeydown="if(event.key==='Enter')loadPlayers()">
-            <button class="btn btn-primary" onclick="loadPlayers()">搜索</button>
-            <button class="btn-sm" onclick="document.getElementById('playerSearch').value='';loadPlayers()">全部玩家</button>
+            <input class="grow" id="playerSearch" placeholder="🔍 搜索角色名..." onkeydown="if(event.key==='Enter')window.app.modules.players.load()">
+            <button class="btn btn-primary" onclick="window.app.modules.players.load()">搜索</button>
+            <button class="btn-sm" onclick="document.getElementById('playerSearch').value='';window.app.modules.players.load()">全部玩家</button>
           </div>
           <div id="playerTable" class="table-wrap"></div>
           <div id="playerMsg"></div>
+        </div>
+      </div>
+
+      <div class="tab" id="tab-map">
+        <div class="card">
+          <div class="card-title">🗺️ 地图总览</div>
+          <div class="stats-grid" id="mapSummary"></div>
+          <div class="row" style="flex-wrap:wrap;gap:8px">
+            <select id="mapRegionFilter" onchange="window.app.modules.map.setRegion(this.value)"></select>
+            <input class="grow" id="mapSearch" placeholder="🔍 按名称 / ID / 区域搜索..."
+                   onkeydown="if(event.key==='Enter')window.app.modules.map.setRegion(document.getElementById('mapRegionFilter').value)">
+            <button class="btn btn-primary" onclick="window.app.modules.map.load()">🔄 刷新</button>
+            <button class="btn btn-action" onclick="window.app.modules.map.openCreate()">➕ 新建地点</button>
+            <button class="btn btn-action" onclick="window.app.modules.map.restockWilderness()"
+                    title="只把采空的资源补回上限；野外已探索的内容永久保留，不会被刷新掉">🌿 野外补货</button>
+          </div>
+          <div id="mapTable" class="table-wrap" style="margin-top:12px"></div>
+          <div id="mapMsg"></div>
+        </div>
+        <div class="card">
+          <div class="card-title">🌿 野外分片（文件存储）</div>
+          <div style="color:var(--text-muted);font-size:12px;margin-bottom:8px">
+            野外不进数据库：地形由世界种子现算，只有"谁探索过、资源剩余"存成分片文件。
+            已固化的分片永久保留，因此这里不提供删除。
+          </div>
+          <div id="wildernessBox"></div>
+        </div>
+        <div class="card">
+          <div class="card-title">🧭 世界脉络</div>
+          <div class="row" style="flex-wrap:wrap;gap:8px">
+            <span style="color:var(--text-muted);font-size:12px">以</span>
+            <select id="mapTreeRoot" onchange="window.app.modules.map.renderTree()"></select>
+            <span style="color:var(--text-muted);font-size:12px">为根展开（仅示主干，完整邻接关系见上表）</span>
+          </div>
+          <pre id="mapTree" style="margin-top:12px;color:var(--text-secondary);font-size:12px;line-height:1.8;overflow-x:auto"></pre>
         </div>
       </div>
 
@@ -728,11 +177,11 @@ select option { background: var(--bg-panel); color: var(--text-primary); }
               <div class="empty">加载中...</div>
             </div>
             <div class="db-sidebar-footer">
-              <button class="btn btn-action btn-sm" style="width:100%;margin-bottom:4px" onclick="downloadBackup()">💾 备份数据</button>
+              <button class="btn btn-action btn-sm" style="width:100%;margin-bottom:4px" onclick="window.app.modules.database.downloadBackup()">💾 备份数据</button>
               <button class="btn btn-action btn-sm" style="width:100%;margin-bottom:4px" onclick="document.getElementById('importFileInput').click()">📥 导入数据</button>
-              <input type="file" id="importFileInput" accept=".json" style="display:none" onchange="importBackup(this)">
-              <button class="btn btn-danger btn-sm" style="width:100%;margin-top:4px" onclick="if(confirm('确定清除所有玩家数据？(users表不受影响)')) dbAction('clear_players')">清除玩家数据</button>
-              <button class="btn btn-danger btn-sm" style="width:100%;margin-top:4px" onclick="if(confirm('⚠️ 确定重置全部数据？包括users、角色、背包等所有表！')) dbAction('reset_all')">重置全部数据</button>
+              <input type="file" id="importFileInput" accept=".json" style="display:none" onchange="window.app.modules.database.importBackup(this)">
+              <button class="btn btn-danger btn-sm" style="width:100%;margin-top:4px" onclick="if(confirm('确定清除所有玩家数据？(users表不受影响)')) window.app.modules.database.executeAction('clear_players')">清除玩家数据</button>
+              <button class="btn btn-danger btn-sm" style="width:100%;margin-top:4px" onclick="if(confirm('⚠️ 确定重置全部数据？包括users、角色、背包等所有表！')) window.app.modules.database.executeAction('reset_all')">重置全部数据</button>
             </div>
           </div>
           <div class="db-main">
@@ -740,8 +189,8 @@ select option { background: var(--bg-panel); color: var(--text-primary); }
               <div class="row">
                 <div class="grow" style="color:var(--gold);font-weight:600" id="dbTableTitle">请选择左侧数据表</div>
                 <div style="margin-left:auto;display:flex;gap:6px">
-                  <button class="btn btn-action" id="btnDbAdd" style="display:none" onclick="openRowEdit()">+ 新增行</button>
-                  <button class="btn-sm" onclick="refreshDbTable()">🔄 刷新</button>
+                  <button class="btn btn-action" id="btnDbAdd" style="display:none" onclick="window.app.modules.database.openAddRow()">+ 新增行</button>
+                  <button class="btn-sm" onclick="window.app.modules.database.refresh()">🔄 刷新</button>
                 </div>
               </div>
             </div>
@@ -764,8 +213,8 @@ select option { background: var(--bg-panel); color: var(--text-primary); }
       <div class="tab" id="tab-logs">
         <div class="card">
           <div class="row">
-            <button class="btn-sm" id="btnPause" onclick="togglePause()">⏸ 暂停</button>
-            <button class="btn-sm" onclick="clearLogs()">🗑 清空</button>
+            <button class="btn-sm" id="btnPause" onclick="window.app.modules.logs.togglePause()">⏸ 暂停</button>
+            <button class="btn-sm" onclick="window.app.modules.logs.clear()">🗑 清空</button>
           </div>
         </div>
         <div class="log-container" id="logContainer">
@@ -777,8 +226,8 @@ select option { background: var(--bg-panel); color: var(--text-primary); }
         <div class="card">
           <div class="card-title">🎫 兑换码管理</div>
           <div class="row">
-            <button class="btn btn-primary" onclick="openCreateRedeemCode()">+ 创建兑换码</button>
-            <button class="btn-sm" onclick="loadRedeemCodes()">🔄 刷新</button>
+            <button class="btn btn-primary" onclick="window.app.modules.redeemCodes.openCreate()">+ 创建兑换码</button>
+            <button class="btn-sm" onclick="window.app.modules.redeemCodes.load()">🔄 刷新</button>
           </div>
           <div id="redeemTable" class="table-wrap">
             <div class="empty">加载中...</div>
@@ -791,9 +240,9 @@ select option { background: var(--bg-panel); color: var(--text-primary); }
         <div class="card">
           <div class="card-title">🏆 称号管理</div>
           <div class="row">
-            <input class="grow" id="titleSearch" placeholder="🔍 搜索称号名..." onkeydown="if(event.key==='Enter')loadTitles()">
-            <button class="btn btn-primary" onclick="loadTitles()">搜索</button>
-            <button class="btn-sm" onclick="document.getElementById('titleSearch').value='';loadTitles()">全部称号</button>
+            <input class="grow" id="titleSearch" placeholder="🔍 搜索称号名..." onkeydown="if(event.key==='Enter')window.app.modules.titles.load()">
+            <button class="btn btn-primary" onclick="window.app.modules.titles.load()">搜索</button>
+            <button class="btn-sm" onclick="document.getElementById('titleSearch').value='';window.app.modules.titles.load()">全部称号</button>
           </div>
           <div id="titleTable" class="table-wrap"></div>
           <div id="titleMsg"></div>
@@ -801,16 +250,45 @@ select option { background: var(--bg-panel); color: var(--text-primary); }
         <div class="card">
           <div class="card-title">🎯 授予玩家称号</div>
           <div class="row">
-            <input id="titlePlayerSearch" placeholder="搜索玩家名..." style="flex:1" onkeydown="if(event.key==='Enter')loadTitlePlayerList()">
-            <button class="btn btn-primary" onclick="loadTitlePlayerList()">搜索玩家</button>
-            <button class="btn-sm" onclick="toggleSelectAllTitlePlayers()">全选/取消</button>
+            <input id="titlePlayerSearch" placeholder="搜索玩家名..." style="flex:1" onkeydown="if(event.key==='Enter')window.app.modules.titles.loadPlayerList()">
+            <button class="btn btn-primary" onclick="window.app.modules.titles.loadPlayerList()">搜索玩家</button>
+            <button class="btn-sm" onclick="window.app.modules.titles.toggleSelectAll()">全选/取消</button>
           </div>
           <div id="titlePlayerList" class="table-wrap" style="max-height:200px;overflow-y:auto;margin:12px 0"></div>
           <div class="row">
             <select id="titleGiveSel" style="flex:1"><option value="">--选择称号--</option></select>
-            <button class="btn btn-action" onclick="giveTitleToPlayer()">授予称号</button>
+            <button class="btn btn-action" onclick="window.app.modules.titles.giveTitle()">授予称号</button>
           </div>
           <div id="titleGiveMsg"></div>
+        </div>
+      </div>
+
+      <div class="tab" id="tab-market">
+        <div class="card">
+          <div class="card-title">🏪 坊市挂单总览</div>
+          <div class="stats-grid" id="marketSummary"></div>
+          <div class="row">
+            <input class="grow" id="marketSellerSearch" placeholder="🔍 按卖家名 / UID / 物品筛选..."
+                   onkeydown="if(event.key==='Enter')window.app.modules.market.loadListings()">
+            <button class="btn btn-primary" onclick="window.app.modules.market.loadListings()">筛选</button>
+            <button class="btn-sm"
+                    onclick="document.getElementById('marketSellerSearch').value='';window.app.modules.market.loadListings()">全部</button>
+          </div>
+          <div id="marketTable" class="table-wrap"></div>
+        </div>
+        <div class="card">
+          <div class="card-title">📈 成交行情查询</div>
+          <div class="row">
+            <input class="grow" id="marketPriceItem" placeholder="物品 Key 或名称，例如 spirit_grass"
+                   onkeydown="if(event.key==='Enter')window.app.modules.market.loadPriceHistory()">
+            <input id="marketPriceDays" type="number" min="1" max="90" placeholder="天数(默认7)" style="width:130px"
+                   onkeydown="if(event.key==='Enter')window.app.modules.market.loadPriceHistory()">
+            <button class="btn btn-primary" onclick="window.app.modules.market.loadPriceHistory()">查询行情</button>
+          </div>
+          <div style="color:var(--text-muted);font-size:12px;margin:8px 0">
+            展示近期成交均价/最低/最高；无成交记录时给出当前在售最低价作为定价锚点（最多 90 天）
+          </div>
+          <div id="marketPriceResult"></div>
         </div>
       </div>
 
@@ -818,9 +296,9 @@ select option { background: var(--bg-panel); color: var(--text-primary); }
         <div class="card">
           <div class="card-title">👣 玩家操作轨迹</div>
           <div class="row" style="flex-wrap:wrap;gap:8px">
-            <input placeholder="玩家名" id="tracePlayerName" style="width:140px" onkeydown="if(event.key==='Enter')loadTraces()">
-            <input placeholder="UID" id="traceUserId" style="width:100px" type="number" onkeydown="if(event.key==='Enter')loadTraces()">
-            <input placeholder="QQ号" id="traceQQ" style="width:120px" onkeydown="if(event.key==='Enter')loadTraces()">
+            <input placeholder="玩家名" id="tracePlayerName" style="width:140px" onkeydown="if(event.key==='Enter')window.app.modules.traces.load()">
+            <input placeholder="UID" id="traceUserId" style="width:100px" type="number" onkeydown="if(event.key==='Enter')window.app.modules.traces.load()">
+            <input placeholder="QQ号" id="traceQQ" style="width:120px" onkeydown="if(event.key==='Enter')window.app.modules.traces.load()">
             <select id="traceAction">
               <option value="">全部操作</option>
               <option value="连接">连接</option>
@@ -837,8 +315,8 @@ select option { background: var(--bg-panel); color: var(--text-primary); }
             </select>
             <input type="datetime-local" id="traceStart" style="width:180px" title="开始时间">
             <input type="datetime-local" id="traceEnd" style="width:180px" title="结束时间">
-            <button class="btn btn-primary" onclick="loadTraces()">🔍 查询</button>
-            <button class="btn-sm" onclick="document.getElementById('tracePlayerName').value='';document.getElementById('traceUserId').value='';document.getElementById('traceQQ').value='';document.getElementById('traceAction').value='';document.getElementById('traceStart').value='';document.getElementById('traceEnd').value='';loadTraces()">重置</button>
+            <button class="btn btn-primary" onclick="window.app.modules.traces.load()">🔍 查询</button>
+            <button class="btn-sm" onclick="window.app.modules.traces.reset()">重置</button>
           </div>
         </div>
         <div class="card">
@@ -853,7 +331,7 @@ select option { background: var(--bg-panel); color: var(--text-primary); }
         <div class="card">
           <div class="card-title">💬 消息统计</div>
           <div class="row">
-            <button class="btn btn-primary" onclick="loadMessageStats()">🔄 刷新</button>
+            <button class="btn btn-primary" onclick="window.app.modules.stats.loadMessageStats()">🔄 刷新</button>
             <span style="color:var(--text-muted);font-size:12px;margin-left:auto">仅统计本次服务器运行期间的数据</span>
           </div>
         </div>
@@ -878,7 +356,7 @@ select option { background: var(--bg-panel); color: var(--text-primary); }
         <div class="card">
           <div class="card-title">⚡ 指令调用统计</div>
           <div class="row">
-            <button class="btn btn-primary" onclick="loadCommandStats()">🔄 刷新</button>
+            <button class="btn btn-primary" onclick="window.app.modules.stats.loadCommandStats()">🔄 刷新</button>
             <span style="color:var(--text-muted);font-size:12px;margin-left:auto">仅统计本次服务器运行期间的数据</span>
           </div>
         </div>
@@ -898,6 +376,105 @@ select option { background: var(--bg-panel); color: var(--text-primary); }
           <div id="cmdByTime" class="table-wrap"></div>
         </div>
       </div>
+
+      <div class="tab" id="tab-myProfile">
+        <div class="empty-state">加载中...</div>
+      </div>
+
+      <div class="tab" id="tab-adapters">
+        <div class="card">
+          <div class="card-title">🔌 适配器管理</div>
+          <div id="adapterList" class="table-wrap">
+            <div class="empty">加载中...</div>
+          </div>
+        </div>
+        <div class="card" id="adapterEditor"></div>
+      </div>
+
+      <div class="tab" id="tab-plugins">
+        <div class="card">
+          <div class="card-title">🧩 插件管理</div>
+          <div class="row">
+            <button class="btn btn-primary" onclick="window.app.modules.plugins.openLoadDialog()">+ 加载插件</button>
+            <button class="btn-sm" onclick="window.app.modules.plugins.load()">🔄 刷新</button>
+            <button class="btn-sm" id="btnToggleWatcher">▶️ 启动监听</button>
+          </div>
+          <div class="hint" style="margin-top:12px">插件jar文件需放在服务器的 plugins/ 目录下。文件监听功能会自动检测新增或修改的插件并重新加载。</div>
+          <div class="hint" id="pluginConfigHint" style="margin-top:8px">内置插件（含实验性插件与消息通道）的开关保存在 <code>config/plugins.yml</code>，在此页启停会立即写回该文件。</div>
+          <div id="pluginList" class="table-wrap" style="margin-top:12px">
+            <div class="empty">加载中...</div>
+          </div>
+          <div id="pluginMsg" class="msg" style="display:none;margin-top:12px"></div>
+        </div>
+      </div>
+
+      <div class="tab" id="tab-oauth">
+        <div class="card">
+          <div class="card-title">🔐 OAuth2 配置（client_credentials）</div>
+          <div class="form-grid">
+            <label class="form-row">
+              <span>启用</span>
+              <input type="checkbox" id="oauthEnabled">
+            </label>
+            <label class="form-row">
+              <span>client_id</span>
+              <input type="text" id="oauthClientId" placeholder="xiuxian_oauth_client">
+            </label>
+            <label class="form-row">
+              <span>client_secret</span>
+              <span style="display:flex;gap:6px;flex:1">
+                <input type="password" id="oauthClientSecret" placeholder="修改时填写新密钥，留空则不变">
+                <button class="btn-sm" onclick="window.app.modules.oauth.toggleSecret()">显示</button>
+              </span>
+            </label>
+            <label class="form-row">
+              <span>scopes</span>
+              <input type="text" id="oauthScopes" placeholder="read write">
+            </label>
+            <label class="form-row">
+              <span>token 有效期（秒）</span>
+              <input type="number" id="oauthTtl" min="60" value="3600">
+            </label>
+            <div class="form-row">
+              <span>持久化文件</span>
+              <span id="oauthPersistPath" class="muted">-</span>
+            </div>
+          </div>
+          <div class="row" style="margin-top:12px">
+            <button class="btn btn-primary" onclick="window.app.modules.oauth.saveConfig()">💾 保存配置</button>
+            <button class="btn-sm" onclick="window.app.modules.oauth.load()">🔄 刷新</button>
+          </div>
+          <div id="oauthMsg" style="margin-top:10px"></div>
+        </div>
+
+        <div class="card">
+          <div class="card-title">🧪 使用 OAuth2（端点实测）</div>
+          <div class="hint">流程：① 用 client_id/secret 换 token → ② 携带 Bearer token 访问受保护端点</div>
+          <div class="form-grid">
+            <label class="form-row">
+              <span>scope（可选）</span>
+              <input type="text" id="oauthPlayScope" placeholder="read write（默认）">
+            </label>
+          </div>
+          <div class="row" style="margin-top:12px;flex-wrap:wrap;gap:8px">
+            <button class="btn btn-primary" onclick="window.app.modules.oauth.issueToken()">1️⃣ 签发 Token</button>
+            <button class="btn" onclick="window.app.modules.oauth.callMe()">2️⃣ 调用 /auth/oauth/me</button>
+            <button class="btn" onclick="window.app.modules.oauth.callStatus()">3️⃣ 调用 /protected/status</button>
+            <button class="btn" onclick="window.app.modules.oauth.callEcho()">4️⃣ 调用 /protected/echo</button>
+          </div>
+          <div class="form-row" style="margin-top:12px">
+            <span>access_token</span>
+            <input type="text" id="oauthPlayToken" placeholder="签发后自动填入，也可手动粘贴">
+          </div>
+          <div class="form-row">
+            <span>echo 请求体</span>
+            <input type="text" id="oauthEchoBody" value='{"hello":"修仙世界"}'>
+          </div>
+          <div id="oauthPlayResult" class="play-result" style="margin-top:12px">
+            <div class="muted">点击上方按钮开始实测 OAuth 端点。</div>
+          </div>
+        </div>
+      </div>
     </div>
   </div>
 </div>
@@ -906,1439 +483,6 @@ select option { background: var(--bg-panel); color: var(--text-primary); }
   <div class="modal" id="modalContent"></div>
 </div>
 
-<script>
-const API = '/api/admin';
-let token = '', paused = false, autoScroll = true, lastSeq = 0, firstLoad = true;
-let statusTimer, logsTimer, currentTab = 'overview';
-let currentPermissions = new Set();
-let isSuperAdmin = false;
-
-function $h(s) { return s.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
-function hdrs() { return token ? { 'Authorization': 'Bearer ' + token } : {}; }
-function hasPerm(perm) {
-  if (isSuperAdmin) return true;
-  return currentPermissions.has(perm);
-}
-
-async function api(path, opts) {
-  opts = opts || {};
-  opts.headers = Object.assign(hdrs(), opts.headers || {});
-  const r = await fetch(API + path, opts);
-  if (r.status === 401) { logout(); throw new Error('unauth'); }
-  return r.json();
-}
-
-async function login() {
-  const u = document.getElementById('usr').value.trim();
-  const p = document.getElementById('pwd').value;
-  const e = document.getElementById('loginError');
-  if (!u || !p) { e.textContent = '请输入用户名和密码'; return; }
-  try {
-    const d = await api('/login', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({username:u,password:p}) });
-    if (d.token) {
-      token = d.token;
-      isSuperAdmin = d.highestRole === 'admin';
-      currentPermissions.clear();
-      if (d.permissions && Array.isArray(d.permissions)) {
-        d.permissions.forEach(perm => currentPermissions.add(perm));
-      }
-      document.getElementById('loginOverlay').style.display = 'none';
-      document.getElementById('app').classList.add('show');
-      e.textContent = '';
-      initApp();
-    } else { e.textContent = d.message || '登录失败'; }
-  } catch (x) { e.textContent = '网络错误'; }
-}
-
-function logout() {
-  token = '';
-  clearInterval(statusTimer); clearInterval(logsTimer); clearInterval(dataTimer);
-  document.getElementById('loginOverlay').style.display = 'flex';
-  document.getElementById('app').classList.remove('show');
-  lastSeq = 0; firstLoad = true;
-}
-
-function initApp() {
-  fetchStatus();
-  statusTimer = setInterval(fetchStatus, 2000);
-  loadOverview();
-  dataTimer = setInterval(loadAllData, 8000);
-}
-
-async function fetchStatus() {
-  try {
-    const d = await api('/status');
-    document.getElementById('uptime').textContent = d.uptimeFormatted;
-    document.getElementById('online').textContent = d.onlineCount;
-    document.getElementById('mem').textContent = d.usedMemoryMB + ' MB';
-    document.getElementById('connDot').className = 'conn-dot on';
-  } catch (x) { document.getElementById('connDot').className = 'conn-dot off'; }
-}
-
-const TAB_TITLES = { overview:'📊 总览', players:'👥 玩家管理', database:'🗄️ 数据库', users:'🔑 用户/角色', logs:'📜 实时日志', traces:'👣 玩家轨迹', redeemCodes:'🎫 兑换码', titles:'🏆 称号管理', statsMessages:'💬 消息统计', statsCommands:'⚡ 指令统计' };
-let dataTimer = null;
-
-function switchTab(name) {
-  currentTab = name;
-  document.getElementById('pageTitle').textContent = TAB_TITLES[name] || name;
-  document.querySelectorAll('.nav-item').forEach(n => n.classList.remove('active'));
-  event.target.closest('.nav-item').classList.add('active');
-  document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
-  document.getElementById('tab-' + name).classList.add('active');
-
-  if (dataTimer) { clearInterval(dataTimer); dataTimer = null; }
-  if (logsTimer) { clearInterval(logsTimer); logsTimer = null; }
-
-  if (name === 'logs') {
-    lastSeq = 0; firstLoad = true;
-    document.getElementById('logContainer').innerHTML = '<div class="empty">加载中...</div>';
-    fetchLogs();
-    logsTimer = setInterval(fetchLogs, 500);
-  } else if (name === 'traces') {
-    loadTraces();
-    dataTimer = setInterval(loadTraces, 5000);
-  } else if (name === 'database') {
-    loadDbTables();
-  } else if (name === 'redeemCodes') {
-    loadRedeemCodes();
-    dataTimer = setInterval(loadRedeemCodes, 8000);
-  } else if (name === 'titles') {
-    loadTitles();
-  } else if (name === 'statsMessages') {
-    loadMessageStats();
-  } else if (name === 'statsCommands') {
-    loadCommandStats();
-  } else {
-    loadAllData();
-    dataTimer = setInterval(loadAllData, 8000);
-  }
-}
-
-function loadAllData() {
-  if (currentTab === 'overview') loadOverview();
-  if (currentTab === 'players') loadPlayers();
-  if (currentTab === 'database') loadDbTables();
-  if (currentTab === 'users') loadUsers();
-}
-
-async function loadOverview() {
-  try {
-    const d = await api('/status');
-    const g = document.getElementById('statsGrid');
-    g.innerHTML =
-      '<div class="stat-card"><div class="label">运行时</div><div class="value">' + $h(d.uptimeFormatted) + '</div></div>' +
-      '<div class="stat-card"><div class="label">在线玩家</div><div class="value">' + (d.onlineCount||0) + '</div></div>' +
-      '<div class="stat-card"><div class="label">已用内存</div><div class="value">' + (d.usedMemoryMB||0) + '</div><div class="desc">MB</div></div>' +
-      '<div class="stat-card"><div class="label">最大内存</div><div class="value">' + (d.maxMemoryMB||0) + '</div><div class="desc">MB</div></div>';
-    try {
-      const p = await api('/players?limit=100');
-      document.getElementById('quickStats').innerHTML =
-        '<div class="card" style="border:1px solid var(--border-gold)"><p>道统传承 · 已有 <b>' + (p.total||0) + '</b> 位修士踏入仙途</p></div>';
-    } catch (x) {}
-  } catch (x) {}
-}
-
-async function loadPlayers() {
-  const q = document.getElementById('playerSearch').value.trim();
-  let url = '/players?limit=50';
-  if (q) url += '&name=' + encodeURIComponent(q);
-  try {
-    const d = await api(url);
-    if (!d.players || d.players.length === 0) {
-      document.getElementById('playerTable').innerHTML = '<div class="empty"><div class="empty-icon">☯</div>暂无修士记录</div>';
-      return;
-    }
-    let h = '<table><tr><th>ID</th><th>道号</th><th>境界</th><th>灵根</th><th>等级</th><th>生命</th><th>攻击</th><th>防御</th><th>金币</th><th>灵石</th><th>状态</th><th>操作</th></tr>';
-    for (const p of d.players) {
-      const cultivating = p.cultivating ? '<span class="badge badge-gold">闭关中</span>' : '<span class="badge badge-jade">游历中</span>';
-      h += '<tr>' +
-        '<td style="color:var(--text-muted);font-size:11px">' + p.id + '</td>' +
-        '<td style="color:var(--gold)">' + $h(p.name) + '</td>' +
-        '<td>' + $h(p.realm) + '</td>' +
-        '<td>' + $h(p.spiritualRoot||'') + ' <span style="color:var(--text-muted);font-size:11px">' + $h(p.rootTier||'') + '</span></td>' +
-        '<td>' + p.level + '</td>' +
-        '<td>' + p.hp + '/' + p.maxHp + '</td>' +
-        '<td>' + p.attack + '</td>' +
-        '<td>' + p.defense + '</td>' +
-        '<td>' + p.gold + '</td>' +
-        '<td>' + (p.spiritStones||0) + '</td>' +
-        '<td>' + cultivating + '</td>' +
-        '<td><button class="btn btn-action btn-sm" onclick="openPlayerDetail(' + p.id + ',\'' + $h(p.name) + '\')">详情</button></td>' +
-        '</tr>';
-    }
-    h += '</table><p style="color:var(--text-muted);font-size:12px;margin-top:10px">共 ' + (d.total||0) + ' 位修士</p>';
-    document.getElementById('playerTable').innerHTML = h;
-  } catch (x) { document.getElementById('playerTable').innerHTML = '<div class="empty">加载失败</div>'; }
-}
-
-async function openPlayerDetail(id, name) {
-  try {
-    const d = await api('/players/' + id);
-    const p = d.player;
-    if (!p) { alert('玩家不存在'); return; }
-
-    let itemsHtml = '<table><tr><th>物品</th><th>标识</th><th>数量</th></tr>';
-    if (p.items) {
-      for (const i of p.items) {
-        itemsHtml += '<tr><td>' + $h(i.name) + '</td><td style="color:var(--text-muted);font-size:11px">' + i.key + '</td><td>' + i.qty + '</td></tr>';
-      }
-    }
-    itemsHtml += '</table>';
-
-    const html =
-      '<button class="close" onclick="closeModal()">&times;</button>' +
-      '<h3>☯ ' + $h(p.name) + ' <span style="font-size:12px;color:var(--text-muted);font-weight:normal">ID:' + p.id + ' · UID:' + p.userId + '</span></h3>' +
-      '<div class="section-title">✏️ 修改名称</div>' +
-      '<div class="row">' +
-        '<input id="edName" placeholder="新名称" value="' + $h(p.name) + '" style="flex:1;margin-right:8px">' +
-        '<button class="btn btn-action" onclick="renamePlayer(' + id + ')">修改名称</button>' +
-      '</div>' +
-      '<div class="form-grid">' +
-        '<div><label>生命值</label><input id="edHp" value="' + p.hp + '"></div>' +
-        '<div><label>最大生命</label><input id="edMaxHp" value="' + p.maxHp + '"></div>' +
-        '<div><label>法力值</label><input id="edMp" value="' + p.mp + '"></div>' +
-        '<div><label>最大法力</label><input id="edMaxMp" value="' + p.maxMp + '"></div>' +
-        '<div><label>攻击力</label><input id="edAtk" value="' + p.attack + '"></div>' +
-        '<div><label>防御力</label><input id="edDef" value="' + p.defense + '"></div>' +
-        '<div><label>速度</label><input id="edSpd" value="' + p.speed + '"></div>' +
-        '<div><label>神识</label><input id="edSpi" value="' + p.spirit + '"></div>' +
-        '<div><label>等级</label><input id="edLvl" value="' + p.level + '"></div>' +
-        '<div><label>金币</label><input id="edGold" value="' + p.gold + '"></div>' +
-        '<div><label>灵力</label><input id="edExp" value="' + p.experience + '"></div>' +
-        '<div><label>境界</label><select id="edRealm"></select></div>' +
-      '</div>' +
-      '<div style="margin-top:16px;padding:12px;background:rgba(212,168,83,0.05);border-radius:8px;font-size:13px;color:var(--text-secondary)">' +
-        '灵根: <b style="color:var(--gold)">' + $h(p.spiritualRoot||'—') + '</b>' +
-        '（' + $h(p.rootTier||'') + '）' +
-        ' &nbsp;|&nbsp; 灵石: <b style="color:var(--jade)">' + (p.spiritStones||0) + '</b>' +
-        ' &nbsp;|&nbsp; ' + (p.cultivating?'<span class="badge badge-gold">闭关中</span>':'<span class="badge badge-jade">游历中</span>') +
-      '</div>' +
-      '<div class="section-title" style="margin-top:20px">🪨 修改灵根</div>' +
-      '<div class="row">' +
-        '<select id="rootSel" style="width:200px"><option value="">--选择灵根--</option></select>' +
-        '<button class="btn btn-action" onclick="setSpiritualRoot(' + id + ')">修改灵根</button>' +
-        '<small style="color:var(--text-muted)">修改灵根会重新计算基础属性</small>' +
-      '</div>' +
-      '<div class="actions">' +
-        '<button class="btn btn-primary" onclick="editPlayer(' + id + ')">保存修改</button>' +
-      '</div>' +
-      '<div class="section-title">🎁 发放资源</div>' +
-      '<div class="row">' +
-        '<input placeholder="金币" id="gvGold" style="width:80px">' +
-        '<input placeholder="灵力" id="gvExp" style="width:80px">' +
-        '<input placeholder="灵石" id="gvSS" style="width:80px">' +
-        '<select id="gvItem"><option value="">--选物品--</option></select>' +
-        '<input placeholder="数量" id="gvQty" style="width:60px">' +
-        '<button class="btn btn-action" onclick="giveToPlayer(' + id + ')">发放</button>' +
-      '</div>' +
-      '<div class="section-title">🎒 背包物品</div>' +
-      itemsHtml +
-      '<div id="playerActionMsg"></div>';
-
-    document.getElementById('modalContent').innerHTML = html;
-    document.getElementById('modalOverlay').classList.add('show');
-
-    try {
-      const items = await api('/items');
-      const sel = document.getElementById('gvItem');
-      for (const i of items.items) {
-        sel.innerHTML += '<option value="' + i.key + '">' + $h(i.name) + '</option>';
-      }
-    } catch (x) {}
-
-    try {
-      const roots = await api('/spiritual-roots');
-      const sel = document.getElementById('rootSel');
-      let lastTier = '';
-      for (const r of roots.roots) {
-        const tier = r.tierKey;
-        if (tier !== lastTier) {
-          if (lastTier !== '') sel.innerHTML += '<option disabled>──────────</option>';
-          lastTier = tier;
-        }
-        sel.innerHTML += '<option value="' + r.name + '">' + $h(r.displayName) + ' [' + $h(r.tier) + ']</option>';
-      }
-    } catch (x) {}
-
-    try {
-      const d = await api('/realms');
-      const sel = document.getElementById('edRealm');
-      let lastId = -1;
-      for (const r of d.realms) {
-        if (r.id !== lastId) {
-          if (lastId >= 0) sel.innerHTML += '<option disabled>──────────</option>';
-          lastId = r.id;
-        }
-        sel.innerHTML += '<option value="' + r.id + '-' + r.subRealm + '"' + (p.realm === r.id && p.subRealm === r.subRealm ? ' selected' : '') + '>' + $h(r.name) + '</option>';
-      }
-    } catch (x) {}
-  } catch (x) { alert('加载失败'); }
-}
-
-function closeModal() {
-  document.getElementById('modalOverlay').classList.remove('show');
-}
-
-document.getElementById('modalOverlay').addEventListener('click', function(e) {
-  if (e.target === this) closeModal();
-});
-
-async function editPlayer(id) {
-  const g = function(id) { return document.getElementById(id).value; };
-  const realmVal = g('edRealm');
-  const realmParts = realmVal.split('-');
-  const body = {
-    hp: parseInt(g('edHp')), maxHp: parseInt(g('edMaxHp')),
-    mp: parseInt(g('edMp')), maxMp: parseInt(g('edMaxMp')),
-    attack: parseInt(g('edAtk')), defense: parseInt(g('edDef')),
-    speed: parseInt(g('edSpd')), spirit: parseInt(g('edSpi')),
-    level: parseInt(g('edLvl')), gold: parseInt(g('edGold')),
-    experience: parseInt(g('edExp')), 
-    realm: parseInt(realmParts[0]),
-    subRealm: parseInt(realmParts[1])
-  };
-  try {
-    const d = await api('/players/' + id + '/edit', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
-    document.getElementById('playerActionMsg').innerHTML = '<div class="msg msg-ok">' + $h(d.message) + '</div>';
-    loadPlayers();
-  } catch (x) { document.getElementById('playerActionMsg').innerHTML = '<div class="msg msg-err">修改失败</div>'; }
-}
-
-async function renamePlayer(id) {
-  const newName = document.getElementById('edName').value.trim();
-  if (!newName) { alert('名称不能为空'); return; }
-  try {
-    const d = await api('/players/' + id + '/rename', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({name: newName}) });
-    document.getElementById('playerActionMsg').innerHTML = '<div class="msg msg-ok">' + $h(d.message) + '</div>';
-    loadPlayers();
-  } catch (x) { document.getElementById('playerActionMsg').innerHTML = '<div class="msg msg-err">修改失败</div>'; }
-}
-
-async function giveToPlayer(id) {
-  const body = {};
-  const g = document.getElementById('gvGold').value;
-  const e = document.getElementById('gvExp').value;
-  const s = document.getElementById('gvSS').value;
-  const k = document.getElementById('gvItem').value;
-  const q = document.getElementById('gvQty').value;
-  if (g) body.gold = parseInt(g);
-  if (e) body.exp = parseInt(e);
-  if (s) body.spiritStones = parseInt(s);
-  if (k && q) { body.itemKey = k; body.itemQty = parseInt(q); }
-  try {
-    const d = await api('/players/' + id + '/give', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify(body) });
-    document.getElementById('playerActionMsg').innerHTML = '<div class="msg msg-ok">' + $h(d.message) + '</div>';
-    loadPlayers();
-  } catch (x) { document.getElementById('playerActionMsg').innerHTML = '<div class="msg msg-err">发放失败</div>'; }
-}
-
-async function setSpiritualRoot(id) {
-  const root = document.getElementById('rootSel').value;
-  if (!root) { alert('请选择灵根'); return; }
-  if (!confirm('确定修改灵根？这会重新计算该玩家的基础属性。')) return;
-  try {
-    const d = await api('/players/' + id + '/spiritual-root', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({spiritualRoot:root}) });
-    document.getElementById('playerActionMsg').innerHTML = '<div class="msg msg-ok">' + $h(d.message) + '</div>';
-    loadPlayers();
-    closeModal();
-    setTimeout(() => openPlayerDetail(id), 500);
-  } catch (x) { document.getElementById('playerActionMsg').innerHTML = '<div class="msg msg-err">修改灵根失败</div>'; }
-}
-
-// ========== 数据库浏览 ==========
-let dbCurrentTable = null, dbColumns = null;
-let dbPage = 0, dbPageSize = 50;
-
-async function loadDbTables() {
-  try {
-    const d = await api('/db/tables');
-    const list = document.getElementById('dbTableList');
-    if (!d.tables || d.tables.length === 0) {
-      list.innerHTML = '<div class="empty">无数据表</div>';
-      return;
-    }
-    let h = '';
-    for (const t of d.tables) {
-      h += '<div class="db-table-item' + (dbCurrentTable === t.name ? ' active' : '') + '" onclick="selectDbTable(\'' + $h(t.name) + '\')">' +
-        '<span>' + $h(t.name) + '</span>' +
-        '<span class="row-count">' + (t.rowCount >= 0 ? t.rowCount : '?') + '</span>' +
-        '</div>';
-    }
-    list.innerHTML = h;
-    if (dbCurrentTable) {
-      // 重新加载当前表数据
-      loadDbTableData();
-    }
-  } catch (x) {
-    document.getElementById('dbTableList').innerHTML = '<div class="empty">加载失败</div>';
-  }
-}
-
-function selectDbTable(name) {
-  dbCurrentTable = name;
-  dbPage = 0;
-  document.getElementById('dbTableTitle').textContent = '📄 ' + name;
-  document.getElementById('btnDbAdd').style.display = 'inline-block';
-  // Update active state in sidebar
-  document.querySelectorAll('.db-table-item').forEach(el => {
-    el.classList.toggle('active', el.querySelector('span').textContent === name);
-  });
-  loadDbTableData();
-}
-
-async function loadDbTableData() {
-  if (!dbCurrentTable) return;
-  try {
-    const d = await api('/db/tables/' + dbCurrentTable + '?limit=' + dbPageSize + '&offset=' + (dbPage * dbPageSize));
-    dbColumns = d.columns || [];
-    const rows = d.rows || [];
-    const total = d.total || 0;
-
-    // Render table
-    let h = '<table><tr>';
-    for (const col of dbColumns) {
-      h += '<th>' + $h(col.name) + (col.pk ? ' 🔑' : '') + '</th>';
-    }
-    h += '<th>操作</th></tr>';
-
-    for (const r of rows) {
-      h += '<tr>';
-      for (const col of dbColumns) {
-        let val = r[col.name];
-        let display = val === null ? '<span style="color:var(--text-muted)">NULL</span>' : $h(String(val));
-        h += '<td>' + display + '</td>';
-      }
-      h += '<td>' +
-        '<button class="btn btn-action btn-sm" onclick="openEditRow(\'' + dbCurrentTable + '\',' + r.id + ')">编辑</button> ' +
-        '<button class="btn btn-danger btn-sm" onclick="deleteDbRow(\'' + dbCurrentTable + '\',' + r.id + ')">删除</button>' +
-        '</td>';
-      h += '</tr>';
-    }
-    h += '</table>';
-
-    if (rows.length === 0) {
-      h += '<div class="empty">该表暂无数据</div>';
-    }
-
-    document.getElementById('dbDataTable').innerHTML = h;
-
-    // Pagination
-    const totalPages = Math.max(1, Math.ceil(total / dbPageSize));
-    let pag = '<span style="color:var(--text-muted);font-size:12px">共 ' + total + ' 行 · 第 ' + (dbPage + 1) + '/' + totalPages + ' 页</span> ';
-    if (totalPages > 1) {
-      pag += '<button class="btn-sm" onclick="dbPage=0;loadDbTableData()"' + (dbPage === 0 ? ' disabled' : '') + '>首页</button> ';
-      pag += '<button class="btn-sm" onclick="dbPage=Math.max(0,dbPage-1);loadDbTableData()"' + (dbPage === 0 ? ' disabled' : '') + '>上一页</button> ';
-      pag += '<button class="btn-sm" onclick="dbPage=Math.min(' + (totalPages - 1) + ',dbPage+1);loadDbTableData()"' + (dbPage >= totalPages - 1 ? ' disabled' : '') + '>下一页</button> ';
-      pag += '<button class="btn-sm" onclick="dbPage=' + (totalPages - 1) + ';loadDbTableData()"' + (dbPage >= totalPages - 1 ? ' disabled' : '') + '>末页</button>';
-    }
-    pag += ' <span style="font-size:12px;color:var(--text-muted)">每页</span> ' +
-      '<select style="width:60px" onchange="dbPageSize=parseInt(this.value);dbPage=0;loadDbTableData()">' +
-        '<option value="20"' + (dbPageSize === 20 ? ' selected' : '') + '>20</option>' +
-        '<option value="50"' + (dbPageSize === 50 ? ' selected' : '') + '>50</option>' +
-        '<option value="100"' + (dbPageSize === 100 ? ' selected' : '') + '>100</option>' +
-      '</select> 行';
-    document.getElementById('dbPagination').innerHTML = pag;
-  } catch (x) {
-    document.getElementById('dbDataTable').innerHTML = '<div class="empty">加载失败: ' + $h(x.message || '') + '</div>';
-    document.getElementById('dbPagination').innerHTML = '';
-  }
-}
-
-function refreshDbTable() {
-  if (dbCurrentTable) {
-    loadDbTableData();
-  } else {
-    loadDbTables();
-  }
-}
-
-/* 新增行 */
-function openRowEdit() {
-  if (!dbColumns) return;
-  let fieldsHtml = '';
-  for (const col of dbColumns) {
-    if (col.pk) continue; // skip auto-increment PK
-    fieldsHtml += '<label>' + $h(col.name) + (col.notnull ? ' *' : '') + '</label>' +
-      '<input id="dbFld_' + $h(col.name) + '" placeholder="' + $h(col.type || '') + '">';
-  }
-  const html =
-    '<button class="close" onclick="closeModal()">&times;</button>' +
-    '<h3>➕ 新增行 · ' + $h(dbCurrentTable || '') + '</h3>' +
-    '<div class="db-edit-grid">' + fieldsHtml + '</div>' +
-    '<div class="actions">' +
-      '<button class="btn btn-primary" onclick="saveNewRow(\'' + dbCurrentTable + '\')">保存</button>' +
-    '</div>';
-  document.getElementById('modalContent').innerHTML = html;
-  document.getElementById('modalOverlay').classList.add('show');
-}
-
-async function saveNewRow(tableName) {
-  const data = {};
-  for (const col of dbColumns) {
-    if (col.pk) continue;
-    const el = document.getElementById('dbFld_' + $h(col.name));
-    if (!el) continue;
-    const val = el.value.trim();
-    if (val === '' && col.notnull) {
-      alert('字段 ' + col.name + ' 不能为空');
-      return;
-    }
-    if (val !== '') {
-      // Try to parse as number if the type looks numeric
-      const type = (col.type || '').toLowerCase();
-      if (type.includes('int') || type.includes('bigint') || type.includes('tinyint') || type.includes('smallint') || type.includes('decimal') || type.includes('float') || type.includes('double') || type.includes('real') || type.includes('numeric')) {
-        data[col.name] = parseFloat(val);
-      } else if (type.includes('bool')) {
-        data[col.name] = val === 'true' || val === '1';
-      } else {
-        data[col.name] = val;
-      }
-    }
-  }
-  if (Object.keys(data).length === 0) {
-    alert('请至少填写一个字段');
-    return;
-  }
-  try {
-    const d = await api('/db/tables/' + tableName, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
-    });
-    if (d.code === 200) {
-      document.getElementById('dbMsg').innerHTML = '<div class="msg msg-ok">新增成功 (ID: ' + d.id + ')</div>';
-      closeModal();
-      loadDbTableData();
-      loadDbTables(); // refresh sidebar counts
-    } else {
-      alert('新增失败: ' + (d.message || ''));
-    }
-  } catch (x) {
-    alert('新增失败: ' + (x.message || ''));
-  }
-}
-
-/* 编辑行 */
-async function openEditRow(tableName, id) {
-  try {
-    const d = await api('/db/tables/' + tableName + '/' + id);
-    const row = d.row;
-    if (!row) { alert('记录不存在'); return; }
-
-    let fieldsHtml = '';
-    for (const col of dbColumns) {
-      const val = row[col.name];
-      const strVal = val === null ? '' : String(val);
-      const disabled = col.pk ? ' disabled style="opacity:0.5"' : '';
-      fieldsHtml += '<label>' + $h(col.name) + (col.pk ? ' 🔑' : '') + (col.notnull ? ' *' : '') + '</label>' +
-        '<input id="dbFld_' + $h(col.name) + '" value="' + $h(strVal) + '"' + disabled + '>';
-    }
-    const html =
-      '<button class="close" onclick="closeModal()">&times;</button>' +
-      '<h3>✏️ 编辑行 · ' + $h(tableName) + ' · ID: ' + id + '</h3>' +
-      '<div class="db-edit-grid">' + fieldsHtml + '</div>' +
-      '<div class="actions">' +
-        '<button class="btn btn-primary" onclick="saveEditRow(\'' + tableName + '\',' + id + ')">保存修改</button>' +
-      '</div>';
-    document.getElementById('modalContent').innerHTML = html;
-    document.getElementById('modalOverlay').classList.add('show');
-  } catch (x) {
-    alert('加载失败: ' + (x.message || ''));
-  }
-}
-
-async function saveEditRow(tableName, id) {
-  const data = {};
-  for (const col of dbColumns) {
-    if (col.pk) continue;
-    const el = document.getElementById('dbFld_' + $h(col.name));
-    if (!el) continue;
-    const val = el.value.trim();
-    if (val === '' && col.notnull) {
-      alert('字段 ' + col.name + ' 不能为空');
-      return;
-    }
-    if (val !== '') {
-      const type = (col.type || '').toLowerCase();
-      if (type.includes('int') || type.includes('bigint') || type.includes('tinyint') || type.includes('smallint') || type.includes('decimal') || type.includes('float') || type.includes('double') || type.includes('real') || type.includes('numeric')) {
-        data[col.name] = parseFloat(val);
-      } else if (type.includes('bool')) {
-        data[col.name] = val === 'true' || val === '1';
-      } else {
-        data[col.name] = val;
-      }
-    } else {
-      data[col.name] = null;
-    }
-  }
-  if (Object.keys(data).length === 0) {
-    alert('没有需要修改的字段');
-    return;
-  }
-  try {
-    const d = await api('/db/tables/' + tableName + '/' + id, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(data)
-    });
-    if (d.code === 200) {
-      document.getElementById('dbMsg').innerHTML = '<div class="msg msg-ok">更新成功</div>';
-      closeModal();
-      loadDbTableData();
-    } else {
-      alert('更新失败: ' + (d.message || ''));
-    }
-  } catch (x) {
-    alert('更新失败: ' + (x.message || ''));
-  }
-}
-
-async function deleteDbRow(tableName, id) {
-  if (!confirm('确定删除 ' + tableName + ' 表中 ID=' + id + ' 的记录吗？此操作不可撤销！')) return;
-  try {
-    const d = await api('/db/tables/' + tableName + '/' + id, { method: 'DELETE' });
-    if (d.code === 200) {
-      document.getElementById('dbMsg').innerHTML = '<div class="msg msg-ok">删除成功</div>';
-      loadDbTableData();
-      loadDbTables();
-    } else {
-      alert('删除失败: ' + (d.message || ''));
-    }
-  } catch (x) {
-    alert('删除失败: ' + (x.message || ''));
-  }
-}
-
-async function dbAction(action) {
-  try {
-    const d = await api('/database/' + action, { method: 'POST' });
-    let detail = '';
-    if (d.detail) {
-      for (const [k, v] of Object.entries(d.detail)) {
-        detail += k + ': ' + v + ' 条; ';
-      }
-    }
-    document.getElementById('dbMsg').innerHTML = '<div class="msg msg-ok">' + $h(d.message) + '<br><small style="color:var(--text-muted)">' + $h(detail) + '</small></div>';
-    loadDbTables(); // 刷新表列表
-  } catch (x) { document.getElementById('dbMsg').innerHTML = '<div class="msg msg-err">操作失败</div>'; }
-}
-
-// ========== 数据备份与导入 ==========
-
-async function downloadBackup() {
-  try {
-    document.getElementById('dbMsg').innerHTML = '<div class="msg msg-ok">正在导出数据，请稍候...</div>';
-    const resp = await fetch(API + '/backup', {
-      headers: hdrs()
-    });
-    if (resp.status === 401) { logout(); return; }
-    if (!resp.ok) {
-      const d = await resp.json();
-      document.getElementById('dbMsg').innerHTML = '<div class="msg msg-err">备份失败: ' + $h(d.message || '') + '</div>';
-      return;
-    }
-    const blob = await resp.blob();
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    const disposition = resp.headers.get('Content-Disposition') || '';
-    const filenameMatch = disposition.match(/filename="?(.+?)"?$/);
-    a.download = filenameMatch ? filenameMatch[1] : 'xiuxian_backup.json';
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-    window.URL.revokeObjectURL(url);
-    document.getElementById('dbMsg').innerHTML = '<div class="msg msg-ok">✅ 备份文件下载成功</div>';
-  } catch (x) {
-    document.getElementById('dbMsg').innerHTML = '<div class="msg msg-err">备份失败: ' + $h(x.message || '') + '</div>';
-  }
-}
-
-async function importBackup(fileInput) {
-  const file = fileInput.files[0];
-  if (!file) return;
-  if (!confirm('⚠️ 导入数据将覆盖当前所有数据，此操作不可撤销！\n\n确定要导入文件「' + file.name + '」吗？')) {
-    fileInput.value = '';
-    return;
-  }
-  try {
-    document.getElementById('dbMsg').innerHTML = '<div class="msg msg-ok">正在导入数据，请稍候...</div>';
-    const text = await file.text();
-    JSON.parse(text); // 验证 JSON 格式
-    const d = await api('/backup/import', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: text
-    });
-    if (d.code === 200) {
-      let detail = '';
-      if (d.detail) {
-        for (const [k, v] of Object.entries(d.detail)) {
-          if (k.endsWith('_deleted') || k.endsWith('_errors') || k.endsWith('_delete_error')) continue;
-          detail += k + ': ' + v + ' 条; ';
-        }
-      }
-      document.getElementById('dbMsg').innerHTML = '<div class="msg msg-ok">✅ ' + $h(d.message) + '（共 ' + (d.totalImported||0) + ' 条）<br><small style="color:var(--text-muted)">' + $h(detail) + '</small></div>';
-      loadDbTables();
-    } else {
-      document.getElementById('dbMsg').innerHTML = '<div class="msg msg-err">导入失败: ' + $h(d.message || '') + '</div>';
-    }
-  } catch (x) {
-    document.getElementById('dbMsg').innerHTML = '<div class="msg msg-err">导入失败: ' + $h(x.message || '') + '</div>';
-  }
-  fileInput.value = '';
-}
-
-async function loadUsers() {
-  try {
-    const d = await api('/users');
-    if (!d.users || d.users.length === 0) {
-      document.getElementById('userRolesTable').innerHTML = '<div class="empty">暂无用户</div>';
-      return;
-    }
-
-    let allRoles = [], allPerms = [];
-    try {
-      const [roles, perms] = await Promise.all([api('/roles'), api('/permissions')]);
-      for (const r of roles.roles) allRoles.push(r.name);
-      allPerms = perms.permissions || [];
-    } catch (x) {}
-
-    let h = '<table><tr><th>ID</th><th>用户名</th><th>角色</th><th>单独权限</th><th>操作</th></tr>';
-    for (const u of d.users) {
-      const roleTags = (u.roles||[]).map(r =>
-        '<span class="tag">' + $h(r) + (hasPerm('admin.users.manage') ? ' <span class="tag-x" onclick="removeRole(' + u.id + ',\'' + r + '\')" title="移除角色">&times;</span>' : '') + '</span>'
-      ).join(' ');
-
-      const directPerms = u.directPermissions || [];
-      const permTags = directPerms.map(p =>
-        '<span class="tag tag-perm">' + $h(p) + (hasPerm('admin.users.manage') ? ' <span class="tag-x" onclick="removePermission(' + u.id + ',\'' + p + '\')" title="移除权限">&times;</span>' : '') + '</span>'
-      ).join(' ');
-
-      const availablePerms = allPerms.filter(p => !directPerms.includes(p.code));
-      const permOptions = availablePerms.map(p => '<option value="' + p.code + '">' + $h(p.code) + ' (' + $h(p.category) + ')</option>').join('');
-      const permRow = (hasPerm('admin.users.manage') && allPerms.length > 0 ?
-        '<div style="margin-top:4px;display:flex;gap:4px;align-items:center">' +
-          '<select id="permSel_' + u.id + '" style="width:180px;font-size:11px"><option value="">--添加权限--</option>' + permOptions + '</select>' +
-          '<button class="btn btn-action btn-sm" onclick="assignPermission(' + u.id + ')">+</button>' +
-        '</div>' : '');
-
-      const roleSelect = (hasPerm('admin.users.manage') && allRoles.length > 0 ?
-        '<select id="roleSel_' + u.id + '" style="width:100px">' +
-          allRoles.map(r => '<option value="' + r + '">' + r + '</option>').join('') +
-        '</select> ' +
-        '<button class="btn btn-primary btn-sm" onclick="assignRole(' + u.id + ')">分配</button>' : '');
-
-      h += '<tr>' +
-        '<td style="color:var(--text-muted)">' + u.id + '</td>' +
-        '<td>' + $h(u.username) + '</td>' +
-        '<td><span class="tags">' + (roleTags || '<span class="badge badge-gray">无</span>') + '</span></td>' +
-        '<td><span class="tags">' + (permTags || '<span class="badge badge-gray">—</span>') + '</span>' + permRow + '</td>' +
-        '<td>' + roleSelect + '</td>' +
-        '</tr>';
-    }
-    h += '</table>';
-    document.getElementById('userRolesTable').innerHTML = h;
-  } catch (x) {
-    console.error('加载用户列表失败:', x);
-    document.getElementById('userRolesTable').innerHTML = '<div class="empty">加载失败<br><small>' + $h(x.message || '未知错误') + '</small></div>';
-  }
-}
-
-async function assignPermission(uid) {
-  const sel = document.getElementById('permSel_' + uid);
-  const perm = sel.value;
-  if (!perm) { alert('请选择权限'); return; }
-  try {
-    await api('/user/' + uid + '/permissions', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({permission:perm}) });
-    loadUsers();
-  } catch (x) { alert('权限分配失败'); }
-}
-
-async function removePermission(uid, permCode) {
-  if (!confirm('确定移除用户 #' + uid + ' 的权限【' + permCode + '】吗？')) return;
-  try {
-    await api('/user/' + uid + '/permissions/' + encodeURIComponent(permCode), { method:'DELETE' });
-    loadUsers();
-  } catch (x) { alert('权限移除失败'); }
-}
-
-async function assignRole(uid) {
-  const role = document.getElementById('roleSel_' + uid).value;
-  try {
-    await api('/user/' + uid + '/role', { method:'POST', headers:{'Content-Type':'application/json'}, body:JSON.stringify({role:role}) });
-    loadUsers();
-  } catch (x) { alert('分配失败'); }
-}
-
-async function removeRole(uid, roleName) {
-  if (!confirm('确定移除用户 #' + uid + ' 的角色【' + roleName + '】吗？')) return;
-  try {
-    await api('/user/' + uid + '/role/' + encodeURIComponent(roleName), { method:'DELETE' });
-    loadUsers();
-  } catch (x) { alert('移除失败'); }
-}
-
-function togglePause() {
-  paused = !paused;
-  const btn = document.getElementById('btnPause');
-  btn.textContent = paused ? '▶ 继续' : '⏸ 暂停';
-  btn.style.background = paused ? 'rgba(61,184,160,0.2)' : '';
-  btn.style.color = paused ? 'var(--jade)' : '';
-}
-
-function clearLogs() {
-  document.getElementById('logContainer').innerHTML = '';
-  lastSeq = 0;
-}
-
-async function fetchLogs() {
-  if (paused || !token) return;
-  try {
-    const d = await api('/logs?since=' + lastSeq);
-    const c = document.getElementById('logContainer');
-    if (firstLoad) { c.innerHTML = ''; firstLoad = false; }
-    if (d.entries && d.entries.length > 0) {
-      for (const e of d.entries) {
-        const dv = document.createElement('div');
-        dv.className = 'log-line';
-        dv.innerHTML =
-          '<span style="color:#3a4a5a">[' + $h(e.timestamp) + ']</span> ' +
-          '<span style="' + levelClass(e.level) + '">[' + $h(e.level) + ']</span> ' +
-          '<span style="color:#8e6bb8">[' + $h(e.logger) + ']</span> ' +
-          '<span style="color:var(--text-secondary)">' + $h(e.message) + '</span>';
-        c.appendChild(dv);
-        lastSeq = Math.max(lastSeq, e.seq||0);
-      }
-      while (c.children.length > 2000) c.removeChild(c.firstChild);
-      if (autoScroll) c.scrollTop = c.scrollHeight;
-    }
-    if (d.latestSeq > lastSeq) lastSeq = d.latestSeq;
-  } catch (x) {}
-}
-
-function levelClass(level) {
-  switch (level) {
-    case 'DEBUG': return 'color:#5b9bd5';
-    case 'INFO': return 'color:#3db8a0';
-    case 'WARN': return 'color:#e89440';
-    case 'ERROR': return 'color:#e05353';
-    default: return 'color:var(--text-muted)';
-  }
-}
-
-(function() {
-  const lc = document.getElementById('logContainer');
-  if (lc) {
-    lc.addEventListener('scroll', function() {
-      autoScroll = lc.scrollHeight - lc.scrollTop - lc.clientHeight < 30;
-    });
-  }
-})();
-// ========== 兑换码管理 ==========
-
-// 缓存物品下拉选项 HTML
-let _itemOptionsHtml = null;
-
-async function loadItemOptions() {
-  if (_itemOptionsHtml) return _itemOptionsHtml;
-  try {
-    const d = await api('/items');
-    let h = '<option value="">-- 选择物品 --</option>';
-    if (d.items) {
-      for (const i of d.items) {
-        h += '<option value="' + $h(i.key) + '">' + $h(i.name) + ' (' + $h(i.key) + ')</option>';
-      }
-    }
-    _itemOptionsHtml = h;
-    return h;
-  } catch (x) {
-    return '<option value="">-- 加载失败 --</option>';
-  }
-}
-
-function itemSelectHtml(idx, selectedKey, prefix) {
-  prefix = prefix || 'rcItemKey';
-  // 用 data-options 占位，由调用方在插入 DOM 后填充 options
-  return '<select id="' + prefix + idx + '" style="flex:1" data-sel="' + $h(selectedKey || '') + '">' +
-    '<option value="">加载中...</option>' +
-    '</select>';
-}
-
-// 填充所有 item select 的 options
-async function fillItemSelects(prefix) {
-  prefix = prefix || 'rcItemKey';
-  const optionsHtml = await loadItemOptions();
-  const max = window._fillMax || 10;
-  for (let i = 0; i < max; i++) {
-    const sel = document.getElementById(prefix + i);
-    if (sel) {
-      const saved = sel.getAttribute('data-sel');
-      sel.innerHTML = optionsHtml;
-      if (saved) sel.value = saved;
-    }
-  }
-}
-
-function statusBadgeHtml(status) {
-  switch (status) {
-    case 'active':   return '<span class="badge badge-jade">生效</span>';
-    case 'redeemed': return '<span class="badge badge-gold">已兑换</span>';
-    case 'expired':  return '<span class="badge badge-gray">已过期</span>';
-    default:         return '<span class="badge badge-gray">已失效</span>';
-  }
-}
-
-async function loadRedeemCodes() {
-  try {
-    const d = await api('/redeem-codes');
-    if (!d.codes || d.codes.length === 0) {
-      document.getElementById('redeemTable').innerHTML = '<div class="empty">暂无兑换码</div>';
-      return;
-    }
-    let h = '<table><tr><th>ID</th><th>兑换码</th><th>名称</th><th>金币</th><th>灵石</th><th>灵力</th><th>物品</th><th>使用/上限</th><th>状态</th><th>过期</th><th>创建者</th><th>操作</th></tr>';
-    for (const c of d.codes) {
-      let itemsStr = '';
-      if (c.items) {
-        itemsStr = Object.entries(c.items).map(([k,v]) => $h(k) + 'x' + v).join(', ');
-      }
-      const statusBadge = statusBadgeHtml(c.status);
-      const canEdit = c.status !== 'redeemed' && c.status !== 'expired';
-      h += '<tr>' +
-        '<td style="color:var(--text-muted);font-size:11px">' + c.id + '</td>' +
-        '<td style="color:var(--gold);font-family:monospace">' + $h(c.code) + '</td>' +
-        '<td>' + $h(c.name||'') + '</td>' +
-        '<td>' + (c.gold||0) + '</td>' +
-        '<td>' + (c.spiritStones||0) + '</td>' +
-        '<td>' + (c.exp||0) + '</td>' +
-        '<td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + $h(itemsStr) + '">' + (itemsStr||'—') + '</td>' +
-        '<td>' + (c.currentUses||0) + '/' + (c.maxUses < 0 ? '∞' : c.maxUses) + '</td>' +
-        '<td>' + statusBadge + '</td>' +
-        '<td style="font-size:11px">' + (c.expiresAt ? $h(c.expiresAt.substring(0,10)) : '永不过期') + '</td>' +
-        '<td>' + $h(c.createdBy||'') + '</td>' +
-        '<td>' +
-          (canEdit ? '<button class="btn btn-action btn-sm" onclick="openEditRedeemCode(' + c.id + ')">编辑</button> ' : '') +
-          '<button class="btn btn-danger btn-sm" onclick="deleteRedeemCode(' + c.id + ',\'' + $h(c.code) + '\')">删除</button>' +
-        '</td>' +
-        '</tr>';
-    }
-    h += '</table>';
-    document.getElementById('redeemTable').innerHTML = h;
-  } catch (x) {
-    document.getElementById('redeemTable').innerHTML = '<div class="empty">加载失败: ' + $h(x.message||'') + '</div>';
-  }
-}
-
-function openCreateRedeemCode() {
-  const html =
-    '<button class="close" onclick="closeModal()">&times;</button>' +
-    '<h3>🎫 创建兑换码</h3>' +
-    '<div style="display:grid;grid-template-columns:120px 1fr;gap:10px;align-items:center">' +
-      '<label>兑换码 *</label><input id="rcCode" placeholder="如: XINCHUN2025" style="text-transform:uppercase">' +
-      '<label>名称</label><input id="rcName" placeholder="如: 新春礼包">' +
-      '<label>金币</label><input id="rcGold" type="number" value="0">' +
-      '<label>灵石</label><input id="rcSS" type="number" value="0">' +
-      '<label>灵力</label><input id="rcExp" type="number" value="0">' +
-      '<label>最大使用次数</label><input id="rcMaxUses" type="number" value="1">' +
-      '<label>过期时间</label><input id="rcExpires" type="datetime-local">' +
-      '<label>物品奖励</label>' +
-      '<div id="rcItems">' +
-        '<div class="row" style="margin-bottom:4px">' +
-          itemSelectHtml(0, '') +
-          '<input id="rcItemQty0" type="number" placeholder="数量" style="width:80px" value="1">' +
-        '</div>' +
-      '</div>' +
-      '<label></label><button class="btn-sm" onclick="addRcItem()">+ 添加物品</button>' +
-    '</div>' +
-    '<div class="actions">' +
-      '<button class="btn btn-primary" onclick="createRedeemCode()">创建</button>' +
-    '</div>';
-  document.getElementById('modalContent').innerHTML = html;
-  document.getElementById('modalOverlay').classList.add('show');
-  window._rcItemIdx = 1;
-  window._fillMax = 5;
-  fillItemSelects('rcItemKey');
-}
-
-function addRcItem() {
-  const idx = window._rcItemIdx || 1;
-  window._fillMax = Math.max(window._fillMax || 5, idx + 1);
-  const div = document.createElement('div');
-  div.className = 'row';
-  div.style.marginBottom = '4px';
-  div.innerHTML = itemSelectHtml(idx, '') +
-    '<input id="rcItemQty' + idx + '" type="number" placeholder="数量" style="width:80px" value="1">';
-  document.getElementById('rcItems').appendChild(div);
-  window._rcItemIdx = idx + 1;
-  fillItemSelects('rcItemKey');
-}
-
-function collectRcItems() {
-  const items = {};
-  const max = window._rcItemIdx || 5;
-  for (let i = 0; i < max; i++) {
-    const keyEl = document.getElementById('rcItemKey' + i);
-    const qtyEl = document.getElementById('rcItemQty' + i);
-    if (keyEl && keyEl.value.trim() && qtyEl && parseInt(qtyEl.value) > 0) {
-      items[keyEl.value.trim()] = parseInt(qtyEl.value);
-    }
-  }
-  return items;
-}
-
-async function createRedeemCode() {
-  const code = document.getElementById('rcCode').value.trim().toUpperCase();
-  if (!code) { alert('请输入兑换码'); return; }
-  const name = document.getElementById('rcName').value.trim();
-  const gold = parseInt(document.getElementById('rcGold').value) || 0;
-  const ss = parseInt(document.getElementById('rcSS').value) || 0;
-  const exp = parseInt(document.getElementById('rcExp').value) || 0;
-  const maxUses = parseInt(document.getElementById('rcMaxUses').value) || 1;
-  const expiresEl = document.getElementById('rcExpires');
-  const expiresAt = expiresEl && expiresEl.value ? expiresEl.value.replace('T',' ') + ':00' : null;
-  const items = collectRcItems();
-
-  try {
-    const d = await api('/redeem-codes', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ code, name, gold, spiritStones: ss, exp, maxUses, expiresAt, items, createdBy: 'admin' })
-    });
-    if (d.code === 200) {
-      document.getElementById('redeemMsg').innerHTML = '<div class="msg msg-ok">兑换码 <b>' + $h(code) + '</b> 创建成功！</div>';
-      closeModal();
-      loadRedeemCodes();
-    } else {
-      alert('创建失败: ' + (d.message || ''));
-    }
-  } catch (x) {
-    alert('创建失败: ' + (x.message || ''));
-  }
-}
-
-async function openEditRedeemCode(id) {
-  try {
-    const d = await api('/redeem-codes');
-    const code = (d.codes||[]).find(c => c.id === id);
-    if (!code) { alert('兑换码不存在'); return; }
-
-    let itemsHtml = '';
-    let itemIdx = 0;
-    if (code.items) {
-      for (const [key, qty] of Object.entries(code.items)) {
-        itemsHtml += '<div class="row" style="margin-bottom:4px">' +
-          itemSelectHtml(itemIdx, key, 'editItemKey') +
-          '<input id="editItemQty' + itemIdx + '" type="number" value="' + qty + '" style="width:80px">' +
-          '</div>';
-        itemIdx++;
-      }
-    }
-    // Add one empty row
-    itemsHtml += '<div class="row" style="margin-bottom:4px">' +
-      itemSelectHtml(itemIdx, '', 'editItemKey') +
-      '<input id="editItemQty' + itemIdx + '" type="number" placeholder="数量" style="width:80px">' +
-      '</div>';
-    window._editItemIdx = itemIdx + 1;
-
-    const expiresVal = code.expiresAt ? code.expiresAt.substring(0, 16) : '';
-    const html =
-      '<button class="close" onclick="closeModal()">&times;</button>' +
-      '<h3>✏️ 编辑兑换码 · ' + $h(code.code) + ' <span style="font-size:12px;color:var(--text-muted);font-weight:normal">ID:' + id + '</span></h3>' +
-      '<div style="display:grid;grid-template-columns:120px 1fr;gap:10px;align-items:center">' +
-        '<label>名称</label><input id="editRcName" value="' + $h(code.name||'') + '">' +
-        '<label>金币</label><input id="editRcGold" type="number" value="' + (code.gold||0) + '">' +
-        '<label>灵石</label><input id="editRcSS" type="number" value="' + (code.spiritStones||0) + '">' +
-        '<label>灵力</label><input id="editRcExp" type="number" value="' + (code.exp||0) + '">' +
-        '<label>最大使用次数</label><input id="editRcMaxUses" type="number" value="' + (code.maxUses||1) + '">' +
-        '<label>过期时间</label><input id="editRcExpires" type="datetime-local" value="' + expiresVal + '">' +
-        '<label>状态</label><span style="padding:8px 0;color:var(--text-primary)">' + statusBadgeHtml(code.status) + '</span>' +
-        '<label>物品奖励</label>' +
-        '<div id="editRcItems">' + itemsHtml + '</div>' +
-        '<label></label><button class="btn-sm" onclick="addEditRcItem()">+ 添加物品</button>' +
-      '</div>' +
-      '<div class="actions">' +
-        '<button class="btn btn-primary" onclick="saveEditRedeemCode(' + id + ')">保存修改</button>' +
-      '</div>';
-    document.getElementById('modalContent').innerHTML = html;
-    document.getElementById('modalOverlay').classList.add('show');
-    window._fillMax = window._editItemIdx || 5;
-    fillItemSelects('editItemKey');
-  } catch (x) {
-    alert('加载失败: ' + (x.message || ''));
-  }
-}
-
-function addEditRcItem() {
-  const idx = window._editItemIdx || 1;
-  window._fillMax = Math.max(window._fillMax || 5, idx + 1);
-  const div = document.createElement('div');
-  div.className = 'row';
-  div.style.marginBottom = '4px';
-  div.innerHTML = itemSelectHtml(idx, '', 'editItemKey') +
-    '<input id="editItemQty' + idx + '" type="number" placeholder="数量" style="width:80px">';
-  document.getElementById('editRcItems').appendChild(div);
-  window._editItemIdx = idx + 1;
-  fillItemSelects('editItemKey');
-}
-
-function collectEditRcItems() {
-  const items = {};
-  const max = window._editItemIdx || 5;
-  for (let i = 0; i < max; i++) {
-    const keyEl = document.getElementById('editItemKey' + i);
-    const qtyEl = document.getElementById('editItemQty' + i);
-    if (keyEl && keyEl.value.trim() && qtyEl && parseInt(qtyEl.value) > 0) {
-      items[keyEl.value.trim()] = parseInt(qtyEl.value);
-    }
-  }
-  return items;
-}
-
-async function saveEditRedeemCode(id) {
-  const name = document.getElementById('editRcName').value.trim();
-  const gold = parseInt(document.getElementById('editRcGold').value) || 0;
-  const ss = parseInt(document.getElementById('editRcSS').value) || 0;
-  const exp = parseInt(document.getElementById('editRcExp').value) || 0;
-  const maxUses = parseInt(document.getElementById('editRcMaxUses').value) || 1;
-  const expiresEl = document.getElementById('editRcExpires');
-  const expiresAt = expiresEl && expiresEl.value ? expiresEl.value.replace('T',' ') + ':00' : null;
-  const items = collectEditRcItems();
-
-  try {
-    const d = await api('/redeem-codes/' + id, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ name, gold, spiritStones: ss, exp, maxUses, expiresAt, items })
-    });
-    if (d.code === 200) {
-      document.getElementById('redeemMsg').innerHTML = '<div class="msg msg-ok">更新成功</div>';
-      closeModal();
-      loadRedeemCodes();
-    } else {
-      alert('更新失败: ' + (d.message || ''));
-    }
-  } catch (x) {
-    alert('更新失败: ' + (x.message || ''));
-  }
-}
-
-async function deleteRedeemCode(id, code) {
-  if (!confirm('确定删除兑换码【' + code + '】吗？此操作不可撤销！')) return;
-  try {
-    const d = await api('/redeem-codes/' + id, { method: 'DELETE' });
-    if (d.code === 200) {
-      document.getElementById('redeemMsg').innerHTML = '<div class="msg msg-ok">兑换码已删除</div>';
-      loadRedeemCodes();
-    } else {
-      alert('删除失败: ' + (d.message || ''));
-    }
-  } catch (x) {
-    alert('删除失败: ' + (x.message || ''));
-  }
-}
-
-// ========== 称号管理 ==========
-
-async function loadTitles() {
-  const q = document.getElementById('titleSearch').value.trim();
-  try {
-    const d = await api('/titles');
-    let titles = d.titles || [];
-    if (q) {
-      titles = titles.filter(t => t.name && t.name.includes(q));
-    }
-    if (titles.length === 0) {
-      document.getElementById('titleTable').innerHTML = '<div class="empty"><div class="empty-icon">🏆</div>暂无称号</div>';
-      return;
-    }
-    let h = '<table><tr><th>Key</th><th>名称</th><th>稀有度</th><th>所需境界</th><th>属性加成</th><th>描述</th></tr>';
-    for (const t of titles) {
-      const rarityColors = {
-        'COMMON': 'color:var(--text-muted)',
-        'UNCOMMON': 'color:var(--jade)',
-        'RARE': 'color:var(--info)',
-        'EPIC': 'color:var(--gold)',
-        'LEGENDARY': 'color:#f59e0b',
-        'MYTHIC': 'color:#ef4444'
-      };
-      const rarityNames = {
-        'COMMON': '凡品',
-        'UNCOMMON': '良品',
-        'RARE': '珍品',
-        'EPIC': '仙品',
-        'LEGENDARY': '神品',
-        'MYTHIC': '圣品'
-      };
-      let bonuses = [];
-      if (t.attackBonus > 0) bonuses.push('攻击+' + t.attackBonus);
-      if (t.defenseBonus > 0) bonuses.push('防御+' + t.defenseBonus);
-      if (t.speedBonus > 0) bonuses.push('速度+' + t.speedBonus);
-      if (t.spiritBonus > 0) bonuses.push('神识+' + t.spiritBonus);
-      if (t.hpBonus > 0) bonuses.push('生命+' + t.hpBonus);
-      if (t.mpBonus > 0) bonuses.push('法力+' + t.mpBonus);
-      if (t.experienceBonus > 0) bonuses.push('经验+' + t.experienceBonus + '%');
-      if (t.dropRateBonus > 0) bonuses.push('掉落+' + t.dropRateBonus + '%');
-      if (t.cultivationSpeedBonus > 0) bonuses.push('修炼+' + t.cultivationSpeedBonus + '%');
-      h += '<tr>' +
-        '<td style="color:var(--text-muted);font-size:11px;font-family:monospace">' + $h(t.key) + '</td>' +
-        '<td style="color:var(--gold)">' + $h(t.name) + '</td>' +
-        '<td style="' + (rarityColors[t.rarity] || 'color:var(--text-muted)') + '">' + (rarityNames[t.rarity] || t.rarity) + '</td>' +
-        '<td>' + t.requiredRealm + '</td>' +
-        '<td style="font-size:11px;color:var(--text-secondary)">' + (bonuses.join(', ') || '无') + '</td>' +
-        '<td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="' + $h(t.description || '') + '">' + $h(t.description || '-') + '</td>' +
-        '</tr>';
-    }
-    h += '</table>';
-    document.getElementById('titleTable').innerHTML = h;
-
-    const sel = document.getElementById('titleGiveSel');
-    sel.innerHTML = '<option value="">--选择称号--</option>';
-    for (const t of titles) {
-      sel.innerHTML += '<option value="' + $h(t.key) + '">' + $h(t.name) + '</option>';
-    }
-  } catch (x) {
-    document.getElementById('titleTable').innerHTML = '<div class="empty">加载失败</div>';
-  }
-}
-
-async function loadTitlePlayerList() {
-  const q = document.getElementById('titlePlayerSearch').value.trim();
-  let url = '/players?limit=20';
-  if (q) url += '&name=' + encodeURIComponent(q);
-  try {
-    const d = await api(url);
-    if (!d.players || d.players.length === 0) {
-      document.getElementById('titlePlayerList').innerHTML = '<div class="empty"><div class="empty-icon">👥</div>暂无玩家</div>';
-      return;
-    }
-    let h = '<table><tr><th><input type="checkbox" onchange="toggleSelectAllTitlePlayers(this)">全选</th><th>ID</th><th>道号</th><th>境界</th></tr>';
-    for (const p of d.players) {
-      h += '<tr>' +
-        '<td><input type="checkbox" class="title-player-chk" data-id="' + p.id + '" data-name="' + $h(p.name) + '"></td>' +
-        '<td style="color:var(--text-muted);font-size:11px">' + p.id + '</td>' +
-        '<td style="color:var(--gold)">' + $h(p.name) + '</td>' +
-        '<td>' + $h(p.realm) + '</td>' +
-        '</tr>';
-    }
-    h += '</table>';
-    document.getElementById('titlePlayerList').innerHTML = h;
-  } catch (x) {
-    document.getElementById('titlePlayerList').innerHTML = '<div class="empty">加载失败</div>';
-  }
-}
-
-function toggleSelectAllTitlePlayers(chk) {
-  const checkboxes = document.querySelectorAll('.title-player-chk');
-  let checked = true;
-  if (chk && typeof chk.checked === 'boolean') {
-    checked = chk.checked;
-  } else {
-    const someChecked = Array.from(checkboxes).some(c => c.checked);
-    checked = !someChecked;
-  }
-  checkboxes.forEach(c => c.checked = checked);
-}
-
-async function giveTitleToPlayer() {
-  const titleKey = document.getElementById('titleGiveSel').value;
-  if (!titleKey) {
-    document.getElementById('titleGiveMsg').innerHTML = '<div class="msg msg-err">请选择称号</div>';
-    return;
-  }
-  const checkboxes = document.querySelectorAll('.title-player-chk:checked');
-  if (checkboxes.length === 0) {
-    document.getElementById('titleGiveMsg').innerHTML = '<div class="msg msg-err">请至少选择一个玩家</div>';
-    return;
-  }
-  const selectedPlayers = Array.from(checkboxes).map(c => ({ id: parseInt(c.dataset.id), name: c.dataset.name }));
-  document.getElementById('titleGiveMsg').innerHTML = '<div class="msg msg-ok">正在授予称号，请稍候...</div>';
-  let successCount = 0;
-  let failCount = 0;
-  for (const p of selectedPlayers) {
-    try {
-      await api('/players/' + p.id + '/title/add', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ titleKey })
-      });
-      successCount++;
-    } catch (x) {
-      failCount++;
-    }
-  }
-  document.getElementById('titleGiveMsg').innerHTML = '<div class="msg msg-ok">授予完成！成功 ' + successCount + ' 人，失败 ' + failCount + ' 人</div>';
-}
-
-// ========== 玩家操作轨迹 ==========
-  let tracePage = 0;
-  const TRACE_PAGE_SIZE = 30;
-
-  async function loadTraces(page) {
-    if (page === undefined) page = 0;
-    tracePage = page;
-    const params = [];
-    const uidVal = document.getElementById('traceUserId').value.trim();
-    const nameVal = document.getElementById('tracePlayerName').value.trim();
-    const qqVal = document.getElementById('traceQQ').value.trim();
-    const actionVal = document.getElementById('traceAction').value;
-    const startVal = document.getElementById('traceStart').value;
-    const endVal = document.getElementById('traceEnd').value;
-
-    if (uidVal) params.push('userId=' + encodeURIComponent(uidVal));
-    if (nameVal) params.push('playerName=' + encodeURIComponent(nameVal));
-    if (qqVal) params.push('qqNumber=' + encodeURIComponent(qqVal));
-    if (actionVal) params.push('action=' + encodeURIComponent(actionVal));
-    if (startVal) params.push('startTime=' + encodeURIComponent(startVal.replace('T',' ') + ':00'));
-    if (endVal) params.push('endTime=' + encodeURIComponent(endVal.replace('T',' ') + ':00'));
-    params.push('limit=' + TRACE_PAGE_SIZE);
-    params.push('offset=' + (page * TRACE_PAGE_SIZE));
-
-    try {
-      const d = await api('/player-traces?' + params.join('&'));
-      if (!d.traces || d.traces.length === 0) {
-        document.getElementById('tracesTable').innerHTML = '<div class="empty"><div class="empty-icon">👣</div>暂无操作轨迹记录</div>';
-        document.getElementById('tracesPagination').innerHTML = '';
-        return;
-      }
-      let h = '<table><tr><th>时间</th><th>UID</th><th>玩家名</th><th>操作</th><th>详情</th><th>QQ</th></tr>';
-      for (const t of d.traces) {
-        h += '<tr>' +
-          '<td style="font-size:11px;color:var(--text-muted)">' + $h(t.createdAt||'') + '</td>' +
-          '<td style="color:var(--text-muted);font-size:11px">' + (t.userId||'') + '</td>' +
-          '<td style="color:var(--gold)">' + $h(t.playerName||'') + '</td>' +
-          '<td>' + $h(t.action||'') + '</td>' +
-          '<td style="color:var(--text-secondary)">' + $h(t.detail||'') + '</td>' +
-          '<td style="color:var(--text-muted);font-size:11px">' + $h(t.qqNumber||'') + '</td>' +
-          '</tr>';
-      }
-      h += '</table>';
-      document.getElementById('tracesTable').innerHTML = h;
-
-      const totalPages = Math.ceil((d.total || 0) / TRACE_PAGE_SIZE);
-      let pagHtml = '<span style="color:var(--text-muted);font-size:12px">共 ' + (d.total||0) + ' 条记录</span> &nbsp;';
-      if (totalPages > 1) {
-        pagHtml += '<button class="btn-sm" onclick="loadTraces(0)"' + (page===0?' disabled':'') + '>首页</button> ';
-        pagHtml += '<button class="btn-sm" onclick="loadTraces(' + (page-1) + ')"' + (page===0?' disabled':'') + '>上一页</button> ';
-        pagHtml += '<span style="font-size:12px;color:var(--text-secondary)">第 ' + (page+1) + '/' + totalPages + ' 页</span> ';
-        pagHtml += '<button class="btn-sm" onclick="loadTraces(' + (page+1) + ')"' + (page>=totalPages-1?' disabled':'') + '>下一页</button> ';
-        pagHtml += '<button class="btn-sm" onclick="loadTraces(' + (totalPages-1) + ')"' + (page>=totalPages-1?' disabled':'') + '>末页</button>';
-      }
-      document.getElementById('tracesPagination').innerHTML = pagHtml;
-    } catch (x) {
-      document.getElementById('tracesTable').innerHTML = '<div class="empty">加载失败: ' + $h(x.message||'') + '</div>';
-    }
-  }
-// ========== 消息 & 指令统计 ==========
-
-async function loadMessageStats() {
-  try {
-    const d = await api('/stats/messages');
-    const s = d.stats;
-    if (!s) return;
-
-    // 总览卡片
-    document.getElementById('msgStatsCards').innerHTML =
-      '<div class="stat-card"><div class="label">📨 消息总数</div><div class="value">' + (s.total||0) + '</div><div class="desc">本次运行累计</div></div>' +
-      '<div class="stat-card"><div class="label">👤 活跃用户</div><div class="value">' + (s.byUser ? s.byUser.length : 0) + '</div><div class="desc">Top 20 中</div></div>' +
-      '<div class="stat-card"><div class="label">👥 活跃群</div><div class="value">' + (s.byGroup ? s.byGroup.length : 0) + '</div><div class="desc">Top 20 中</div></div>';
-
-    // 按用户
-    let userHtml = '<table><tr><th>QQ号</th><th>消息数</th></tr>';
-    if (s.byUser && s.byUser.length > 0) {
-      for (const u of s.byUser) {
-        userHtml += '<tr><td>' + $h(u.key) + '</td><td style="color:var(--gold)">' + u.count + '</td></tr>';
-      }
-    } else {
-      userHtml += '<tr><td colspan="2" style="text-align:center;color:var(--text-muted)">暂无数据</td></tr>';
-    }
-    userHtml += '</table>';
-    document.getElementById('msgByUser').innerHTML = userHtml;
-
-    // 按群
-    let groupHtml = '<table><tr><th>群号</th><th>消息数</th></tr>';
-    if (s.byGroup && s.byGroup.length > 0) {
-      for (const g of s.byGroup) {
-        groupHtml += '<tr><td>' + $h(g.key) + '</td><td style="color:var(--gold)">' + g.count + '</td></tr>';
-      }
-    } else {
-      groupHtml += '<tr><td colspan="2" style="text-align:center;color:var(--text-muted)">暂无数据</td></tr>';
-    }
-    groupHtml += '</table>';
-    document.getElementById('msgByGroup').innerHTML = groupHtml;
-
-    // 按时间
-    let timeHtml = '<table><tr><th>小时</th><th>消息数</th></tr>';
-    if (s.byTime && s.byTime.length > 0) {
-      for (const t of s.byTime) {
-        const pct = s.total > 0 ? ((t.count / s.total) * 100).toFixed(1) : 0;
-        const bar = '<span style="display:inline-block;height:6px;border-radius:3px;background:var(--gold);width:' + Math.max(pct*3,1) + 'px;margin-left:8px;vertical-align:middle"></span>';
-        timeHtml += '<tr><td>' + $h(t.hour) + '</td><td style="color:var(--gold)">' + t.count + bar + '</td></tr>';
-      }
-    } else {
-      timeHtml += '<tr><td colspan="2" style="text-align:center;color:var(--text-muted)">暂无数据</td></tr>';
-    }
-    timeHtml += '</table>';
-    document.getElementById('msgByTime').innerHTML = timeHtml;
-  } catch (x) {
-    document.getElementById('msgStatsCards').innerHTML = '<div class="empty">加载失败</div>';
-  }
-}
-
-async function loadCommandStats() {
-  try {
-    const d = await api('/stats/commands');
-    const s = d.stats;
-    if (!s) return;
-
-    // 总览卡片
-    document.getElementById('cmdStatsCards').innerHTML =
-      '<div class="stat-card"><div class="label">⚡ 指令总调用</div><div class="value">' + (s.total||0) + '</div><div class="desc">本次运行累计</div></div>' +
-      '<div class="stat-card"><div class="label">👥 活跃群</div><div class="value">' + (s.byGroup ? s.byGroup.length : 0) + '</div><div class="desc">Top 20 中</div></div>' +
-      '<div class="stat-card"><div class="label">⌨️ 指令种类</div><div class="value">' + (s.byCommand ? s.byCommand.length : 0) + '</div><div class="desc">Top 30 中</div></div>';
-
-    // 按群
-    let groupHtml = '<table><tr><th>群号</th><th>调用次数</th></tr>';
-    if (s.byGroup && s.byGroup.length > 0) {
-      for (const g of s.byGroup) {
-        groupHtml += '<tr><td>' + $h(g.key) + '</td><td style="color:var(--jade)">' + g.count + '</td></tr>';
-      }
-    } else {
-      groupHtml += '<tr><td colspan="2" style="text-align:center;color:var(--text-muted)">暂无数据</td></tr>';
-    }
-    groupHtml += '</table>';
-    document.getElementById('cmdByGroup').innerHTML = groupHtml;
-
-    // 按指令种类
-    let cmdHtml = '<table><tr><th>指令</th><th>次数</th><th>占比</th></tr>';
-    if (s.byCommand && s.byCommand.length > 0) {
-      for (const c of s.byCommand) {
-        const pct = s.total > 0 ? ((c.count / s.total) * 100).toFixed(1) : 0;
-        cmdHtml += '<tr><td style="color:var(--gold)">/' + $h(c.key) + '</td><td style="color:var(--jade)">' + c.count + '</td><td>' + pct + '%</td></tr>';
-      }
-    } else {
-      cmdHtml += '<tr><td colspan="3" style="text-align:center;color:var(--text-muted)">暂无数据</td></tr>';
-    }
-    cmdHtml += '</table>';
-    document.getElementById('cmdByCommand').innerHTML = cmdHtml;
-
-    // 按时间
-    let timeHtml = '<table><tr><th>小时</th><th>调用次数</th></tr>';
-    if (s.byTime && s.byTime.length > 0) {
-      for (const t of s.byTime) {
-        const pct = s.total > 0 ? ((t.count / s.total) * 100).toFixed(1) : 0;
-        const bar = '<span style="display:inline-block;height:6px;border-radius:3px;background:var(--jade);width:' + Math.max(pct*3,1) + 'px;margin-left:8px;vertical-align:middle"></span>';
-        timeHtml += '<tr><td>' + $h(t.hour) + '</td><td style="color:var(--jade)">' + t.count + bar + '</td></tr>';
-      }
-    } else {
-      timeHtml += '<tr><td colspan="2" style="text-align:center;color:var(--text-muted)">暂无数据</td></tr>';
-    }
-    timeHtml += '</table>';
-    document.getElementById('cmdByTime').innerHTML = timeHtml;
-  } catch (x) {
-    document.getElementById('cmdStatsCards').innerHTML = '<div class="empty">加载失败</div>';
-  }
-}
-
-</script>
+<script type="module" src="assets/js/app.js"></script>
 </body>
 </html>

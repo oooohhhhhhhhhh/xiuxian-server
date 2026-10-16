@@ -44,6 +44,29 @@ public class GameConfigLoader {
             }
         }
         extractNewbieRewardConfig();
+        extractWildernessMapConfig();
+    }
+
+    /**
+     * 释放野外地图文件到 {@code config/game/wilderness_map.json}。
+     * <p>与境界配置同样的"只释放不覆盖"策略：管理员改过的文件不会被下次启动冲掉。
+     * 该文件驱动野外随机地图的区域池、资源池与刷新周期（见 {@link WildernessMapConfig}）。</p>
+     */
+    private static void extractWildernessMapConfig() {
+        Path target = AppConfig.getJarDir().resolve("config").resolve(WildernessMapConfig.RESOURCE_PATH);
+        if (Files.exists(target)) {
+            return;
+        }
+        try (InputStream in = GameConfigLoader.class.getClassLoader()
+                .getResourceAsStream(WildernessMapConfig.RESOURCE_PATH)) {
+            if (in != null) {
+                Files.createDirectories(target.getParent());
+                Files.copy(in, target, StandardCopyOption.REPLACE_EXISTING);
+                System.out.println("[GameConfig] 已释放野外地图文件: " + target.toAbsolutePath());
+            }
+        } catch (Exception e) {
+            System.err.println("[GameConfig] 释放 " + WildernessMapConfig.RESOURCE_PATH + " 失败: " + e.getMessage());
+        }
     }
 
     private static void extractNewbieRewardConfig() {

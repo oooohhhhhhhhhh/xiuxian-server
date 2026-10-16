@@ -1,0 +1,42 @@
+# 构建上下文排除项。
+#
+# ⚠ 最关键的一条是 config/：根目录的 config/ 是运行期生成的，
+#   内含 jwt.secret、admin.password_hash、数据库口令。
+#   如果不排除，docker build 会把它烤进镜像层，任何拿到镜像的人都能读到密钥。
+
+# 运行期生成的配置（含密钥）—— 绝不能进镜像
+config/
+
+# 运行时状态
+data/
+log/
+plugins/
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+
+# 构建产物与版本控制
+target/
+.git/
+.gitignore
+.gitattributes
+.github/
+
+# 本地文档与备份
+docs/
+*.md
+!README.md
+
+# JVM 崩溃日志
+hs_err_pid*.log
+replay_pid*.log
+
+# IDE
+.idea/
+.vscode/
+.trae/
+
+# 容器相关文件自身
+docker-compose.yml
+docker-data/

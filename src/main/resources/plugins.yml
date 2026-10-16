@@ -1,0 +1,61 @@
+# ========================================
+#  插件开关配置（独立文件）
+# ========================================
+# 本文件集中管理全部内置插件/玩法模块的启停开关。
+#   · true  = 启用（默认）
+#   · false = 停用（重启后生效；WebUI「插件管理」页可在运行时启停并写回本文件）
+#   · 注释掉的行 = 使用默认值 true
+#
+# 取值优先级：本文件 > jar 内模板 > 旧配置只读兜底
+#   （application.yml 的 built_in_plugins.* 与 config/experimental.yml 的 experimental.*）
+# 从旧版本升级时，旧键会被自动迁移到本文件，旧文件可以自行清理。
+#
+# 外部插件（plugins/*.jar）的开关仍由外部插件自身的启停状态管理，不在此文件内。
+
+plugins:
+
+  # ---- 基础玩法模块（核心体验）----
+  exploration: true            # 探索/游历系统（游历事件、随机遭遇）
+  secret_realm: true           # 秘境系统（进入秘境、秘境探索）
+  trade: true                  # 坊市交易系统（上架、购买、取消）
+  sect: true                   # 宗门系统（创建宗门、宗门管理、宗门仓库）
+  farm: true                   # 农场系统（种植、浇水、施肥、收获）
+  cave: true                   # 洞府系统（灵力收集、洞府升级）
+
+  # ---- 社交玩法模块 ----
+  chat: true                   # 聊天系统（世界频道、私聊）
+  friend: true                 # 好友系统（添加好友、好友列表）
+  rank: true                   # 排行系统（查看排行榜）
+  search: true                 # 搜索系统（按名称搜索玩家）
+
+  # ---- 移动/养成玩法模块 ----
+  map: true                    # 地图系统（查看地图、移动旅行）
+  team: true                   # 团队系统（创建团队、组队副本）
+  title: true                  # 称号系统（成就、称号装备）
+  player: true                 # 角色系统（状态、疗伤、灵根）
+
+  # ---- 修炼/战斗玩法模块 ----
+  cultivation: true            # 修炼系统（打坐、突破、转世、天象、晨修）
+  skill: true                  # 技能系统（学习技能、技能列表、战斗策略）
+  pvp: true                    # 战斗系统（挑战、决斗）
+  inventory: true              # 背包/装备系统（物品、装备、强化）
+
+  # ---- 经济/制造玩法模块 ----
+  economy: true                # 经济系统（拍卖、灵庄、商店、签到、灵石流转）
+  energy: true                 # 能量系统（物品转化能量）
+  technique: true              # 功法系统（功法学习、装备、升级）
+  crafting: true               # 炼丹锻造系统（配方、炼制）
+  buff: true                   # Buff 系统（增益效果）
+  formation: true              # 阵法系统（阵法布置、阵法加成）
+
+  # ---- 实验性插件（独立于稳定玩法，默认按各自默认值）----
+  # 停用即整体关闭该实验性内容：相关指令/接口会被门控拒绝。
+  # 这两个开关由旧 experimental.yml 的 sect_war / energy_exchange 迁移而来。
+  experimental_sect_war: false         # 宗门战（实验性，默认关闭）
+  experimental_energy_exchange: true   # 能量转化/等价交换（实验性，默认开启）
+
+  # ---- 消息通道适配器（类型级总开关；实例级 enabled 仍在 config/adapters.json）----
+  onebot: true                 # OneBot WebSocket/截图 消息通道
+  qq: true                     # QQ 官方机器人消息通道
+  minecraft: true              # Minecraft 内嵌服务器消息通道
+  minecraft-player: true       # Minecraft 玩家直连消息通道

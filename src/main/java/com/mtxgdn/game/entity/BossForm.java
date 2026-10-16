@@ -63,8 +63,8 @@ public class BossForm {
         {"mtxgdn:cultivation_elixir", "mtxgdn:spirit_stone_pouch", "mtxgdn:spirit_sword", "mtxgdn:guardian_jade"},
         {"mtxgdn:scripture_page", "mtxgdn:basic_sword_manual", "mtxgdn:power_buff_pill", "mtxgdn:speed_talisman"},
         {"mtxgdn:dragon_blood_crystal", "mtxgdn:enhance_stone", "mtxgdn:fire_dragon_art", "mtxgdn:jade_armor"},
-        {"mtxgdn:ancient_artifact", "mtxgdn:immortal_essence", "mtxgdn:celestial_pearl", "mtxgdn:void_crystal"},
-        {"mtxgdn:world_core", "mtxgdn:origin_stone", "mtxgdn:dao_crystal", "mtxgdn:eternal_heart"}
+        {"mtxgdn:five_colored_divine_stone", "mtxgdn:heaven_fire_stone", "mtxgdn:dragon_bone", "mtxgdn:heaven_pill", "mtxgdn:sky_silk"},
+        {"mtxgdn:dragon_heart", "mtxgdn:qilin_blood", "mtxgdn:phoenix_gallbladder", "mtxgdn:ten_thousand_year_lingzhi", "mtxgdn:qiankun_zaohua_dan"}
     };
 
     public static List<BossForm> createFormsForRealm(int realm) {
@@ -74,7 +74,12 @@ public class BossForm {
             {"兽王·金翼裂天雕", "苍穹主宰·鲲鹏化身", "太古神鸟·涅槃重生"},
             {"遗迹守卫·青铜巨像", "上古战魂·钢铁意志", "混沌泰坦·世界毁灭者"},
             {"战场英魂·不灭战将", "修罗战神·血刃狂魔", "冥界主宰·黄泉帝君"},
-            {"洞府守护灵·九霄剑魂", "万剑之尊·剑灵真身", "天道裁决者·一剑斩天"}
+            {"洞府守护灵·九霄剑魂", "万剑之尊·剑灵真身", "天道裁决者·一剑斩天"},
+            {"混沌真君·太虚老祖", "太虚圣主·造化之主", "混元道祖·开天辟地"},
+            {"大乘圣祖·无量天尊", "寰宇圣皇·法相天地", "无极道尊·万象归无"},
+            {"渡劫仙尊·九天神君", "雷帝·万劫不朽", "仙尊·九天应元"},
+            {"真仙·紫霄道祖", "紫霄仙帝·气运加身", "道祖·紫气东来三万里"},
+            {"金仙·鸿蒙道尊", "鸿蒙道尊·镇压诸天", "不朽金仙·万劫不灭"}
         };
 
         String[][] descs = {
@@ -83,7 +88,12 @@ public class BossForm {
             {"百兽山脉统治者，双翅遮天蔽日", "传说鲲鹏化身，一振翅九万里", "涅槃重生的太古神鸟"},
             {"上古遗迹守护者，青铜铸就巨像", "钢铁意志的上古战魂", "能毁灭世界的混沌泰坦"},
             {"古战场英魂所化，战意不灭", "经历无数杀戮的修罗战神", "冥界黄泉帝君"},
-            {"仙人剑意化形", "万剑之尊剑灵真身", "裁决天道的至高存在"}
+            {"仙人剑意化形", "万剑之尊剑灵真身", "裁决天道的至高存在"},
+            {"太虚秘境之主，混沌翻涌", "执掌造化的太虚圣主", "开天辟地的混元道祖"},
+            {"证得大乘的古老存在", "法相天地的寰宇圣皇", "万法归无的无极道尊"},
+            {"九劫不灭的渡劫仙尊", "万劫不朽的雷帝", "九天应元的至高仙尊"},
+            {"飞升真仙的紫霄道祖", "气运加身的紫霄仙帝", "紫气东来三万里的道祖"},
+            {"凌驾诸天的金仙道尊", "镇压诸天的鸿蒙道尊", "万劫不灭的不朽金仙"}
         };
 
         int idx = Math.min(realm, names.length - 1);

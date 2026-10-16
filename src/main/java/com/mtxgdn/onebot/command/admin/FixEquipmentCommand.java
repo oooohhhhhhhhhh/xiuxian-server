@@ -14,7 +14,7 @@ public class FixEquipmentCommand extends Command {
 
     @Override
     public void execute(CommandContext ctx) {
-        QqBinding b = new QqBindingService().findByQq(ctx.getSenderId());
+        QqBinding b = ctx.resolveBoundBinding();
         if (b == null) {
             ctx.reply("请先绑定账号。");
             return;

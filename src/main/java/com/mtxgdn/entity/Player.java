@@ -38,6 +38,10 @@ public class Player {
     private long currentLocationId = 1;
     private long lastTravelTime;
     private long lastBreakthroughTime;
+    /** 玩法计数（称号获取用） */
+    private int secretRealmCount;
+    private int pvpWins;
+    private int craftCount;
     private String createdAt;
     private String updatedAt;
 
@@ -283,4 +287,11 @@ public class Player {
     public void setLastBreakthroughTime(long lastBreakthroughTime) {
         this.lastBreakthroughTime = lastBreakthroughTime;
     }
+
+    public int getSecretRealmCount() { return secretRealmCount; }
+    public void setSecretRealmCount(int secretRealmCount) { this.secretRealmCount = secretRealmCount; }
+    public int getPvpWins() { return pvpWins; }
+    public void setPvpWins(int pvpWins) { this.pvpWins = pvpWins; }
+    public int getCraftCount() { return craftCount; }
+    public void setCraftCount(int craftCount) { this.craftCount = craftCount; }
 }

@@ -62,12 +62,12 @@ public class Monster {
     private static final String[] MONSTER_NAMES = {"妖狼", "巨蟒", "魔蛛", "赤虎", "黑熊", "妖鹰", "石魔", "蛇妖", "蝎王", "魅狐", "尸鬼", "蝠妖"};
 
     private static final String[][] COMMON_LOOT = {
-        {"spirit_grass"}, {"iron_ore"}, {"healing_pill"}, {"mana_pill"}, {"spirit_recovery_pill"}, {"beast_core"}
+        {"mtxgdn:spirit_grass"}, {"mtxgdn:iron_ore"}, {"mtxgdn:healing_pill"}, {"mtxgdn:mana_pill"}, {"mtxgdn:spirit_recovery_pill"}, {"mtxgdn:beast_core"}
     };
     private static final String[][] BOSS_LOOT = {
-        {"spirit_grass", "iron_ore", "healing_pill", "mana_pill", "beast_core", "enhance_stone"},
-        {"cultivation_elixir", "spirit_stone_pouch", "spirit_sword", "guardian_jade", "protect_charm"},
-        {"scripture_page", "basic_sword_manual", "power_buff_pill", "speed_talisman", "spirit_spring_water", "heavenly_jade"}
+        {"mtxgdn:spirit_grass", "mtxgdn:iron_ore", "mtxgdn:healing_pill", "mtxgdn:mana_pill", "mtxgdn:beast_core", "mtxgdn:enhance_stone"},
+        {"mtxgdn:cultivation_elixir", "mtxgdn:spirit_stone_pouch", "mtxgdn:spirit_sword", "mtxgdn:guardian_jade", "mtxgdn:protect_charm"},
+        {"mtxgdn:scripture_page", "mtxgdn:basic_sword_manual", "mtxgdn:power_buff_pill", "mtxgdn:speed_talisman", "mtxgdn:spirit_spring_water", "mtxgdn:heavenly_jade"}
     };
 
     public static Monster random(int playerRealm, Random random) {
@@ -141,9 +141,25 @@ public class Monster {
                 name = "洞府守护灵·九霄剑魂";
                 desc = "仙人遗留的剑意化形而成，剑气纵横三万里，一剑光寒十九州";
                 break;
+            case 6:
+                name = "混沌真君·太虚老祖";
+                desc = "太虚秘境之主，举手投足间混沌翻涌，可颠倒乾坤";
+                break;
+            case 7:
+                name = "大乘圣祖·无量天尊";
+                desc = "证得大乘的古老存在，一言一行皆有法则相随";
+                break;
+            case 8:
+                name = "渡劫仙尊·九天神君";
+                desc = "九劫不灭的仙尊，雷法通神，威压万界";
+                break;
+            case 9:
+                name = "真仙·紫霄道祖";
+                desc = "飞升真仙的紫霄道祖，一念生灭，万法归宗";
+                break;
             default:
-                name = "远古魔神·混沌之影";
-                desc = "来自鸿蒙初辟的远古存在，混沌之力令人望而生畏";
+                name = "金仙·鸿蒙道尊";
+                desc = "凌驾诸天的金仙道尊，鸿蒙之气加身，永恒不朽";
                 break;
         }
         return createBoss(name, Math.max(1, effectiveRealm), desc, random);

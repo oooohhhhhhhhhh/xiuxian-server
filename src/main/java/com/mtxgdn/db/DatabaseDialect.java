@@ -65,4 +65,10 @@ public interface DatabaseDialect {
     String quoteTableName(String tableName);
 
     String quoteColumnName(String columnName);
+    
+    /**
+     * 返回数据库特定的 FOR UPDATE 子句
+     * 用于在 SELECT 语句中加悲观锁
+     */
+    String getForUpdateClause();
 }

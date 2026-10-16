@@ -24,6 +24,10 @@ public class ChatService {
         if (content == null || content.trim().isEmpty()) {
             return null;
         }
+        // 世界频道限流：每玩家 30 秒最多 5 条
+        if (!com.mtxgdn.util.RateLimiter.allow("chat_world:" + senderPlayerId, 5, 30)) {
+            throw new RuntimeException("发言过于频繁，请稍后再试");
+        }
         content = TextSanitizer.sanitizeChatContent(content.trim());
         if (content.length() > MAX_CONTENT_LENGTH) {
             content = content.substring(0, MAX_CONTENT_LENGTH);
@@ -51,6 +55,10 @@ public class ChatService {
     public ChatMessage sendPrivateMessage(long senderPlayerId, String senderName, long receiverPlayerId, String content) {
         if (content == null || content.trim().isEmpty()) {
             return null;
+        }
+        // 私聊限流：每玩家 30 秒最多 10 条
+        if (!com.mtxgdn.util.RateLimiter.allow("chat_private:" + senderPlayerId, 10, 30)) {
+            throw new RuntimeException("发言过于频繁，请稍后再试");
         }
         content = TextSanitizer.sanitizeChatContent(content.trim());
         if (content.length() > MAX_CONTENT_LENGTH) {

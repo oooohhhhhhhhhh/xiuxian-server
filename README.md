@@ -1,1531 +1,346 @@
-# 修仙世界 (Xiuxian World)
+# 修仙世界 · Xiuxian World
 
-一个基于 Java 的多人在线修仙游戏服务端，提供 REST API、WebSocket 实时通信、QQ 机器人（OneBot）等接入方式。
+> 一个基于 Java 23 的多人在线**文字修仙（MUD）游戏服务端**：修炼突破、探索战斗、社交宗门、生产贸易，并通过 REST / WebSocket / QQ（OneBot / 官方机器人）/ Minecraft 等多端接入。
 
----
-
-## 作者的话
-
-这个项目全是AI写的，全是bug，这个项目注定走不下去。
-
-bug是修不完的，钱倒是没了，0PR，也没人在意。
-
-或许以后有那么一天项目会重启，也许不会
-
-有缘再会
+![Java](https://img.shields.io/badge/Java-23-orange) ![License](https://img.shields.io/badge/License-MIT-blue) ![Version](https://img.shields.io/badge/Version-v0.1.0-green)
 
 ---
 
-## 项目简介
+## ✨ 特性总览
 
-**修仙世界**是一款文字 MUD 风格的修仙主题游戏后端。玩家创建角色后可以通过修炼、突破境界、探索秘境、游历世界、PVP 对战、坊市交易等方式在修仙世界中成长。
+### 角色与成长
 
-### 核心特性
+- **灵根系统**：鸿蒙 / 正 / 天 / 异 / 双 / 三 / 四 / 杂 8 档共 15+ 种灵根，创建角色时随机抽取；攻击、暴击、回血、减伤、游历 CD、坊市手续费、熟练度等独特加成深入各玩法
+- **修炼与境界**：凡人 → 金仙共 11 大境界、29 个修炼阶段（大境界内细分初 / 中 / 后期）；挂机修炼 + **离线收益**（50% 效率、上限 8 小时）；修炼有概率触发**心魔**修为倒退
+- **渡劫突破**：大境界突破触发天劫（雷劫 / 心魔劫 / 风火劫 / 水劫 / 五行劫 / 阴阳劫 / 轮回劫），成功率受灵根、灵力与渡劫丹影响；失败扣除经验并重伤
+- **转世重修**：金仙圆满后转世，保留部分修为与家当开启多周目，获得「逆天者」称号
 
-- **灵根系统**：15 种灵根（天/异/双/三/四/杂 6 个等级），创建角色时随机抽取，每种灵根拥有独特属性加成和特殊效果（如暴击率、回血、蓝耗降低、暴击伤害、技能伤害、游历 CD 缩减、修炼效率、坊市手续费减半、灵石掉落、熟练度加成、后期觉醒等）
-- **修炼系统**：挂机修炼，根据境界获得经验倍率加成；修炼中可能触发**心魔**——有概率修为倒退（轻微/中等/严重三种程度，灵力越高越能抵抗）
-- **境界突破**：11 大境界（凡人→炼气→筑基→金丹→元婴→化神→合体→大乘→渡劫→真仙→金仙），每境含初/中/后三期。小境界 100% 成功，大境界突破触发**天劫**（7 种天劫按境界匹配：雷劫/心魔劫/风火劫/水劫/五行劫/阴阳劫/轮回劫），成功率随境界递减（80%→10%），受灵根等级、灵力属性、天劫对应属性影响，可服用渡劫丹 +10%，上限 95%；失败则损失 1/3 经验并重伤
-- **功法/心法系统**：11 种内功心法（4 种类型：攻击/防御/修炼/辅助），可学习/装备/升级，最多同时运转 3 门，每级属性 +12%，装备即获被动加成（HP/MP/攻/防/速/灵力/修炼速度/经验/伤害/减伤）
-- **制造系统**：炼丹和炼器，11 种配方（丹药/装备/消耗品/种子），最多 3 种材料，成功率 + 失败安慰经验，可制造回血丹、回蓝丹、培元丹、灵剑、强化石、渡劫丹等
-- **装备强化**：穿戴装备可强化至 +15，成功率逐级递减（95%→3%），+5 以上可能降级或碎装备，强化增加攻击/防御/速度/灵力加成
-- **天象系统**：全服每日随机天象（紫气东来/星辰耀天/血月当空/灵潮涌动/枯荣交替/万籁俱寂），影响修炼/游历/战斗/灵石掉落倍率
-- **晨修·紫气东来**：每日一次的修炼收益加成，连续天数越多紫气越精纯
-- **今日机缘**：嵌入游戏行为的每日目标（游历3次/PvP1次/秘境1次/学技能1次），完成后当场发放奖励，无需手动领取
-- **灵根共鸣**：连续活跃 7 天和 30 天时触发，永久提升属性
-- **游历探索**：随机事件系统，权重抽奖机制，巽风灵根可缩减冷却时间。13 种游历事件：发现种子、采集材料、神秘奇遇、遇见修士、采集灵草、遭遇商人、遭遇妖兽、发现遗迹、发现灵泉、神秘高塔、遭遇陷阱、发现宝藏、一无所获
-- **秘境探索**：8 个秘境区域，随机遭遇宝藏/妖兽/Boss/灵草/陷阱/古修/遗迹等事件
-- **坊市交易**：玩家间物品交易，使用灵石结算，5% 手续费（土金灵根减半），挂单/购买/撤单完整流程
-- **宗门系统**：创建宗门/申请加入/审批/任命/捐献/仓库存取/踢出/解散/宗门升级/宗主转让/宗门战，金丹期以上消耗 500 灵石创建，声望排行，宗门仓库共享物品；**5级角色**（宗主>副宗主>长老>内门弟子>外门弟子），内门/外门可消耗贡献值兑换仓库物品
-- **物品系统**：7 种类型、6 种稀有度，组件化效果（经验/回血/货币/buff/技能书/传送/重生/境界突破/属性重置），支持按中文名称/key 使用物品。60+ 种物品：灵草/矿石/丹药/装备/材料/种子等
-- **能量转化系统**：等价交换式物品能量互转，物品→能量→物品闭环；支持主程序物品和插件物品，插件可通过 `PluginContext.registerItemEnergy()` 注册自定义能量值；管理员可管理玩家能量；REST API 接口开放外部调用
-- **技能系统**：攻击技能和辅助技能，熟练度升级（使用获得熟练度，技能书 +1 级），等级越高蓝耗越大，金水木灵根熟练度 +30%
-- **装备系统**：装备穿戴/卸下，属性加成
-- **聊天系统**：世界频道（全服广播）+ 私聊（点对点消息），消息持久化存储，WebSocket 实时推送
-- **排行榜**：境界榜/战力榜/财富榜，支持 REST/WebSocket/QQ 三种方式查看
-- **好友系统**：好友申请/接受/删除/列表，双向确认机制，支持跨端操作
-- **称号系统**：18个预设称号（普通/稀有/珍贵/史诗/传说/特殊），含攻击/防御/生命/法力/速度/神识/修炼速度/经验/掉落加成；查看/装备/卸下称号，管理员可授予/撤销
-- **PVP 对战**：回合制玩家对战，支持技能施放、暴击、灵根特效（回血/增伤/减伤/暴击/MP减免等）
-- **PVE 战斗**：游历和秘境中随机遭遇妖兽，完整回合制战斗（技能、暴击、灵根特效全生效）；秘境含 Boss 战，各秘境专属守护者
-- **离线收益**：断线后修炼继续进行（50% 效率，上限 8 小时），上线时自动结算经验、HP/MP 恢复，心魔判定降频
-- **农场系统**：玩家拥有 4-12 块农田，可种植 8 种种子（灵草/千年人参/暗冰草/火焰藤/幽冥花/星辰草/血灵芝/天山雪莲），浇水施肥提升产量，扩建需要金币
-- **Buff 系统**：物品使用可获得临时属性加成（攻击/防御/速度/灵力），自动过期并扣除属性，支持叠加多个 Buff
-- **用户系统**：邮箱注册/验证码、JWT 双令牌认证、BCrypt 密码加密
-- **权限管理**：RBAC 角色权限系统，新增 `game.*`/`qq.*` 前缀权限码自动授予 PLAYER 角色，无需逐个加入角色定义
-- **QQ 机器人**：OneBot 协议集成，支持私聊和群聊指令操作；黑名单系统 + 自动禁言（群组级别开关、29天循环禁言、管理员权限检测）
-- **指令即路由**：一套 API 搞定双端 — `addRoute(RouteDefinition.onebotOnly("xxx", handler))` 仅 OneBot，`addRoute(RouteDefinition.get("path", handler))` 仅 HTTP，`registerSub` + `addRoute` 双端注册；UnifiedRestResource 自动发现并分发 HTTP 请求
-- **Minecraft MOTD**：模拟 Minecraft 服务器 ping 响应（端口 25565），显示在线人数
-- **国际化 (i18n)**：JSON 语言的本地化系统，物品/秘境/事件/系统消息完整翻译，当前支持中文 (zh_cn)
-- **数据库**：MySQL / SQLite 双支持，HikariCP 连接池，一行配置切换
-- **Web 管理控制台**：修仙风主题面板，侧边栏导航，实时日志，玩家管理，用户角色管理，数据发放
-- **插件系统**：完整的生命周期管理（onLoad/onEnable/onDisable），独立类加载器隔离；插件可注册命令/物品/游历事件/秘境/能量值/自定义权限码；事件总线（10 种事件类型，支持优先级和取消）；支持热重载（reloadPlugin）；访问全部 26 个游戏服务 API；暴露底层接口（数据库连接/服务端配置/频率限制/JWT/行为日志/统计收集器）；支持插件添加 REST API 端点、Web 管理页面和 WebSocket 消息处理器
+### 探索与战斗
+
+- **游历探索**：13 种加权随机事件（奇遇 / 商人 / 妖兽 / 宝藏 / 陷阱 / 灵泉…）
+- **秘境探索**：10 个境界分级的秘境区域，随机事件 + 专属 Boss 战；支持**组队进入副本型秘境**
+- **地图旅行**：15 个地点的大地图，移动耗时、地点灵气加成与地界收益倍率全部由数据库驱动，后台改库可热重载（管理台「地图管理」页可视化编辑，含世界脉络树）；游历事件按所在地界加权（落霞山产落霞草、万妖谷多妖兽、灵药谷多灵植），安全区内禁止私斗；支持 `/地图` 浏览与移动
+- **PVE / PVP**：完整回合制战斗（技能、暴击、灵根特效全生效）；PVE 含秘境 Boss，PVP 支持挑战与战斗策略，安全区（🛡）内禁止私斗
+- **技能与装备**：技能熟练度升级、功法（3 门同时运转）、装备穿戴与强化（+15，含失败降级/碎裂）、Buff 增益
+- **阵法与洞府**：阵法布置与加成；洞府灵力收集与升级
+
+### 生产与经济
+
+- **炼丹炼器**：配方驱动制造，可产出丹药 / 装备 / 消耗品 / 种子
+- **农场系统**：4–12 块农田、8 种作物，浇水 / 施肥 / 病虫害防治 / 一键收获，受**全局季节**影响
+- **坊市与拍卖**：玩家间物品交易（灵石结算、5% 手续费）；竞拍系统；灵庄存款、灵石提纯、签到、修炼加速
+- **能量转化**：物品 ↔ 能量等价互转（支持插件注册自定义物品能量）
+- **兑换码 / 每日系统**：兑换码发奖；晨修·紫气东来、今日机缘、灵根共鸣
+
+### 社交与运营
+
+- **宗门系统**：创建 / 申请 / 任命 / 捐献 / 仓库 / 宗门战 / 排行，5 级职位体系
+- **好友 / 聊天**：好友申请与每日拜访；世界频道与私聊（消息持久化 + WebSocket 实时推送）
+- **称号与排行**：多品质预设称号（普通 / 稀有 / 史诗 / 传说…，含活动限定）；境界榜 / 战力榜 / 财富榜
+- **全局天象与季节**：全服每日天象影响修炼 / 游历 / 战斗 / 掉落倍率；季节作为"天道时序"按真实月份（calendar）或小时循环（cycle）更替并广播
+
+### 平台能力
+
+- **多端消息通道（插件化适配器）**：OneBot QQ、QQ 官方机器人、Minecraft 内嵌服务器 / 玩家直连通道，实例配置在 `config/adapters.json`，可运行时热启停
+- **指令即路由**：一套 `Command` 同时注册为 QQ 指令与 REST 路由（`addRoute` / `registerSub`）
+- **指令全中文支持**：QQ 指令支持中文名与英文别名，物品可按中文名 / key 混用
+- **Web 管理控制台**：修仙风主题面板（概览 / 日志 / 玩家 / 用户角色 / 数据发放 / 插件 / 适配器 / OAuth2 配置等），内置**安装向导**（`/install`）
+- **玩家数据文件化**：一用户一 JSON（`data/players/<playerId>.json`），变更自动落盘，后台一键导出 / 还原
+- **RBAC 权限 + OAuth2**：角色权限码分层授权；独立 OAuth2 令牌端点（client_credentials）与受保护资源示例
+- **内置玩法模块化**：24 个稳定玩法系统 + 2 个实验性插件 + 4 个消息通道，全部以"内置插件"形式运行，开关集中在 `config/plugins.yml`（`plugins.*`），可在 WebUI「插件管理」页运行时独立启停
+- **实验性内容插件化**：宗门战、能量转化（等价交换）等实验性玩法单独成组（`plugins.experimental_*`），与稳定玩法开关分离，可随时整体关闭
+- **插件系统**：第三方 jar 扩展命令 / 物品 / 事件 / 秘境 / 权限 / REST / Web UI / WebSocket（详见 [插件开发文档](README_PLUGIN.md)）
+- **i18n**：JSON 语言文件（当前 zh_cn），物品 / 秘境 / 事件 / 系统消息可整体翻译
+- **低内存友好**：小内存设备可用 `start-low-memory.bat` / `XIUXIAN_MEM` 控制 JVM 内存
 
 ---
 
-## 技术栈
+## 🧰 技术栈
 
 | 组件 | 技术 |
 |------|------|
-| 语言 | Java 23 |
-| 构建工具 | Maven |
-| HTTP 框架 | Jersey 4.0.2 + Grizzly |
+| 语言 | Java 23（Maven 构建） |
+| HTTP / REST | Jersey 4.0.2 + Grizzly 4.0.2 |
 | WebSocket | Grizzly WebSocket |
-| 数据库 | MySQL 9.7 / SQLite 3.49 + HikariCP 连接池 |
-| 认证 | JWT (jjwt 0.11.5) |
-| JSON | Gson 2.14.0 |
-| 配置 | SnakeYAML 2.4 |
-| 密码加密 | jBCrypt 0.4 |
-| 邮件 | Jakarta Mail (Angus Mail 2.0.3) |
+| 数据库 | SQLite（默认，零依赖） / MySQL，HikariCP 连接池，方言自动适配 |
+| 认证 | JWT（jjwt 0.11.5）+ BCrypt（jbcrypt 0.4），双令牌刷新 |
+| JSON / 配置 | Gson 2.14 / SnakeYAML 2.4 |
+| 邮件 | Jakarta Mail（Angus Mail 2.0.3，注册验证码） |
+| 测试 | JUnit 5 + Mockito |
 
 ---
 
-## 项目结构
-
-```
-src/main/java/com/mtxgdn/
-├── Main.java                    # 程序入口，服务器启动和组件初始化
-│
-├── client/                      # API 客户端（供外部客户端调用）
-│   ├── ApiClient.java           # HTTP REST 客户端
-│   ├── ApiConfig.java           # 客户端配置
-│   ├── AuthApi.java             # 认证 API
-│   ├── GameApi.java             # 游戏 API
-│   └── GameWebSocketClient.java # WebSocket 客户端
-│
-├── common/                      # 通用类型与基础设施
-│   ├── ApiResponse.java         # API 统一响应
-│   ├── GameErrorCode.java       # 游戏错误码枚举
-│   ├── GameMessage.java         # WebSocket 消息协议
-│   ├── command/                 # 指令框架
-│   │   ├── Command.java         # 指令基类（自注册 + 权限 + 桶式分发 + REST 路由统管）
-│   │   ├── CommandContext.java  # 指令上下文（回复/权限校验/翻译名支持）
-│   │   ├── CommandRegistry.java # 指令注册中心
-│   │   ├── CommandScanner.java  # 指令扫描器（classpath 递归扫描）
-│   │   └── RouteDefinition.java # 路由定义（onebotOnly / GET / POST，附 RestContext + matchPath）
-│   └── service/
-│       └── ServiceRegistry.java # 服务统一注册中心
-│
-├── db/
-│   └── DatabaseManager.java     # 数据库连接管理、表结构初始化（MySQL/SQLite 双适配）
-│
-├── demo/
-│   └── DemoClient.java          # 命令行交互式演示客户端
-│
-├── entity/
-│   ├── Player.java              # 玩家数据实体
-│   └── User.java                # 用户账户实体
-│
-├── game/
-│   ├── config/
-│   │   └── GameConfigLoader.java    # 境界配置加载器
-│   ├── entity/                     # 游戏实体
-│   │   ├── CelestialPhenomenon.java
-│   │   ├── CropConfig.java          # 作物配置（种子→作物映射、生长时间、产量）
-│   │   ├── ExplorationResult.java
-│   │   ├── FarmPlot.java            # 农田地块实体（状态/水分/肥力/生长阶段）
-│   │   ├── Monster.java              # 怪物/Boss 实体（属性、掉落表、Boss 工厂）
-│   │   ├── PlayerInfo.java
-│   │   ├── PveCombatResult.java      # PVE 战斗结果
-│   │   ├── RaidCombatResult.java     # 宗门战结果
-│   │   ├── RealmBreakthroughResult.java
-│   │   ├── RealmConfig.java
-│   │   ├── RealmConfigFile.java
-│   │   ├── Recipe.java               # 制造配方实体（新增 SEED 分类）
-│   │   ├── RedeemCode.java           # 兑换码实体
-│   │   ├── SecretRealmResult.java
-│   │   ├── Skill.java
-│   │   ├── SpiritualRoot.java
-│   │   ├── Friend.java               # 好友实体
-│   │   ├── ChatMessage.java          # 聊天消息实体
-│   │   ├── Technique.java            # 功法实体
-│   │   ├── Sect.java                 # 宗门实体
-│   │   ├── SectMember.java           # 宗门成员实体
-│   │   ├── SectApplication.java      # 入宗申请实体
-│   │   ├── SectWarehouseItem.java    # 宗门仓库物品实体
-│   │   └── Title.java                # 称号实体
-│   ├── explorationevent/           # 游历事件系统
-│   │   ├── ExplorationEvent.java       # 事件抽象基类
-│   │   ├── ExplorationEventRegistry.java  # 事件注册中心
-│   │   └── ExplorationEventScanner.java   # 事件扫描器
-│   ├── item/                       # 物品系统
-│   │   ├── Item.java               # 物品基类（集成 LangManager 翻译）
-│   │   ├── ItemEffect.java         # 物品效果接口
-│   │   ├── ItemRarity.java         # 稀有度枚举
-│   │   ├── ItemRegistry.java       # 物品注册中心（支持 key + 中文名 resolve）
-│   │   ├── ItemScanner.java        # 物品扫描器
-│   │   ├── ItemType.java           # 物品类型枚举
-│   │   ├── AttributeResetEffect.java # 属性重置效果
-│   │   ├── BuffEffect.java         # Buff 效果（攻击/防御/速度/灵力加成）
-│   │   ├── CurrencyEffect.java     # 货币效果
-│   │   ├── DebuffCleanEffect.java  # 清除负面效果
-│   │   ├── EmptyEffect.java        # 空效果
-│   │   ├── ExpEffect.java          # 经验效果
-│   │   ├── HealEffect.java         # 治疗效果
-│   │   ├── LearnSkillEffect.java   # 学习技能效果
-│   │   ├── RealmBreakEffect.java   # 境界突破效果
-│   │   ├── RebirthEffect.java      # 重生效果
-│   │   └── TeleportEffect.java     # 传送效果
-│   ├── secretrealm/                # 秘境系统
-│   │   ├── SecretRealm.java        # 秘境基类（集成 LangManager 翻译）
-│   │   ├── SecretRealmRegistry.java
-│   │   └── SecretRealmScanner.java
-│   ├── service/                    # 游戏服务层
-│   │   ├── BuffService.java        # Buff 系统（添加/移除/过期检测/属性叠加）
-│   │   ├── CombatService.java      # 战斗系统（含灵根特效）
-│   │   ├── CraftingService.java    # 制造系统（炼丹/炼器/种子）
-│   │   ├── DailyService.java       # 每日系统（晨修/机缘/天象/灵根共鸣）
-│   │   ├── EconomyService.java     # 经济系统（签到/回收/拍卖/灵庄）
-│   │   ├── EnhanceService.java     # 装备强化系统
-│   │   ├── ExplorationService.java # 游历探索（含灵根 CD 缩减）
-│   │   ├── FarmService.java        # 农场系统（种植/浇水/施肥/收获/扩建）
-│   │   ├── HeartDemonService.java  # 心魔系统
-│   │   ├── ItemService.java        # 物品管理
-│   │   ├── NewbieGuideService.java # 新手引导
-│   │   ├── OfflineRewardService.java # 离线收益（修炼/HP恢复/降频心魔）
-│   │   ├── PlayerService.java      # 玩家管理
-│   │   ├── RealmService.java       # 境界突破（含天劫）
-│   │   ├── RedeemCodeService.java  # 兑换码服务
-│   │   ├── SecretRealmService.java # 秘境探索
-│   │   ├── SkillService.java       # 技能管理（含熟练度/灵根加成）
-│   │   ├── TechniqueService.java   # 功法/心法系统
-│   │   ├── TitleService.java       # 称号系统
-│   │   ├── ChatService.java        # 聊天系统（世界频道+私聊）
-│   │   ├── FriendService.java      # 好友系统
-│   │   ├── TradeService.java       # 坊市交易
-│   │   ├── EnergyService.java      # 能量转化（物品↔能量 + 插件自定义注册）
-│   │   └── SectService.java        # 宗门系统
-│
-├── minecraft/
-│   ├── MinecraftMotdServer.java    # Minecraft MOTD 服务器
-│   ├── VarInt.java                 # Minecraft VarInt 编解码
-│   ├── adapter/                    # Minecraft 适配器
-│   │   ├── McCommandResult.java    # 命令执行结果
-│   │   ├── MinecraftAdapter.java   # 适配器主类（启动/停止 MC 服务器）
-│   │   ├── MinecraftCommandContext.java # MC 命令上下文
-│   │   ├── MinecraftMessageSender.java # MC 消息发送
-│   │   ├── MinecraftPlayerBinding.java # MC 玩家绑定
-│   │   ├── MinecraftPlayerBindingService.java # 绑定服务
-│   │   └── MinecraftServerProcess.java # MC 服务器进程管理
-│   ├── agent/                      # Minecraft 代理
-│   │   └── XiuxianAgent.java       # 修仙代理（MC 插件通信）
-│   └── plugin/                     # Minecraft 插件（Bukkit API）
-│       └── XiuxianBridgePlugin.java # 修仙桥插件
-│
-├── onebot/                         # QQ 机器人集成
-│   ├── OneBotAccountFlow.java      # OneBot 账号流程（注册/绑定/解绑）
-│   ├── OneBotWebSocketServer.java  # OneBot WebSocket 服务端 + 消息发送 + 黑名单禁言
-│   ├── OneBotMessageSender.java    # OneBot 消息发送接口
-│   ├── QqBinding.java              # QQ 绑定实体
-│   ├── QqBindingService.java       # QQ 绑定服务
-│   ├── Blacklist.java              # 黑名单实体
-│   ├── BlacklistService.java       # 黑名单服务
-│   ├── OneBotGroupConfig.java      # 群组配置实体
-│   ├── OneBotGroupConfigService.java # 群组配置服务
-│   └── command/                    # QQ 机器人指令（按功能模块化）
-│       ├── OneBotCommandContext.java
-│       └── ...
-│
-├── plugin/                         # 插件系统
-│   ├── Plugin.java                 # 插件接口（onLoad/onEnable/onDisable 生命周期）
-│   ├── PluginContext.java          # 插件上下文（服务访问/注册接口/底层API/Web UI）
-│   ├── PluginInfo.java             # 插件元数据
-│   ├── PluginMeta.java             # @PluginMeta 注解
-│   ├── PluginManager.java          # 插件管理器（扫描/加载/生命周期管理）
-│   ├── PluginClassLoader.java      # 插件类加载器（隔离 + 包委托）
-│   ├── PluginWebManager.java       # 插件 Web 管理器（REST/页面/WebSocket 注册）
-│   ├── PluginMaker.java            # 插件生成器（交互式向导）
-│   └── event/                      # 插件事件系统
-│       ├── PluginEvent.java        # 事件定义与构建器
-│       ├── PluginEventHandler.java # 事件处理器接口
-│       └── PluginEventManager.java # 事件总线
-│
-├── permission/                     # 权限系统
-│   ├── PermissionCode.java         # 权限码定义
-│   ├── PermissionService.java      # 权限服务
-│   └── RequirePermission.java      # 权限注解
-│
-├── rest/                           # REST API 层
-│   ├── AdminAuthFilter.java        # 管理员认证过滤器
-│   ├── AdminResource.java          # 管理后台 API
-│   ├── Auth.java                   # 用户认证 API
-│   ├── EntityBufferFilter.java     # 响应缓冲过滤器
-│   ├── EofExceptionMapper.java     # 异常映射
-│   ├── GameResource.java           # 游戏 API（显式路径）
-│   ├── JwtAuthFilter.java          # JWT 认证过滤器
-│   ├── PermissionFilter.java       # 权限过滤器
-│   └── UnifiedRestResource.java    # 统一 REST 分发器（Command 内联路由自动注册）
-│
-├── service/                        # 通用服务
-│   ├── UserService.java            # 用户服务
-│   └── VerificationCodeService.java # 验证码服务
-│
-├── util/                           # 工具类
-│   ├── AppConfig.java              # 配置文件读取
-│   ├── EmailService.java           # 邮件发送
-│   ├── GameLogger.java             # 游戏日志
-│   ├── JwtUtil.java                # JWT 工具
-│   ├── LangManager.java            # 多语言管理器（JSON 翻译文件加载）
-│   ├── MySqlLauncher.java          # MySQL 启动器
-│   ├── OneBotLogger.java           # OneBot 日志
-│   └── PlayerActionLogger.java     # 玩家行为日志
-│
-└── websocket/
-    └── GameWebSocketApp.java       # WebSocket 游戏服务
-
-src/main/java/data/mtxgdn/          # 游戏数据定义
-├── explorationevent/               # 13 种游历事件实体（权重抽奖机制）
-│   ├── CultivatorEvent.java        # 遇见修士（权重6）
-│   ├── HerbEvent.java              # 采集灵草（权重10）
-│   ├── MaterialEvent.java          # 采集材料（权重10）— 炼丹材料掉落
-│   ├── MerchantEvent.java          # 遭遇商人（权重5）
-│   ├── MonsterEvent.java           # 遭遇妖兽（权重10）— PVE战斗
-│   ├── MysteryEvent.java           # 神秘奇遇（权重8）— 传说材料/大量资源
-│   ├── NothingEvent.java           # 一无所获（权重5）
-│   ├── RuinsEvent.java             # 发现遗迹（权重6）
-│   ├── SeedEvent.java              # 发现种子（权重12）— 8种种子掉落
-│   ├── SpiritSpringEvent.java      # 发现灵泉（权重5）
-│   ├── StrangeTowerEvent.java      # 神秘高塔（权重4）
-│   ├── TrapEvent.java              # 遭遇陷阱（权重5）
-│   └── TreasureEvent.java          # 发现宝藏（权重7）
-├── item/                           # 60+ 种物品实体
-│   ├── BasicSwordManual.java       # 基础剑谱
-│   ├── BeastCore.java              # 兽核
-│   ├── BloodJadeMarrow.java        # 血玉髓（史诗）
-│   ├── BloodLingzhi.java           # 血灵芝（稀有作物）
-│   ├── BloodLingzhiSeed.java       # 血灵芝种子
-│   ├── CultivationElixir.java      # 修炼丹
-│   ├── DamageReflectionPill.java   # 伤害反弹丹
-│   ├── DarkIceGrass.java           # 暗冰草（稀有作物）
-│   ├── DarkIceGrassSeed.java       # 暗冰草种子
-│   ├── DeepSeaCoral.java           # 深海珊瑚（史诗）
-│   ├── DemonCore.java              # 魔核（稀有）
-│   ├── DragonBloodCrystal.java     # 龙血晶（史诗）
-│   ├── DragonBone.java             # 龙骨（传说）
-│   ├── DragonHeart.java            # 龙心（传说）
-│   ├── DragonScale.java            # 龙鳞（传说）
-│   ├── DragonSword.java            # 龙剑（传说武器）
-│   ├── EnhanceStone.java           # 强化石
-│   ├── ExpMultiplierPill.java      # 经验翻倍丹
-│   ├── FireDragonArt.java          # 火龙诀
-│   ├── FireVine.java               # 火焰藤（稀有作物）
-│   ├── FireVineSeed.java           # 火焰藤种子
-│   ├── FiveColoredDivineStone.java # 五色神石（传说）
-│   ├── FragmentScroll.java         # 残卷
-│   ├── GhostFireEssence.java       # 鬼火精华（稀有）
-│   ├── GoldBag.java                # 金币袋
-│   ├── GoldOre.java                # 金矿石（稀有）
-│   ├── GuardianJade.java           # 守护玉佩
-│   ├── HealingPill.java            # 回血丹
-│   ├── HeavenFireStone.java        # 天火石（史诗）
-│   ├── HeavenlyJade.java           # 天玉
-│   ├── HeavenPill.java             # 天丹
-│   ├── IceCrystal.java             # 冰晶（稀有）
-│   ├── ImmortalPill.java           # 仙丹
-│   ├── IronOre.java                # 铁矿石（普通）
-│   ├── JadeArmor.java              # 玉甲
-│   ├── ManaPill.java               # 回蓝丹
-│   ├── MoonEssence.java            # 月精
-│   ├── MysteryToken.java           # 神秘令牌
-│   ├── MythrilOre.java             # 秘银矿石（稀有）
-│   ├── NetherFlower.java           # 幽冥花（史诗作物）
-│   ├── NetherFlowerSeed.java       # 幽冥花种子
-│   ├── PhoenixArmor.java           # 凤凰甲
-│   ├── PhoenixFeather.java         # 凤凰羽毛（传说）
-│   ├── PhoenixGallbladder.java     # 凤凰胆（传说）
-│   ├── PowerBuffPill.java          # 力量增益丹
-│   ├── ProtectCharm.java           # 护身符
-│   ├── PurificationPill.java       # 净化丹
-│   ├── QilinAmulet.java            # 麒麟护符
-│   ├── QilinBlood.java             # 麒麟血（传说）
-│   ├── QilinHorn.java              # 麒麟角（传说）
-│   ├── QuestLetter.java            # 任务信
-│   ├── QuestScroll.java            # 任务卷轴
-│   ├── RebirthPill.java            # 重生丹
-│   ├── ScripturePage.java          # 经文残页
-│   ├── SilverOre.java              # 银矿石（普通）
-│   ├── SkySilk.java                # 天蚕丝（史诗）
-│   ├── SnakeVenom.java             # 蛇毒
-│   ├── SpeedTalisman.java          # 速度符箓
-│   ├── SpiritBoostPill.java        # 灵力增益丹
-│   ├── SpiritGrass.java            # 灵草（普通作物）
-│   ├── SpiritGrassSeed.java        # 灵草种子
-│   ├── SpiritPearl.java            # 灵珠（史诗）
-│   ├── SpiritRecoveryPill.java     # 灵力恢复丹
-│   ├── SpiritSpringWater.java      # 灵泉水
-│   ├── SpiritStone.java            # 灵石
-│   ├── SpiritStonePouch.java       # 灵石袋
-│   ├── SpiritSword.java            # 灵剑
-│   ├── SpiritWood.java             # 灵木
-│   ├── StarGrass.java              # 星辰草（传说作物）
-│   ├── StarGrassSeed.java          # 星辰草种子
-│   ├── StarRobes.java              # 星辰长袍
-│   ├── StarSand.java               # 星辰沙（稀有）
-│   ├── SunEssence.java             # 日精
-│   ├── SuperHealingPill.java       # 超级回血丹
-│   ├── SuperManaPill.java          # 超级回蓝丹
-│   ├── TeleportTalisman.java       # 传送符箓
-│   ├── TenThousandYearLingzhi.java # 万年灵芝
-│   ├── ThousandYearGinseng.java    # 千年人参（稀有作物）
-│   ├── ThousandYearGinsengSeed.java# 千年人参种子
-│   ├── ThousandYearHeshouwu.java   # 千年何首乌（稀有）
-│   ├── ThunderBoltTalisman.java    # 雷电符箓
-│   ├── TianshanSnowLotus.java      # 天山雪莲（传说作物）
-│   ├── TianshanSnowLotusSeed.java  # 天山雪莲种子
-│   ├── TigerFang.java              # 虎牙
-│   ├── TribulationPill.java        # 渡劫丹
-│   └── UltimatePowerPill.java      # 终极力量丹
-├── lang/                           # 多语言翻译文件
-│   └── zh_cn.json                  # 简体中文翻译（物品/秘境/事件/系统消息）
-└── secretrealm/                    # 8 个秘境区域
-    ├── AncientBattlefield.java     # 古战场（元婴）
-    ├── AncientRuins.java           # 古修遗迹（金丹）
-    ├── BeastMountain.java          # 百兽山脉（筑基）
-    ├── DarkForest.java             # 暗黑森林（炼气）
-    ├── ImmortalCave.java           # 仙人洞府（化神）
-    ├── NineHeavensPlatform.java    # 九霄台（元婴）
-    ├── ThunderValley.java          # 雷渊谷（金丹）
-    └── WildGrassland.java          # 荒野草原（凡人）
-```
-
----
-
-## 快速开始
+## 🚀 快速开始
 
 ### 环境要求
 
-- **JDK 23** 或更高
-- **Maven 3.8+**
-- **MySQL 8.0+**（使用 MySQL 模式时，需创建数据库 `xiuxian`）
-- **SQLite 3.x**（使用 SQLite 模式时零配置，驱动已内置）
+- **JDK 23+**（[Adoptium](https://adoptium.net/)）
+- **Maven 3.8+**（仅构建需要）
+- 数据库：默认 **SQLite 零配置**；如需 MySQL，请准备 MySQL 8+ 并创建数据库 `xiuxian`
 
-### 1. 克隆仓库
-
-```bash
-git clone https://github.com/oooohhhhhhhhhh/xiuxiangame.git
-```
-
-### 2. 选择数据库模式
-
-#### MySQL 模式（默认）
-
-```sql
-CREATE DATABASE IF NOT EXISTS xiuxian CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
-```
-
-编辑 `src/main/resources/application.yml`：
-
-```yaml
-database:
-  type: mysql
-  url: jdbc:mysql://localhost:3306/xiuxian?useUnicode=true&characterEncoding=UTF-8&connectionCollation=utf8mb4_unicode_ci
-  username: root
-  password: 你的密码
-```
-
-#### SQLite 模式（零依赖）
-
-编辑 `src/main/resources/application.yml`，只需修改 `type` 即可：
-
-```yaml
-database:
-  type: sqlite
-  sqlite_path: xiuxian.db
-```
-
-> 切换 `type` 字段即可在 MySQL 和 SQLite 之间切换，无需改动任何代码。SQLite 模式下无需安装任何数据库软件。
-
-### 3. 构建
+### 方式一：一键安装（推荐）
 
 ```bash
-cd xiuxian-server
-mvn clean package -DskipTests
+# Linux / macOS
+./install.sh
+
+# Windows
+install.bat
 ```
 
-### 4. 运行
+脚本自动检测 Java → 缺失 jar 时自动 `mvn package` → 启动服务器并打印地址。
+支持参数：`--nogui`（无交互后台运行）、`--build`（强制重新构建）。
+
+### 方式二：手动构建运行
 
 ```bash
-java -jar target/main-V1.4.1-beta1.jar
+git clone https://github.com/oooohhhhhhhhhh/xiuxian-server-alpha.git
+cd xiuxian-server-alpha
+
+# 用项目自带的 Maven wrapper，无需本机预装 Maven
+./mvnw clean package -DskipTests          # Windows: mvnw.cmd clean package -DskipTests
+java -jar target/main-0.1.0.jar
 ```
 
-启动后会自动初始化数据库表结构、扫描并注册游戏数据。
+> 建议从 JAR 所在目录启动，确保 `config/`、`data/`、`log/`、`plugins/` 等相对路径正确。
 
-#### 启动参数
+### 方式三：Docker
+
+```bash
+docker compose up -d
+```
+
+数据（`config/`、`data/`、`log/`、`plugins/`、`xiuxian.db`）持久化在命名卷里，
+首次启动后访问 **http://127.0.0.1:8080/install** 完成安装向导。
+
+详见 [Dockerfile](Dockerfile) 与 [docker-compose.yml](docker-compose.yml)。
+
+### 方式四：systemd（Linux 服务器）
+
+见 [deploy/xiuxian-server.service](deploy/xiuxian-server.service)，文件顶部有完整安装步骤。
+其中 `WorkingDirectory` 已按服务端的路径规则钉在 jar 同目录，避免数据落到意料之外的位置。
+
+### 首次启动：安装向导
+
+首次启动（未配置 JWT 密钥）时，浏览器打开 **http://127.0.0.1:8080/install** 完成一步式安装：
+
+1. 服务器端口
+2. 数据库模式（SQLite 零配置 / MySQL）
+3. 管理员账号密码
+4. JWT 密钥（留空自动生成，重启后玩家需重新登录）
+
+提交后服务器**自动重启**生效；`/install` 随之卸载。若要重装，清空 `config/application.yml` 中的 `jwt.secret` 后重启。
+
+> ⚠️ 默认监听 `127.0.0.1`；改为公网绑定前请务必修改默认管理员凭据（admin/admin123）与 JWT 密钥。
+
+### 启动参数
 
 | 参数 | 说明 |
 |------|------|
-| `--demo` | 启动交互式演示客户端，服务关闭时自动退出 |
-| `--nogui` | 无 GUI 模式，按 Enter 关闭服务器 |
+| `--nogui` | 无交互模式，按 Ctrl+C 停止 |
+| `--demo` | 启动交互式演示客户端（服务就绪后自动退出） |
+| `--plugin-make` | 交互式插件项目生成向导 |
+| `--plugin-make-gui` | 图形化插件生成器 |
 
-### 5. 访问
+### 访问入口
 
 | 服务 | 地址 |
 |------|------|
+| 安装向导（首次） | `http://127.0.0.1:8080/install` |
 | REST API | `http://127.0.0.1:8080/api/` |
 | WebSocket | `ws://127.0.0.1:8080` |
-| 管理控制台 | `http://127.0.0.1:8080/admin/` |
-| OneBot QQ | `ws://127.0.0.1:6700/onebot` |
-| Minecraft MOTD | `127.0.0.1:25565` |
+| Web 管理控制台 | `http://127.0.0.1:8080/admin/` |
+| OneBot QQ 接入 | `ws://127.0.0.1:6700/onebot`（默认 `config/adapters.json`） |
+| Minecraft MOTD / 通道 | `127.0.0.1:25565`（默认） |
 
-管理后台需在 `application.yml` 中配置 `admin.username` / `admin.password` 后才能登录。
+> 端口、监听地址、数据库等均可通过运行配置修改，见下文「运行配置」。
 
----
+### 升级与回滚
 
-## REST API 概览
+升级只需替换 JAR 后重启，**数据库结构变更会在启动时自动完成，无需手工执行 SQL**。
 
-### 认证
+**升级前务必先备份**（表结构会被改动）：
 
-| 方法 | 路径 | 说明 |
-|------|------|------|
-| POST | `/api/auth/register` | 用户注册 |
-| POST | `/api/auth/login` | 用户登录（返回 access_token） |
-| POST | `/api/auth/refresh` | 刷新令牌 |
-| POST | `/api/auth/send-code` | 发送邮箱验证码 |
-
-### 游戏 API（需携带 JWT Token）
-
-| 方法 | 路径 | 权限 | 说明 |
-|------|------|------|------|
-| GET | `/api/game/player` | `game.player.info` | 获取玩家信息（含灵根详情和离线收益） |
-| POST | `/api/game/player/create` | `game.player.create` | 创建角色（灵根自动抽取） |
-| POST | `/api/game/realm/breakthrough` | `game.realm.breakthrough` | 境界突破（含天劫） |
-| GET | `/api/game/realm/config` | `game.realm.config` | 查看境界配置 |
-| POST | `/api/game/cultivate/start` | `game.cultivate` | 开始修炼 |
-| POST | `/api/game/cultivate/stop` | `game.cultivate` | 停止修炼（含心魔判定） |
-| POST | `/api/game/exploration` | `game.explore` | 游历探索 |
-| POST | `/api/game/heal` | `game.player.info` | 灵石疗伤（HP≤0可用，境界越高花费越多） |
-| GET | `/api/game/secret_realm/areas` | `game.secret_realm` | 查看可用秘境 |
-| POST | `/api/game/secret_realm/enter` | `game.secret_realm` | 进入秘境 |
-| GET | `/api/game/inventory` | `game.inventory.view` | 查看背包 |
-| POST | `/api/game/item/use` | `game.item.use` | 使用物品（支持名称/key） |
-| GET | `/api/game/item/registry` | `game.item.registry` | 物品图鉴 |
-| POST | `/api/game/item/add` | `game.item.add` | 添加物品 |
-| GET | `/api/game/skills` | `game.item.registry` | 技能列表 |
-| GET | `/api/game/skill/my` | `game.inventory.view` | 我的技能 |
-| POST | `/api/game/skill/learn` | `game.skill.learn` | 学习技能 |
-| POST | `/api/game/pvp/challenge` | `game.pvp.challenge` | PVP 挑战 |
-| GET | `/api/game/equipment` | `game.inventory.view` | 查看已装备 |
-| POST | `/api/game/equipment/equip` | `game.equipment.equip` | 装备物品 |
-| POST | `/api/game/equipment/unequip` | `game.equipment.equip` | 卸下装备 |
-| POST | `/api/game/equipment/enhance` | `game.equipment.enhance` | 装备强化 |
-| GET | `/api/game/chat/world` | `game.chat.world` | 世界聊天记录 |
-| POST | `/api/game/chat/world` | `game.chat.world` | 发送世界消息 |
-| GET | `/api/game/chat/private/{targetId}` | `game.chat.private` | 私聊记录 |
-| POST | `/api/game/chat/private` | `game.chat.private` | 发送私聊消息 |
-| GET | `/api/game/rank` | `game.rank.view` | 排行榜（?type=realm\|power\|wealth） |
-| POST | `/api/game/friend/add` | `game.friend.manage` | 发送好友申请 |
-| POST | `/api/game/friend/accept` | `game.friend.manage` | 接受好友申请 |
-| POST | `/api/game/friend/remove` | `game.friend.manage` | 删除好友 |
-| GET | `/api/game/friend/list` | `game.friend.manage` | 好友列表 |
-| GET | `/api/game/friend/pending` | `game.friend.manage` | 待处理的好友申请 |
-| GET | `/api/game/techniques` | `game.technique.learn` | 功法列表 |
-| GET | `/api/game/technique/my` | `game.technique.learn` | 我的功法 |
-| POST | `/api/game/technique/learn` | `game.technique.learn` | 学习功法 |
-| POST | `/api/game/technique/equip` | `game.technique.equip` | 装备功法 |
-| POST | `/api/game/technique/unequip` | `game.technique.equip` | 卸下功法 |
-| POST | `/api/game/technique/upgrade` | `game.technique.upgrade` | 升级功法 |
-| GET | `/api/game/crafting/recipes` | `game.crafting.recipes` | 查看配方（?category=PILL） |
-| POST | `/api/game/crafting/craft` | `game.crafting.craft` | 制造物品 |
-| GET | `/api/game/spiritual_roots` | `game.player.info` | 灵根图鉴 |
-| POST | `/api/game/daily/morning_cultivation` | `game.daily` | 晨修 |
-| GET | `/api/game/daily` | `game.daily` | 今日天象与机缘进度 |
-| GET | `/api/game/market` | `game.market.view` | 坊市挂单列表 |
-| POST | `/api/game/market/list` | `game.market.list` | 上架物品 |
-| POST | `/api/game/market/buy` | `game.market.buy` | 购买物品 |
-| POST | `/api/game/market/cancel` | `game.market.cancel` | 撤单 |
-| GET | `/api/game/market/my_listings` | `game.market.view` | 我的挂单 |
-| GET | `/api/game/sect/list` | `game.sect.manage` | 宗门列表 |
-| GET | `/api/game/sect/info` | `game.sect.manage` | 我的宗门信息 |
-| GET | `/api/game/sect/info/{sectId}` | `game.sect.manage` | 查看指定宗门 |
-| POST | `/api/game/sect/create` | `game.sect.manage` | 创建宗门（金丹期+500灵石） |
-| POST | `/api/game/sect/join/{sectId}` | `game.sect.manage` | 申请加入宗门 |
-| GET | `/api/game/sect/applications` | `game.sect.manage` | 待处理的入宗申请 |
-| POST | `/api/game/sect/approve/{appId}` | `game.sect.manage` | 通过入宗申请 |
-| POST | `/api/game/sect/reject/{appId}` | `game.sect.manage` | 拒绝入宗申请 |
-| POST | `/api/game/sect/leave` | `game.sect.manage` | 退出宗门 |
-| POST | `/api/game/sect/kick/{targetPlayerId}` | `game.sect.manage` | 踢出成员 |
-| POST | `/api/game/sect/appoint` | `game.sect.manage` | 任命宗门职位 |
-| POST | `/api/game/sect/levelup` | `game.sect.manage` | 宗门升级（宗主，消耗声望） |
-| POST | `/api/game/sect/transfer/{targetPlayerId}` | `game.sect.manage` | 宗主转让（200灵石） |
-| POST | `/api/game/sect/war/{targetSectId}` | `game.sect.manage` | 宗门战宣战（1000声望+300灵石） |
-| POST | `/api/game/sect/donate` | `game.sect.donate` | 宗门捐献 |
-| GET | `/api/game/sect/warehouse` | `game.sect.manage` | 宗门仓库 |
-| POST | `/api/game/sect/take` | `game.sect.warehouse` | 宗门仓库取出 |
-| POST | `/api/game/sect/disband` | `game.sect.manage` | 解散宗门 |
-| GET | `/api/game/sect/top` | `game.sect.manage` | 宗门排行 |
-| GET | `/api/game/status` | - | 服务器状态 |
-| GET | `/api/game/players` | - | 玩家排行榜 |
-| GET | `/api/game/players/search` | - | 搜索玩家 |
-| GET | `/api/game/energy/status` | - | 查询自身能量值 |
-| GET | `/api/game/energy/list` | - | 可转化物品列表（含能量价值） |
-| POST | `/api/game/energy/convert` | - | 物品转化为能量 |
-| POST | `/api/game/energy/exchange` | - | 能量兑换为物品 |
-| POST | `/api/game/economy/signin` | `game.economy.signin` | 签到 |
-| POST | `/api/game/economy/recycle` | `game.economy.recycle` | 物品回收 |
-| GET | `/api/game/economy/bank/info` | `game.economy.bank` | 灵庄账户信息 |
-| POST | `/api/game/economy/bank/deposit` | `game.economy.bank` | 存款 |
-| POST | `/api/game/economy/bank/withdraw` | `game.economy.bank` | 取款 |
-| GET | `/api/game/economy/auction/items` | `game.economy.auction` | 竞拍列表 |
-| GET | `/api/game/economy/auction/my` | `game.economy.auction` | 我的拍卖 |
-| POST | `/api/game/economy/auction/create` | `game.economy.auction` | 发布竞拍 |
-| POST | `/api/game/economy/auction/bid` | `game.economy.auction` | 出价 |
-| POST | `/api/game/economy/cultivate-boost` | `game.economy.cultivate` | 修炼加速 |
-| GET | `/api/game/title/all` | `game.title.view` | 称号大全 |
-| GET | `/api/game/title/my` | `game.title.view` | 我的称号 |
-| GET | `/api/game/title/active` | `game.title.view` | 当前装备称号 |
-| POST | `/api/game/title/equip` | `game.title.equip` | 装备称号 |
-| POST | `/api/game/title/unequip` | `game.title.equip` | 卸下称号 |
-| GET | `/api/game/farm/plots` | `game.farm.view` | 查看农田状态 |
-| POST | `/api/game/farm/plant` | `game.farm.plant` | 种植种子（body: `{plotIndex, seedKey}`） |
-| POST | `/api/game/farm/water` | `game.farm.water` | 浇水（body: `{plotIndex}`） |
-| POST | `/api/game/farm/fertilize` | `game.farm.fertilize` | 施肥（body: `{plotIndex}`） |
-| POST | `/api/game/farm/harvest` | `game.farm.harvest` | 收获作物（body: `{plotIndex}`） |
-| POST | `/api/game/farm/clear` | `game.farm.clear` | 清理地块（body: `{plotIndex}`） |
-| POST | `/api/game/farm/expand` | `game.farm.expand` | 扩建农田 |
-| GET | `/api/game/buff` | `game.player.info` | 查看当前激活的 Buff |
-| POST | `/api/game/redeem` | `game.redeem.code` | 使用兑换码（body: `{code}`） |
-
-### 管理后台 API（需管理员 Token）
-
-管理后台使用独立的管理员 JWT 认证，需先在 `application.yml` 中配置 `admin.username` / `admin.password`。
-
-| 方法 | 路径 | 权限 | 说明 |
-|------|------|------|------|
-| POST | `/api/admin/login` | `admin.login` | 管理员登录 |
-| GET | `/api/admin/status` | `admin.status` | 服务器运行状态 |
-| GET | `/api/admin/logs` | `admin.logs.view` | 查看实时日志 |
-| POST | `/api/admin/shutdown` | `admin.shutdown` | 关闭服务器 |
-| GET | `/api/admin/roles` | `admin.roles.manage` | 查看所有角色及权限 |
-| GET | `/api/admin/permissions` | `admin.roles.manage` | 查看所有权限码 |
-| GET | `/api/admin/users` | `admin.users.manage` | 查看所有用户及角色 |
-| POST | `/api/admin/user/{userId}/role` | `admin.users.manage` | 给用户分配角色 |
-| DELETE | `/api/admin/user/{userId}/role/{roleName}` | `admin.users.manage` | 移除用户角色 |
-| POST | `/api/admin/database/clear_players` | `admin.database.clear_players` | 清除所有玩家数据 |
-| POST | `/api/admin/database/reset_all` | `admin.database.reset_all` | 重置全部数据（含熔断初始化） |
-| GET | `/api/admin/energy/{playerId}` | `admin.status` | 查看指定玩家能量值 |
-| POST | `/api/admin/energy/set` | `admin.status` | 覆盖玩家能量值 |
-| POST | `/api/admin/energy/add` | `admin.status` | 增加玩家能量值 |
-| POST | `/api/admin/energy/remove` | `admin.status` | 减少玩家能量值 |
-| GET | `/api/admin/blacklist` | `admin.blacklist.view` | 查看黑名单列表 |
-| POST | `/api/admin/blacklist` | `admin.blacklist.manage` | 添加黑名单（body: `{qqNumber, reason}`） |
-| DELETE | `/api/admin/blacklist/{qqNumber}` | `admin.blacklist.manage` | 移除黑名单 |
-| GET | `/api/admin/onebot/groups` | `admin.onebot.group.config` | 查看所有群组配置 |
-| POST | `/api/admin/onebot/groups/{groupId}/autoMute` | `admin.onebot.group.config` | 设置自动禁言开关（body: `{enabled}`） |
-| POST | `/api/admin/onebot/groups/{groupId}/muteDuration` | `admin.onebot.group.config` | 设置禁言天数（body: `{days}`，1-30） |
-| DELETE | `/api/admin/onebot/groups/{groupId}` | `admin.onebot.group.config` | 删除群组配置 |
-| GET | `/api/admin/plugins` | - | 获取已注册的插件 Web 页面列表 |
-| POST | `/api/admin/items/give` | `admin.items.give` | 向指定玩家发放物品（body: `{playerName, itemKey, quantity}`） |
-
----
-
-## 权限系统
-
-项目采用 **RBAC + 细粒度权限码** 的双层权限模型。
-
-### 角色层级
-
-| 角色 | 级别 | 说明 |
-|------|------|------|
-| `SUPER_ADMIN` | 100 | 超级管理员，拥有所有权限 |
-| `ADMIN` | 80 | 管理员，除用户/权限管理外的所有功能 |
-| `MODERATOR` | 50 | 协管，游戏功能 + 管理后台查看 |
-| `PLAYER` | 10 | 普通玩家，全部游戏功能 + QQ 绑定 |
-| `GUEST` | 0 | 游客，仅 QQ 基本查询 |
-
-- 高等级角色自动拥有低等级角色的全部权限
-- 用户可同时拥有多个角色，权限取并集
-- 新注册用户自动获得 `PLAYER` 角色
-- 可通过管理后台 API 动态调整用户角色
-
-### 权限码分类
-
-| 分类 | 前缀 | 数量 | 示例 |
-|------|------|------|------|
-| 游戏功能 | `game.*` | 37+ | `game.cultivate`, `game.explore`, `game.technique.learn`, `game.chat.world`, `game.rank.view`, `game.friend.manage`, `game.farm.view`, `game.farm.plant`, `game.farm.harvest` |
-| QQ 指令 | `qq.*` | 5 | `qq.bind`, `qq.command.admin` |
-| 管理后台 | `admin.*` | 14 | `admin.shutdown`, `admin.database.reset_all`, `admin.blacklist.manage`, `admin.onebot.group.config` |
-| 插件扩展 | `plugin.*` | 动态 | 由插件通过 `registerPermission()` 注册 |
-
----
-
-## WebSocket 协议
-
-客户端连接后需先发送认证消息：
-
-```json
-{"type":"auth","msgId":1,"data":{"token":"<jwt_access_token>"}}
+```bash
+# 1. 停服
+# 2. 备份数据库与配置（按 config/application.yml 里实际的数据库类型选择）
+cp xiuxian.db  xiuxian.db.bak-$(date +%F)      # SQLite
+cp -r config   config.bak-$(date +%F)
 ```
 
-认证成功返回 `welcome` 消息，包含用户信息和离线收益（如有）：
+**升级步骤**
 
-```json
-{
-  "type":"welcome",
-  "success":true,
-  "data":{
-    "userId":1001,
-    "username":"player1",
-    "message":"连接成功，欢迎进入修仙世界！",
-    "offlineReward":{
-      "offlineSeconds":3600,
-      "offlineMinutes":60,
-      "expGained":450,
-      "hpRecovered":120
-    }
-  }
-}
+```bash
+# 3. 用新 JAR 覆盖旧 JAR（config/、data/、plugins/ 原地保留，不要删）
+# 4. 启动
+java -jar main-0.1.0.jar --nogui
+# 5. 确认日志出现「所有数据库表创建完成」，且无迁移报错
 ```
 
-支持的 `type`：
+**自动迁移做了什么**（全部幂等，每次启动都会执行一遍，重复执行无副作用）：
 
-| type | 说明 |
+| 变更 | 说明 |
 |------|------|
-| `chat` | 世界聊天 |
-| `chat_private` | 私聊消息 |
-| `chat_history` | 世界聊天记录 |
-| `player_info` | 获取玩家信息 |
-| `cultivate_start` | 开始修炼 |
-| `cultivate_stop` | 停止修炼（含心魔判定） |
-| `breakthrough` | 境界突破（含天劫） |
-| `inventory` | 查看背包 |
-| `item_use` | 使用物品 |
-| `item_registry` | 物品图鉴 |
-| `heartbeat` | 心跳（返回 pong） |
-| `secret_realm_areas` | 查看可用秘境 |
-| `secret_realm_enter` | 进入秘境 |
-| `exploration` | 游历探索 |
-| `heal` | 灵石疗伤 |
-| `techniques` | 功法列表 |
-| `my_techniques` | 我的功法 |
-| `technique_learn` | 学习功法 |
-| `technique_equip` | 装备功法 |
-| `technique_unequip` | 卸下功法 |
-| `technique_upgrade` | 升级功法 |
-| `crafting_recipes` | 查看配方（可选 category） |
-| `crafting_craft` | 制造物品 |
-| `equipment_enhance` | 装备强化 |
-| `rank` | 排行榜（可选 type=realm\|power\|wealth） |
-| `friend_add` | 发送好友申请 |
-| `friend_accept` | 接受好友申请 |
-| `friend_remove` | 删除好友 |
-| `friend_list` | 好友列表 |
-| `friend_pending` | 待处理的好友申请 |
-| `farm_plots` | 查看农田状态 |
-| `farm_plant` | 种植种子 |
-| `farm_water` | 浇水 |
-| `farm_fertilize` | 施肥 |
-| `farm_harvest` | 收获作物 |
-| `farm_clear` | 清理地块 |
-| `farm_expand` | 扩建农田 |
-| `buff` | 查看当前激活的 Buff |
+| `trade_listings` 新增 `expires_at` 列 | 既有行保持 `NULL`（= 不过期），随后由服务端回填真实到期时间 |
+| 新增 `trade_price_history` 表 | 成交价格历史 |
+| 新增 3 个索引 | `trade_price_history(item_key, sold_at)`、`trade_listings(status, expires_at)`、`trade_listings(seller_player_id, status)` |
 
----
+> **首次启动的行为，请提前知悉**：服务端会按 `created_at + 72 小时` 为**历史挂单**回填到期时间。
+> 因此**挂出已超过 72 小时的老挂单会在启动后立刻到期**，物品自动退回卖家背包。
+> 这是预期行为（挂单时限对老数据同样生效），但会在启动后短时间内集中出现一批退回，
+> 属正常现象；若希望老挂单保留更久，可临时调大 `market.listing_duration_hours` 后再启动。
 
-## QQ 机器人指令
-
-支持 OneBot 协议（如 Lagrange、LLOneBot），私聊或群聊中以 `/` 开头使用指令。所有涉及物品的指令均支持**中文名**和 **key** 混用（如 `/使用 回血丹` 和 `/使用 healing_pill` 等价）。
-
-### 账号与系统
-
-| 指令 | 权限 | 说明 |
-|------|------|------|
-| `/help` / `/帮助` | - | 查看帮助（按权限分级显示） |
-| `/register <角色名>` / `/注册` | `qq.bind` | 注册角色并绑定QQ（群聊可用，密码私聊发送） |
-| `/bind` / `/绑定` | `qq.bind` | 绑定已有游戏账号（仅私聊） |
-| `/unbind` / `/解绑` | `qq.bind` | 解除QQ绑定（仅私聊） |
-
-### 角色与修炼
-
-| 指令 | 权限 | 说明 |
-|------|------|------|
-| `/status` / `/状态` | `game.player.info` | 查看修炼状态（含HP/MP/攻防速/金币灵石） |
-| `/cultivate` / `/修炼` / `/闭关` | `game.cultivate` | 开始修炼 |
-| `/stop` / `/停止` | `game.cultivate` | 停止修炼（可能触发心魔） |
-| `/breakthrough` / `/突破` | `game.realm.breakthrough` | 境界突破（可能触发天劫） |
-| `/heal` / `/疗伤` | `game.player.info` | 灵石疗伤（消耗灵石回满HP+MP） |
-
-### 探索
-
-| 指令 | 权限 | 说明 |
-|------|------|------|
-| `/explore` / `/游历` | `game.explore` | 游历探索 |
-| `/secret` / `/秘境` | `game.secret_realm` | 查看可用秘境（含境界/冷却/描述） |
-| `/secret_enter <名称>` / `/进入秘境` | `game.secret_realm` | 进入秘境（支持中文名，如 /进入秘境 远古战场） |
-| `/map` / `/地图` | `game.player.info` | 查看当前位置与周围地点（实验性） |
-| `/地图 go <地名>` | `game.player.info` | 前往相邻地点 |
-| `/地图 list [区域]` | `game.player.info` | 浏览全地图 |
-
-### 物品与装备
-
-| 指令 | 权限 | 说明 |
-|------|------|------|
-| `/backpack` / `/背包` | `game.inventory.view` | 查看背包（物品名 + key） |
-| `/itemuse <物品>` / `/使用` | `game.item.use` | 使用物品（支持中文名/key） |
-| `/itemmap` / `/物品列表` | `game.player.info` | 查看物品中文名与 key 的映射表 |
-| `/equip <物品> <部位>` / `/装备` | `game.equipment.equip` | 装备物品（部位：weapon/armor/accessory） |
-| `/unequip <部位>` / `/卸下` | `game.equipment.equip` | 卸下装备 |
-| `/equipped` / `/已装备` | `game.inventory.view` | 查看已装备的物品 |
-| `/buff` / `/增益` | `game.player.info` | 查看当前激活的 Buff 效果 |
-
-### 技能
-
-| 指令 | 权限 | 说明 |
-|------|------|------|
-| `/skills` / `/技能` | `game.player.info` | 查看技能列表（含境界/金币要求） |
-| `/learn <技能ID或名称>` / `/学习` | `game.skill.learn` | 学习技能（支持中文名和ID） |
-| `/战斗策略 <猛攻\|均衡\|防守>` / `/战术` | - | 设置战斗策略（默认均衡） |
-
-### 功法系统
-
-| 指令 | 权限 | 说明 |
-|------|------|------|
-| `/technique` / `/功法` | `game.technique.learn` | 查看功法列表 |
-| `/technique my` / `/我的功法` | `game.technique.learn` | 查看已学习的功法 |
-| `/technique learn <名称>` / `/学习功法` | `game.technique.learn` | 学习功法 |
-| `/technique equip <名称>` / `/装备功法` | `game.technique.equip` | 装备功法（最多3门） |
-| `/technique unequip <名称>` / `/卸下功法` | `game.technique.equip` | 卸下功法 |
-| `/technique upgrade <名称>` / `/升级功法` | `game.technique.upgrade` | 升级功法 |
-
-### 合成制造
-
-| 指令 | 权限 | 说明 |
-|------|------|------|
-| `/craft` / `/合成` | `game.crafting.recipes` | 查看所有配方 |
-| `/craft <物品>` / `/制作` | `game.crafting.craft` | 制造物品（支持中文名） |
-
-### 坊市交易
-
-| 指令 | 权限 | 说明 |
-|------|------|------|
-| `/market` / `/坊市` | `game.player.info` | 查看坊市挂单（最多15条） |
-| `/list <物品> <数量> <灵石>` / `/上架` | `game.market.list` | 上架物品 |
-| `/buy <挂单ID>` / `/购买` | `game.market.buy` | 购买坊市物品 |
-| `/cancel <挂单ID>` / `/撤单` | `game.market.cancel` | 撤单 |
-| `/mylistings` / `/我的挂单` | `game.player.info` | 查看我的挂单 |
-
-### 宗门
-
-| 指令 | 权限 | 说明 |
-|------|------|------|
-| `/sect` / `/宗门` | `game.sect.manage` | 宗门系统主指令（无参数显示概览） |
-| `/宗门 create <名称> [描述]` | `game.sect.manage` | 创建宗门（金丹期+500灵石） |
-| `/宗门 join <宗门名>` | `game.sect.manage` | 申请加入宗门 |
-| `/宗门 list` | `game.sect.manage` | 查看所有宗门 |
-| `/宗门 info [名称]` | `game.sect.manage` | 查看宗门详情 |
-| `/宗门 members` | `game.sect.manage` | 查看本宗成员 |
-| `/宗门 pending` | `game.sect.manage` | 查看待审批的入宗申请（宗主/长老） |
-| `/宗门 approve <玩家名>` | `game.sect.manage` | 批准入宗申请（宗主/长老） |
-| `/宗门 reject <玩家名>` | `game.sect.manage` | 拒绝入宗申请 |
-| `/宗门 leave` | `game.sect.manage` | 退出宗门 |
-| `/宗门 kick <玩家名>` | `game.sect.manage` | 踢出成员（宗主/长老） |
-| `/宗门 appoint <玩家名> <副宗主\|长老\|内门弟子\|外门弟子>` | `game.sect.manage` | 任命职位（宗主可任命所有，副宗主可任命长老及以下，长老可任命内门外门） |
-| `/宗门 levelup` | `game.sect.manage` | 宗门升级（宗主，消耗声望） |
-| `/宗门 transfer <玩家名>` | `game.sect.manage` | 转让宗主（宗主，200灵石） |
-| `/宗门 war <宗门名>` | `game.sect.manage` | 宗门战宣战（宗主，1000声望+300灵石） |
-| `/宗门 donate <物品key> <数量>` | `game.sect.donate` | 向宗门仓库捐献物品 |
-| `/宗门 warehouse` | `game.sect.manage` | 查看宗门仓库 |
-| `/宗门 take <物品key> <数量>` | `game.sect.warehouse` | 从仓库取出（宗主/副宗主/长老免费，内门/外门需消耗贡献值） |
-| `/宗门 disband` | `game.sect.manage` | 解散宗门（宗主） |
-| `/宗门 top` | `game.sect.manage` | 宗门声望排行榜 |
-| `/宗门 help` | `game.sect.manage` | 查看宗门帮助 |
-
-### 社交与排行
-
-| 指令 | 权限 | 说明 |
-|------|------|------|
-| `/rank [类型]` / `/排行` | `game.rank.view` | 查看排行榜（realm/power/wealth） |
-| `/好友 <add\|accept\|remove\|list>` | `game.friend.manage` | 好友管理 |
-| `/msg <玩家名> <内容>` / `/私聊` | `game.chat.private` | 发送私聊消息 |
-| `/pvp <角色名>` / `/挑战` | `game.pvp.challenge` | PVP 挑战其他修士 |
-
-### 每日
-
-| 指令 | 权限 | 说明 |
-|------|------|------|
-| `/daily` / `/天象` | `game.player.info` | 查看今日天象与机缘 |
-| `/morning` / `/晨修` | `game.player.info` | 每日晨修（获取修炼加成） |
-
-### 农场系统
-
-| 指令 | 权限 | 说明 |
-|------|------|------|
-| `/farm` / `/种田` | `game.farm.view` | 查看农田状态 |
-| `/种田 种植 <地块> <种子>` | `game.farm.plant` | 在指定地块种植种子 |
-| `/种田 浇水 <地块>` | `game.farm.water` | 给指定地块浇水 |
-| `/种田 施肥 <地块>` | `game.farm.fertilize` | 给指定地块施肥（需要强化石） |
-| `/种田 收获 <地块>` | `game.farm.harvest` | 收获成熟作物 |
-| `/种田 清理 <地块>` | `game.farm.clear` | 清理已种植地块 |
-| `/种田 扩建` | `game.farm.expand` | 扩建农田（消耗金币） |
-| `/种田 种子` | `game.farm.view` | 查看可用种子列表 |
-
-### 经济系统
-
-| 指令 | 权限 | 说明 |
-|------|------|------|
-| `/qd` / `/签到` | `game.economy.signin` | 每日签到（获得灵石） |
-| `/recycle <物品> <数量>` / `/回收` | `game.economy.recycle` | 回收物品获得灵石 |
-| `/bank` / `/灵庄` | `game.economy.bank` | 查看灵庄账户 |
-| `/bank deposit <数量>` / `/存钱` | `game.economy.bank` | 存入灵石 |
-| `/bank withdraw <数量>` / `/取钱` | `game.economy.bank` | 取出灵石 |
-| `/auction` / `/拍卖` | `game.economy.auction` | 查看竞拍列表 |
-| `/auction my` / `/我的拍卖` | `game.economy.auction` | 查看我的拍卖 |
-| `/auction create <物品> <数量> <起始价>` / `/发布拍卖` | `game.economy.auction` | 发布竞拍 |
-| `/auction bid <拍卖ID> <价格>` / `/出价` | `game.economy.auction` | 出价竞拍 |
-| `/cultivate_boost` / `/修炼加速` | `game.economy.cultivate` | 消耗灵石加速修炼 |
-
-### 兑换码
-
-| 指令 | 权限 | 说明 |
-|------|------|------|
-| `/redeem <兑换码>` / `/兑换` | `game.redeem.code` | 使用兑换码领取奖励 |
-
-### 称号系统
-
-| 指令 | 权限 | 说明 |
-|------|------|------|
-| `/称号` | `game.title.view` | 查看已拥有的称号 |
-| `/称号 列表` | `game.title.view` | 浏览全部称号大全 |
-| `/称号 装备 <名称>` | `game.title.equip` | 装备称号 |
-| `/称号 卸下` | `game.title.equip` | 卸下称号 |
-
-### 玩家查询
-
-| 指令 | 权限 | 说明 |
-|------|------|------|
-| `/查人 <玩家名>` | - | 搜索玩家（模糊匹配） |
-| `/灵根` | `game.player.info` | 查看灵根详情与属性加成 |
-
-### 管理（SUPER_ADMIN，仅私聊）
-
-| 指令 | 权限 | 说明 |
-|------|------|------|
-| `/cleardb_players` / `/清除玩家数据` | `admin.database.clear_players` | 清除所有玩家数据 |
-| `/cleardb_all` / `/重置全部数据` | `admin.database.reset_all` | 重置全部数据并重新初始化 |
-| `/发放 <玩家ID> 金币=<数量> 灵力=<数量> 灵石=<数量> [物品key]=<数量>` | `admin.status` | 给玩家发放物品/金币/灵力/灵石 |
-| `/发放 <玩家名> <物品Key> [数量]` | `admin.items.give` | 向指定玩家发放物品 |
-| `/能量管理 <玩家ID> 查看` | `admin.status` | 查看指定玩家能量值 |
-| `/能量管理 <玩家ID> 设置 <值>` | `admin.status` | 设置玩家能量值 |
-| `/能量管理 <玩家ID> 增加 <值>` | `admin.status` | 增加玩家能量值 |
-| `/能量管理 <玩家ID> 减少 <值>` | `admin.status` | 减少玩家能量值 |
-
-### 黑名单系统
-
-| 指令 | 权限 | 说明 |
-|------|------|------|
-| `/ban <QQ号> <原因>` | `admin.blacklist.manage` | 将QQ号加入黑名单（自动禁言） |
-| `/unban <QQ号>` | `admin.blacklist.manage` | 将QQ号移出黑名单（取消禁言） |
-| `/blacklist` / `/黑名单` | `admin.blacklist.view` | 查看当前黑名单列表 |
-
-> 黑名单功能说明：
-> - 黑名单作用于 QQ 号绑定的游戏账号
-> - 默认不开启自动禁言，需在后台单独为每个群组启用
-> - 开启自动禁言后，机器人在群内需有管理员权限才能执行禁言
-> - 默认禁言 29 天，到期自动续期
-> - 从黑名单移除即取消禁言
-
-### 实用功能
-
-| 指令 | 权限 | 说明 |
-|------|------|------|
-| `/转化 <物品> [数量]` | `game.inventory.view` | 将物品转化为能量（按物品价值） |
-| `/转化 兑换 <物品> [数量]` | `game.inventory.view` | 用能量兑换物品 |
-| `/转化 列表` | `game.inventory.view` | 查看所有可转化物品及能量价值 |
-
----
-
-## 配置说明
-
-配置文件位于 `src/main/resources/application.yml`：
+**配置无需手工修改**：新增的 `market.*` 键会自动从 JAR 内置模板继承
+（外部 `config/application.yml` 作为覆盖层，未写的键回落到内置默认值）。
+若要显式调参，再往 `config/application.yml` 里补写即可：
 
 ```yaml
-app:
-  name: 修仙世界          # 应用名称
+market:
+  listing_duration_hours: 72               # 挂单有效时长（小时）
+  price_history_keep_days: 30              # 成交价格历史保留天数
+  price_history_cleanup_interval_hours: 6  # 历史清理任务执行间隔（小时）
+```
 
-server:
-  host: 127.0.0.1         # API 监听地址
-  port: 8080              # API 监听端口
+**回滚**：直接换回旧 JAR 重启即可。新增的列、表、索引对旧版本**完全无害**
+（旧版代码不读它们），因此回滚不需要还原数据库；只有当你确认要放弃新功能时，
+才需要从备份恢复数据库。
 
-database:
-  type: mysql             # 数据库类型: mysql | sqlite
-  url: jdbc:mysql://...   # MySQL 连接地址（type=mysql 时使用）
-  username: root          # MySQL 用户名
-  password: root          # MySQL 密码
-  sqlite_path: xiuxian.db # SQLite 文件路径（type=sqlite 时使用）
+**升级后建议核对**
 
-jwt:
-  secret: ""              # JWT 签名密钥（至少256位，留空则每次启动自动生成随机密钥）
+- 日志无迁移/回滚异常，服务正常监听端口。
+- 后台「坊市管理」页能打开并列出在售挂单（需要 `admin.economy` 权限，`ADMIN` / `SUPER_ADMIN` 默认具备）。
+- 游戏内 `/坊市` 列表显示剩余时间，`/行情 <物品>` 能返回成交统计。
+- 确认老挂单的集中退回符合预期。
 
-admin:
-  username: ""            # 管理后台账号（必须配置）
-  password: ""            # 管理后台密码（必须配置）
+---
 
-smtp:
-  host: smtp.qq.com       # SMTP 服务器
-  port: 587
-  username: ""            # 发件邮箱
-  password: ""            # 授权码
-  from: ""
-  auth: true
-  starttls: true
+## 📁 项目结构
 
-onebot:
-  enabled: true           # 是否启用 QQ 机器人
-  port: 6700              # OneBot WebSocket 端口
+```
+src/main/java/
+├── com/mtxgdn/                      # 服务端主程序
+│   ├── Main.java                    # 入口：启动装配、扫描注册、生命周期
+│   ├── server/                      # HTTP 服务装配（静态资源 / 停机钩子）
+│   ├── rest/                        # REST 层：Auth / Game / Admin / OAuth / Install + 过滤器
+│   ├── websocket/                   # WebSocket 游戏服务
+│   ├── service/                     # 用户 / 验证码 / OAuth 服务
+│   ├── db/                          # 数据库（SQLite/MySQL 方言、迁移、DAO）
+│   ├── entity/                      # Player / User
+│   ├── common/                      # 统一响应 / 错误码 / 指令路由框架（扫描注册）
+│   ├── permission/                  # RBAC 权限（权限码 / 注解）
+│   ├── game/                        # 玩法核心
+│   │   ├── service/                 # 30 个玩法服务（修炼/境界/战斗/秘境/宗门/农场/洞府/阵法/地图…）
+│   │   ├── item/                    # 物品框架（扫描注册 + 效果组件）
+│   │   ├── explorationevent/        # 游历事件框架
+│   │   ├── secretrealm/             # 秘境框架
+│   │   ├── config/ · title/         # 境界配置加载 / 称号注册表
+│   │   └── entity/                  # 玩法实体（作物/地块/怪物/宗门…）
+│   ├── plugin/                      # 插件系统（Plugin/PluginContext/事件总线/Web UI）
+│   │   └── builtin/                 # 24 个内置玩法模块 + 4 个消息通道模块（可启停）
+│   ├── adapter/                     # 消息通道适配器框架（config/adapters.json）
+│   ├── onebot/                      # OneBot QQ 接入（WebSocket/截图 + 分模块指令体系）
+│   ├── qq/                          # QQ 官方机器人通道（webhook / 按钮）
+│   ├── minecraft/                   # Minecraft MOTD + 内嵌服务器适配 + Bukkit 桥接插件
+│   ├── playerdata/                  # 玩家数据文件化（JSON 落盘 / 导出还原）
+│   ├── client/                      # 外部客户端库（REST + WebSocket）
+│   ├── demo/                        # 命令行交互式演示客户端
+│   └── util/                        # 工具（JWT/邮件/日志/翻译/限流/统计）
+└── data/mtxgdn/                     # 游戏数据定义（启动时自动扫描注册）
+    ├── item/                        # 115 种物品
+    ├── secretrealm/                 # 10 个秘境
+    ├── explorationevent/            # 13 种游历事件
+    └── lang/zh_cn.json              # 简体中文翻译
 
-logging:
-  level: DEBUG            # 日志级别
-  dir: log                # 日志目录
-  color: true             # 彩色日志
+src/main/resources/
+├── application.yml                  # 打包默认配置（运行时释放到 config/）
+├── plugins.yml                      # 插件开关（内置玩法模块 / 实验性插件 / 消息通道）
+├── game/realm_config.json           # 境界数据（11 大境界 / 29 个阶段 + 修炼速率）
+├── webadmin/                        # Web 管理控制台前端
+├── install/                         # 安装向导页面
+└── config/                          # 黑名单 / 群组配置默认值
 ```
 
 ---
 
-## 游戏系统详解
+## ⚙️ 运行配置（config/ 目录）
 
-### 🔮 灵根系统
+首次启动时在 JAR 同级的 `config/` 目录释放/生成配置文件（**优先于打包内默认值**）：
 
-创建角色时自动随机抽取灵根。共 15 种，分为 6 个等级：
-
-| 等级 | 抽取概率 | 灵根 | 属性加成 | 特殊效果 |
-|:--:|:--:|------|------|------|
-| **天灵根** | 15%（各 3%） | 太乙金灵根 | 攻击+15% 灵力+5% | 暴击率 +5% |
-| | | 青帝木灵根 | 生命+15% 速度+5% | 每回合恢复 3% 生命 |
-| | | 玄冥水灵根 | 法力+15% 防御+5% | 技能蓝耗 -20% |
-| | | 离火灵根 | 攻击+10% 灵力+5% 速度+5% | 伤害 +10% |
-| | | 厚土灵根 | 防御+15% 生命+10% | 受到伤害 -15% |
-| **异灵根** | 15%（各 5%） | 巽风灵根 | 攻击+5% 速度+15% | 游历CD -30% |
-| | | 惊雷灵根 | 攻击+5% 灵力+15% | 暴击伤害 +30% |
-| | | 玄冰灵根 | 法力+10% 防御+10% | 技能伤害 +15% |
-| **双灵根** | 30%（各 10%） | 金火灵根 | 攻击+8% 灵力+4% | 怪物经验 +25% |
-| | | 木水灵根 | 生命+8% 法力+8% | 修炼效率 +15% |
-| | | 土金灵根 | 攻击+4% 防御+8% | 坊市手续费减半 |
-| **三灵根** | 20%（各 10%） | 火土木灵根 | 全属性+2% | 灵石掉落 +20% |
-| | | 金水木灵根 | 法力+2% 灵力+2% 速度+2% | 熟练度 +30% |
-| **四灵根** | 14% | 四象灵根 | 全属性+2% | 无 |
-| **杂灵根** | 6% | 混沌灵根 | 无初始加成 | 突破时额外全属性+5 |
-
-> 特殊效果已嵌入战斗、修炼、游历、秘境、坊市、技能熟练度等各系统。
-
----
-
-### ⚡ 渡劫系统
-
-**小境界**（同一大境界内）：100% 成功，无天劫。
-
-**大境界突破**：触发天劫（7 种，按境界匹配：雷劫/心魔劫/风火劫/水劫/五行劫/阴阳劫/轮回劫）。
-
-| 突破 | 基础成功率 |
-|------|:--:|
-| 凡人 → 炼气 | 80% |
-| 炼气 → 筑基 | 70% |
-| 筑基 → 金丹 | 60% |
-| 金丹 → 元婴 | 50% |
-| 元婴 → 化神 | 40% |
-| 化神 → 合体 | 30% |
-| 合体 → 大乘 | 20% |
-| 大乘 → 渡劫 | 15% |
-| 渡劫 → 真仙 | 10% |
-
-**成功率修正**：天灵根 +15% | 异灵根 +10% | 双灵根 +5% | 灵力每 50 点 +1%（上限 15%） | 天劫对应属性加成 | 渡劫丹 +10% | 最终上限 95%
-
-**失败惩罚**：扣除该境界 1/3 经验 + HP 降为 1（混沌灵根失败也小幅成长）
-
----
-
-### 😈 心魔系统
-
-修炼结束时概率触发，修为倒退。
-
-| 参数 | 值 |
+| 文件 | 说明 |
 |------|------|
-| 基础触发率 | 每小时修炼 8%（上限 40%） |
-| 灵力抵抗 | 每 15 灵力 -1%（上限 -8%） |
-| 天灵根/异灵根抵抗 | -3~-4% |
-| 杂灵根 | +2%（混沌觉醒后反转） |
-
-**心魔程度**：轻微（50%，损失 20-40%） | 中等（35%，损失 50-70%） | 严重（15%，损失 80-100%）
-
----
-
-### 🌌 天象系统
-
-全服每日随机天象，影响全局倍率：
-
-| 天象 | 修炼 | 游历 | 战斗 | 灵石 |
-|------|:---:|:---:|:---:|:---:|
-| 紫气东来 | +30% | | | |
-| 星辰耀天 | | +20% | +20% | |
-| 血月当空 | | | +30% | |
-| 灵潮涌动 | | | | +50% |
-| 枯荣交替 | 恢复翻倍 | | | |
-| 万籁俱寂 | +5% | +5% | +5% | +5% |
-
----
-
-### 🏪 坊市交易
-
-玩家间物品交易，灵石结算。
-
-| 规则 | 说明 |
-|------|------|
-| 交易货币 | 灵石 |
-| 手续费 | 5%（土金灵根减半至 2.5%） |
-| 撤单 | 物品退还，手续费不退还 |
-| 自买 | 禁止 |
-
----
-
-### 📅 每日系统
-
-- **晨修·紫气东来**：每日一次，获得经验+灵石，连续天数越多收益越高
-- **今日机缘**：游历3次 / PvP1次 / 秘境1次 / 学技能1次，完成后当场发放奖励
-- **灵根共鸣**：连续活跃 7 天 → 属性小幅提升；连续活跃 30 天 → 属性大幅提升
-
----
-
-### 🌾 农场系统
-
-玩家拥有 4-12 块农田，可种植各类种子，通过浇水施肥提升产量。
-
-**农田规则**：
-
-| 参数 | 值 |
-|------|------|
-| 初始地块数 | 4 块 |
-| 最大地块数 | 12 块 |
-| 水分上限 | 100%（每秒消耗 1%） |
-| 肥力上限 | 100%（消耗强化石提升） |
-| 扩建费用 | 100 × 2^(当前地块数-4) 金币 |
-
-**作物列表**：
-
-| 种子 | 作物 | 生长时间 | 阶段 | 基础产量 | 最大产量 | 肥力加成 |
-|------|------|----------|------|----------|----------|----------|
-| 灵草种子 | 灵草 | 60秒 | 3 | 3 | 5 | 10% |
-| 暗冰草种子 | 暗冰草 | 90秒 | 4 | 2 | 4 | 12% |
-| 火焰藤种子 | 火焰藤 | 120秒 | 4 | 2 | 4 | 12% |
-| 千年人参种子 | 千年人参 | 180秒 | 5 | 1 | 3 | 15% |
-| 血灵芝种子 | 血灵芝 | 200秒 | 5 | 1 | 2 | 18% |
-| 幽冥花种子 | 幽冥花 | 240秒 | 5 | 1 | 3 | 20% |
-| 星辰草种子 | 星辰草 | 300秒 | 6 | 1 | 2 | 25% |
-| 天山雪莲种子 | 天山雪莲 | 420秒 | 7 | 1 | 2 | 30% |
-
-**产量计算**：
-- 水分加成：基础产量 × 水分百分比 × 0.5
-- 肥力加成：基础产量 × 肥力百分比 × 肥力加成率
-- 随机加成：0-2
-- 上限：最大产量
-
-**种子获取**：通过游历事件（SeedEvent）随机掉落，不同稀有度的种子有不同掉落概率。
-
----
-
-### ✨ Buff 系统
-
-物品使用可获得临时属性加成，Buff 自动过期并扣除对应属性。
-
-**Buff 属性**：
-- 攻击加成（attackBonus）
-- 防御加成（defenseBonus）
-- 速度加成（speedBonus）
-- 灵力加成（spiritBonus）
-
-**机制说明**：
-- Buff 添加时立即增加玩家属性
-- Buff 过期时自动扣除对应属性
-- 支持叠加多个同类 Buff
-- 每秒检查过期 Buff
-- 服务器重启时自动重新加载未过期的 Buff
-
-**可用 Buff 物品**：
-- 力量增益丹（PowerBuffPill）：攻击+50，持续 300 秒
-- 灵力增益丹（SpiritBoostPill）：灵力+30，持续 300 秒
-
----
-
-### ⚔️ 技能熟练度
-
-- 战斗中使用技能获得熟练度
-- 熟练度达到当前等级 ×100 后自动升级
-- 使用同名技能书直接 +1 级
-- 等级越高蓝耗越高（每级 +15%）
-- 金水木灵根熟练度获取 +30%
-
----
-
-### 🐉 PVE 战斗系统
-
-游历和秘境中遭遇妖兽时，触发完整回合制 PVE 战斗。
-
-**战斗机制**：
-- 回合制，速度高者先手，最多 30 回合
-- 自动选择可用的攻击技能，消耗 MP
-- 暴击率、暴击伤害、技能伤害、伤害加成/减免 → 全部灵根特效生效
-- 击败妖兽获得经验、金币、灵石，有概率掉落物品
-- **金火灵根**怪物经验 +25%，**火土木灵根**灵石掉落 +20%
-
-**秘境 Boss**（10% 遭遇概率）：
-
-| 秘境 | 需求境界 | Boss | 描述 |
-|------|:--:|------|------|
-| 荒野草原 | 凡人 | 草原霸主·奔雷兽 | 雷光闪烁，刀枪不入 |
-| 暗黑森林 | 炼气 | 暗影领主·噬魂蛛皇 | 毒液腐蚀护体灵气 |
-| 百兽山脉 | 筑基 | 兽王·金翼裂天雕 | 翅展遮天，爪裂金石 |
-| 雷渊谷 | 金丹 | 雷渊守护者·雷霆巨蟒 | 万雷淬体，电光如龙 |
-| 古修遗迹 | 金丹 | 遗迹守卫·青铜巨像 | 拳风摧山岳 |
-| 九霄台 | 元婴 | 九霄试炼官·天罡战神 | 九天之力，镇压苍穹 |
-| 古战场 | 元婴 | 战场英魂·不灭战将 | 战意不灭，杀伐冲天 |
-| 仙人洞府 | 化神 | 洞府守护灵·九霄剑魂 | 剑意化形，一剑光寒 |
-
-Boss 拥有 3 倍以上属性，更高掉落率和更丰富的稀有物品掉落。
-
----
-
-### ⏳ 离线修炼收益
-
-玩家断线后修炼继续进行，无需保持在线。
-
-| 参数 | 值 |
-|------|------|
-| 离线修炼效率 | **50%**（在线的一半） |
-| 最大离线时间 | **8 小时**（超过不计） |
-| 最短触发时间 | 30 秒（短暂断触不触发） |
-| HP/MP 恢复 | 每分钟 2% 至满 |
-| 离线心魔概率 | 在线模式的 **50%** |
-| 天象加成 | ✅ 生效（紫气东来等） |
-| 灵根加成 | ✅ 生效（木水灵根 +15%） |
-
-> 重新上线时（WebSocket 连接或 REST 接口查询），自动结算离线收益并注入响应数据。
-
----
-
-### 📖 新手引导（主线 + 自由探索）
-
-创建角色后自动开启，采用**双轨引导**设计：
-
-| 序号 | 触发 | 主线任务 | 💡 自由探索提示 |
-|:--:|------|------|------|
-| 1 | 创建角色 | /修炼 | 灵根介绍、系统概览 |
-| 2 | 开始修炼 | 等一会儿后 /停止 | 试试 /状态、/灵根 |
-| 3 | 停止修炼 | /游历 | 看看 /背包、去 /坊市 |
-| 4 | 游历 | /秘境 | /技能、/晨修 |
-| 5 | 查看秘境 | /进入秘境 | 秘境冷却机制 |
-| 6 | 进入秘境 | /突破 | 天劫预警 |
-| 7 | 突破 | /晨修 | /坊市、技能书收集 |
-| 8 | 晨修 | 🎉 出师！ | 自由探索全系统 |
-
-**自由探索提示**：首次访问以下功能时会弹出一次性说明：
-- 🔮 /灵根：灵根加成与影响详解
-- 🛒 /坊市：玩家交易市场说明
-- 📜 /技能：技能学习与熟练度
-- 🌅 /晨修：每日天象加成
-- 📅 /日常：今日机缘与任务
-- 🎒 /背包：物品管理与使用
-- 📖 /帮助：全部指令速览
-
-> 主线每个阶段的 💡 指引都可以自由选择先做主线还是先探索支线。
-
----
-
-### 🌐 国际化 (i18n)
-
-项目内置多语言支持系统，基于 JSON 翻译文件：
-
-- **翻译文件位置**：`src/main/java/data/mtxgdn/lang/zh_cn.json`
-- **覆盖范围**：物品名称/描述、秘境名称/描述、游历事件名称/描述、系统提示消息
-- **翻译键格式**：`item.<key>.name` / `item.<key>.desc` / `secretrealm.<key>.name` 等
-- **物品使用**：玩家可以通过**中文名称**使用物品（如 `/使用 回血丹`），系统自动解析到对应物品
-- **添加语言**：在 `data/mtxgdn/lang/` 下新建 `<lang>.json`，调用 `LangManager.setLanguage("new_lang")` 即可切换
-
----
-
-## 插件系统
-
-项目内置完整的插件框架，允许开发者通过 jar 包扩展游戏功能，无需修改主程序代码。
-
-### 插件生命周期
-
-```
-PluginManager 扫描 plugins/*.jar
-    → onLoad(context)    — 加载阶段：读取配置、注册权限码
-    → onEnable(context)  — 启用阶段：注册命令/物品/事件/秘境/Web路由
-    → [服务器运行中...]
-    → onDisable(context) — 停用阶段：释放资源（自动清理事件/Web/ClassLoader）
-
-# 运行时管理
-PluginManager.getInstance().unloadPlugin("插件名")   — 卸载单个插件
-PluginManager.getInstance().reloadPlugin("插件名")  — 热重载单个插件
-```
-
-### 创建插件
-
-插件入口类需实现 `Plugin` 接口：
-
-```java
-@PluginMeta(name = "我的插件", version = "1.0.0", author = "作者", description = "示例插件")
-public class MyPlugin implements Plugin {
-    @Override
-    public void onEnable(PluginContext context) {
-        context.getLogger().info("插件已启用！");
-        // 在此注册扩展内容
-    }
-}
-```
-
-插件 jar 根目录或 `META-INF/` 下需放置 `plugin.json`（也可用 `@PluginMeta` 注解替代）：
-
-```json
-{
-  "name": "示例插件",
-  "version": "1.0.0",
-  "author": "开发者",
-  "description": "一个示例插件",
-  "main": "com.example.MyPlugin"
-}
-```
-
-将打包好的 jar 放入 `./plugins/` 目录，启动服务器即自动加载。
-
-> 也可使用交互式向导创建插件项目骨架：`java -jar main.jar --plugin-make`
-
-### PluginContext 完整 API
-
-`PluginContext` 是插件与服务器交互的唯一入口，提供以下接口：
-
-#### 基础信息
-| 方法 | 返回类型 | 说明 |
-|------|----------|------|
-| `getInfo()` | `PluginInfo` | 插件元数据（名称/版本/作者） |
-| `getLogger()` | `GameLogger` | 插件专属日志记录器 |
-| `getDataFolder()` | `File` | 插件数据目录（`./plugins/插件名/`） |
-| `getClassLoader()` | `ClassLoader` | 插件类加载器 |
-| `getResource(path)` | `InputStream` | 从 jar 内读取资源文件 |
-| `loadConfig(fileName)` | `Properties` | 加载插件数据目录中的 .properties 配置文件 |
-
-#### 游戏服务（19 项）
-`getPlayerService()` `getItemService()` `getEconomyService()` `getCombatService()` `getSkillService()` `getDailyService()` `getExplorationService()` `getSecretRealmService()` `getSectService()` `getTechniqueService()` `getCraftingService()` `getEnhanceService()` `getChatService()` `getFriendService()` `getHeartDemonService()` `getTradeService()` `getGuideService()` `getRealmService()` `getEnergyService()`
-
-#### 内容注册
-| 方法 | 说明 |
-|------|------|
-| `registerCommand(Command)` | 注册游戏命令（自动注册 OneBot + REST 路由） |
-| `unregisterCommand(Command)` | 取消注册命令 |
-| `registerItem(Item)` | 注册新物品 |
-| `unregisterItem(Item)` | 取消注册物品 |
-| `registerItemEnergy(key, value)` | 注册物品能量值（供能量转化系统使用） |
-| `unregisterItemEnergy(key)` | 取消注册物品能量值 |
-| `registerExplorationEvent(ExplorationEvent)` | 注册游历事件 |
-| `unregisterExplorationEvent(ExplorationEvent)` | 取消注册游历事件 |
-| `registerSecretRealm(SecretRealm)` | 注册秘境 |
-| `unregisterSecretRealm(SecretRealm)` | 取消注册秘境 |
-
-#### 权限注册
-| 方法 | 说明 |
-|------|------|
-| `registerPermission(code, name, category)` | 注册插件自定义权限码（写入 DB 并可用于 hasPermission） |
-| `registerPermissions(codes[], names[], category)` | 批量注册插件自定义权限码 |
-
-> 插件权限不会自动分配给任何角色，需管理员通过后台手动为用户分配。建议使用 `plugin.{插件名}.{功能}` 格式（如 `plugin.shop.admin`）。
-
-#### 事件总线
-| 方法 | 说明 |
-|------|------|
-| `registerHandler(type, condition, handler)` | 注册事件处理器（默认优先级 0） |
-| `registerHandler(type, condition, priority, handler)` | 注册事件处理器并设置优先级（数值越大越先执行） |
-| `registerCustomHandler(key, condition, handler)` | 注册自定义事件处理器（默认优先级 0） |
-| `registerCustomHandler(key, condition, priority, handler)` | 注册自定义事件处理器并设置优先级 |
-| `setHandlersEnabled(type, enabled)` | 启用/禁用本插件某类事件的处理器 |
-| `fireEvent(event)` | 触发事件（供其他插件监听） |
-
-内置事件类型：`COMMAND` `PLAYER_LOGIN` `PLAYER_LOGOUT` `ITEM_USED` `COMBAT_ENDED` `EXPLORATION_START` `EXPLORATION_END` `SCHEDULED` `SERVER_READY` `CUSTOM`
-
-> 事件处理器可通过 `event.cancel()` 阻止后续处理器执行，通过 `event.set(key, value)` 向后续处理器传递数据。
-
-#### 底层接口（新增）
-| 方法 | 说明 |
-|------|------|
-| `getDatabaseConnection()` | 获取 HikariCP 数据库连接（可执行原生 SQL） |
-| `getServerConfig(key, default)` | 读取 `application.yml` 配置 |
-| `getServerConfigBoolean(key, default)` | 读取布尔型配置 |
-| `getServerConfigInt(key, default)` | 读取整数型配置 |
-| `checkRateLimit(key, limit, seconds)` | API 频率限制（滑动窗口） |
-| `getRateLimitRemaining(key, limit, seconds)` | 查询剩余调用次数 |
-| `isExperimentalFeatureEnabled(key)` | 检查实验性功能开关 |
-| `getExperimentalFeatureValue(key, default)` | 读取实验性功能配置值 |
-| `getJwtUtil()` | JWT 生成/验证工具 |
-| `getPlayerActionLogger()` | 玩家行为日志记录器 |
-| `getStatsCollector()` | 全局统计收集器 |
-
-#### Web UI 接口（新增）
-| 方法 | 说明 |
-|------|------|
-| `registerRestResource(Class)` | 注册 JAX-RS REST 端点类 |
-| `registerWebPage(path, title, html)` | 注册 HTML 页面（挂载到 `/admin/plugins/插件名/`） |
-| `registerWebResources(resourceDir)` | 从 jar 中注册完整静态资源目录 |
-| `registerWebSocketHandler(type, handler)` | 注册 WebSocket 消息处理器 |
-
-#### Web UI 使用示例
-
-**注册 REST API 端点：**
-
-```java
-// 插件 jar 中定义 REST 资源类
-@Path("/game/myplugin")
-public class MyPluginResource {
-    @GET @Path("/info")
-    @Produces(MediaType.APPLICATION_JSON)
-    public Response getInfo() {
-        return Response.ok("{\"status\":\"ok\"}").build();
-    }
-}
-
-// 在 onEnable 中注册
-public void onEnable(PluginContext context) {
-    context.registerRestResource(MyPluginResource.class);
-}
-// 访问: GET http://127.0.0.1:8080/api/game/myplugin/info
-```
-
-**添加管理后台页面：**
-
-```java
-public void onEnable(PluginContext context) {
-    String html = "<!DOCTYPE html><html><head><meta charset='UTF-8'>"
-        + "<title>我的插件</title></head>"
-        + "<body><h1>插件管理面板</h1><p>Hello from plugin!</p></body></html>";
-    context.registerWebPage("", "插件面板", html.getBytes(StandardCharsets.UTF_8));
-}
-// 访问: http://127.0.0.1:8080/admin/plugins/MyPlugin/
-```
-
-**注册 Web 资源目录：**
-
-```java
-public void onEnable(PluginContext context) {
-    // 将 jar 中 webadmin/ 目录下的所有文件映射到 /admin/plugins/MyPlugin/
-    context.registerWebResources("webadmin");
-}
-```
-
-**注册 WebSocket 消息处理器：**
-
-```java
-public void onEnable(PluginContext context) {
-    context.registerWebSocketHandler("myplugin_action", (socket, data) -> {
-        String userId = data.get("userId").getAsString();
-        context.getLogger().info("收到插件消息: userId=" + userId);
-        // 处理自定义 WebSocket 消息...
-    });
-}
-```
-
-### 插件 Web 管理
-
-- **页面列表**：访问 `http://127.0.0.1:8080/admin/plugins/` 查看所有已注册的插件页面
-- **API 查询**：`GET /api/admin/plugins` 返回插件页面 JSON 列表
-- 管理后台会从该 API 获取插件页面列表并渲染在导航栏中
-
-### 插件开发最佳实践
-
-1. **数据隔离**：使用 `getDataFolder()` 存放插件私有数据，不要修改服务端文件
-2. **日志规范**：使用 `getLogger()` 输出日志，带上插件名前缀
-3. **资源释放**：在 `onDisable()` 中释放数据库连接、定时任务等资源（事件处理器和 Web 资源由框架自动清理）
-4. **频率限制**：对插件自定义的 API 使用 `checkRateLimit()` 防止滥用
-5. **线程安全**：操作共享服务时注意并发安全，必要时使用粗粒度同步
-6. **权限注册**：在 `onLoad()` 阶段注册自定义权限码（`registerPermission`），在 `@RequirePermission` 注解或 `Command.permission` 中使用已注册的权限码
-7. **事件优先级**：需要最先/最后处理某事件时，使用带 `priority` 参数的 `registerHandler` 重载
-
----
-
-## 游戏扩展
-
-项目采用**扫描注册**机制，方便扩展游戏内容：
-
-- **添加新物品**：在 `data/mtxgdn/item/` 下继承 `Item` 类即可自动注册
-- **添加新游历事件**：在 `data/mtxgdn/explorationevent/` 下继承 `ExplorationEvent` 并设置权重
-- **添加新秘境**：在 `data/mtxgdn/secretrealm/` 下继承 `SecretRealm` 并指定需求境界和冷却时间
-- **添加翻译**：在 `zh_cn.json` 中添加对应的翻译键，新物品/事件/秘境即可获得中文显示
-- **添加游戏指令（+ 可选 HTTP API）**：在 `onebot/command/` 下新建 `XxxCommand extends Command`，构造函数内 `registerSub` 或 `addRoute` 即可自动注册为 OneBot 指令 + HTTP 路由，无需修改 `GameResource`
-- **添加权限码**：在 `PermissionCode` enum 加一行即可（插件权限可用 `registerPermission()` 注册，无需修改核心代码）
-- **添加分类**：在 `Command.CATEGORY_ORDER` 加一行即可控制 `/帮助` 排序
-
----
-
-## 数据库表
-
-| 表名 | 说明 |
-|------|------|
-| `users` | 用户账户（用户名、密码哈希） |
-| `verification_codes` | 邮箱验证码 |
-| `players` | 玩家角色（属性、境界、修炼状态、灵根、引导进度、离线时间） |
-| `players_items` | 玩家背包物品（物品 key + 数量） |
-| `players_equipment` | 玩家装备槽位（weapon/armor/accessory，含 enhance_level 强化等级） |
-| `players_skills` | 玩家技能（等级、熟练度） |
-| `players_techniques` | 玩家功法（功法 ID、等级、熟练度、是否装备） |
-| `techniques` | 功法定义（名称、类型、属性加成、最大等级等） |
-| `recipes` | 制造配方（名称、分类、材料、产出、成功率等） |
-| `chat_messages` | 聊天消息（世界/私聊，发送者/接收者，内容） |
-| `friends` | 好友关系（申请者/接收者，状态：pending/accepted） |
-| `skills` | 技能定义（名称、伤害、蓝耗、境界要求等） |
-| `trade_listings` | 坊市挂单（卖家、物品、数量、价格、状态） |
-| `sects` | 宗门（名称、简介、宗主、等级、声望、成员上限） |
-| `sect_members` | 宗门成员（宗门ID、玩家ID、职位、贡献度） |
-| `sect_applications` | 入宗申请（宗门ID、玩家ID、状态） |
-| `sect_warehouse_items` | 宗门仓库物品（宗门ID、物品种类、数量） |
-| `sect_wars` | 宗门战记录（攻方/守方/胜方/比分/战报） |
-| `player_daily` | 每日数据（晨修时间、机缘进度、活跃天数） |
-| `player_energy` | 玩家能量值（能量转化系统） |
-| `qq_bindings` | QQ 与游戏账号绑定 |
-| `roles` | 角色定义（名称、显示名、等级） |
-| `permissions` | 权限码定义 |
-| `role_permissions` | 角色-权限关联 |
-| `user_roles` | 用户-角色关联 |
-
-> SQLite 模式下，`AUTO_INCREMENT` 和 `FOREIGN KEY` 会被自动适配为 SQLite 兼容语法。
-
-## YAML 配置文件
-
-黑名单和 OneBot 群组配置使用 YAML 文件存储（非数据库），位于项目根目录：
-
-| 文件名 | 说明 |
-|------|------|
-| `config/blacklist.yml` | 黑名单列表（QQ号、关联用户、封禁原因、封禁者、创建时间） |
-| `config/onebot_group_config.yml` | OneBot 群组配置（群组ID、自动禁言开关、禁言天数、时间戳） |
-
-### blacklist.yml 格式
+| `config/application.yml` | 主配置：端口、数据库、JWT、管理员、SMTP、季节模式等 |
+| `config/plugins.yml` | **插件开关**：内置玩法模块、实验性插件、消息通道的启停（`plugins.<插件名>: true/false`） |
+| `config/adapters.json` | 消息通道实例配置（OneBot / QQ 官方 / Minecraft…），支持热重载 |
+| `config/blacklist.yml` | QQ 黑名单（支持自动禁言策略） |
+| `config/onebot_group_config.yml` | OneBot 群组级自动禁言配置 |
+| `config/realm_config.json` | 境界表（可由游戏配置加载器按需释放） |
+
+### 插件开关（config/plugins.yml）
+
+内置插件（玩法模块 / 实验性插件 / 消息通道）的启停集中在 `config/plugins.yml`，根节点为 `plugins`：
 
 ```yaml
-entries:
-  - qqNumber: "123456789"
-    userId: 1001
-    reason: "违规发言"
-    bannedBy: null
-    createdAt: "2026-06-25 12:00:00"
+plugins:
+  farm: true                    # 稳定玩法模块（缺省 true）
+  experimental_sect_war: false  # 实验性插件：宗门战（缺省 false）
+  experimental_energy_exchange: true  # 实验性插件：能量转化/等价交换（缺省 true）
+  onebot: true                  # 消息通道类型级总开关
 ```
 
-### onebot_group_config.yml 格式
+- **取值优先级**：`config/plugins.yml` → jar 内模板默认值 → 插件自身默认值；
+  旧版本写在 `application.yml` 的 `built_in_plugins.*` 与 `config/experimental.yml` 的
+  `experimental.*` 作为**只读兜底**保留，升级后首次启动会自动迁移到 `plugins.yml`（旧文件可自行清理）。
+- **运行时启停**：WebUI「插件管理」页的启用/停用会立即写回 `config/plugins.yml`（保留注释），重启后依然生效。
+- **门控范围**：插件停用后其指令、REST 接口、WebSocket 动作、后台定时任务一并失效（`ModuleGateFilter` / 命令注册表 / 服务层门控）。
 
-```yaml
-groups:
-  - groupId: 987654321
-    autoMuteEnabled: true
-    muteDurationDays: 29
-    createdAt: "2026-06-25 12:00:00"
-    updatedAt: "2026-06-25 12:00:00"
-```
+其他运行时目录：
 
-> 文件不存在时服务端会自动创建空配置，无需手动新建。支持运行时通过 API 动态修改并持久化。
+| 目录 | 说明 |
+|------|------|
+| `data/players/` | 玩家数据文件（一用户一 JSON） |
+| `plugins/` | 第三方插件 jar（自动加载） |
+| `log/` | 运行日志 |
+| `mc_server/` | Minecraft 内嵌服务器工作目录（启用时） |
 
 ---
 
-## Star History
+## 🎮 接入与开发
 
-<a href="https://www.star-history.com/?repos=oooohhhhhhhhhh%2Fxiuxian-server&type=date&legend=top-left">
- <picture>
-   <source media="(prefers-color-scheme: dark)" srcset="https://api.star-history.com/chart?repos=oooohhhhhhhhhh/xiuxian-server&type=date&theme=dark&legend=top-left" />
-   <source media="(prefers-color-scheme: light)" srcset="https://api.star-history.com/chart?repos=oooohhhhhhhhhh/xiuxian-server&type=date&legend=top-left" />
-   <img alt="Star History Chart" src="https://api.star-history.com/chart?repos=oooohhhhhhhhhh/xiuxian-server&type=date&legend=top-left" />
- </picture>
-</a>
+### 消息通道（适配器）
+
+服务器通过 `config/adapters.json` 管理消息通道实例，默认启用 OneBot 通道：
+
+| 通道 | 说明 |
+|------|------|
+| **OneBot QQ** | `ws_server` 模式（默认 6700 端口），支持 Lagrange / LLOneBot 等实现连接；聊天中 `/` 开头的全部指令（中英文别名），含私聊注册绑定、群聊玩法、自动禁言黑名单 |
+| **QQ 官方机器人** | 官方 Webhook + 按钮交互通道（需在 `adapters.json` 添加实例并配置） |
+| **Minecraft** | 内嵌服务器进程管理 / 玩家直连通道 / MOTD 预览；`build-mc-plugin.bat` 可编译 Bukkit 桥接插件（`XiuxianBridgePlugin`，指令前缀 `/xiuxian`） |
+
+> 每个通道类型对应一个内置插件（`plugins.<type>`），可在 WebUI「插件管理」页或 `config/plugins.yml` 独立启停；
+> 类型级开关关闭时该类型下全部实例停止运行，实例级 `enabled` 仍由 `config/adapters.json` 控制。
+
+### 外部客户端
+
+- **REST + WebSocket 客户端库**：`com.mtxgdn.client`（`ApiClient` / `GameApi` / `AuthApi` / `GameWebSocketClient` / `ApiConfig`）
+- **交互式演示客户端**：`java -jar main-*.jar --demo`
+
+### 二次开发
+
+- **玩法数据**：在 `data/mtxgdn/` 下继承 `Item` / `ExplorationEvent` / `SecretRealm` 即自动注册；`zh_cn.json` 补翻译即可显示中文
+- **指令**：在 `com.mtxgdn.onebot.command` 下新建 `XxxCommand extends Command`，构造函数 `addRoute` / `registerSub` 自动成为 QQ 指令 + REST 路由
+- **插件**：参见 [README_PLUGIN.md](README_PLUGIN.md)（生命周期、PluginContext API、事件总线、Web UI 注册）与 [examples/sample-plugin](examples/sample-plugin) 示例工程
+- **测试**：`./mvnw test`（Windows 用 `mvnw.cmd test`，或直接跑 `run_tests.sh` / `run_tests.bat`）
+
+---
+
+## 📚 相关文档
+
+- **[在线文档站（Wiki）](https://oooohhhhhhhhhh.github.io/xiuxian-wiki/)** — 安装运维 / 玩家玩法 / 开发者文档 / 数据参考，共 49 页（[源码仓库](https://github.com/oooohhhhhhhhhh/xiuxian-wiki)）
+- [插件开发文档](README_PLUGIN.md) — 插件生命周期 / PluginContext 完整 API / 事件总线 / Web UI
+- [examples/sample-plugin](examples/sample-plugin) — 可编译的插件示例工程
+- [CHANGELOG.md](CHANGELOG.md) — 版本变更记录
+- [docs/archive](docs/archive/README.md) — 归档的历史审计文档（代码审查 / 安全审查 / 修复总结，仅供参考）
 
 ## 许可
 
-MIT License
+[MIT License](LICENSE) © 2026 oooohhhhhhhhhh

@@ -94,20 +94,33 @@ public class UnifiedRestResource {
 
             // 权限检查
             if (entry.def.getPermission() != null) {
-                Long userId = getCurrentUserIdQuietly();
-                if (userId != null && !PermissionService.hasPermission(userId, entry.def.getPermission())) {
+                Long permUserId = getCurrentUserIdQuietly();
+                // V8 修复：原实现在 userId 为 null 时<b>直接跳过权限检查</b>
+                // （注释称"admin 路径已由 AdminAuthFilter 鉴权"）。但 admin JWT
+                // 只证明"是管理员"，并不等于它拥有该路由要求的细粒度权限，
+                // 跳过检查等于给所有 admin 隐式授予全部权限。
+                // 现在 admin 身份统一用 adminUserId 做权限校验。
+                if (permUserId == null && isAdminPath && isAdminAuthenticated()) {
+                    permUserId = getAdminUserIdQuietly();
+                }
+                if (permUserId == null) {
+                    return Response.status(401)
+                            .entity("{\"code\":401,\"message\":\"未登录\"}")
+                            .build();
+                }
+                if (!PermissionService.hasPermission(permUserId, entry.def.getPermission())) {
                     return Response.status(403)
                             .entity("{\"code\":403,\"message\":\"无权限\"}")
                             .build();
                 }
-                // 如果 userId 为 null 但在 admin 路径上已有 admin JWT 鉴权，跳过用户权限检查
             }
 
             Long userId = getCurrentUserIdQuietly();
+            boolean adminContext = false;
             if (userId == null) {
                 // admin 路径：检查是否已通过 AdminAuthFilter 的 JWT 鉴权
                 if (isAdminPath && isAdminAuthenticated()) {
-                    userId = 0L; // admin JWT 鉴权通过，使用哨兵 userId
+                    adminContext = true;
                 } else {
                     return Response.status(401)
                             .entity("{\"code\":401,\"message\":\"未登录\"}")
@@ -115,8 +128,15 @@ public class UnifiedRestResource {
                 }
             }
 
+            // V8 修复：原实现给 admin 置哨兵 userId=0L，随后仍调用
+            // getPlayerIdByUserId(0L) —— 该玩家不存在，于是抛
+            // WebApplicationException("请先创建游戏角色", 400)。
+            // 结果是"管理员通过鉴权后永远调不通任何需要玩家上下文的路由"，
+            // 且报错信息完全是误导性的。现在 admin 上下文明确置 playerId=0，
+            // 由各路由自行判断是否需要玩家上下文。
             int playerId;
-            if (userId == 0L && isAdminPath) {
+            long contextUserId = adminContext ? getAdminUserIdQuietly() : userId;
+            if (adminContext) {
                 playerId = 0; // admin JWT 无玩家上下文
             } else {
                 playerId = getPlayerIdByUserId(userId);
@@ -129,16 +149,17 @@ public class UnifiedRestResource {
             });
 
             RouteDefinition.RestContext ctx = new RouteDefinition.RestContext(
-                    body != null ? body : "{}", params, queryParams, userId, playerId);
+                    body != null ? body : "{}", params, queryParams, contextUserId, playerId);
 
             try {
                 JsonObject result = entry.def.getHttpHandler().handle(ctx);
                 return Response.ok(gson.toJson(result)).build();
             } catch (Exception e) {
+                System.err.println("[UnifiedRest] 处理路由异常 " + httpMethod + " " + path + ": " + e);
                 JsonObject err = new JsonObject();
                 err.addProperty("code", 500);
-                err.addProperty("message", "服务器内部错误: " + e.getMessage());
-                return Response.ok(gson.toJson(err)).build();
+                err.addProperty("message", "服务器内部错误，请稍后重试");
+                return Response.status(500).entity(gson.toJson(err)).build();
             }
         }
 
@@ -157,6 +178,15 @@ public class UnifiedRestResource {
     private Long getCurrentUserIdQuietly() {
         try {
             Object uid = requestContext.getProperty("userId");
+            if (uid instanceof Long) return (Long) uid;
+        } catch (Exception ignored) {}
+        return null;
+    }
+
+    /** V8：读取 AdminAuthFilter 写入的管理员 userId（用于权限校验与审计）。 */
+    private Long getAdminUserIdQuietly() {
+        try {
+            Object uid = requestContext.getProperty("adminUserId");
             if (uid instanceof Long) return (Long) uid;
         } catch (Exception ignored) {}
         return null;

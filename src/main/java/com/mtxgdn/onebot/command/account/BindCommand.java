@@ -4,6 +4,7 @@ import com.mtxgdn.common.command.Command;
 import com.mtxgdn.common.command.CommandContext;
 import com.mtxgdn.minecraft.adapter.MinecraftAdapter;
 import com.mtxgdn.minecraft.adapter.MinecraftCommandContext;
+import com.mtxgdn.onebot.command.OneBotClientCommandContext;
 import com.mtxgdn.onebot.command.OneBotCommandContext;
 
 public class BindCommand extends Command {
@@ -14,7 +15,8 @@ public class BindCommand extends Command {
                 "/绑定",
                 "账号",
                 null,
-                true);
+                true,
+                false);
     }
 
     @Override
@@ -22,6 +24,9 @@ public class BindCommand extends Command {
         if (ctx instanceof OneBotCommandContext) {
             OneBotCommandContext octx = (OneBotCommandContext) ctx;
             octx.getAccountFlow().handleBind(octx.getSocket(), octx.getSelfId(), octx.getSenderId());
+        } else if (ctx instanceof OneBotClientCommandContext) {
+            OneBotClientCommandContext cctx = (OneBotClientCommandContext) ctx;
+            cctx.getAccountFlow().handleBind(cctx.getSession(), cctx.getSelfId(), cctx.getSenderId());
         } else if (ctx instanceof MinecraftCommandContext) {
             MinecraftCommandContext mctx = (MinecraftCommandContext) ctx;
             MinecraftAdapter.getInstance().handleBind(mctx.getMcName(), mctx.getMcUuid());

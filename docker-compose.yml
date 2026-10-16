@@ -1,0 +1,82 @@
+# 修仙文字游戏服务器 —— Docker Compose 编排
+#
+#   docker compose up -d          启动
+#   docker compose logs -f        看日志
+#   docker compose down           停止（保留数据卷）
+#   docker compose down -v        停止并删除数据（慎用）
+#
+# 首次启动后打开 http://127.0.0.1:8080/install 完成安装向导。
+#
+# ── 数据持久化说明 ───────────────────────────────────────────
+# 镜像内的 jar 位于 /opt/xiuxian/main.jar；入口脚本每次启动都会把它复制到 /app。
+# /app 同时是「工作目录」与「jar 所在目录」，也是 config/、data/、log/、
+# plugins/ 与 xiuxian.db 的落点。因此只要把命名卷挂到 /app，状态就全部持久化，
+# 而 jar 会随镜像自动更新，不会残留在卷里。
+#
+# ── 关于安装向导引起的容器重启 ───────────────────────────────
+# 安装向导提交后，服务端会「重启生效」。在容器里，进程退出会让容器随之停止，
+# 再由下面的 restart 策略重新拉起（重新读取刚写入的配置）。
+# 所以安装过程中看到容器重启一次是正常现象，不是崩溃。
+
+services:
+  xiuxian:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: xiuxian-server:latest
+    container_name: xiuxian-server
+    restart: unless-stopped
+
+    ports:
+      - "8080:8080"
+
+    environment:
+      TZ: Asia/Shanghai
+      # 小内存机器上给一个可控的堆。本项目历史上多次出现
+      # hs_err「out of physical RAM or swap space」，默认值刻意保守。
+      JAVA_OPTS: "-Xmx512m -XX:MaxMetaspaceSize=256m"
+      # 若改了 config/application.yml 里的 server.port，这里要同步改
+      XIUXIAN_PORT: "8080"
+
+    volumes:
+      # 整个 /app 一个卷：config/ data/ log/ plugins/ xiuxian.db 都在里面
+      - xiuxian-state:/app
+
+    # 限制容器内存，避免把宿主机拖垮
+    mem_limit: 1g
+
+    # 健康检查沿用镜像里的定义（探 GET /api/game/status）
+    # 如需覆盖，取消下面注释：
+    # healthcheck:
+    #   test: ["CMD-SHELL", "curl -s -o /dev/null --max-time 3 http://127.0.0.1:8080/api/game/status || exit 1"]
+    #   interval: 30s
+    #   timeout: 5s
+    #   retries: 3
+    #   start_period: 45s
+
+volumes:
+  xiuxian-state:
+    driver: local
+
+# ── 改用 MySQL 时 ────────────────────────────────────────────
+# 服务端不支持环境变量覆盖配置（配置只从 YAML 读取），所以 MySQL 需要手工两步：
+#
+#   1) 启动一个 MySQL：
+#        docker run -d --name xiuxian-mysql --restart unless-stopped \
+#          -e MYSQL_ROOT_PASSWORD=改成强口令 \
+#          -e MYSQL_DATABASE=xiuxian \
+#          -v xiuxian-mysql:/var/lib/mysql \
+#          --network container:xiuxian-server \
+#          mysql:8.4
+#      （用 container: 网络模式让 MySQL 与服务器共享 localhost，
+#        这样配置里的 host 写 127.0.0.1 即可）
+#
+#   2) 编辑卷内的 config/application.yml，把 database 段改成：
+#        database:
+#          type: mysql
+#          host: 127.0.0.1
+#          port: 3306
+#          name: xiuxian
+#          username: root
+#          password: 改成强口令
+#      然后 docker compose restart

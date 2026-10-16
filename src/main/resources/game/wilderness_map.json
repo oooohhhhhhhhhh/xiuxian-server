@@ -1,0 +1,250 @@
+{
+  "_comment": "野外随机地图定义（新版：无限分片 + 确定性生成）。已知世界（map_locations 中 is_wilderness=0 的 15 个地点）之外的区域是一片由 worldSeed 确定性生成的、可以无限向外扩展的二维分片世界。同一片区域无论生成多少次都完全一致，因此探索过的内容永远不会被刷新掉；只有「从没有玩家探索过」的分片才会被回收。改完此文件后重启生效；也可在管理台「地图」页触发一次资源补货。",
+  "_comment_upgrade": "如果你是从旧版升级上来的，config/game/wilderness_map.json 里可能还留着旧字段（idBase / nodeCount / refreshIntervalMinutes / regions / namePrefixes / nameSuffixes / descriptions）。这些字段已废弃，启动日志会点名提示 —— 删掉那个文件让服务重新释放新版即可。",
+
+  "enabled": true,
+
+  "_comment_seed": "世界种子。改它等于换一个全新的无限世界：地形、地名、资源分布全变，而已探索记录会对不上新地形（玩家会看到「去过的地方变了样」）。除非确实要重开世界，否则不要改。",
+  "worldSeed": 20261015,
+
+  "_comment_chunkSize": "每个分片 chunkSize × chunkSize 个节点。上限 8 —— id 编码里每片固定预留 64 个槽位，超过 8 会串到下一片。注意：改这个值会让「每片包含哪些节点」变化，但不会移动任何已有节点的 id（stride 固定为 64），所以探索记录依然有效。",
+  "chunkSize": 4,
+
+  "_comment_bounds": "距原点（已知世界）的最大分片距离。4 格/片 × 256 片 = 1024 格。超出后提示「混沌未开」——这是坐标溢出与库体积的兜底，不是玩法边界；玩法上的边界由「越远越险 + 境界门槛」自然形成。",
+  "maxChunksFromOrigin": 256,
+
+  "_comment_evict": "未被探索的分片空闲多久后被回收（分钟）。关键：**只要分片里有一条探索记录，它就永久保留、永不回收**，且没有管理员后门可以删掉它。回收只针对「玩家只是路过、没留下任何首达记录」的分片，因此玩家永远不会发现自己探索过的地方消失了。",
+  "evictAfterMinutes": 1440,
+
+  "_comment_restock": "资源原地补货周期（分钟）。注意是「补货」不是「换地形」：到点把该分片各资源的剩余量补回上限，分片、节点、探索记录全都不动。",
+  "restockIntervalMinutes": 180,
+
+  "_comment_entry": "可出境的已知世界地点 id。第 i 个入口落在入口环的第 i 个方位分片上（顺时针：东、东南、南、西南、西、西北、北、东北），入口分片永远保留。默认取已知世界里的边境/险地（落霞山、昆仑墟、九幽渊、万妖谷、白骨岭）。",
+  "entryLocationIds": [5, 7, 8, 12, 15],
+
+  "_comment_travel": "野外连接的路程秒数（片内边、跨片边、进出野外的边都用这个值）。",
+  "travelTimeSeconds": 20,
+
+  "_comment_bonus": "野外节点的加成由危险度推导：base + perDanger × 危险度。",
+  "cultivationBonusBase": 1.0,
+  "cultivationBonusPerDanger": 0.08,
+  "explorationBonusBase": 1.15,
+  "explorationBonusPerDanger": 0.15,
+
+  "_comment_danger": "危险度 = max(地形基础危险度, 距原点分片距离 ÷ dangerPerChunks)，并夹在 1~4。于是「越往深处走越险」是自动的：走满 48 片（192 格）就进入极危地带。minRealmPerDanger 是每个危险度档位对应的境界门槛（危险度 4 → 需境界 12）。",
+  "dangerPerChunks": 12,
+  "minRealmPerDanger": 3,
+
+  "_comment_noise": "地形噪声尺度（单位：分片）。值越大，同一片地形带越宽阔。高程与湿度两个场用不同尺度，避免地形边界整齐得像格子。",
+  "elevationScale": 24,
+  "moistureScale": 17,
+
+  "_comment_edges": "borderEdgeChancePercent：相邻两片之间每条可能通道的成边概率（每侧至少强制保留一条，保证不会出现走不过去的孤岛分片）。extraEdgeChancePercent：片内在生成树之外额外成环的边概率 —— 纯生成树全是死胡同，走起来很难受。",
+  "borderEdgeChancePercent": 45,
+  "extraEdgeChancePercent": 25,
+
+  "_comment_biomes": "地形表。生成时按**声明顺序取第一个命中** (高程, 湿度) 区间的条目，所以最后一条必须覆盖全域作为兜底（默认是灵田平原）。两个噪声场做了平滑插值，因此相邻分片取值连续、地形成片，不会一格一景。danger 是该地形的基础危险度。",
+  "biomes": [
+    {
+      "key": "marsh",
+      "name": "幽冥沼泽",
+      "danger": 3,
+      "elevationMin": -1.0, "elevationMax": -0.25,
+      "moistureMin": 0.1, "moistureMax": 1.0,
+      "resourcePool": "marsh",
+      "namePrefixes": ["幽", "沼", "阴", "腐", "沉", "瘴"],
+      "nameSuffixes": ["泽", "沼", "洼", "汀", "淖", "浦"],
+      "descriptions": [
+        "{biome}的瘴气贴着地面翻涌，脚下的泥沼冒着气泡。",
+        "{biome}里连鸟叫都没有，只有水泡破裂的声音。",
+        "越往{biome}深处走，空气越黏稠，灵气的味道里混着腐臭。"
+      ]
+    },
+    {
+      "key": "snow",
+      "name": "寒霜雪原",
+      "danger": 3,
+      "elevationMin": 0.35, "elevationMax": 1.0,
+      "moistureMin": -1.0, "moistureMax": 1.0,
+      "resourcePool": "snow",
+      "namePrefixes": ["寒", "霜", "冰", "雪", "凛", "素"],
+      "nameSuffixes": ["原", "岭", "川", "崖", "坡", "坳"],
+      "descriptions": [
+        "{biome}上终年不化的积雪把日光反射得刺眼，风里带着冰碴。",
+        "{biome}的雪面平整得像没有尽头，只有你留下的那串脚印。",
+        "寒气从{biome}的地底透上来，灵气冻得发脆。"
+      ]
+    },
+    {
+      "key": "volcano",
+      "name": "赤炎火山",
+      "danger": 4,
+      "elevationMin": 0.1, "elevationMax": 0.35,
+      "moistureMin": -1.0, "moistureMax": -0.25,
+      "resourcePool": "volcano",
+      "namePrefixes": ["赤", "炎", "熔", "焦", "炽", "燔"],
+      "nameSuffixes": ["岭", "谷", "窟", "壑", "峪", "坪"],
+      "descriptions": [
+        "{biome}的岩缝里透出暗红的光，空气被烤得扭曲。",
+        "脚下是{biome}冷却又裂开的熔岩壳，每一步都发出脆响。",
+        "{biome}的灵气炽烈得烫人，呼吸都带着硫磺味。"
+      ]
+    },
+    {
+      "key": "desert",
+      "name": "流沙荒漠",
+      "danger": 2,
+      "elevationMin": -1.0, "elevationMax": 0.35,
+      "moistureMin": -1.0, "moistureMax": -0.25,
+      "namePrefixes": ["流", "黄", "枯", "旱", "砾", "茫"],
+      "nameSuffixes": ["漠", "丘", "碛", "滩", "垠", "塬"],
+      "descriptions": [
+        "{biome}的沙丘一直铺到天边，风过处只留下移动的沙脊。",
+        "{biome}的日光把石头晒得发白，灵气稀薄而干燥。",
+        "沙下传来细碎的流动声，{biome}从不安静。"
+      ]
+    },
+    {
+      "key": "forest",
+      "name": "幽暗密林",
+      "danger": 2,
+      "elevationMin": -0.25, "elevationMax": 0.35,
+      "moistureMin": 0.1, "moistureMax": 1.0,
+      "namePrefixes": ["幽", "苍", "古", "青", "蔽", "翳"],
+      "nameSuffixes": ["林", "森", "涧", "麓", "樾", "丛"],
+      "descriptions": [
+        "{biome}的树冠遮住了天光，只有零星的绿光在枝叶间游走。",
+        "{biome}里树根盘结成路，走错一步就会绕回原地。",
+        "{biome}的灵气带着草木的清苦，深吸一口能提神。"
+      ]
+    },
+    {
+      "key": "plain",
+      "name": "灵田平原",
+      "danger": 1,
+      "elevationMin": -1.0, "elevationMax": 1.0,
+      "moistureMin": -1.0, "moistureMax": 1.0,
+      "namePrefixes": ["青", "平", "丰", "沃", "广", "舒"],
+      "nameSuffixes": ["原", "野", "田", "畴", "甸", "陂"],
+      "descriptions": [
+        "{biome}在脚下铺开，成片的灵草随着地势起伏。",
+        "{biome}的灵气温和而均匀，是赶路时少有的舒服地段。",
+        "风穿过{biome}，把草叶压出一道道涟漪。"
+      ]
+    }
+  ],
+
+  "_comment_pools": "资源池。键有两种：危险度档位（\"1\"~\"4\"，通用兜底）与地形 key（地形专用）。查找顺序是「先地形专用池，没有再用危险度档位」—— 所以固定危险度的地形（幽冥沼泽/寒霜雪原/赤炎火山）用专用池来体现物产特色，而危险度会随距离变化的地形（流沙荒漠/幽暗密林/灵田平原）走档位池，让「走得越远物产越好」仍然成立。每个节点抽 1~2 种资源，各自随机数量；采集消耗剩余量，采空即止，到 restockIntervalMinutes 后原地补货。物品 key 必须是真实存在的物品（见 data/mtxgdn/item）。",
+  "resourcePools": {
+    "marsh": [
+      { "itemKey": "nether_flower", "weight": 20, "minQuantity": 1, "maxQuantity": 2 },
+      { "itemKey": "snake_venom", "weight": 18, "minQuantity": 1, "maxQuantity": 2 },
+      { "itemKey": "ghost_fire_essence", "weight": 16, "minQuantity": 1, "maxQuantity": 2 },
+      { "itemKey": "blood_lingzhi", "weight": 14, "minQuantity": 1, "maxQuantity": 2 },
+      { "itemKey": "demon_core", "weight": 10, "minQuantity": 1, "maxQuantity": 2 },
+      { "itemKey": "spirit_spring_water", "weight": 10, "minQuantity": 1, "maxQuantity": 2 },
+      { "itemKey": "nether_flower_seed", "weight": 8, "minQuantity": 1, "maxQuantity": 1 },
+      { "itemKey": "thousand_year_ginseng", "weight": 6, "minQuantity": 1, "maxQuantity": 1 },
+      { "itemKey": "blood_lingzhi_seed", "weight": 5, "minQuantity": 1, "maxQuantity": 1 }
+    ],
+    "snow": [
+      { "itemKey": "ice_crystal", "weight": 24, "minQuantity": 1, "maxQuantity": 2 },
+      { "itemKey": "dark_ice_grass", "weight": 22, "minQuantity": 1, "maxQuantity": 3 },
+      { "itemKey": "silver_ore", "weight": 18, "minQuantity": 1, "maxQuantity": 3 },
+      { "itemKey": "moon_essence", "weight": 12, "minQuantity": 1, "maxQuantity": 2 },
+      { "itemKey": "spirit_spring_water", "weight": 10, "minQuantity": 1, "maxQuantity": 2 },
+      { "itemKey": "dark_ice_grass_seed", "weight": 8, "minQuantity": 1, "maxQuantity": 2 },
+      { "itemKey": "tianshan_snow_lotus", "weight": 8, "minQuantity": 1, "maxQuantity": 1 },
+      { "itemKey": "heavenly_jade", "weight": 6, "minQuantity": 1, "maxQuantity": 1 }
+    ],
+    "volcano": [
+      { "itemKey": "gold_ore", "weight": 20, "minQuantity": 1, "maxQuantity": 3 },
+      { "itemKey": "fire_vine", "weight": 20, "minQuantity": 1, "maxQuantity": 3 },
+      { "itemKey": "heaven_fire_stone", "weight": 14, "minQuantity": 1, "maxQuantity": 2 },
+      { "itemKey": "mythril_ore", "weight": 12, "minQuantity": 1, "maxQuantity": 2 },
+      { "itemKey": "fire_vine_seed", "weight": 8, "minQuantity": 1, "maxQuantity": 2 },
+      { "itemKey": "sun_essence", "weight": 6, "minQuantity": 1, "maxQuantity": 1 },
+      { "itemKey": "five_colored_divine_stone", "weight": 5, "minQuantity": 1, "maxQuantity": 1 },
+      { "itemKey": "phoenix_feather", "weight": 4, "minQuantity": 1, "maxQuantity": 1 }
+    ],
+    "1": [
+      { "itemKey": "spirit_grass", "weight": 30, "minQuantity": 2, "maxQuantity": 6 },
+      { "itemKey": "spirit_wood", "weight": 25, "minQuantity": 1, "maxQuantity": 4 },
+      { "itemKey": "iron_ore", "weight": 25, "minQuantity": 1, "maxQuantity": 4 },
+      { "itemKey": "wan_ling_grass", "weight": 15, "minQuantity": 1, "maxQuantity": 3 },
+      { "itemKey": "low_grade_fertilizer", "weight": 12, "minQuantity": 1, "maxQuantity": 3 },
+      { "itemKey": "peach", "weight": 10, "minQuantity": 1, "maxQuantity": 3 },
+      { "itemKey": "spirit_grass_seed", "weight": 8, "minQuantity": 1, "maxQuantity": 2 }
+    ],
+    "2": [
+      { "itemKey": "beast_core", "weight": 25, "minQuantity": 1, "maxQuantity": 3 },
+      { "itemKey": "silver_ore", "weight": 22, "minQuantity": 1, "maxQuantity": 3 },
+      { "itemKey": "dark_ice_grass", "weight": 18, "minQuantity": 1, "maxQuantity": 3 },
+      { "itemKey": "fire_vine", "weight": 18, "minQuantity": 1, "maxQuantity": 3 },
+      { "itemKey": "tiger_fang", "weight": 14, "minQuantity": 1, "maxQuantity": 2 },
+      { "itemKey": "snake_venom", "weight": 14, "minQuantity": 1, "maxQuantity": 2 },
+      { "itemKey": "mid_grade_fertilizer", "weight": 10, "minQuantity": 1, "maxQuantity": 2 },
+      { "itemKey": "spirit_spring_water", "weight": 10, "minQuantity": 1, "maxQuantity": 2 },
+      { "itemKey": "dark_ice_grass_seed", "weight": 6, "minQuantity": 1, "maxQuantity": 2 },
+      { "itemKey": "fire_vine_seed", "weight": 6, "minQuantity": 1, "maxQuantity": 2 }
+    ],
+    "3": [
+      { "itemKey": "gold_ore", "weight": 22, "minQuantity": 1, "maxQuantity": 3 },
+      { "itemKey": "ice_crystal", "weight": 18, "minQuantity": 1, "maxQuantity": 2 },
+      { "itemKey": "blood_lingzhi", "weight": 16, "minQuantity": 1, "maxQuantity": 2 },
+      { "itemKey": "nether_flower", "weight": 16, "minQuantity": 1, "maxQuantity": 2 },
+      { "itemKey": "ghost_fire_essence", "weight": 12, "minQuantity": 1, "maxQuantity": 2 },
+      { "itemKey": "heaven_fire_stone", "weight": 12, "minQuantity": 1, "maxQuantity": 2 },
+      { "itemKey": "demon_core", "weight": 10, "minQuantity": 1, "maxQuantity": 2 },
+      { "itemKey": "thousand_year_ginseng", "weight": 8, "minQuantity": 1, "maxQuantity": 1 },
+      { "itemKey": "scripture_page", "weight": 8, "minQuantity": 1, "maxQuantity": 1 },
+      { "itemKey": "blood_lingzhi_seed", "weight": 5, "minQuantity": 1, "maxQuantity": 1 },
+      { "itemKey": "nether_flower_seed", "weight": 5, "minQuantity": 1, "maxQuantity": 1 },
+      { "itemKey": "thousand_year_ginseng_seed", "weight": 4, "minQuantity": 1, "maxQuantity": 1 }
+    ],
+    "4": [
+      { "itemKey": "mythril_ore", "weight": 18, "minQuantity": 1, "maxQuantity": 2 },
+      { "itemKey": "moon_essence", "weight": 16, "minQuantity": 1, "maxQuantity": 2 },
+      { "itemKey": "star_grass", "weight": 14, "minQuantity": 1, "maxQuantity": 2 },
+      { "itemKey": "star_sand", "weight": 14, "minQuantity": 1, "maxQuantity": 2 },
+      { "itemKey": "heavenly_jade", "weight": 12, "minQuantity": 1, "maxQuantity": 2 },
+      { "itemKey": "deep_sea_coral", "weight": 12, "minQuantity": 1, "maxQuantity": 2 },
+      { "itemKey": "dragon_blood_crystal", "weight": 10, "minQuantity": 1, "maxQuantity": 1 },
+      { "itemKey": "dragon_bone", "weight": 10, "minQuantity": 1, "maxQuantity": 1 },
+      { "itemKey": "immortal_date", "weight": 8, "minQuantity": 1, "maxQuantity": 1 },
+      { "itemKey": "ten_thousand_year_lingzhi", "weight": 8, "minQuantity": 1, "maxQuantity": 1 },
+      { "itemKey": "tianshan_snow_lotus", "weight": 8, "minQuantity": 1, "maxQuantity": 1 },
+      { "itemKey": "five_colored_divine_stone", "weight": 5, "minQuantity": 1, "maxQuantity": 1 },
+      { "itemKey": "nine_turn_grass", "weight": 5, "minQuantity": 1, "maxQuantity": 1 },
+      { "itemKey": "qilin_horn", "weight": 4, "minQuantity": 1, "maxQuantity": 1 },
+      { "itemKey": "sun_essence", "weight": 4, "minQuantity": 1, "maxQuantity": 1 },
+      { "itemKey": "phoenix_feather", "weight": 4, "minQuantity": 1, "maxQuantity": 1 }
+    ]
+  },
+
+  "_comment_explorationReward": "首达奖励：已知世界与野外统一按「基础值 + 危险度×每级值」发放。野外另乘野外倍率（探索野外更有价值）。",
+  "firstVisitReward": {
+    "spiritStonesBase": 20,
+    "spiritStonesPerDanger": 30,
+    "spiritStonesWildernessMultiplier": 2.0,
+    "experienceBase": 50,
+    "experiencePerDanger": 80,
+    "experienceWildernessMultiplier": 2.0,
+    "completionBonusSpiritStones": 2000
+  },
+
+  "_comment_teleport": "传送：到过的地点即解锁，可付费直传（无视路径，仍校验境界）。费用 = 基础值 + 两地危险度之和×每级值，野外目的地另乘附加系数。",
+  "teleport": {
+    "enabled": true,
+    "baseCost": 50,
+    "costPerDanger": 60,
+    "wildernessSurcharge": 1.5,
+    "minCost": 10
+  },
+
+  "_comment_gather": "采集冷却（秒）与单次最多采集量。",
+  "gather": {
+    "cooldownSeconds": 60,
+    "maxPerGather": 3
+  }
+}

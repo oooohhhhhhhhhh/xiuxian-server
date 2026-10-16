@@ -24,15 +24,18 @@ public class SpiritSpringEvent extends ExplorationEvent {
         int healHp = player.getMaxHp() / 4 + random.nextInt(player.getMaxHp() / 4);
         int healMp = player.getMaxMp() / 4 + random.nextInt(player.getMaxMp() / 4);
         long exp = (player.getRealm() + 1) * 80L;
+        int springCount = random.nextInt(1, 4);
 
         playerService.addExperience(player.getId(), exp);
-        itemService.addItem(player.getId(), "mtxgdn:spirit_spring_water", random.nextInt(1, 4));
+        itemService.addItem(player.getId(), "mtxgdn:spirit_spring_water", springCount);
         result.setExpGained(exp);
+        result.setItemGained("mtxgdn:spirit_spring_water");
+        result.setItemQuantity(springCount);
 
         log.add("💧 你发现了一处隐秘的灵泉！泉水清澈见底，散发着浓郁的灵气。");
         log.add("你在灵泉中沐浴修炼，伤势恢复，灵力充盈...");
         log.add("HP 恢复 +" + healHp + "，MP 恢复 +" + healMp);
-        log.add("获得了 " + exp + " 点经验和一些灵泉水。");
+        log.add("获得了 " + exp + " 点经验和 灵泉水 x" + springCount + "。");
 
         try (var conn = com.mtxgdn.db.DatabaseManager.getConnection();
              var ps = conn.prepareStatement("UPDATE players SET hp = LEAST(max_hp, hp + ?), mp = LEAST(max_mp, mp + ?) WHERE id = ?")) {
@@ -44,6 +47,6 @@ public class SpiritSpringEvent extends ExplorationEvent {
             throw new RuntimeException("恢复生命法力失败", e);
         }
 
-        result.setMessage("灵泉沐浴，恢复了生命和法力");
+        result.setMessage("灵泉沐浴，恢复了生命和法力，获得 灵泉水 x" + springCount);
     }
 }

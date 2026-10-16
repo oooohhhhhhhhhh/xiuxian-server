@@ -198,6 +198,19 @@ public class GameApi {
         return apiClient.get("/game/market/my_listings");
     }
 
+    /**
+     * 查询坊市成交行情（近期成交均价/最低/最高 + 当前在售最低价）。
+     *
+     * @param itemKey 物品 key（支持短 key）
+     * @param days    统计窗口天数；&lt;=0 使用服务端默认 7 天，上限 90 天
+     */
+    public ApiResponse getPriceHistory(String itemKey, int days) {
+        String q = "/game/market/price?itemKey=" + java.net.URLEncoder.encode(
+                itemKey == null ? "" : itemKey, java.nio.charset.StandardCharsets.UTF_8);
+        if (days > 0) q += "&days=" + days;
+        return apiClient.get(q);
+    }
+
     public ApiResponse getRanking(String type, int limit) {
         return apiClient.get("/game/rank?type=" + type + "&limit=" + limit);
     }

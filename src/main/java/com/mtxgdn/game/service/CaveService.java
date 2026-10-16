@@ -49,6 +49,7 @@ public class CaveService {
     }
 
     public Map<String, Object> createCave(long playerId, String caveName) {
+        com.mtxgdn.playerdata.PlayerDataService.markDirty(playerId);
         Map<String, Object> result = new LinkedHashMap<>();
 
         Player player = playerService.getPlayerById(playerId);
@@ -62,7 +63,7 @@ public class CaveService {
             String realmName = GameConfigLoader.getRealmConfig(player.getRealm(), 0) != null
                     ? GameConfigLoader.getRealmConfig(player.getRealm(), 0).getFullName() : "凡人";
             result.put("success", false);
-            result.put("message", "境界不足，需要达到筑基期以上才能开辟洞府（当前：" + realmName + "）");
+            result.put("message", "境界不足，需要达到金丹期以上才能开辟洞府（当前：" + realmName + "）");
             return result;
         }
 
@@ -85,8 +86,11 @@ public class CaveService {
         }
         final String name = caveNameFinal;
 
-        Cave cave = DatabaseManager.runTransaction(conn -> {
-            if (!itemService.removeItem(conn, playerId, com.mtxgdn.game.item.CurrencyEffect.SPIRIT_STONE_KEY, Cave.CREATE_COST_SPIRIT_STONES)) {
+        // 修复"开辟洞府失败实际成功"：不能在事务内用另一条连接查询刚插入的行
+        //（事务未提交时新连接看不到该行，导致返回 null 报失败，但插入实际已提交）。
+        // 改为：事务内只返回生成的 id，提交后再查询。
+        Long caveId = DatabaseManager.runTransaction(conn -> {
+            if (!itemService.removeSpiritStones(conn, playerId, Cave.CREATE_COST_SPIRIT_STONES)) {
                 throw new SQLException("灵石扣除失败");
             }
             String sql = "INSERT INTO caves (player_id, name, level, spirit_energy, max_spirit_energy, " +
@@ -101,12 +105,13 @@ public class CaveService {
                 ps.executeUpdate();
                 ResultSet keys = ps.getGeneratedKeys();
                 if (keys.next()) {
-                    long caveId = keys.getLong(1);
-                    return getCaveById(caveId);
+                    return keys.getLong(1);
                 }
             }
             return null;
         });
+
+        Cave cave = caveId != null ? getCaveById(caveId) : null;
 
         if (cave != null) {
             result.put("success", true);
@@ -133,6 +138,7 @@ public class CaveService {
     }
 
     public Map<String, Object> collectSpiritEnergy(long playerId) {
+        com.mtxgdn.playerdata.PlayerDataService.markDirty(playerId);
         Map<String, Object> result = new LinkedHashMap<>();
 
         Cave cave = getCaveByPlayerId(playerId);
@@ -144,7 +150,7 @@ public class CaveService {
 
         long collectInterval = 5 * 60 * 1000L;
         Long collectedEnergy = DatabaseManager.runTransaction(conn -> {
-            String checkSql = "SELECT spirit_energy, last_collect_time FROM caves WHERE id = ? FOR UPDATE";
+            String checkSql = "SELECT spirit_energy, last_collect_time FROM caves WHERE id = ? " + com.mtxgdn.db.DatabaseManager.getDialect().getForUpdateClause();
             long spiritEnergy = 0;
             long lastCollectTime = 0;
             try (var ps = conn.prepareStatement(checkSql)) {
@@ -172,7 +178,15 @@ public class CaveService {
                 ps.setLong(2, cave.getId());
                 ps.executeUpdate();
             }
-            return spiritEnergy;
+
+            // 在事务内发放灵石，确保灵能重置和灵石发放原子性
+            int formationBoost = com.mtxgdn.common.service.ServiceRegistry.getFormationService().getTotalSpiritEnergyBoost(playerId);
+            long boostedEnergy = spiritEnergy;
+            if (formationBoost > 0) {
+                boostedEnergy = spiritEnergy * (100 + formationBoost) / 100;
+            }
+            itemService.addSpiritStones(conn, playerId, boostedEnergy);
+            return boostedEnergy;
         });
 
         if (collectedEnergy == null) {
@@ -189,25 +203,14 @@ public class CaveService {
             return result;
         }
 
-        int formationBoost = com.mtxgdn.common.service.ServiceRegistry.getFormationService().getTotalSpiritEnergyBoost(playerId);
-        long boostedEnergy = collectedEnergy;
-        if (formationBoost > 0) {
-            boostedEnergy = collectedEnergy * (100 + formationBoost) / 100;
-        }
-
-        itemService.addSpiritStones(playerId, boostedEnergy);
-
         result.put("success", true);
-        if (formationBoost > 0) {
-            result.put("message", "收集洞府灵气获得 " + boostedEnergy + " 灵石！（阵法加成 +" + formationBoost + "%）");
-        } else {
-            result.put("message", "收集洞府灵气获得 " + boostedEnergy + " 灵石！");
-        }
-        result.put("collected", boostedEnergy);
+        result.put("message", "收集洞府灵气获得 " + collectedEnergy + " 灵石！");
+        result.put("collected", collectedEnergy);
         return result;
     }
 
     public Map<String, Object> meditate(long playerId) {
+        com.mtxgdn.playerdata.PlayerDataService.markDirty(playerId);
         Map<String, Object> result = new LinkedHashMap<>();
 
         Cave cave = getCaveByPlayerId(playerId);
@@ -269,6 +272,7 @@ public class CaveService {
     }
 
     public Map<String, Object> levelUp(long playerId) {
+        com.mtxgdn.playerdata.PlayerDataService.markDirty(playerId);
         Map<String, Object> result = new LinkedHashMap<>();
 
         Cave cave = getCaveByPlayerId(playerId);
@@ -293,7 +297,7 @@ public class CaveService {
         }
 
         DatabaseManager.runTransaction(conn -> {
-            if (!itemService.removeItem(conn, playerId, com.mtxgdn.game.item.CurrencyEffect.SPIRIT_STONE_KEY, cost)) {
+            if (!itemService.removeSpiritStones(conn, playerId, cost)) {
                 throw new SQLException("灵石扣除失败");
             }
             int newLevel = cave.getLevel() + 1;
@@ -321,6 +325,8 @@ public class CaveService {
     }
 
     public static void tickSpiritEnergy() {
+        // 内置模块门控：洞府模块停用后暂停灵气自动收集
+        if (!com.mtxgdn.plugin.BuiltInPluginRegistry.getInstance().isEnabledOrUnknown("cave")) return;
         String sql = DatabaseManager.isSqlite()
                 ? "UPDATE caves SET spirit_energy = MIN(max_spirit_energy, spirit_energy + 10)"
                 : "UPDATE caves SET spirit_energy = LEAST(max_spirit_energy, spirit_energy + 10)";

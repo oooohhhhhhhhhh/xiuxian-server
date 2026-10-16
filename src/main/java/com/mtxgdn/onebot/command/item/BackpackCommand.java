@@ -11,22 +11,24 @@ import java.util.List;
 public class BackpackCommand extends Command {
     public BackpackCommand() {
         super(new String[]{"背包", "backpack"}, "查看背包中的物品", "/背包", "背包", "game.inventory.view");
+        setModule("inventory");
     }
+
     @Override
     public void execute(CommandContext ctx) {
-        Long userId = ctx.requireBinding();
-        if (userId == null) return;
-        if (!ctx.checkPermission("game.inventory.view")) return;
-        PlayerInfo p = ctx.requirePlayer(userId);
+        PlayerInfo p = requirePlayerInfo(ctx);
         if (p == null) return;
+
         var guideService = ServiceRegistry.getGuideService();
         var itemService = ServiceRegistry.getItemService();
         List<ItemService.InventoryEntry> inventory = itemService.getInventory((int) p.getId());
         int usedSlots = itemService.getInventoryUsedSlots((int) p.getId());
         int capacity = itemService.getInventoryCapacity((int) p.getId());
+
         StringBuilder sb = new StringBuilder();
         sb.append("===== 背包 =====\n");
         sb.append("容量: ").append(usedSlots).append("/").append(capacity).append("\n\n");
+
         if (inventory.isEmpty()) {
             sb.append("空空如也...");
         } else {
@@ -40,6 +42,7 @@ public class BackpackCommand extends Command {
                 sb.append("\n");
             }
         }
+
         ctx.reply(sb.toString());
         String discTip = guideService.checkDiscovery((int) p.getId(), p, "backpack");
         if (discTip != null) ctx.reply(discTip);

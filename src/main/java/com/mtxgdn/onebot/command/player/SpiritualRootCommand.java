@@ -18,6 +18,7 @@ public class SpiritualRootCommand extends Command {
                 "/灵根 [重铸]",
                 "我的角色",
                 null);
+        setModule("player");
 
         registerSub(new String[]{"重铸", "recast"}, this::doRecast);
     }
@@ -90,7 +91,12 @@ public class SpiritualRootCommand extends Command {
             return;
         }
 
-        itemService.removeItem(p.getId(), QIANKUN_DAN_KEY, 1);
+        // 事务内：扣道具 + 扣灵石（任一步骤失败则回滚）
+        com.mtxgdn.db.DatabaseManager.runTransaction(conn -> {
+            itemService.removeItem(conn, p.getId(), QIANKUN_DAN_KEY, 1);
+            itemService.removeSpiritStones(conn, p.getId(), RECAST_SPIRIT_STONE_COST);
+            return null;
+        });
 
         SpiritualRoot oldRoot = p.getSpiritualRoot();
         SpiritualRoot newRoot = SpiritualRoot.drawRandomForRecast(new java.util.Random());

@@ -2,6 +2,8 @@ package com.mtxgdn.game.service;
 
 import com.mtxgdn.db.DatabaseManager;
 import com.mtxgdn.entity.Player;
+import com.mtxgdn.game.config.GameConfigLoader;
+import com.mtxgdn.game.entity.Cave;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -30,6 +32,7 @@ public class EconomyService {
     };
 
     public Map<String, Object> signIn(long playerId) {
+        com.mtxgdn.playerdata.PlayerDataService.markDirty(playerId);
         Map<String, Object> result = new LinkedHashMap<>();
         Player player = playerService.getPlayerById(playerId);
         if (player == null) { result.put("success", false); result.put("message", "角色不存在"); return result; }
@@ -60,6 +63,20 @@ public class EconomyService {
         return DatabaseManager.runTransaction(conn -> {
             Map<String, Object> txResult = new LinkedHashMap<>();
             try {
+                // 事务内行锁复查：防止并发双签（MySQL 行锁/间隙锁，SQLite 单写者串行化）
+                String checkSql = "SELECT last_sign_in FROM player_economy WHERE player_id = ?"
+                        + (DatabaseManager.isSqlite() ? "" : " FOR UPDATE");
+                try (PreparedStatement ps = conn.prepareStatement(checkSql)) {
+                    ps.setLong(1, playerId);
+                    try (ResultSet rs = ps.executeQuery()) {
+                        if (rs.next() && today.equals(rs.getString("last_sign_in"))) {
+                            txResult.put("success", false);
+                            txResult.put("message", "今日已签到，明日再来吧");
+                            return txResult;
+                        }
+                    }
+                }
+
                 for (int i = 1; i < reward.length; i += 2) {
                     String itemKey = reward[i];
                     int qty = Integer.parseInt(reward[i + 1]);
@@ -90,6 +107,7 @@ public class EconomyService {
     private static final double RECYCLE_RATE = 0.30;
 
     public Map<String, Object> recycleItem(long playerId, String itemKey, int quantity) {
+        com.mtxgdn.playerdata.PlayerDataService.markDirty(playerId);
         Map<String, Object> result = new LinkedHashMap<>();
 
         var item = com.mtxgdn.game.item.ItemRegistry.resolve(itemKey);
@@ -112,8 +130,12 @@ public class EconomyService {
         long recycleValue = (long)(basePrice * quantity * RECYCLE_RATE);
         if (recycleValue < 1) recycleValue = 1;
 
-        itemService.removeItem(playerId, fullKey, quantity);
-        itemService.addSpiritStones(playerId, recycleValue);
+        final long finalRecycleValue = recycleValue;
+        DatabaseManager.runTransaction(conn -> {
+            itemService.removeItem(conn, playerId, fullKey, quantity);
+            itemService.addSpiritStones(conn, playerId, finalRecycleValue);
+            return null;
+        });
 
         result.put("success", true);
         result.put("recycled", item.getName() + " x" + quantity);
@@ -142,12 +164,13 @@ public class EconomyService {
         {"暗冰草种子", "mtxgdn:dark_ice_grass_seed", "120", "种植暗冰草，90秒成熟"},
         {"火焰藤种子", "mtxgdn:fire_vine_seed", "150", "种植火焰藤，120秒成熟"},
         {"幽冥花种子", "mtxgdn:nether_flower_seed", "300", "种植幽冥花，240秒成熟（稀有）"},
-        {"星辰草种子", "mtxgdn:star_grass_seed", "500", "种植星辰草，300秒成熟（史诗）"},
+        {"星草种子", "mtxgdn:star_grass_seed", "500", "种植星草，300秒成熟（史诗）"},
         {"血灵芝种子", "mtxgdn:blood_lingzhi_seed", "400", "种植血灵芝，200秒成熟（稀有）"},
         {"天山雪莲种子", "mtxgdn:tianshan_snow_lotus_seed", "1000", "种植天山雪莲，420秒成熟（传说）"},
     };
 
     public Map<String, Object> buyFromShop(long playerId, int shopIndex) {
+        com.mtxgdn.playerdata.PlayerDataService.markDirty(playerId);
         Map<String, Object> result = new LinkedHashMap<>();
         if (shopIndex < 1 || shopIndex > SHOP_ITEMS.length) {
             result.put("success", false); result.put("message", "商品不存在（1~" + SHOP_ITEMS.length + "）"); return result;
@@ -165,8 +188,11 @@ public class EconomyService {
             return result;
         }
 
-        itemService.removeSpiritStones(playerId, price);
-        itemService.addItem(playerId, itemKey, 1);
+        DatabaseManager.runTransaction(conn -> {
+            itemService.removeSpiritStones(conn, playerId, price);
+            itemService.addItem(conn, playerId, itemKey, 1);
+            return null;
+        });
 
         result.put("success", true);
         result.put("item", item != null ? item.getName() : itemKey);
@@ -183,6 +209,7 @@ public class EconomyService {
     private static final double BOOST_MULTIPLIER = 1.5;
 
     public Map<String, Object> boostCultivation(long playerId, int stonesToBurn) {
+        com.mtxgdn.playerdata.PlayerDataService.markDirty(playerId);
         Map<String, Object> result = new LinkedHashMap<>();
 
         Player player = playerService.getPlayerById(playerId);
@@ -202,15 +229,19 @@ public class EconomyService {
         int boostHours = stonesToBurn / STONES_PER_BOOST;
         stonesToBurn = boostHours * STONES_PER_BOOST;
 
-        itemService.removeSpiritStones(playerId, stonesToBurn);
-
         int realmId = player.getRealm();
         double cultivPerSecond = com.mtxgdn.game.config.GameConfigLoader.getCultivationPerSecond(realmId);
         long boostSeconds = (long) boostHours * 3600L;
         long normalExp = (long)(cultivPerSecond * boostSeconds);
         long bonusExp = (long)(normalExp * (BOOST_MULTIPLIER - 1.0));
 
-        playerService.addExperience(playerId, bonusExp);
+        final long finalStonesToBurn = stonesToBurn;
+        final long finalBonusExp = bonusExp;
+        DatabaseManager.runTransaction(conn -> {
+            itemService.removeSpiritStones(conn, playerId, finalStonesToBurn);
+            playerService.addExperience(conn, playerId, finalBonusExp);
+            return null;
+        });
 
         result.put("success", true);
         result.put("stonesSpent", stonesToBurn);
@@ -226,6 +257,7 @@ public class EconomyService {
     private static final long STONE_TO_GOLD_RATE = 5;
 
     public Map<String, Object> exchangeGoldToStones(long playerId, long goldAmount) {
+        com.mtxgdn.playerdata.PlayerDataService.markDirty(playerId);
         Map<String, Object> result = new LinkedHashMap<>();
         Player player = playerService.getPlayerById(playerId);
         if (player == null) { result.put("success", false); result.put("message", "角色不存在"); return result; }
@@ -237,8 +269,11 @@ public class EconomyService {
         }
 
         long stones = goldAmount / GOLD_TO_STONE_RATE;
-        playerService.addGold(playerId, -goldAmount);
-        itemService.addSpiritStones(playerId, stones);
+        DatabaseManager.runTransaction(conn -> {
+            playerService.addGold(conn, playerId, -goldAmount);
+            itemService.addSpiritStones(conn, playerId, stones);
+            return null;
+        });
 
         result.put("success", true);
         result.put("goldSpent", goldAmount);
@@ -248,6 +283,7 @@ public class EconomyService {
     }
 
     public Map<String, Object> exchangeStonesToGold(long playerId, long stoneAmount) {
+        com.mtxgdn.playerdata.PlayerDataService.markDirty(playerId);
         Map<String, Object> result = new LinkedHashMap<>();
         long currentStones = itemService.getSpiritStoneCount(playerId);
         if (stoneAmount < 1) {
@@ -258,8 +294,11 @@ public class EconomyService {
         }
 
         long gold = stoneAmount * STONE_TO_GOLD_RATE;
-        itemService.removeSpiritStones(playerId, stoneAmount);
-        playerService.addGold(playerId, gold);
+        DatabaseManager.runTransaction(conn -> {
+            itemService.removeSpiritStones(conn, playerId, stoneAmount);
+            playerService.addGold(conn, playerId, gold);
+            return null;
+        });
 
         result.put("success", true);
         result.put("stonesSpent", stoneAmount);
@@ -271,14 +310,16 @@ public class EconomyService {
     // ==================== 灵庄 ====================
 
     private static final Object[][] FIXED_DEPOSIT_PLANS = {
-        {7, "七日期", 3},
-        {30, "月满期", 10},
-        {90, "季定期", 25},
+        {7, "七日期", 4},
+        {30, "月满期", 15},
+        {90, "季定期", 40},
     };
 
-    private static final double CURRENT_DAILY_RATE = 0.005;
+    /** 活期日利率 0.2%（30 天复利约 6.2%，低于定期，保证定期产品有意义） */
+    private static final double CURRENT_DAILY_RATE = 0.002;
 
     public Map<String, Object> bankDeposit(long playerId, String type, long amount) {
+        com.mtxgdn.playerdata.PlayerDataService.markDirty(playerId);
         Map<String, Object> result = new LinkedHashMap<>();
         Player player = playerService.getPlayerById(playerId);
         if (player == null) { result.put("success", false); result.put("message", "角色不存在"); return result; }
@@ -315,7 +356,10 @@ public class EconomyService {
         long depositId = 0;
         try {
             depositId = DatabaseManager.runTransaction(conn -> {
-                itemService.removeItem(conn, playerId, com.mtxgdn.game.item.CurrencyEffect.SPIRIT_STONE_LOW, amount);
+                // 灵庄存款：跨等级扣除灵石（等价折算为下品计息）
+                if (!itemService.removeSpiritStones(conn, playerId, amount)) {
+                    throw new SQLException("灵石扣除失败");
+                }
 
                 String sql = "INSERT INTO player_bank (player_id, deposit_type, principal, rate, deposited_at, matures_at) VALUES (?, ?, ?, ?, ?, ?)";
                 try (PreparedStatement ps = conn.prepareStatement(sql, java.sql.Statement.RETURN_GENERATED_KEYS)) {
@@ -350,6 +394,7 @@ public class EconomyService {
     }
 
     public Map<String, Object> bankWithdraw(long playerId, long depositId) {
+        com.mtxgdn.playerdata.PlayerDataService.markDirty(playerId);
         Map<String, Object> result = new LinkedHashMap<>();
 
         BankDeposit dep = getBankDeposit(depositId);
@@ -382,11 +427,19 @@ public class EconomyService {
 
         try {
             DatabaseManager.runTransaction(conn -> {
-                markBankDepositDone(conn, depositId, interest);
+                // 条件认领：仅当存款仍为 active 时才能取出，防止并发双取（本金+利息重复发放）
+                if (!markBankDepositDone(conn, depositId, interest)) {
+                    throw new SQLException("存款已被取出");
+                }
                 itemService.addItem(conn, playerId, com.mtxgdn.game.item.CurrencyEffect.SPIRIT_STONE_LOW, dep.principal + interest);
                 return null;
             });
         } catch (Exception e) {
+            if (e.getMessage() != null && e.getMessage().contains("存款已被取出")) {
+                result.put("success", false);
+                result.put("message", "该存款已取出，请勿重复操作");
+                return result;
+            }
             throw new RuntimeException("取款失败", e);
         }
 
@@ -478,12 +531,12 @@ public class EconomyService {
         return null;
     }
 
-    private void markBankDepositDone(Connection conn, long depositId, long interest) throws SQLException {
-        String sql = "UPDATE player_bank SET status = 'withdrawn', interest_earned = ? WHERE id = ?";
+    private boolean markBankDepositDone(Connection conn, long depositId, long interest) throws SQLException {
+        String sql = "UPDATE player_bank SET status = 'withdrawn', interest_earned = ? WHERE id = ? AND status = 'active'";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, interest);
             ps.setLong(2, depositId);
-            ps.executeUpdate();
+            return ps.executeUpdate() > 0;
         }
     }
 
@@ -535,6 +588,7 @@ public class EconomyService {
     // ==================== 竞拍行 ====================
 
     public Map<String, Object> createAuction(long playerId, String itemKey, int quantity, long startPrice, int hours) {
+        com.mtxgdn.playerdata.PlayerDataService.markDirty(playerId);
         Map<String, Object> result = new LinkedHashMap<>();
         var item = com.mtxgdn.game.item.ItemRegistry.resolve(itemKey);
         if (item == null) { result.put("success", false); result.put("message", "物品不存在"); return result; }
@@ -546,20 +600,25 @@ public class EconomyService {
         }
 
         int realHours = Math.min(Math.max(hours, 1), 72);
-        itemService.removeItem(playerId, fullKey, quantity);
 
         long endTimeMs = System.currentTimeMillis() + realHours * 3600000L;
         String sql = "INSERT INTO auction_listings (seller_player_id, item_key, quantity, start_price, fee_rate, end_time) VALUES (?, ?, ?, ?, 0.07, ?)";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            ps.setString(2, fullKey);
-            ps.setInt(3, quantity);
-            ps.setLong(4, startPrice);
-            ps.setTimestamp(5, new java.sql.Timestamp(endTimeMs));
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            itemService.addItem(playerId, fullKey, quantity);
+        try {
+            DatabaseManager.runTransaction(conn -> {
+                if (!itemService.removeItem(conn, playerId, fullKey, quantity)) {
+                    throw new SQLException("物品扣除失败");
+                }
+                try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                    ps.setLong(1, playerId);
+                    ps.setString(2, fullKey);
+                    ps.setInt(3, quantity);
+                    ps.setLong(4, startPrice);
+                    ps.setTimestamp(5, new java.sql.Timestamp(endTimeMs));
+                    ps.executeUpdate();
+                }
+                return null;
+            });
+        } catch (Exception e) {
             throw new RuntimeException("创建拍卖失败", e);
         }
 
@@ -569,22 +628,34 @@ public class EconomyService {
     }
 
     public Map<String, Object> placeBid(long bidderPlayerId, long listingId, long amount) {
+        com.mtxgdn.playerdata.PlayerDataService.markDirty(bidderPlayerId);
         Map<String, Object> result = new LinkedHashMap<>();
-
-        AuctionListing listing = getAuctionListing(listingId);
-        if (listing == null) { result.put("success", false); result.put("message", "该拍卖不存在或已结束"); return result; }
-        if (listing.sellerPlayerId == bidderPlayerId) { result.put("success", false); result.put("message", "不能竞拍自己的物品"); return result; }
-
-        long minBid = listing.currentBid != null ? listing.currentBid + 1 : listing.startPrice;
-        if (amount < minBid) {
-            result.put("success", false); result.put("message", "出价必须高于当前出价，当前: " + (listing.currentBid != null ? listing.currentBid : "无人出价") + "，起拍价: " + listing.startPrice); return result;
+        if (amount <= 0) {
+            result.put("success", false);
+            result.put("message", "出价必须大于 0");
+            return result;
         }
 
-        long currentStones = itemService.getSpiritStoneCount(bidderPlayerId);
-        if (currentStones < amount) { result.put("success", false); result.put("message", "灵石不足，需要 " + amount + "（当前: " + currentStones + "）"); return result; }
-
+        // 竞态修复：listing 读取与校验全部移入事务内并加锁，避免事务外快照导致
+        // 前出价人被重复退款 / 新出价人灵石丢失（与坊市购买 S6 修复同一模式）
         try {
             DatabaseManager.runTransaction(conn -> {
+                AuctionListing listing = getAuctionListingForUpdate(conn, listingId);
+                if (listing == null) {
+                    throw new SQLException("该拍卖不存在或已结束");
+                }
+                if (listing.sellerPlayerId == bidderPlayerId) {
+                    throw new SQLException("不能竞拍自己的物品");
+                }
+                long minBid = listing.currentBid != null ? listing.currentBid + 1 : listing.startPrice;
+                if (amount < minBid) {
+                    throw new SQLException("出价必须高于当前出价");
+                }
+                long currentStones = itemService.getSpiritStoneCount(conn, bidderPlayerId);
+                if (currentStones < amount) {
+                    throw new SQLException("灵石不足，需要 " + amount + "（当前: " + currentStones + "）");
+                }
+
                 if (listing.currentBidderId != null && listing.currentBid != null) {
                     itemService.addSpiritStones(conn, listing.currentBidderId, listing.currentBid);
                 }
@@ -600,24 +671,60 @@ public class EconomyService {
                     ps.setLong(3, amount);
                     ps.executeUpdate();
                 }
-                String updSql = "UPDATE auction_listings SET current_bid = ?, current_bidder_id = ? WHERE id = ?";
+                String updSql = "UPDATE auction_listings SET current_bid = ?, current_bidder_id = ? WHERE id = ? AND status = 'active'";
                 try (PreparedStatement ps = conn.prepareStatement(updSql)) {
                     ps.setLong(1, amount);
                     ps.setLong(2, bidderPlayerId);
                     ps.setLong(3, listingId);
-                    ps.executeUpdate();
+                    if (ps.executeUpdate() == 0) {
+                        throw new SQLException("拍卖已结束");
+                    }
                 }
                 return null;
             });
         } catch (Exception e) {
             result.put("success", false);
-            result.put("message", "出价失败: " + e.getMessage());
+            result.put("message", "出价失败: " + rootMessage(e));
             return result;
         }
 
         result.put("success", true);
         result.put("message", "出价成功！以 " + amount + " 下品灵石竞拍 #" + listingId);
         return result;
+    }
+
+    /** 解包 runTransaction 包装的 RuntimeException，返回业务异常的真实原因消息。 */
+    private static String rootMessage(Throwable t) {
+        Throwable cause = t;
+        while (cause instanceof RuntimeException && cause.getCause() != null) {
+            cause = cause.getCause();
+        }
+        return cause.getMessage() != null ? cause.getMessage() : cause.toString();
+    }
+
+    /** 事务内读取竞拍并加行锁（MySQL 使用 FOR UPDATE；SQLite 在事务内 UPDATE 即隐式写锁）。必须在事务内调用。 */
+    private AuctionListing getAuctionListingForUpdate(Connection conn, long listingId) throws SQLException {
+        String sql = DatabaseManager.isSqlite()
+                ? "SELECT * FROM auction_listings WHERE id = ? AND status = 'active'"
+                : "SELECT * FROM auction_listings WHERE id = ? AND status = 'active' FOR UPDATE";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setLong(1, listingId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    AuctionListing l = new AuctionListing();
+                    l.id = rs.getLong("id");
+                    l.sellerPlayerId = rs.getLong("seller_player_id");
+                    l.itemKey = rs.getString("item_key");
+                    l.quantity = rs.getInt("quantity");
+                    l.startPrice = rs.getLong("start_price");
+                    l.currentBid = rs.getObject("current_bid") != null ? rs.getLong("current_bid") : null;
+                    l.currentBidderId = rs.getObject("current_bidder_id") != null ? rs.getLong("current_bidder_id") : null;
+                    l.feeRate = rs.getDouble("fee_rate");
+                    return l;
+                }
+            }
+        }
+        return null;
     }
 
     public List<Map<String, Object>> getActiveAuctionItems() {
@@ -674,29 +781,32 @@ public class EconomyService {
             while (rs.next()) {
                 java.sql.Timestamp endTime = rs.getTimestamp("end_time");
                 if (endTime != null && endTime.getTime() > now) continue;
-                long listingId = rs.getLong("id");
-                long sellerId = rs.getLong("seller_player_id");
-                String itemKey = rs.getString("item_key");
-                int qty = rs.getInt("quantity");
-                long currentBid = rs.getLong("current_bid");
-                Long bidderId = rs.getObject("current_bidder_id") != null ? rs.getLong("current_bidder_id") : null;
-                double feeRate = rs.getDouble("fee_rate");
+                final long listingId = rs.getLong("id");
+                final long sellerId = rs.getLong("seller_player_id");
+                final String itemKey = rs.getString("item_key");
+                final int qty = rs.getInt("quantity");
+                final long currentBid = rs.getLong("current_bid");
+                final Long bidderId = rs.getObject("current_bidder_id") != null ? rs.getLong("current_bidder_id") : null;
+                final double feeRate = rs.getDouble("fee_rate");
 
-                try (PreparedStatement claimPs = conn.prepareStatement(
-                        "UPDATE auction_listings SET status = 'ended' WHERE id = ? AND status = 'active'")) {
-                    claimPs.setLong(1, listingId);
-                    int claimed = claimPs.executeUpdate();
-                    if (claimed == 0) continue;
-                }
+                DatabaseManager.runTransaction(innerConn -> {
+                    try (PreparedStatement claimPs = innerConn.prepareStatement(
+                            "UPDATE auction_listings SET status = 'ended' WHERE id = ? AND status = 'active'")) {
+                        claimPs.setLong(1, listingId);
+                        int claimed = claimPs.executeUpdate();
+                        if (claimed == 0) return null;
+                    }
 
-                if (bidderId != null && currentBid > 0) {
-                    long fee = Math.max(1, (long)(currentBid * feeRate));
-                    itemService.addSpiritStones(sellerId, currentBid - fee);
-                    itemService.addSpiritStones(0, fee);
-                    itemService.addItem(bidderId, itemKey, qty);
-                } else {
-                    itemService.addItem(sellerId, itemKey, qty);
-                }
+                    if (bidderId != null && currentBid > 0) {
+                        long fee = Math.max(1, (long)(currentBid * feeRate));
+                        // 卖家收到扣除手续费后的灵石；手续费作为系统税费直接销毁（不再记入玩家 0，避免外键失败导致结算回滚）
+                        itemService.addSpiritStones(innerConn, sellerId, currentBid - fee);
+                        itemService.addItem(innerConn, bidderId, itemKey, qty);
+                    } else {
+                        itemService.addItem(innerConn, sellerId, itemKey, qty);
+                    }
+                    return null;
+                });
             }
         } catch (SQLException e) { /* 结算失败不影响正常查询 */ }
     }
@@ -712,30 +822,6 @@ public class EconomyService {
         return "即将结束";
     }
 
-    private AuctionListing getAuctionListing(long listingId) {
-        settleExpiredAuctions();
-        String sql = "SELECT * FROM auction_listings WHERE id = ? AND status = 'active'";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, listingId);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    AuctionListing l = new AuctionListing();
-                    l.id = rs.getLong("id");
-                    l.sellerPlayerId = rs.getLong("seller_player_id");
-                    l.itemKey = rs.getString("item_key");
-                    l.quantity = rs.getInt("quantity");
-                    l.startPrice = rs.getLong("start_price");
-                    l.currentBid = rs.getObject("current_bid") != null ? rs.getLong("current_bid") : null;
-                    l.currentBidderId = rs.getObject("current_bidder_id") != null ? rs.getLong("current_bidder_id") : null;
-                    l.feeRate = rs.getDouble("fee_rate");
-                    return l;
-                }
-            }
-        } catch (SQLException e) { throw new RuntimeException("查询拍卖失败", e); }
-        return null;
-    }
-
     private static class AuctionListing {
         @SuppressWarnings("unused")
         long id;
@@ -747,6 +833,154 @@ public class EconomyService {
         Long currentBid, currentBidderId;
         @SuppressWarnings("unused")
         double feeRate;
+    }
+
+    // ==================== 灵石提纯 ====================
+
+    /** 提纯境界需求（按源等级 0/1/2）：筑基 / 元婴 / 大乘 */
+    private static final int[] PURIFY_REALM = {2, 4, 7};
+    /** 提纯单次消耗的洞府灵气（按源等级） */
+    private static final long[] PURIFY_AURA_COST = {100, 1000, 10000};
+    /** 提纯基础成功率（按源等级） */
+    private static final double[] PURIFY_BASE_RATE = {0.90, 0.60, 0.30};
+    /** 每次提纯消耗的源等级灵石数量（= 1 块高一级灵石的等值） */
+    private static final long PURIFY_STONE_COST = 1000;
+
+    /**
+     * 提纯灵石：将低级灵石升为高级灵石。
+     * 需要消耗洞府灵气与大量低阶灵石，有概率失败，且有境界需求。
+     *
+     * @param grade 源灵石等级（0=下品→中品，1=中品→上品，2=上品→极品）
+     */
+    public Map<String, Object> purifySpiritStone(long playerId, int grade) {
+        com.mtxgdn.playerdata.PlayerDataService.markDirty(playerId);
+        Map<String, Object> result = new LinkedHashMap<>();
+        Player player = playerService.getPlayerById(playerId);
+        if (player == null) {
+            result.put("success", false);
+            result.put("message", "角色不存在");
+            return result;
+        }
+        if (grade < 0 || grade > 2) {
+            result.put("success", false);
+            result.put("message", "无效的灵石等级，只能提纯 下品/中品/上品 灵石");
+            return result;
+        }
+
+        int targetGrade = grade + 1;
+        String sourceName = com.mtxgdn.game.item.CurrencyEffect.GRADE_NAMES[grade];
+        String targetName = com.mtxgdn.game.item.CurrencyEffect.GRADE_NAMES[targetGrade];
+
+        // 境界需求
+        if (player.getRealm() < PURIFY_REALM[grade]) {
+            String realmName = GameConfigLoader.getRealmConfig(player.getRealm(), 0) != null
+                    ? GameConfigLoader.getRealmConfig(player.getRealm(), 0).getFullName() : "凡人";
+            String requiredName = GameConfigLoader.getRealmConfig(PURIFY_REALM[grade], 0) != null
+                    ? GameConfigLoader.getRealmConfig(PURIFY_REALM[grade], 0).getFullName() : "未知境界";
+            result.put("success", false);
+            result.put("message", "境界不足，提纯" + targetName + "需要" + requiredName + "以上（当前：" + realmName + "）");
+            return result;
+        }
+
+        // 灵石数量
+        String sourceKey = com.mtxgdn.game.item.CurrencyEffect.getStoneKey(grade);
+        if (itemService.getItemCount(playerId, sourceKey) < PURIFY_STONE_COST) {
+            result.put("success", false);
+            result.put("message", sourceName + "不足，提纯一次需要 " + PURIFY_STONE_COST + " 块" + sourceName
+                    + "（当前：" + itemService.getItemCount(playerId, sourceKey) + "）");
+            return result;
+        }
+
+        // 洞府灵气（"灵气"资源）
+        long auraCost = PURIFY_AURA_COST[grade];
+        CaveService caveService = new CaveService();
+        Cave cave = caveService.getCaveByPlayerId(playerId);
+        if (cave == null) {
+            result.put("success", false);
+            result.put("message", "提纯灵石需要借助洞府灵气，请先开辟洞府");
+            return result;
+        }
+        if (cave.getSpiritEnergy() < auraCost) {
+            result.put("success", false);
+            result.put("message", "洞府灵气不足，提纯" + targetName + "需要 " + auraCost + " 点灵气（当前：" + cave.getSpiritEnergy() + "）");
+            return result;
+        }
+
+        // 成功率：基础 + 灵力加成（上限 +15%）
+        double baseRate = PURIFY_BASE_RATE[grade];
+        double spiritBonus = Math.min(0.15, player.getSpirit() / 2000.0);
+        double finalRate = Math.min(0.98, baseRate + spiritBonus);
+        boolean success = new java.util.Random().nextDouble() < finalRate;
+
+        final long finalAuraCost = auraCost;
+        final boolean finalSuccess = success;
+        final long finalStoneCost = PURIFY_STONE_COST;
+        final int finalTargetGrade = targetGrade;
+        DatabaseManager.runTransaction(conn -> {
+            // 扣除灵石
+            itemService.removeItem(conn, playerId, sourceKey, finalStoneCost);
+            // 消耗洞府灵气
+            String auraSql = "UPDATE caves SET spirit_energy = spirit_energy - ? WHERE id = ? AND spirit_energy >= ?";
+            try (PreparedStatement ps = conn.prepareStatement(auraSql)) {
+                ps.setLong(1, finalAuraCost);
+                ps.setLong(2, cave.getId());
+                ps.setLong(3, finalAuraCost);
+                if (ps.executeUpdate() == 0) {
+                    throw new SQLException("洞府灵气不足");
+                }
+            }
+            // 成功则发放高一级灵石
+            if (finalSuccess) {
+                itemService.addItem(conn, playerId, com.mtxgdn.game.item.CurrencyEffect.getStoneKey(finalTargetGrade), 1);
+            }
+            return null;
+        });
+
+        int ratePercent = (int) Math.round(finalRate * 100);
+        result.put("success", true);
+        result.put("purifySuccess", success);
+        result.put("grade", grade);
+        result.put("targetGrade", targetGrade);
+        result.put("sourceName", sourceName);
+        result.put("targetName", targetName);
+        result.put("auraCost", auraCost);
+        result.put("stoneCost", PURIFY_STONE_COST);
+        result.put("successRate", finalRate);
+        if (success) {
+            result.put("message", "提纯成功！" + PURIFY_STONE_COST + " 块" + sourceName + " + " + auraCost + " 灵气 → 1 块" + targetName
+                    + "（成功率 " + ratePercent + "%）");
+        } else {
+            result.put("message", "提纯失败……" + PURIFY_STONE_COST + " 块" + sourceName + "与 " + auraCost
+                    + " 点灵气已消散（成功率 " + ratePercent + "%），请再试一次");
+        }
+        return result;
+    }
+
+    /** 提纯帮助信息（供 QQ 指令展示） */
+    public String getPurifyHelp(long playerId) {
+        Player player = playerService.getPlayerById(playerId);
+        StringBuilder sb = new StringBuilder();
+        sb.append("===== 灵石提纯 =====\n");
+        sb.append("提纯可消耗灵气把低级灵石升为高级灵石（有概率失败）\n\n");
+        for (int grade = 0; grade < 3; grade++) {
+            int targetGrade = grade + 1;
+            String sourceName = com.mtxgdn.game.item.CurrencyEffect.GRADE_NAMES[grade];
+            String targetName = com.mtxgdn.game.item.CurrencyEffect.GRADE_NAMES[targetGrade];
+            String realmName = GameConfigLoader.getRealmConfig(PURIFY_REALM[grade], 0) != null
+                    ? GameConfigLoader.getRealmConfig(PURIFY_REALM[grade], 0).getFullName() : "?";
+            sb.append("· ").append(sourceName).append(" → ").append(targetName)
+                    .append("  需").append(realmName).append(" · 成功率 ").append((int) (PURIFY_BASE_RATE[grade] * 100))
+                    .append("% · 消耗 ").append(PURIFY_STONE_COST).append("块 + ").append(PURIFY_AURA_COST[grade]).append("灵气\n");
+        }
+        sb.append("\n用法: /提纯 <下品|中品|上品>");
+        if (player != null) {
+            sb.append("\n\n当前灵石:\n");
+            for (int i = 0; i < 4; i++) {
+                sb.append("  ").append(com.mtxgdn.game.item.CurrencyEffect.GRADE_NAMES[i])
+                        .append(": ").append(itemService.getSpiritStoneCount(playerId, i)).append("\n");
+            }
+        }
+        return sb.toString();
     }
 
     // ==================== DB helpers ====================

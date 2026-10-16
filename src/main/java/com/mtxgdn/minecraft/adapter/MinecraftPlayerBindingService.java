@@ -11,61 +11,22 @@ public class MinecraftPlayerBindingService {
 
     public MinecraftPlayerBinding findByMcUuid(String mcUuid) {
         String sql = "SELECT id, mc_uuid, mc_name, user_id, created_at FROM mc_bindings WHERE mc_uuid = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setString(1, mcUuid);
-            try (ResultSet rs = stmt.executeQuery()) {
-                if (rs.next()) {
-                    return mapBinding(rs);
-                }
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("查询MC绑定失败", e);
-        }
-        return null;
+        return queryBinding(sql, ps -> ps.setString(1, mcUuid));
     }
 
     public MinecraftPlayerBinding findByMcName(String mcName) {
         String sql = "SELECT id, mc_uuid, mc_name, user_id, created_at FROM mc_bindings WHERE mc_name = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setString(1, mcName);
-            try (ResultSet rs = stmt.executeQuery()) {
-                if (rs.next()) {
-                    return mapBinding(rs);
-                }
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("查询MC绑定失败", e);
-        }
-        return null;
+        return queryBinding(sql, ps -> ps.setString(1, mcName));
     }
 
     public MinecraftPlayerBinding findByUserId(Long userId) {
         String sql = "SELECT id, mc_uuid, mc_name, user_id, created_at FROM mc_bindings WHERE user_id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setLong(1, userId);
-            try (ResultSet rs = stmt.executeQuery()) {
-                if (rs.next()) {
-                    return mapBinding(rs);
-                }
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("查询用户MC绑定失败", e);
-        }
-        return null;
+        return queryBinding(sql, ps -> ps.setLong(1, userId));
     }
 
     public void bind(String mcUuid, String mcName, Long userId) {
-        MinecraftPlayerBinding existingByUuid = findByMcUuid(mcUuid);
-        if (existingByUuid != null) {
-            throw new RuntimeException("该MC玩家已绑定用户: " + existingByUuid.getUserId());
-        }
-        MinecraftPlayerBinding existingByUser = findByUserId(userId);
-        if (existingByUser != null) {
-            throw new RuntimeException("该用户已绑定MC玩家: " + existingByUser.getMcName());
-        }
+        checkDuplicateBinding(mcUuid, userId);
+
         String sql = "INSERT INTO mc_bindings (mc_uuid, mc_name, user_id) VALUES (?, ?, ?)";
         try (Connection conn = DatabaseManager.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -104,6 +65,32 @@ public class MinecraftPlayerBindingService {
         }
     }
 
+    private void checkDuplicateBinding(String mcUuid, Long userId) {
+        MinecraftPlayerBinding existingByUuid = findByMcUuid(mcUuid);
+        if (existingByUuid != null) {
+            throw new RuntimeException("该MC玩家已绑定用户: " + existingByUuid.getUserId());
+        }
+        MinecraftPlayerBinding existingByUser = findByUserId(userId);
+        if (existingByUser != null) {
+            throw new RuntimeException("该用户已绑定MC玩家: " + existingByUser.getMcName());
+        }
+    }
+
+    private MinecraftPlayerBinding queryBinding(String sql, SqlParameterSetter setter) {
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            setter.set(stmt);
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    return mapBinding(rs);
+                }
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("查询MC绑定失败", e);
+        }
+        return null;
+    }
+
     private MinecraftPlayerBinding mapBinding(ResultSet rs) throws SQLException {
         MinecraftPlayerBinding binding = new MinecraftPlayerBinding();
         binding.setId(rs.getLong("id"));
@@ -112,5 +99,10 @@ public class MinecraftPlayerBindingService {
         binding.setUserId(rs.getLong("user_id"));
         binding.setCreatedAt(rs.getString("created_at"));
         return binding;
+    }
+
+    @FunctionalInterface
+    private interface SqlParameterSetter {
+        void set(PreparedStatement ps) throws SQLException;
     }
 }

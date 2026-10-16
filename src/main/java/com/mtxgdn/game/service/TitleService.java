@@ -9,24 +9,21 @@ import java.util.*;
 
 public class TitleService {
 
+    private final PlayerService playerService = new PlayerService();
+
     public TitleService() {
         TitleRegistry.init();
     }
 
     /** 授予称号 */
     public Map<String, Object> grantTitle(long playerId, String titleKey) {
-        Map<String, Object> result = new LinkedHashMap<>();
         Title title = TitleRegistry.get(titleKey);
         if (title == null) {
-            result.put("success", false);
-            result.put("message", "称号不存在: " + titleKey);
-            return result;
+            return createResult(false, "称号不存在: " + titleKey);
         }
 
         if (hasTitle(playerId, titleKey)) {
-            result.put("success", false);
-            result.put("message", "已拥有该称号");
-            return result;
+            return createResult(false, "已拥有该称号");
         }
 
         String sql = "INSERT INTO player_titles (player_id, title_key, is_equipped) VALUES (?, ?, ?)";
@@ -36,21 +33,60 @@ public class TitleService {
             ps.setString(2, titleKey);
             ps.setBoolean(3, false);
             ps.executeUpdate();
-            result.put("success", true);
-            result.put("message", "成功授予称号: " + title.getName());
+            Map<String, Object> result = createResult(true, "成功授予称号: " + title.getName());
             result.put("titleKey", titleKey);
             result.put("titleName", title.getName());
+            return result;
         } catch (SQLException e) {
-            result.put("success", false);
-            result.put("message", "授予称号失败: " + e.getMessage());
+            return createResult(false, "授予称号失败: " + e.getMessage());
         }
-        return result;
+    }
+
+    /**
+     * 集中检查并自动授予"玩法可获得"的称号（幂等：已拥有则跳过）。
+     * 在突破/签到/战斗/炼丹/秘境等关键行为后调用，返回本次新授予的称号名列表。
+     */
+    public List<String> checkAndGrantTitles(com.mtxgdn.entity.Player player) {
+        List<String> granted = new ArrayList<>();
+        if (player == null) {
+            return granted;
+        }
+        long playerId = player.getId();
+        com.mtxgdn.game.service.ItemService itemService = new com.mtxgdn.game.service.ItemService();
+
+        // 境界类
+        grantIf(granted, playerId, "immortal_venerable", player.getRealm() >= 5);   // 不朽尊者：化神
+        grantIf(granted, playerId, "heaven_defier", player.getRealm() >= 8);        // 逆天者：渡劫
+        grantIf(granted, playerId, "dao_lord", player.getRealm() >= 9);             // 大道之主：真仙
+        grantIf(granted, playerId, "chaos_emperor", player.getRealm() >= 10);       // 混沌帝尊：金仙
+        // 战力类
+        grantIf(granted, playerId, "sword_master", playerService.getFinalAttack(player) >= 500); // 剑道宗师
+        // 财富类
+        grantIf(granted, playerId, "millionaire", itemService.getSpiritStoneCount(playerId) >= 1_000_000L); // 富甲一方
+        // 行为计数类
+        grantIf(granted, playerId, "exploration_master", player.getSecretRealmCount() >= 20); // 秘境探险家
+        grantIf(granted, playerId, "arena_champion", player.getPvpWins() >= 50);              // 擂台王者
+        grantIf(granted, playerId, "alchemy_lord", player.getCraftCount() >= 100);            // 丹道尊者
+        grantIf(granted, playerId, "pill_apprentice", player.getCraftCount() >= 1);           // 炼丹学徒
+        return granted;
+    }
+
+    private void grantIf(List<String> granted, long playerId, String titleKey, boolean condition) {
+        if (!condition) {
+            return;
+        }
+        try {
+            Map<String, Object> r = grantTitle(playerId, titleKey);
+            if (Boolean.TRUE.equals(r.get("success"))) {
+                granted.add(titleKey);
+            }
+        } catch (Exception ignored) {
+            // 授予失败不阻断主流程
+        }
     }
 
     /** 撤销称号 */
-    public Map<String, Object> revokeTitle(long playerId, String titleKey) {
-        Map<String, Object> result = new LinkedHashMap<>();
-        String sql = "DELETE FROM player_titles WHERE player_id = ? AND title_key = ?";
+    public Map<String, Object> revokeTitle(long playerId, String titleKey) {        String sql = "DELETE FROM player_titles WHERE player_id = ? AND title_key = ?";
         try (Connection conn = DatabaseManager.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, playerId);
@@ -58,77 +94,44 @@ public class TitleService {
             int rows = ps.executeUpdate();
             if (rows > 0) {
                 Title title = TitleRegistry.get(titleKey);
-                result.put("success", true);
-                result.put("message", "已撤销称号: " + (title != null ? title.getName() : titleKey));
+                return createResult(true, "已撤销称号: " + (title != null ? title.getName() : titleKey));
             } else {
-                result.put("success", false);
-                result.put("message", "玩家未拥有该称号");
+                return createResult(false, "玩家未拥有该称号");
             }
         } catch (SQLException e) {
-            result.put("success", false);
-            result.put("message", "撤销称号失败: " + e.getMessage());
+            return createResult(false, "撤销称号失败: " + e.getMessage());
         }
-        return result;
     }
 
     /** 装备称号 */
     public Map<String, Object> equipTitle(long playerId, String titleKey) {
-        Map<String, Object> result = new LinkedHashMap<>();
         Title title = TitleRegistry.get(titleKey);
         if (title == null) {
-            result.put("success", false);
-            result.put("message", "称号不存在: " + titleKey);
-            return result;
+            return createResult(false, "称号不存在: " + titleKey);
         }
 
         if (!hasTitle(playerId, titleKey)) {
-            result.put("success", false);
-            result.put("message", "你未拥有该称号");
+            return createResult(false, "你未拥有该称号");
+        }
+
+        try {
+            DatabaseManager.runTransaction(conn -> {
+                unequipCurrentTitle(conn, playerId);
+                equipNewTitle(conn, playerId, titleKey);
+                return null;
+            });
+
+            Map<String, Object> result = createResult(true, "已装备称号: " + title.getName());
+            result.put("titleKey", titleKey);
+            result.put("titleName", title.getName());
             return result;
+        } catch (Exception e) {
+            return createResult(false, "装备称号失败: " + e.getMessage());
         }
-
-        try (Connection conn = DatabaseManager.getConnection()) {
-            conn.setAutoCommit(false);
-            try {
-                // 卸下当前装备的称号
-                String unequipSql = "UPDATE player_titles SET is_equipped = ? WHERE player_id = ? AND is_equipped = ?";
-                try (PreparedStatement ps = conn.prepareStatement(unequipSql)) {
-                    ps.setBoolean(1, false);
-                    ps.setLong(2, playerId);
-                    ps.setBoolean(3, true);
-                    ps.executeUpdate();
-                }
-
-                // 装备新称号
-                String equipSql = "UPDATE player_titles SET is_equipped = ? WHERE player_id = ? AND title_key = ?";
-                try (PreparedStatement ps = conn.prepareStatement(equipSql)) {
-                    ps.setBoolean(1, true);
-                    ps.setLong(2, playerId);
-                    ps.setString(3, titleKey);
-                    ps.executeUpdate();
-                }
-
-                conn.commit();
-                result.put("success", true);
-                result.put("message", "已装备称号: " + title.getName());
-                result.put("titleKey", titleKey);
-                result.put("titleName", title.getName());
-            } catch (SQLException e) {
-                conn.rollback();
-                throw e;
-            } finally {
-                conn.setAutoCommit(true);
-            }
-        } catch (SQLException e) {
-            result.put("success", false);
-            result.put("message", "装备称号失败: " + e.getMessage());
-        }
-        return result;
     }
 
     /** 卸下称号 */
     public Map<String, Object> unequipTitle(long playerId) {
-        Map<String, Object> result = new LinkedHashMap<>();
         String sql = "UPDATE player_titles SET is_equipped = ? WHERE player_id = ? AND is_equipped = ?";
         try (Connection conn = DatabaseManager.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -136,17 +139,11 @@ public class TitleService {
             ps.setLong(2, playerId);
             ps.setBoolean(3, true);
             int rows = ps.executeUpdate();
-            result.put("success", true);
-            if (rows > 0) {
-                result.put("message", "已卸下称号");
-            } else {
-                result.put("message", "当前未装备任何称号");
-            }
+            Map<String, Object> result = createResult(true, rows > 0 ? "已卸下称号" : "当前未装备任何称号");
+            return result;
         } catch (SQLException e) {
-            result.put("success", false);
-            result.put("message", "卸下称号失败: " + e.getMessage());
+            return createResult(false, "卸下称号失败: " + e.getMessage());
         }
-        return result;
     }
 
     /** 获取玩家所有称号 */
@@ -161,24 +158,7 @@ public class TitleService {
                     String key = rs.getString("title_key");
                     Title title = TitleRegistry.get(key);
                     if (title == null) continue;
-                    Map<String, Object> map = new LinkedHashMap<>();
-                    map.put("titleKey", key);
-                    map.put("name", title.getName());
-                    map.put("description", title.getDescription());
-                    map.put("rarity", title.getRarity().name());
-                    map.put("rarityLabel", title.getRarityLabel());
-                    map.put("isEquipped", rs.getBoolean("is_equipped"));
-                    map.put("acquiredAt", rs.getString("acquired_at"));
-                    map.put("attackBonus", title.getAttackBonus());
-                    map.put("defenseBonus", title.getDefenseBonus());
-                    map.put("hpBonus", title.getHpBonus());
-                    map.put("mpBonus", title.getMpBonus());
-                    map.put("speedBonus", title.getSpeedBonus());
-                    map.put("spiritBonus", title.getSpiritBonus());
-                    map.put("cultivationSpeedBonus", title.getCultivationSpeedBonus());
-                    map.put("expBonus", title.getExpBonus());
-                    map.put("dropRateBonus", title.getDropRateBonus());
-                    list.add(map);
+                    list.add(buildTitleMap(key, title, rs.getBoolean("is_equipped"), rs.getString("acquired_at")));
                 }
             }
         } catch (SQLException e) {
@@ -217,5 +197,53 @@ public class TitleService {
         } catch (SQLException e) {
             return false;
         }
+    }
+
+    private Map<String, Object> createResult(boolean success, String message) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("success", success);
+        result.put("message", message);
+        return result;
+    }
+
+    private void unequipCurrentTitle(Connection conn, long playerId) throws SQLException {
+        String sql = "UPDATE player_titles SET is_equipped = ? WHERE player_id = ? AND is_equipped = ?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setBoolean(1, false);
+            ps.setLong(2, playerId);
+            ps.setBoolean(3, true);
+            ps.executeUpdate();
+        }
+    }
+
+    private void equipNewTitle(Connection conn, long playerId, String titleKey) throws SQLException {
+        String sql = "UPDATE player_titles SET is_equipped = ? WHERE player_id = ? AND title_key = ?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setBoolean(1, true);
+            ps.setLong(2, playerId);
+            ps.setString(3, titleKey);
+            ps.executeUpdate();
+        }
+    }
+
+    private Map<String, Object> buildTitleMap(String key, Title title, boolean isEquipped, String acquiredAt) {
+        Map<String, Object> map = new LinkedHashMap<>();
+        map.put("titleKey", key);
+        map.put("name", title.getName());
+        map.put("description", title.getDescription());
+        map.put("rarity", title.getRarity().name());
+        map.put("rarityLabel", title.getRarityLabel());
+        map.put("isEquipped", isEquipped);
+        map.put("acquiredAt", acquiredAt);
+        map.put("attackBonus", title.getAttackBonus());
+        map.put("defenseBonus", title.getDefenseBonus());
+        map.put("hpBonus", title.getHpBonus());
+        map.put("mpBonus", title.getMpBonus());
+        map.put("speedBonus", title.getSpeedBonus());
+        map.put("spiritBonus", title.getSpiritBonus());
+        map.put("cultivationSpeedBonus", title.getCultivationSpeedBonus());
+        map.put("expBonus", title.getExpBonus());
+        map.put("dropRateBonus", title.getDropRateBonus());
+        return map;
     }
 }

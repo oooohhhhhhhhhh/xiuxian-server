@@ -56,7 +56,7 @@ public class CropConfig {
             240, 5, 1, 3, 35, 20, ElementType.DARK
         ));
         configs.put("mtxgdn:star_grass_seed", new CropConfig(
-            "mtxgdn:star_grass_seed", "mtxgdn:star_grass", "星辰草",
+            "mtxgdn:star_grass_seed", "mtxgdn:star_grass", "星草",
             300, 6, 1, 2, 30, 25, ElementType.LIGHT
         ));
         configs.put("mtxgdn:blood_lingzhi_seed", new CropConfig(
@@ -121,6 +121,14 @@ public class CropConfig {
 
     public static CropConfig get(String seedKey) {
         return configs.get(seedKey);
+    }
+
+    public static boolean contains(String seedKey) {
+        return configs.containsKey(seedKey);
+    }
+
+    public static Map<String, CropConfig> getAll() {
+        return new HashMap<>(configs);
     }
 
     public String getSeedKey() { return seedKey; }

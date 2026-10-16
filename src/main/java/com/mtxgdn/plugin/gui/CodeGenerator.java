@@ -87,7 +87,7 @@ public final class CodeGenerator {
         m.put("{{PACKAGE}}", cfg.getPackageName());
         m.put("{{PACKAGE_PATH}}", cfg.getPackagePath());
         m.put("{{MAIN_CLASS}}", cfg.getMainClass());
-        m.put("{{SERVER_VERSION}}", "V1.4.1-beta1");
+        m.put("{{SERVER_VERSION}}", com.mtxgdn.util.BuildInfo.getVersion());
         m.put("{{TOTAL_ENTRIES}}", String.valueOf(cfg.totalEntries()));
         m.put("{{TOTAL_TRIGGERS}}", String.valueOf(cfg.totalTriggers()));
         return m;
@@ -478,7 +478,8 @@ public final class CodeGenerator {
         if (config.getDescription() != null && !config.getDescription().isEmpty()) {
             sb.append(config.getDescription()).append("\n\n");
         }
-        sb.append("> 本项目由 **PluginMaker (v1.4.1-alpha1)** 自动生成。\n\n");
+        sb.append("> 本项目由 **PluginMaker (").append(com.mtxgdn.util.BuildInfo.getDisplayVersion())
+                .append(")** 自动生成。\n\n");
         sb.append("## 📦 项目结构\n\n");
         sb.append("```\n");
         sb.append(config.getPackageName()).append("/\n");

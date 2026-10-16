@@ -1,7 +1,9 @@
 package com.mtxgdn.onebot.command.formation;
 
+import com.google.gson.JsonObject;
 import com.mtxgdn.common.command.Command;
 import com.mtxgdn.common.command.CommandContext;
+import com.mtxgdn.common.command.RouteDefinition;
 import com.mtxgdn.game.entity.Formation;
 import com.mtxgdn.game.entity.PlayerInfo;
 import com.mtxgdn.game.service.FormationService;
@@ -16,6 +18,7 @@ public class FormationCommand extends Command {
                 "/阵法 <子命令> [参数]",
                 "阵法",
                 "game.cultivate");
+        setModule("formation");
 
         registerSub(new String[]{"place", "布置"}, this::handlePlace);
         registerSub(new String[]{"info", "信息"}, this::handleInfo);
@@ -23,6 +26,158 @@ public class FormationCommand extends Command {
         registerSub(new String[]{"remove", "拆除", "移除"}, this::handleRemove);
         registerSub(new String[]{"list", "列表"}, this::handleList);
         registerSub(new String[]{"help", "帮助", "?"}, this::handleHelp);
+
+        // HTTP 路由补齐：此前阵法只有 QQ 子命令、没有任何 addRoute，
+        // 且 ModuleGateFilter 里没有 formation 映射，Web/REST 通道完全访问不到阵法系统。
+        addRoute(RouteDefinition.get("formation/info", "game.cultivate", this::httpInfo));
+        addRoute(RouteDefinition.get("formation/list", "game.cultivate", this::httpList));
+        addRoute(RouteDefinition.post("formation/place", "game.cultivate", this::httpPlace));
+        addRoute(RouteDefinition.post("formation/upgrade", "game.cultivate", this::httpUpgrade));
+        addRoute(RouteDefinition.post("formation/remove", "game.cultivate", this::httpRemove));
+    }
+
+    // ==================== HTTP 处理器 ====================
+
+    private JsonObject httpInfo(RouteDefinition.RestContext ctx) {
+        JsonObject result = new JsonObject();
+        try {
+            Formation f = formationService.getActiveFormation(ctx.playerId());
+            if (f == null) {
+                result.addProperty("code", 404);
+                result.addProperty("success", false);
+                result.addProperty("message", "你还没有布置阵法");
+                result.addProperty("hasFormation", false);
+                return result;
+            }
+            result.addProperty("code", 200);
+            result.addProperty("success", true);
+            result.addProperty("hasFormation", true);
+            result.addProperty("name", f.getName());
+            result.addProperty("formationKey", f.getFormationKey());
+            result.addProperty("level", f.getLevel());
+            result.addProperty("maxLevel", Formation.MAX_LEVEL);
+            result.addProperty("remainingSeconds", f.getRemainingSeconds());
+            result.addProperty("spiritEnergyBoost", f.getSpiritEnergyBoost());
+            result.addProperty("cultivationBonus", f.getCultivationBonus());
+            result.addProperty("defenseBonus", f.getDefenseBonus());
+            result.addProperty("heartDemonResist", f.getHeartDemonResist());
+        } catch (Exception e) {
+            result.addProperty("code", 500);
+            result.addProperty("success", false);
+            result.addProperty("message", "服务器错误: " + e.getMessage());
+        }
+        return result;
+    }
+
+    private JsonObject httpList(RouteDefinition.RestContext ctx) {
+        JsonObject result = new JsonObject();
+        try {
+            result.addProperty("code", 200);
+            result.addProperty("success", true);
+            // 可用阵法清单（与 QQ 端 handleList 保持一致）
+            var arr = new com.google.gson.JsonArray();
+            String[][] defs = {
+                    {"spirit_gathering", "聚灵阵", "加速灵气汇聚，提升修炼速度"},
+                    {"mountain_protection", "护山大阵", "增加防御"},
+                    {"maze", "迷踪阵", "迷惑敌人"},
+                    {"purification", "净化阵", "减少心魔触发"},
+                    {"time_acceleration", "时间加速阵", "大幅提升修炼速度，持续时间短"},
+            };
+            for (String[] d : defs) {
+                JsonObject o = new JsonObject();
+                o.addProperty("key", d[0]);
+                o.addProperty("name", d[1]);
+                o.addProperty("description", d[2]);
+                o.addProperty("maxLevel", Formation.MAX_LEVEL);
+                for (int lv = 1; lv <= Formation.MAX_LEVEL; lv++) {
+                    o.addProperty("placeCostLv" + lv, Formation.getPlaceCost(d[0], lv));
+                }
+                arr.add(o);
+            }
+            result.add("formations", arr);
+        } catch (Exception e) {
+            result.addProperty("code", 500);
+            result.addProperty("success", false);
+            result.addProperty("message", "服务器错误: " + e.getMessage());
+        }
+        return result;
+    }
+
+    private JsonObject httpPlace(RouteDefinition.RestContext ctx) {
+        JsonObject result = new JsonObject();
+        try {
+            JsonObject req = ctx.bodyJson();
+            // 接受 formationKey（英文键）或 name（中文名）两种写法
+            String key = null;
+            if (req.has("formationKey") && !req.get("formationKey").isJsonNull()) {
+                key = req.get("formationKey").getAsString().trim();
+            } else if (req.has("name") && !req.get("name").isJsonNull()) {
+                key = getKeyByName(req.get("name").getAsString().trim());
+            }
+            if (key == null || key.isBlank()) {
+                result.addProperty("code", 400);
+                result.addProperty("success", false);
+                result.addProperty("message", "请提供有效的阵法(formationKey 或 name)，可选: "
+                        + "聚灵阵/护山大阵/迷踪阵/净化阵/时间加速阵");
+                return result;
+            }
+
+            int level = 1;
+            if (req.has("level") && !req.get("level").isJsonNull()) {
+                level = req.get("level").getAsInt();
+                if (level < 1 || level > Formation.MAX_LEVEL) {
+                    result.addProperty("code", 400);
+                    result.addProperty("success", false);
+                    result.addProperty("message", "阵法等级必须在 1-" + Formation.MAX_LEVEL + " 之间");
+                    return result;
+                }
+            }
+
+            var data = formationService.placeFormation(ctx.playerId(), key, level);
+            boolean ok = Boolean.TRUE.equals(data.get("success"));
+            result.addProperty("code", ok ? 200 : 400);
+            result.addProperty("success", ok);
+            result.addProperty("message", String.valueOf(data.get("message")));
+        } catch (Exception e) {
+            result.addProperty("code", 500);
+            result.addProperty("success", false);
+            result.addProperty("message", "服务器错误: " + e.getMessage());
+        }
+        return result;
+    }
+
+    private JsonObject httpUpgrade(RouteDefinition.RestContext ctx) {
+        JsonObject result = new JsonObject();
+        try {
+            var data = formationService.upgradeFormation(ctx.playerId());
+            boolean ok = Boolean.TRUE.equals(data.get("success"));
+            result.addProperty("code", ok ? 200 : 400);
+            result.addProperty("success", ok);
+            result.addProperty("message", String.valueOf(data.get("message")));
+            Object nl = data.get("newLevel");
+            if (nl instanceof Number n) result.addProperty("newLevel", n);
+        } catch (Exception e) {
+            result.addProperty("code", 500);
+            result.addProperty("success", false);
+            result.addProperty("message", "服务器错误: " + e.getMessage());
+        }
+        return result;
+    }
+
+    private JsonObject httpRemove(RouteDefinition.RestContext ctx) {
+        JsonObject result = new JsonObject();
+        try {
+            var data = formationService.removeFormation(ctx.playerId());
+            boolean ok = Boolean.TRUE.equals(data.get("success"));
+            result.addProperty("code", ok ? 200 : 400);
+            result.addProperty("success", ok);
+            result.addProperty("message", String.valueOf(data.get("message")));
+        } catch (Exception e) {
+            result.addProperty("code", 500);
+            result.addProperty("success", false);
+            result.addProperty("message", "服务器错误: " + e.getMessage());
+        }
+        return result;
     }
 
     @Override

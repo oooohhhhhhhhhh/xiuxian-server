@@ -14,6 +14,7 @@ public class EnhanceCommand extends Command {
                 "/强化 <装备栏位>",
                 "装备",
                 "game.equipment.enhance");
+        setModule("inventory");
     }
 
     @Override

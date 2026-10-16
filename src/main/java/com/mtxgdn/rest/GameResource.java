@@ -31,6 +31,7 @@ import com.mtxgdn.game.entity.Technique;
 import com.mtxgdn.game.service.TechniqueService;
 import com.mtxgdn.game.service.EnhanceService;
 import com.mtxgdn.game.service.ChatService;
+import com.mtxgdn.game.service.EconomyService;
 import com.mtxgdn.game.service.FriendService;
 import com.mtxgdn.game.service.BuffService;
 import com.mtxgdn.game.service.FarmService;
@@ -62,6 +63,7 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 
 import java.util.List;
+import java.util.HashMap;
 import java.util.Map;
 
 @Path("/game")
@@ -85,7 +87,7 @@ public class GameResource {
     private static final ChatService chatService = ServiceRegistry.getChatService();
     private static final FriendService friendService = ServiceRegistry.getFriendService();
     private static final SectService sectService = ServiceRegistry.getSectService();
-    private static final MapService mapService = new MapService();
+    private static final MapService mapService = ServiceRegistry.getMapService();
 
     @Context
     private ContainerRequestContext requestContext;
@@ -202,7 +204,22 @@ public class GameResource {
         JsonObject json = com.google.gson.JsonParser.parseString(body).getAsJsonObject();
         String name = json.has("name") ? json.get("name").getAsString() : "无名修士";
 
-        PlayerInfo player = playerService.createPlayer(userId, name);
+        // V10：在进入 service 前做显式校验，返回可读的 400 而不是让
+        // IllegalArgumentException/SQLException 冒泡成 500。
+        if (name == null || name.trim().isEmpty()) {
+            return Response.ok(GameMessage.restError(GameErrorCode.PARAM_MISSING).toString()).build();
+        }
+        if (name.trim().length() > com.mtxgdn.game.service.PlayerService.MAX_PLAYER_NAME_LENGTH) {
+            return Response.ok(GameMessage.restError(400,
+                    "角色名不能超过 " + com.mtxgdn.game.service.PlayerService.MAX_PLAYER_NAME_LENGTH + " 个字符").toString()).build();
+        }
+
+        PlayerInfo player;
+        try {
+            player = playerService.createPlayer(userId, name);
+        } catch (IllegalArgumentException e) {
+            return Response.ok(GameMessage.restError(400, e.getMessage()).toString()).build();
+        }
 
         actionLog.logCreatePlayer(userId, player.getName());
 
@@ -259,16 +276,25 @@ public class GameResource {
             return Response.ok(GameMessage.restError(GameErrorCode.PLAYER_NOT_FOUND).toString()).build();
         }
 
-        playerService.setCultivating(player.getId(), true);
+        Map<String, Object> result = playerService.beginCultivation(player.getId());
+        if (!Boolean.TRUE.equals(result.get("success"))) {
+            return Response.ok(GameMessage.restError(400, (String) result.get("message")).toString()).build();
+        }
 
         actionLog.logCultivateStart(userId, player.getName(), player.getRealm());
 
         JsonObject data = new JsonObject();
         data.addProperty("cultivating", true);
-        data.addProperty("cultivationPerSecond", getCultivationPerSecond(player.getRealm()));
-        data.addProperty("startTime", System.currentTimeMillis());
+        data.addProperty("cultivationPerSecond", ((Number) result.get("cultivationPerSecond")).intValue());
+        data.addProperty("startTime", ((Number) result.get("startTime")).longValue());
+        data.addProperty("season", (String) result.get("season"));
+        data.addProperty("seasonMultiplier", ((Number) result.get("seasonMultiplier")).doubleValue());
+        data.addProperty("locationId", ((Number) result.get("locationId")).longValue());
+        data.addProperty("locationName", (String) result.get("locationName"));
+        data.addProperty("locationMultiplier", ((Number) result.get("locationMultiplier")).doubleValue());
 
-        return Response.ok(GameMessage.restOk("开始修炼", data).toString()).build();
+        return Response.ok(GameMessage.restOk("开始闭关修炼（" + result.get("locationName") + "，季节加成 "
+                + Math.round(((Number) result.get("seasonMultiplier")).doubleValue() * 100 - 100) + "%）", data).toString()).build();
     }
 
     @POST
@@ -283,16 +309,13 @@ public class GameResource {
             return Response.ok(GameMessage.restError(GameErrorCode.PLAYER_NOT_FOUND).toString()).build();
         }
 
-        long startTime = player.getCultivationStartTime();
-        int elapsedSeconds = 0;
-        if (startTime > 0) {
-            elapsedSeconds = (int) ((System.currentTimeMillis() - startTime) / 1000);
+        Map<String, Object> result = playerService.finishCultivation(player.getId());
+        if (!Boolean.TRUE.equals(result.get("success"))) {
+            return Response.ok(GameMessage.restError(400, (String) result.get("message")).toString()).build();
         }
 
-        int cultivationPerSec = getCultivationPerSecond(player.getRealm());
-        long expGained = (long) elapsedSeconds * cultivationPerSec;
-
-        playerService.setCultivating(player.getId(), false);
+        int elapsedSeconds = ((Number) result.get("elapsedSeconds")).intValue();
+        long expGained = ((Number) result.get("rawExpGained")).longValue();
 
         HeartDemonService.HeartDemonResult hdResult = heartDemonService.processCultivation(
                 player.getId(), expGained, elapsedSeconds);
@@ -307,6 +330,8 @@ public class GameResource {
 
         JsonObject data = gson.toJsonTree(updated).getAsJsonObject();
         data.addProperty("experienceGained", netExp);
+        data.addProperty("elapsedSeconds", elapsedSeconds);
+        data.addProperty("season", (String) result.get("season"));
         if (hdResult.triggered) {
             data.addProperty("heartDemonTriggered", true);
             data.addProperty("heartDemonSeverity", hdResult.severity);
@@ -321,12 +346,6 @@ public class GameResource {
             message = "停止修炼，获得了 " + netExp + " 经验";
         }
         return Response.ok(GameMessage.restOk(message, data).toString()).build();
-    }
-
-    private int getCultivationPerSecond(int realm) {
-        double multiplier = GameConfigLoader.getCultivationMultiplier(realm);
-        int base = GameConfigLoader.getCultivationBaseValue();
-        return (int) (base * multiplier);
     }
 
     private int getPlayerIdByUserId(long userId) {
@@ -506,7 +525,7 @@ public class GameResource {
     @Path("/item/add")
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
-    @RequirePermission("game.item.add")
+    @RequirePermission("admin.items.give")
     public Response addItem(String body) {
         Long userId = getCurrentUserId();
         int playerId = getPlayerIdByUserId(userId);
@@ -914,13 +933,59 @@ public class GameResource {
             o.addProperty("priceSpiritStones", l.priceSpiritStones);
             o.addProperty("fee", l.fee);
             o.addProperty("createdAt", l.createdAt);
+            // 单价：挂单数量不同，只有单价之间可比
+            o.addProperty("unitPrice", l.unitPrice());
+            // 到期信息：expiresAt=0 表示历史挂单永不过期
+            o.addProperty("expiresAt", l.expiresAt);
+            long remaining = l.remainingMs();
+            o.addProperty("remainingMs", remaining);
+            if (remaining >= 0) {
+                o.addProperty("remainingText", formatRemaining(remaining));
+            }
             arr.add(o);
         }
         JsonObject data = new JsonObject();
         data.add("listings", arr);
         data.addProperty("count", arr.size());
         data.addProperty("tradeFeeRate", "5%");
+        data.addProperty("listingDurationHours", TradeService.getListingDurationHours());
         return Response.ok(GameMessage.restOk("坊市列表", data).toString()).build();
+    }
+
+    @GET
+    @Path("/market/price")
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("game.market.view")
+    public Response getMarketPrice(@QueryParam("itemKey") String itemKey,
+                                   @QueryParam("item") String item,
+                                   @QueryParam("days") String daysParam) {
+        String key = (itemKey != null && !itemKey.isBlank()) ? itemKey : item;
+        if (key == null || key.isBlank()) {
+            return Response.ok(GameMessage.restError(GameErrorCode.PARAM_MISSING).toString()).build();
+        }
+        int days = 0;
+        if (daysParam != null && !daysParam.isBlank()) {
+            try {
+                days = Integer.parseInt(daysParam.trim());
+            } catch (NumberFormatException ignored) {
+                // 非法天数走默认窗口
+            }
+        }
+        var quote = tradeService.getPriceHistory(key, days);
+        JsonObject data = gson.toJsonTree(quote).getAsJsonObject();
+        return Response.ok(GameMessage.restOk(String.valueOf(quote.get("message")), data).toString()).build();
+    }
+
+    /** 把剩余毫秒格式化为"3天2小时"这类可读文本。 */
+    private static String formatRemaining(long ms) {
+        if (ms <= 0) return "已到期";
+        long totalMinutes = ms / 60000;
+        long days = totalMinutes / (60 * 24);
+        long hours = (totalMinutes / 60) % 24;
+        long minutes = totalMinutes % 60;
+        if (days > 0) return days + "天" + hours + "小时";
+        if (hours > 0) return hours + "小时" + minutes + "分钟";
+        return Math.max(1, minutes) + "分钟";
     }
 
     @POST
@@ -985,6 +1050,13 @@ public class GameResource {
             o.addProperty("quantity", l.quantity);
             o.addProperty("priceSpiritStones", l.priceSpiritStones);
             o.addProperty("fee", l.fee);
+            o.addProperty("unitPrice", l.unitPrice());
+            o.addProperty("expiresAt", l.expiresAt);
+            long remaining = l.remainingMs();
+            o.addProperty("remainingMs", remaining);
+            if (remaining >= 0) {
+                o.addProperty("remainingText", formatRemaining(remaining));
+            }
             arr.add(o);
         }
         JsonObject data = new JsonObject();
@@ -1483,6 +1555,68 @@ public class GameResource {
     }
 
     @POST
+    @Path("/friend/reject")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("game.friend.manage")
+    public Response rejectFriendRequest(String body) {
+        Long userId = getCurrentUserId();
+        PlayerInfo player = playerService.getPlayerByUserId(userId);
+        if (player == null) {
+            return Response.ok(GameMessage.restError(GameErrorCode.PLAYER_NOT_FOUND).toString()).build();
+        }
+        JsonObject json = gson.fromJson(body, JsonObject.class);
+        long requesterId = json.has("requesterPlayerId") ? json.get("requesterPlayerId").getAsLong() : 0;
+
+        if (requesterId == 0) {
+            return Response.ok(GameMessage.restError(GameErrorCode.PARAM_MISSING).toString()).build();
+        }
+
+        boolean success = friendService.rejectRequest(player.getId(), requesterId);
+        if (!success) {
+            return Response.ok(GameMessage.restError(GameErrorCode.FRIEND_REQUEST_NOT_FOUND).toString()).build();
+        }
+        return Response.ok(GameMessage.restOk("已拒绝该好友申请", null).toString()).build();
+    }
+
+    @POST
+    @Path("/economy/currency-exchange")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("game.player.info")
+    public Response currencyExchange(String body) {
+        Long userId = getCurrentUserId();
+        PlayerInfo player = playerService.getPlayerByUserId(userId);
+        if (player == null) {
+            return Response.ok(GameMessage.restError(GameErrorCode.PLAYER_NOT_FOUND).toString()).build();
+        }
+        JsonObject json = gson.fromJson(body, JsonObject.class);
+        String type = json.has("type") ? json.get("type").getAsString() : "";
+        long amount = json.has("amount") ? json.get("amount").getAsLong() : 0;
+        if (amount <= 0) {
+            return Response.ok(GameMessage.restError(GameErrorCode.PARAM_MISSING).toString()).build();
+        }
+
+        EconomyService economyService = new EconomyService();
+        Map<String, Object> result;
+        switch (type) {
+            case "goldToStones" -> result = economyService.exchangeGoldToStones(player.getId(), amount);
+            case "stonesToGold" -> result = economyService.exchangeStonesToGold(player.getId(), amount);
+            default -> {
+                Map<String, Object> err = new HashMap<>();
+                err.put("success", false);
+                err.put("message", "type 只能是 goldToStones 或 stonesToGold");
+                result = err;
+            }
+        }
+
+        if (!Boolean.TRUE.equals(result.get("success"))) {
+            return Response.ok(GameMessage.restError(400, String.valueOf(result.get("message"))).toString()).build();
+        }
+        return Response.ok(GameMessage.restOk(String.valueOf(result.get("message")), null).toString()).build();
+    }
+
+    @POST
     @Path("/friend/remove")
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
@@ -1878,6 +2012,8 @@ public class GameResource {
             o.addProperty("region", loc.getRegion());
             o.addProperty("minRealm", loc.getMinRealm());
             o.addProperty("safeZone", loc.isSafeZone());
+            o.addProperty("cultivationBonus", loc.getCultivationBonus());
+            o.addProperty("explorationBonus", loc.getExplorationBonus());
             arr.add(o);
         }
         JsonObject data = new JsonObject();
@@ -2362,13 +2498,15 @@ public class GameResource {
             plotArray.add(o);
         }
 
-        Season currentSeason = Season.getCurrentSeason();
+        Season currentSeason = com.mtxgdn.game.service.SeasonService.getCurrentSeason();
         JsonObject data = new JsonObject();
         data.add("plots", plotArray);
         data.addProperty("count", plotArray.size());
         data.addProperty("currentSeason", currentSeason.name());
         data.addProperty("currentSeasonDisplay", currentSeason.getDisplayName());
         data.addProperty("currentSeasonDesc", currentSeason.getDescription());
+        data.addProperty("seasonEffect", com.mtxgdn.game.service.SeasonService.getSeasonEffectDescription());
+        data.addProperty("seasonRemainingMs", com.mtxgdn.game.service.SeasonService.getSeasonRemainingMs());
 
         return Response.ok(GameMessage.restOk("获取成功", data).toString()).build();
     }
@@ -2594,5 +2732,73 @@ public class GameResource {
             return Response.ok(GameMessage.restOk((String) result.get("message"), null).toString()).build();
         }
         return Response.ok(GameMessage.restError(400, (String) result.get("message")).toString()).build();
+    }
+
+    // ==================== 全局季节系统 ====================
+
+    @GET
+    @Path("/season")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response getSeasonInfo() {
+        JsonObject data = new JsonObject();
+        data.addProperty("season", com.mtxgdn.game.service.SeasonService.getCurrentSeason().name());
+        data.addProperty("seasonDisplay", com.mtxgdn.game.service.SeasonService.getCurrentSeason().getDisplayName());
+        data.addProperty("seasonDesc", com.mtxgdn.game.service.SeasonService.getCurrentSeason().getDescription());
+        data.addProperty("seasonEffect", com.mtxgdn.game.service.SeasonService.getSeasonEffectDescription());
+        data.addProperty("cultivationMultiplier", com.mtxgdn.game.service.SeasonService.getCultivationMultiplier());
+        data.addProperty("explorationMultiplier", com.mtxgdn.game.service.SeasonService.getExplorationMultiplier());
+        data.addProperty("spiritStoneMultiplier", com.mtxgdn.game.service.SeasonService.getSpiritStoneMultiplier());
+        data.addProperty("dropMultiplier", com.mtxgdn.game.service.SeasonService.getDropMultiplier());
+        data.addProperty("seasonStartMs", com.mtxgdn.game.service.SeasonService.getSeasonStartMs());
+        data.addProperty("seasonEndMs", com.mtxgdn.game.service.SeasonService.getSeasonEndMs());
+        data.addProperty("remainingMs", com.mtxgdn.game.service.SeasonService.getSeasonRemainingMs());
+        return Response.ok(GameMessage.restOk("获取成功", data).toString()).build();
+    }
+
+    // ==================== 玩家数据文件（一用户一个文件）====================
+
+    @POST
+    @Path("/player/data/export")
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("game.player.info")
+    public Response exportPlayerData() {
+        Long userId = getCurrentUserId();
+        PlayerInfo player = playerService.getPlayerByUserId(userId);
+        if (player == null) {
+            return Response.ok(GameMessage.restError(GameErrorCode.PLAYER_NOT_FOUND).toString()).build();
+        }
+        com.mtxgdn.playerdata.PlayerDataService dataService = new com.mtxgdn.playerdata.PlayerDataService();
+        Map<String, Object> result = dataService.exportPlayer(player.getId());
+        if (!Boolean.TRUE.equals(result.get("success"))) {
+            return Response.ok(GameMessage.restError(400, (String) result.get("message")).toString()).build();
+        }
+        JsonObject data = new JsonObject();
+        data.addProperty("playerId", player.getId());
+        data.addProperty("filePath", (String) result.get("filePath"));
+        data.addProperty("exportedAt", ((Number) result.get("exportedAt")).longValue());
+        data.addProperty("message", (String) result.get("message"));
+        return Response.ok(GameMessage.restOk((String) result.get("message"), data).toString()).build();
+    }
+
+    @POST
+    @Path("/player/data/restore")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("game.player.info")
+    public Response restorePlayerData(String body) {
+        Long userId = getCurrentUserId();
+        PlayerInfo player = playerService.getPlayerByUserId(userId);
+        if (player == null) {
+            return Response.ok(GameMessage.restError(GameErrorCode.PLAYER_NOT_FOUND).toString()).build();
+        }
+        if (!com.mtxgdn.playerdata.PlayerDataService.isSelfRestoreEnabled()) {
+            return Response.ok(GameMessage.restError(403, "自助数据恢复未开放（player-data.self-restore=false），请联系管理员通过后台还原").toString()).build();
+        }
+        com.mtxgdn.playerdata.PlayerDataService dataService = new com.mtxgdn.playerdata.PlayerDataService();
+        Map<String, Object> result = dataService.restorePlayer(player.getId(), body);
+        if (!Boolean.TRUE.equals(result.get("success"))) {
+            return Response.ok(GameMessage.restError(400, (String) result.get("message")).toString()).build();
+        }
+        return Response.ok(GameMessage.restOk((String) result.get("message"), null).toString()).build();
     }
 }

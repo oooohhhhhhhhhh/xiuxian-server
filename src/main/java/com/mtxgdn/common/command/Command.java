@@ -36,6 +36,13 @@ public abstract class Command {
     private final String category;
     private final String permission;
     private final boolean privateOnly;
+    private final boolean requiresLogin;
+
+    /**
+     * 所属内置插件名（对应 config/plugins.yml 的 plugins.*，如 "farm"/"sect"/
+     * "experimental_sect_war"）。null 表示不属于任何内置模块，不受模块启停门控。
+     */
+    private String module;
 
     /** 所有注册项（OneBot 子命令 + HTTP 路由）统一存储 */
     private final List<RouteDefinition> routes = new ArrayList<>();
@@ -52,23 +59,53 @@ public abstract class Command {
     }
 
     protected Command(String[] names, String description, String usage,
-                      String category, String permission, boolean privateOnly) {
+                      String category, String permission, boolean privateOnly, boolean requiresLogin) {
         this.names = names;
         this.description = description;
         this.usage = usage;
         this.category = category;
         this.permission = permission;
         this.privateOnly = privateOnly;
+        this.requiresLogin = requiresLogin;
         CommandRegistry.register(this);
     }
 
     protected Command(String[] names, String description, String usage,
+                      String category, String permission, boolean privateOnly) {
+        this(names, description, usage, category, permission, privateOnly, true);
+    }
+
+    protected Command(String[] names, String description, String usage,
                       String category, String permission) {
-        this(names, description, usage, category, permission, false);
+        this(names, description, usage, category, permission, false, true);
     }
 
     protected Command(String[] names, String description, String usage, String category) {
-        this(names, description, usage, category, null, false);
+        this(names, description, usage, category, null, false, true);
+    }
+
+    // ==================== 内置模块门控 ====================
+
+    /**
+     * 标记本命令所属的内置玩法模块（如 "farm"），模块被停用时该命令将被禁用。
+     * 在子类构造函数中调用 super(...) 之后调用。
+     */
+    protected void setModule(String module) {
+        this.module = module;
+    }
+
+    /** 所属内置玩法模块名；null 表示不属于任何内置模块。 */
+    public String getModule() {
+        return module;
+    }
+
+    /**
+     * 模块门控：无模块或模块当前处于启用状态时返回 true。
+     * 指令分发（CommandRegistry）与 HTTP 接口（ModuleGateFilter）统一以此判断。
+     */
+    public boolean isModuleEnabled() {
+        return module == null
+                || com.mtxgdn.plugin.BuiltInPluginRegistry.getInstance().isEnabledOrUnknown(module);
     }
 
     // ==================== 统一注册 API（所有注册都走这里）====================
@@ -149,6 +186,43 @@ public abstract class Command {
         ctx.reply("未知子命令: " + sub + "\n用法: " + getUsage());
     }
 
+    protected PlayerInfo requirePlayerInfo(CommandContext ctx) {
+        Long userId = ctx.requireBinding();
+        if (userId == null) return null;
+        if (permission != null && !ctx.checkPermission(permission)) return null;
+        return ctx.requirePlayer(userId);
+    }
+
+    protected PlayerInfo requirePlayerInfo(CommandContext ctx, String perm) {
+        Long userId = ctx.requireBinding();
+        if (userId == null) return null;
+        if (perm != null && !ctx.checkPermission(perm)) return null;
+        return ctx.requirePlayer(userId);
+    }
+
+    protected Long parseLong(String s, long defaultValue) {
+        if (s == null || s.isBlank()) return defaultValue;
+        try {
+            return Long.parseLong(s.trim());
+        } catch (NumberFormatException e) {
+            return defaultValue;
+        }
+    }
+
+    protected Integer parseInt(String s, Integer defaultValue) {
+        if (s == null || s.isBlank()) return defaultValue;
+        try {
+            return Integer.parseInt(s.trim());
+        } catch (NumberFormatException e) {
+            return defaultValue;
+        }
+    }
+
+    protected String[] splitArgs(String arg, int limit) {
+        if (arg == null || arg.isBlank()) return new String[0];
+        return arg.trim().split("\\s+", limit);
+    }
+
     // ==================== Getters ====================
 
     public String[] getNames() {
@@ -189,11 +263,14 @@ public abstract class Command {
     }
 
     public boolean shouldShowInHelp(Long userId) {
-        if (permission == null) {
-            return true;
+        if (!isModuleEnabled()) {
+            return false; // 所属内置模块已停用，不在帮助中展示
         }
         if (userId == null) {
-            return false;
+            return !requiresLogin;
+        }
+        if (permission == null) {
+            return true;
         }
         return PermissionService.hasPermission(userId, permission);
     }

@@ -16,7 +16,7 @@ public class ShutdownCommand extends Command {
 
     @Override
     public void execute(CommandContext ctx) {
-        QqBinding b = new QqBindingService().findByQq(ctx.getSenderId());
+        QqBinding b = ctx.resolveBoundBinding();
         if (b == null) {
             ctx.reply("请先绑定账号。");
             return;
@@ -27,12 +27,14 @@ public class ShutdownCommand extends Command {
             return;
         }
         ctx.reply("服务器正在关闭...");
-        new Thread(() -> {
+        Thread shutdownThread = new Thread(() -> {
             try {
                 Thread.sleep(500);
             } catch (InterruptedException ignored) {
             }
             System.exit(0);
-        }).start();
+        });
+        shutdownThread.setDaemon(true);
+        shutdownThread.start();
     }
 }

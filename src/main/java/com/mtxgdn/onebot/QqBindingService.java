@@ -51,6 +51,16 @@ public class QqBindingService {
         return null;
     }
 
+    /**
+     * 跨平台查询用户绑定（仅用于展示）：先在 OneBot 表查，再查 QQ官方表。
+     * 一个用户可能在两端分别绑定（各自独立）。
+     */
+    public QqBinding findAnyBindingByUserId(Long userId) {
+        QqBinding b = findByUserId(userId);
+        if (b != null) return b;
+        return new QqOfficialBindingService().findByUserId(userId);
+    }
+
     public void bind(String qqNumber, Long userId) {
         QqBinding existingByQq = findByQq(qqNumber);
         if (existingByQq != null) {

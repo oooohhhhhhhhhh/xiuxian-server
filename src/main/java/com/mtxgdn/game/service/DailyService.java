@@ -3,7 +3,9 @@ package com.mtxgdn.game.service;
 import com.mtxgdn.db.DatabaseManager;
 import com.mtxgdn.entity.Player;
 import com.mtxgdn.game.entity.CelestialPhenomenon;
+import com.mtxgdn.game.entity.Season;
 import com.mtxgdn.game.entity.SpiritualRoot;
+import com.mtxgdn.common.service.ServiceRegistry;
 import com.mtxgdn.util.GameLogger;
 
 import java.sql.Connection;
@@ -34,6 +36,11 @@ public class DailyService {
             phenomenonDate = today;
         }
         return todayPhenomenon;
+    }
+
+    /** 静态入口：获取今日天象（供修炼/掉落等全局结算使用，线程安全）。 */
+    public static CelestialPhenomenon getTodayPhenomenonStatic() {
+        return ServiceRegistry.getDailyService().getTodayPhenomenon();
     }
 
     public Map<String, Object> doMorningCultivation(long playerId) {
@@ -77,53 +84,111 @@ public class DailyService {
         if (player.getSpiritualRoot() != null && player.getSpiritualRoot().hasEffect(SpiritualRoot.SpecialEffect.CULTIVATION_EFFICIENCY)) {
             totalExp = (long)(totalExp * (1 + player.getSpiritualRoot().getEffectValue()));
         }
+        // 全局季节加成（季节系统已同步至全局）
+        Season currentSeason = SeasonService.getCurrentSeason();
+        double seasonMultiplier = SeasonService.getMorningCultivationMultiplier();
+        long seasonBonusExp = (long)(totalExp * (seasonMultiplier - 1));
+        totalExp += seasonBonusExp;
         long baseSpiritStones = (player.getRealm() + 1) * 10L;
         long totalSpiritStones = phenom.applySpiritStone(baseSpiritStones);
         if (player.getSpiritualRoot() != null && player.getSpiritualRoot().hasEffect(SpiritualRoot.SpecialEffect.SPIRIT_STONE_DROP)) {
             totalSpiritStones = (long)(totalSpiritStones * (1 + player.getSpiritualRoot().getEffectValue()));
         }
+        totalSpiritStones = (long)(totalSpiritStones * SeasonService.getSpiritStoneMultiplier());
 
-        String sql = """
-            INSERT INTO player_daily (player_id, last_morning_cultivation, consecutive_days, total_active_days)
-            VALUES (?, ?, ?, 1)
-            ON DUPLICATE KEY UPDATE
-            last_morning_cultivation = VALUES(last_morning_cultivation),
-            consecutive_days = VALUES(consecutive_days),
-            total_active_days = total_active_days + 1
-            """;
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            ps.setString(2, todayStr);
-            ps.setInt(3, consecutive);
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("晨修记录保存失败", e);
+        String sql;
+        if (DatabaseManager.isSqlite()) {
+            sql = """
+                INSERT INTO player_daily (player_id, last_morning_cultivation, consecutive_days, total_active_days)
+                VALUES (?, ?, ?, 1)
+                ON CONFLICT(player_id) DO UPDATE SET
+                last_morning_cultivation = excluded.last_morning_cultivation,
+                consecutive_days = excluded.consecutive_days,
+                total_active_days = total_active_days + 1
+                """;
+        } else {
+            sql = """
+                INSERT INTO player_daily (player_id, last_morning_cultivation, consecutive_days, total_active_days)
+                VALUES (?, ?, ?, 1)
+                ON DUPLICATE KEY UPDATE
+                last_morning_cultivation = VALUES(last_morning_cultivation),
+                consecutive_days = VALUES(consecutive_days),
+                total_active_days = total_active_days + 1
+                """;
         }
 
-        playerService.addExperience(playerId, totalExp);
-        itemService.addSpiritStones(playerId, totalSpiritStones);
+        final long finalTotalExp = totalExp;
+        final long finalTotalSpiritStones = totalSpiritStones;
+        DatabaseManager.runTransaction(conn -> {
+            try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                ps.setLong(1, playerId);
+                ps.setString(2, todayStr);
+                ps.setInt(3, consecutive);
+                ps.executeUpdate();
+            }
+            playerService.addExperience(conn, playerId, finalTotalExp);
+            itemService.addSpiritStones(conn, playerId, finalTotalSpiritStones);
+            return null;
+        });
 
         checkSpiritualRootResonance(playerId, player);
 
         result.put("success", true);
-        result.put("message", "晨曦初现，紫气东来！你盘膝而坐，运转功法，获得 " + totalExp + " 经验和 " + totalSpiritStones + " 灵石");
+        result.put("message", "晨曦初现，紫气东来！你盘膝而坐，运转功法，获得 " + totalExp + " 经验和 " + totalSpiritStones + " 灵石"
+                + (seasonBonusExp > 0 ? "（" + currentSeason.getDisplayName() + "加成 +" + seasonBonusExp + "）" : ""));
         result.put("expGained", totalExp);
         result.put("spiritStonesGained", totalSpiritStones);
         result.put("consecutiveDays", consecutive);
         result.put("phenomenon", phenom.getDisplayName());
         result.put("phenomenonDesc", phenom.getDescription());
+        result.put("season", currentSeason.getDisplayName());
+        result.put("seasonMultiplier", seasonMultiplier);
         return result;
     }
 
+    /** 计数型每日字段的跨方言累加：行级“跨日复位”由 {@link #ensureDailyReset} 负责，此处只做同日累加。 */
+    private static String dailyCountIncrementSql(String countColumn) {
+        if (DatabaseManager.isSqlite()) {
+            return "INSERT INTO player_daily (player_id, " + countColumn + ", last_daily_reset) VALUES (?, 1, CURRENT_DATE) " +
+                    "ON CONFLICT(player_id) DO UPDATE SET " + countColumn + " = " + countColumn + " + 1, " +
+                    "last_daily_reset = CURRENT_DATE";
+        }
+        return "INSERT INTO player_daily (player_id, " + countColumn + ", last_daily_reset) VALUES (?, 1, CURRENT_DATE) " +
+                "ON DUPLICATE KEY UPDATE " + countColumn + " = " + countColumn + " + 1, " +
+                "last_daily_reset = CURRENT_DATE";
+    }
+
+    /**
+     * 行级“跨日复位”：当 last_daily_reset 不是今天（或为空）时，将四个今日机缘计数与奖励标记、PVP 次数全部归零并刷新日期，
+     * 保证每个机缘目标与 PVP 次数在每天首次触发/查询时都从 0 开始。
+     * （此前只有“触发当列”会跨日归 1，其余列因共享 last_daily_reset 而跨日失效，机缘奖励标记也从不复位。）
+     * 灵根共鸣里程碑（resonance7/30）为终身一次性发放，不在此复位范围内。
+     */
+    public void ensureDailyReset(long playerId) {
+        String today = LocalDate.now().toString();
+        String sql = "UPDATE player_daily SET " +
+                "exploration_count = 0, battle_count = 0, secret_realm_count = 0, skill_learn_count = 0, pvp_count = 0, " +
+                "exploration_rewarded = 0, battle_rewarded = 0, secret_realm_rewarded = 0, skill_learn_rewarded = 0, " +
+                "last_daily_reset = ? WHERE player_id = ? AND (last_daily_reset IS NULL OR last_daily_reset <> ?)";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, today);
+            ps.setLong(2, playerId);
+            ps.setString(3, today);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException("每日状态复位失败", e);
+        }
+    }
+
+    /** 静态入口：供 CombatService 等跨系统在读取/累加 PVP 次数前调用，保证 player_daily 全行按日复位。 */
+    public static void ensureDailyResetStatic(long playerId) {
+        ServiceRegistry.getDailyService().ensureDailyReset(playerId);
+    }
+
     public void onExplore(long playerId, String eventType) {
-        String sql = """
-            INSERT INTO player_daily (player_id, exploration_count, last_daily_reset)
-            VALUES (?, 1, CURRENT_DATE)
-            ON DUPLICATE KEY UPDATE
-            exploration_count = IF(last_daily_reset = CURRENT_DATE, exploration_count + 1, 1),
-            last_daily_reset = CURRENT_DATE
-            """;
+        ensureDailyReset(playerId);
+        String sql = dailyCountIncrementSql("exploration_count");
         try (Connection conn = DatabaseManager.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, playerId);
@@ -135,13 +200,8 @@ public class DailyService {
     }
 
     public void onBattle(long playerId) {
-        String sql = """
-            INSERT INTO player_daily (player_id, battle_count, last_daily_reset)
-            VALUES (?, 1, CURRENT_DATE)
-            ON DUPLICATE KEY UPDATE
-            battle_count = IF(last_daily_reset = CURRENT_DATE, battle_count + 1, 1),
-            last_daily_reset = CURRENT_DATE
-            """;
+        ensureDailyReset(playerId);
+        String sql = dailyCountIncrementSql("battle_count");
         try (Connection conn = DatabaseManager.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, playerId);
@@ -153,13 +213,8 @@ public class DailyService {
     }
 
     public void onSecretRealm(long playerId) {
-        String sql = """
-            INSERT INTO player_daily (player_id, secret_realm_count, last_daily_reset)
-            VALUES (?, 1, CURRENT_DATE)
-            ON DUPLICATE KEY UPDATE
-            secret_realm_count = IF(last_daily_reset = CURRENT_DATE, secret_realm_count + 1, 1),
-            last_daily_reset = CURRENT_DATE
-            """;
+        ensureDailyReset(playerId);
+        String sql = dailyCountIncrementSql("secret_realm_count");
         try (Connection conn = DatabaseManager.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, playerId);
@@ -171,13 +226,8 @@ public class DailyService {
     }
 
     public void onSkillLearn(long playerId) {
-        String sql = """
-            INSERT INTO player_daily (player_id, skill_learn_count, last_daily_reset)
-            VALUES (?, 1, CURRENT_DATE)
-            ON DUPLICATE KEY UPDATE
-            skill_learn_count = IF(last_daily_reset = CURRENT_DATE, skill_learn_count + 1, 1),
-            last_daily_reset = CURRENT_DATE
-            """;
+        ensureDailyReset(playerId);
+        String sql = dailyCountIncrementSql("skill_learn_count");
         try (Connection conn = DatabaseManager.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, playerId);
@@ -229,6 +279,8 @@ public class DailyService {
 
     public Map<String, Object> getDailyInfo(long playerId) {
         Map<String, Object> result = new LinkedHashMap<>();
+        // 先按日复位（跨天时计数与机缘奖励标记归零），再读取展示
+        ensureDailyReset(playerId);
         PlayerDaily daily = getOrCreateDaily(playerId);
         CelestialPhenomenon phenom = getTodayPhenomenon();
 

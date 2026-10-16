@@ -119,7 +119,9 @@ public class GameLogger {
             String fileName = "server-" + startupTime + ".log";
             Path logFile = logDirPath.resolve(fileName);
             logFilePath = logFile.toAbsolutePath().toString();
-            sharedFileWriter = new PrintWriter(new FileWriter(logFile.toFile(), true), true);
+            // 显式 UTF-8：避免中文 Windows 默认 GBK 导致日志乱码
+            sharedFileWriter = new PrintWriter(new java.io.OutputStreamWriter(
+                    new java.io.FileOutputStream(logFile.toFile(), true), java.nio.charset.StandardCharsets.UTF_8), true);
         } catch (IOException e) {
             System.err.println("[GameLogger] 无法创建日志文件: " + e.getMessage());
             sharedFileWriter = null;

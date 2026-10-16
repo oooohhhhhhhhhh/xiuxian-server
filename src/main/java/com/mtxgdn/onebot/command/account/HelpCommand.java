@@ -3,10 +3,6 @@ package com.mtxgdn.onebot.command.account;
 import com.mtxgdn.common.command.Command;
 import com.mtxgdn.common.command.CommandContext;
 import com.mtxgdn.common.command.CommandRegistry;
-import com.mtxgdn.minecraft.adapter.MinecraftPlayerBinding;
-import com.mtxgdn.minecraft.adapter.MinecraftPlayerBindingService;
-import com.mtxgdn.onebot.QqBinding;
-import com.mtxgdn.onebot.QqBindingService;
 import java.util.*;
 
 public class HelpCommand extends Command {
@@ -15,22 +11,16 @@ public class HelpCommand extends Command {
         super(new String[]{"帮助", "help"},
                 "查看所有可用指令",
                 "/帮助",
-                "账号");
+                "账号",
+                null,
+                false,
+                false);
     }
 
     @Override
     public void execute(CommandContext ctx) {
-        // 同时查找 QQ 绑定和 MC 绑定
-        Long userId = null;
-        QqBinding qqBinding = new QqBindingService().findByQq(ctx.getSenderId());
-        if (qqBinding != null) {
-            userId = qqBinding.getUserId();
-        } else {
-            MinecraftPlayerBinding mcBinding = new MinecraftPlayerBindingService().findByMcUuid(ctx.getSenderId());
-            if (mcBinding != null) {
-                userId = mcBinding.getUserId();
-            }
-        }
+        // 平台感知地解析绑定用户（OneBot qq_bindings / QQ官方 qq_official_bindings / MC 绑定）
+        Long userId = ctx.resolveBoundUserId();
 
         // 按分类动态分组，按 Command.getCategoryOrder() 排序
         Map<String, List<Command>> categories = new LinkedHashMap<>();

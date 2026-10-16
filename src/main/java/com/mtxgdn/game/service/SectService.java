@@ -10,6 +10,7 @@ import com.mtxgdn.game.entity.SectWarehouseItem;
 import com.mtxgdn.game.entity.SpiritualRoot;
 import com.mtxgdn.game.item.Item;
 import com.mtxgdn.game.item.ItemRegistry;
+import com.mtxgdn.common.service.ServiceRegistry;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -25,9 +26,14 @@ import java.util.Random;
 
 public class SectService {
 
-    private final PlayerService playerService = new PlayerService();
-    private final ItemService itemService = new ItemService();
+    private final PlayerService playerService;
+    private final ItemService itemService;
     private final Random random = new Random();
+
+    public SectService() {
+        this.playerService = ServiceRegistry.getPlayerService();
+        this.itemService = ServiceRegistry.getItemService();
+    }
 
     // ==================== 宗门查询 ====================
 
@@ -115,7 +121,7 @@ public class SectService {
             String realmName = GameConfigLoader.getRealmConfig(player.getRealm(), 0) != null
                     ? GameConfigLoader.getRealmConfig(player.getRealm(), 0).getFullName() : "凡人";
             result.put("success", false);
-            result.put("message", "境界不足，需要达到金丹期以上才能创建宗门（当前：" + realmName + "）");
+            result.put("message", "境界不足，需要达到元婴期以上才能创建宗门（当前：" + realmName + "）");
             return result;
         }
 
@@ -139,15 +145,17 @@ public class SectService {
         }
 
         Sect sect = DatabaseManager.runTransaction(conn -> {
-            // 扣除灵石（在事务内）
-            if (!itemService.removeItem(conn, playerId, com.mtxgdn.game.item.CurrencyEffect.SPIRIT_STONE_KEY, Sect.CREATE_COST_SPIRIT_STONES)) {
+            // 扣除灵石（在事务内，跨等级扣除）
+            if (!itemService.removeSpiritStones(conn, playerId, Sect.CREATE_COST_SPIRIT_STONES)) {
                 throw new SQLException("灵石扣除失败");
             }
-            String sql = "INSERT INTO sects (name, description, leader_player_id) VALUES (?, ?, ?)";
+            String sql = "INSERT INTO sects (name, description, leader_player_id, prestige) VALUES (?, ?, ?, ?)";
             try (PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
                 ps.setString(1, name);
                 ps.setString(2, description != null ? description : "一个新兴的修仙宗门");
                 ps.setLong(3, playerId);
+                // 初始声望 1000：使宗门升级/宗门战在创建后即可积累使用，避免声望死锁
+                ps.setLong(4, 1000L);
                 ps.executeUpdate();
                 ResultSet keys = ps.getGeneratedKeys();
                 if (keys.next()) {
@@ -158,13 +166,28 @@ public class SectService {
                         mps.setLong(2, playerId);
                         mps.executeUpdate();
                     }
-                    return getSectById(sectId);
+                    // 直接构造 Sect 返回，避免事务内跨连接查询读不到未提交数据
+                    Sect created = new Sect();
+                    created.setId(sectId);
+                    created.setName(name);
+                    created.setDescription(description != null ? description : "一个新兴的修仙宗门");
+                    created.setLeaderPlayerId(playerId);
+                    created.setLeaderName(player.getName());
+                    created.setLevel(1);
+                    created.setPrestige(1000L);
+                    created.setMemberCount(1);
+                    return created;
                 }
             }
             return null;
         });
 
         if (sect != null) {
+            // 创建宗门授予「开山祖师」称号
+            try {
+                new com.mtxgdn.game.service.TitleService().grantTitle(playerId, "sect_founder");
+            } catch (Exception ignored) {
+            }
             result.put("success", true);
             result.put("message", "恭贺【" + player.getName() + "】开创宗门【" + name + "】！消耗灵石 " + Sect.CREATE_COST_SPIRIT_STONES);
             result.put("sect", sect);
@@ -320,6 +343,11 @@ public class SectService {
             status = "accepted";
             msg = "已通过玩家【" + app.getPlayerName() + "】的加入申请";
             addMember(sect.getId(), app.getPlayerId());
+            // 首次入宗授予「首席弟子」称号
+            try {
+                new com.mtxgdn.game.service.TitleService().grantTitle(app.getPlayerId(), "senior_disciple");
+            } catch (Exception ignored) {
+            }
         } else {
             status = "rejected";
             msg = "已拒绝玩家【" + app.getPlayerName() + "】的加入申请";
@@ -427,7 +455,7 @@ public class SectService {
             result.put("success", false); result.put("message", "你没有加入任何宗门"); return result;
         }
         if (!kicker.canManage()) {
-            result.put("success", false); result.put("message", "只有宗主和长老才能踢人"); return result;
+            result.put("success", false); result.put("message", "只有宗主、副宗主和长老才能踢人"); return result;
         }
 
         SectMember target = getMember(kicker.getSectId(), targetPlayerId);
@@ -591,9 +619,15 @@ public class SectService {
             result.put("success", false); result.put("message", "背包中【" + item.getName() + "】数量不足"); return result;
         }
 
-        itemService.removeItem(playerId, fullKey, quantity);
+        // 修复刷贡献 bug：管理职位（宗主/副宗主/长老）可以免费从仓库取出物品，
+        // 若捐献时仍发放贡献值，则取出→捐献→取出无限循环即可刷取海量贡献值。
+        // 因此管理职位捐献不再获得贡献值（其特权已是免费取物），仅普通弟子捐献获得贡献值。
+        // 贡献值按物品价格折算（约为取出成本的 1/3~1/2），保证"捐低价物换高价物"无利可图。
+        final boolean isManager = member.canManage();
+        final long contributionGain = isManager ? 0L : quantity * Math.max(2L, item.getPrice() / 10L);
 
         DatabaseManager.runTransaction(conn -> {
+            itemService.removeItem(conn, playerId, fullKey, quantity);
             String upsertSql;
             if (DatabaseManager.isSqlite()) {
                 upsertSql = "INSERT INTO sect_warehouse (sect_id, item_key, quantity, donated_by_player_id) VALUES (?, ?, ?, ?) " +
@@ -611,14 +645,35 @@ public class SectService {
                 ps.setLong(6, playerId);
                 ps.executeUpdate();
             }
+            // 仅普通弟子捐献发放贡献值
+            if (contributionGain > 0) {
+                try (PreparedStatement ps = conn.prepareStatement(
+                        "UPDATE sect_members SET contribution = contribution + ? WHERE sect_id = ? AND player_id = ?")) {
+                    ps.setLong(1, contributionGain);
+                    ps.setLong(2, sectId);
+                    ps.setLong(3, playerId);
+                    ps.executeUpdate();
+                }
+            }
+            // 任何成员捐献都小幅增加宗门声望（声望是宗门升级/宗门战的资源，此前无来源导致死锁）
+            long prestigeGain = Math.max(1L, quantity / 10L);
+            try (PreparedStatement ps = conn.prepareStatement(
+                    "UPDATE sects SET prestige = prestige + ? WHERE id = ?")) {
+                ps.setLong(1, prestigeGain);
+                ps.setLong(2, sectId);
+                ps.executeUpdate();
+            }
             return null;
         });
 
-        long contributionGain = quantity * 10L;
-        addContribution(sectId, playerId, contributionGain);
-
         result.put("success", true);
-        result.put("message", "已向宗门仓库捐献【" + item.getName() + "】×" + quantity + "，获得 " + contributionGain + " 贡献值");
+        if (isManager) {
+            result.put("message", "已向宗门仓库捐献【" + item.getName() + "】×" + quantity
+                    + "（管理职位可免费取物，捐献不再获得贡献值，以防刷取）");
+        } else {
+            result.put("message", "已向宗门仓库捐献【" + item.getName() + "】×" + quantity + "，获得 " + contributionGain + " 贡献值");
+        }
+        result.put("contributionGain", contributionGain);
         return result;
     }
 
@@ -644,8 +699,8 @@ public class SectService {
             result.put("message", "宗门仓库中【" + item.getName() + "】数量不足（当前：" + available + "）"); return result;
         }
 
-        // 弟子需消耗贡献值
-        if (!member.canManage()) {
+        boolean isManager = member.canManage();
+        if (!isManager) {
             long costPerItem = getItemContributionCost(item);
             long totalCost = costPerItem * quantity;
             if (member.getContribution() < totalCost) {
@@ -654,29 +709,48 @@ public class SectService {
                         + " 需要 " + totalCost + " 贡献值（当前：" + member.getContribution() + "）");
                 return result;
             }
-            // 扣除贡献值
-            String costSql = "UPDATE sect_members SET contribution = contribution - ? WHERE id = ?";
-            try (Connection conn = DatabaseManager.getConnection();
-                 PreparedStatement ps = conn.prepareStatement(costSql)) {
-                ps.setLong(1, totalCost);
-                ps.setLong(2, member.getId());
-                ps.executeUpdate();
-            } catch (SQLException e) { throw new RuntimeException("扣除贡献值失败", e); }
         }
 
-        String deductSql = "UPDATE sect_warehouse SET quantity = quantity - ? WHERE sect_id = ? AND item_key = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(deductSql)) {
-            ps.setInt(1, quantity);
-            ps.setLong(2, sectId);
-            ps.setString(3, fullKey);
-            ps.executeUpdate();
-        } catch (SQLException e) { throw new RuntimeException("取出物品失败", e); }
+        // 单事务 + 条件扣除：贡献值、仓库数量、背包发放原子完成，防止并发超取/重复取物
+        try {
+            DatabaseManager.runTransaction(conn -> {
+                if (!isManager) {
+                    long totalCost = getItemContributionCost(item) * quantity;
+                    String costSql = "UPDATE sect_members SET contribution = contribution - ? WHERE id = ? AND contribution >= ?";
+                    try (PreparedStatement ps = conn.prepareStatement(costSql)) {
+                        ps.setLong(1, totalCost);
+                        ps.setLong(2, member.getId());
+                        ps.setLong(3, totalCost);
+                        if (ps.executeUpdate() == 0) {
+                            throw new SQLException("贡献值不足");
+                        }
+                    }
+                }
 
-        itemService.addItem(playerId, fullKey, quantity);
+                String deductSql = "UPDATE sect_warehouse SET quantity = quantity - ? WHERE sect_id = ? AND item_key = ? AND quantity >= ?";
+                try (PreparedStatement ps = conn.prepareStatement(deductSql)) {
+                    ps.setInt(1, quantity);
+                    ps.setLong(2, sectId);
+                    ps.setString(3, fullKey);
+                    ps.setInt(4, quantity);
+                    if (ps.executeUpdate() == 0) {
+                        throw new SQLException("仓库物品数量不足");
+                    }
+                }
+
+                if (!itemService.addItem(conn, playerId, fullKey, quantity)) {
+                    throw new SQLException("发放物品失败");
+                }
+                return null;
+            });
+        } catch (Exception e) {
+            result.put("success", false);
+            result.put("message", "取出失败：" + (e.getMessage() != null ? e.getMessage() : "未知错误"));
+            return result;
+        }
 
         String msg;
-        if (member.canManage()) {
+        if (isManager) {
             msg = "已从宗门仓库取出【" + item.getName() + "】×" + quantity;
         } else {
             long cost = getItemContributionCost(item) * quantity;
@@ -687,10 +761,13 @@ public class SectService {
         return result;
     }
 
-    /** 物品兑换贡献值（取价格/10，最低50） */
+    /**
+     * 物品兑换贡献值（取价格/5，最低10）。
+     * 高于捐献所得（价格/10），保证"捐献→取出"循环总是亏损，杜绝套利。
+     */
     public long getItemContributionCost(Item item) {
         int price = item.getPrice();
-        return Math.max(50, price / 10);
+        return Math.max(10, price / 5);
     }
 
     private int getWarehouseItemCount(long sectId, String itemKey) {
@@ -778,7 +855,7 @@ public class SectService {
             String realmName = GameConfigLoader.getRealmConfig(toPlayer.getRealm(), 0) != null
                     ? GameConfigLoader.getRealmConfig(toPlayer.getRealm(), 0).getFullName() : "凡人";
             result.put("success", false);
-            result.put("message", "接收者境界不足，需要达到金丹期以上才能成为宗主（当前：" + realmName + "）");
+            result.put("message", "接收者境界不足，需要达到元婴期以上才能成为宗主（当前：" + realmName + "）");
             return result;
         }
 
@@ -788,12 +865,10 @@ public class SectService {
             result.put("message", "灵石不足，转让宗主之位需要 " + Sect.TRANSFER_COST_SPIRIT_STONES + " 灵石（你目前有 " + spiritStones + " 灵石）");
             return result;
         }
-        if (!itemService.removeSpiritStones(fromPlayerId, Sect.TRANSFER_COST_SPIRIT_STONES)) {
-            result.put("success", false);
-            result.put("message", "扣除灵石失败"); return result;
-        }
-
         DatabaseManager.runTransaction(conn -> {
+            if (!itemService.removeSpiritStones(conn, fromPlayerId, Sect.TRANSFER_COST_SPIRIT_STONES)) {
+                throw new Exception("扣除灵石失败");
+            }
             String sql = "UPDATE sects SET leader_player_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?";
             try (PreparedStatement ps = conn.prepareStatement(sql)) {
                 ps.setLong(1, toPlayerId);
@@ -825,8 +900,17 @@ public class SectService {
 
     // ==================== 宗门战 ====================
 
+    /** 实验性插件名：宗门战（开关见 config/plugins.yml 的 plugins.experimental_sect_war，默认关闭）。 */
+    private static final String SECT_WAR_PLUGIN = "experimental_sect_war";
+
     public Map<String, Object> declareWar(long attackerPlayerId, long defenderSectId) {
         Map<String, Object> result = new LinkedHashMap<>();
+        // 实验性插件门控：宗门战停用后，REST / WebSocket / 指令三个入口统一拒绝
+        if (!com.mtxgdn.plugin.BuiltInPluginRegistry.getInstance().isEnabledOrUnknown(SECT_WAR_PLUGIN)) {
+            result.put("success", false);
+            result.put("message", "宗门战为实验性内容，当前未开放（可在 config/plugins.yml 中启用 experimental_sect_war）");
+            return result;
+        }
         SectMember attackerMember = getPlayerMember(attackerPlayerId);
         if (attackerMember == null || !attackerMember.isLeader()) {
             result.put("success", false); result.put("message", "只有宗主才能发起宗门战"); return result;
@@ -850,6 +934,26 @@ public class SectService {
             result.put("success", false); result.put("message", "目标宗门没有成员"); return result;
         }
 
+        // 宗门战冷却：同一防守方 24 小时内只能被宣战一次，防止无休止骚扰
+        long warCooldownMs = 24 * 3600 * 1000L;
+        String lastWarSql = "SELECT MAX(created_at) FROM sect_wars WHERE defender_sect_id = ?";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(lastWarSql)) {
+            ps.setLong(1, defenderSectId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next() && rs.getTimestamp(1) != null) {
+                    long lastWarTime = rs.getTimestamp(1).getTime();
+                    long remaining = warCooldownMs - (System.currentTimeMillis() - lastWarTime);
+                    if (remaining > 0) {
+                        result.put("success", false);
+                        result.put("message", "目标宗门刚经历过宗门战，还需等待 "
+                                + Math.max(1, remaining / 3600000) + " 小时才能再次宣战");
+                        return result;
+                    }
+                }
+            }
+        } catch (SQLException e) { throw new RuntimeException("查询宗门战记录失败", e); }
+
         if (attackerSect.getPrestige() < Sect.DECLARE_WAR_PRESTIGE_COST) {
             result.put("success", false);
             result.put("message", "宗门声望不足，宣战需要 " + Sect.DECLARE_WAR_PRESTIGE_COST + " 声望（当前：" + attackerSect.getPrestige() + "）");
@@ -865,7 +969,7 @@ public class SectService {
         // 扣除灵石和声望（事务包裹）
         try {
             DatabaseManager.runTransaction(conn -> {
-                if (!itemService.removeItem(conn, attackerPlayerId, com.mtxgdn.game.item.CurrencyEffect.SPIRIT_STONE_KEY, Sect.DECLARE_WAR_SPIRIT_STONE_COST)) {
+                if (!itemService.removeSpiritStones(conn, attackerPlayerId, Sect.DECLARE_WAR_SPIRIT_STONE_COST)) {
                     throw new SQLException("扣除灵石失败");
                 }
                 String deductPrestigeSql = "UPDATE sects SET prestige = prestige - ? WHERE id = ?";

@@ -36,8 +36,12 @@ public final class PluginMaker {
         {"DemoItem.java.template",        "src/main/java/{{PACKAGE_PATH}}/item/DemoItem.java"},
     };
 
-    /** 服务端版本号 —— 用于在模板 pom.xml 的注释中提示依赖版本 */
-    private static final String SERVER_VERSION = "V1.4.1-beta1";
+    /**
+     * 服务端版本号 —— 用于在模板 pom.xml 的注释中提示依赖版本。
+     * <p>取自 {@link com.mtxgdn.util.BuildInfo}（唯一来源为 pom.xml 的 &lt;version&gt;），
+     * 这里必须是<b>纯净版本号</b>：它会被填进 Maven 坐标，加 v 前缀会装不上。</p>
+     */
+    private static final String SERVER_VERSION = com.mtxgdn.util.BuildInfo.getVersion();
 
     private final BufferedReader in;
     private final PrintStream out;

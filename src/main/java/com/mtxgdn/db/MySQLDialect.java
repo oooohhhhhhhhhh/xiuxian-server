@@ -161,4 +161,9 @@ public class MySQLDialect implements DatabaseDialect {
     public String quoteColumnName(String columnName) {
         return "`" + columnName + "`";
     }
+    
+    @Override
+    public String getForUpdateClause() {
+        return "FOR UPDATE";
+    }
 }

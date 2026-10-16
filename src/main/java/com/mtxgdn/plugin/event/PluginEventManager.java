@@ -111,9 +111,21 @@ public final class PluginEventManager {
 
     // ==================== 分发 API ====================
 
+    /**
+     * 静默触发事件：供游戏核心代码调用（登录/战斗/物品/游历/命令等）。
+     * 处理器异常已在 fire 内部捕获，不会影响核心流程。
+     */
+    public static void fireQuietly(PluginEvent event) {
+        if (event == null) return;
+        try {
+            getInstance().fire(event);
+        } catch (Throwable t) {
+            LOG.error("事件触发异常: " + event.toShortString(), t);
+        }
+    }
+
     /** 触发一个事件，分发给所有相关处理器。按优先级降序执行。 */
-    public void fire(PluginEvent event) {
-        List<HandlerEntry> targets = new ArrayList<>();
+    public void fire(PluginEvent event) {        List<HandlerEntry> targets = new ArrayList<>();
         if (event.getType() == PluginEvent.Type.CUSTOM) {
             List<HandlerEntry> byKey = handlersByKey.get(event.getCustomKey());
             if (byKey != null) targets.addAll(byKey);

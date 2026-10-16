@@ -587,7 +587,8 @@ public class DemoClient {
         System.out.println("  │                    【坊市交易】                              │");
         printDivider();
         System.out.println("  │  [1] 坊市列表        [2] 上架物品        [3] 我的上架        │");
-        System.out.println("  │  [4] 购买物品        [5] 取消上架        [6] 返回主菜单      │");
+        System.out.println("  │  [4] 购买物品        [5] 取消上架        [6] 成交行情        │");
+        System.out.println("  │  [7] 返回主菜单                                              │");
         printDivider();
         System.out.print("  请选择: ");
 
@@ -598,7 +599,8 @@ public class DemoClient {
             case "3" -> getMyListings();
             case "4" -> buyItem();
             case "5" -> cancelListing();
-            case "6" -> {}
+            case "6" -> getPriceHistory();
+            case "7" -> {}
             default -> {
                 System.out.println();
                 System.out.println("  [✗] 无效选项！");
@@ -908,6 +910,28 @@ public class DemoClient {
 
     private void getMyListings() {
         ApiResponse resp = gameApi.getMyListings();
+        printApiResponse(resp);
+    }
+
+    /** 查询某物品的近期成交行情，辅助定价。 */
+    private void getPriceHistory() {
+        System.out.print("  物品Key或名称: ");
+        String itemKey = scanner.nextLine().trim();
+        if (itemKey.isEmpty()) {
+            System.out.println("  [✗] 物品Key不能为空");
+            return;
+        }
+        System.out.print("  统计天数（直接回车=7天，最多90天）: ");
+        String daysStr = scanner.nextLine().trim();
+        int days = 0;
+        if (!daysStr.isEmpty()) {
+            try {
+                days = Integer.parseInt(daysStr);
+            } catch (NumberFormatException e) {
+                System.out.println("  [✗] 天数必须是整数，已按默认 7 天查询");
+            }
+        }
+        ApiResponse resp = gameApi.getPriceHistory(itemKey, days);
         printApiResponse(resp);
     }
 

@@ -2,8 +2,8 @@ package com.mtxgdn.onebot.command.social;
 
 import com.mtxgdn.common.command.Command;
 import com.mtxgdn.common.command.CommandContext;
-import com.mtxgdn.game.entity.PlayerInfo;
 import com.mtxgdn.common.service.ServiceRegistry;
+import com.mtxgdn.game.entity.PlayerInfo;
 
 import java.util.List;
 
@@ -16,7 +16,10 @@ public class PlayerSearchCommand extends Command {
                 "根据名称搜索玩家",
                 "/查人 <名称>",
                 "社交",
-                null);
+                null,
+                false,
+                true);
+        setModule("search");
     }
 
     @Override
@@ -47,16 +50,16 @@ public class PlayerSearchCommand extends Command {
             String realmName = fp.getRealmName() != null ? fp.getRealmName() : "凡人";
             String rootName = fp.getSpiritualRoot() != null ? fp.getSpiritualRoot().getDisplayName() : "无";
             sb.append(i + 1).append(". ").append(fp.getName())
-              .append(" | Lv.").append(fp.getLevel())
-              .append(" | ").append(realmName)
-              .append("\n  ")
-              .append("灵根: ").append(rootName)
-              .append(" | 攻击: ").append(fp.getAttack())
-              .append(" | 防御: ").append(fp.getDefense())
-              .append("\n  ")
-              .append("金币: ").append(fp.getGold())
-              .append(" | ").append(fp.isCultivating() ? "⏳修炼中" : "空闲")
-              .append("\n");
+                    .append(" | Lv.").append(fp.getLevel())
+                    .append(" | ").append(realmName)
+                    .append("\n  ")
+                    .append("灵根: ").append(rootName)
+                    .append(" | 攻击: ").append(fp.getAttack())
+                    .append(" | 防御: ").append(fp.getDefense())
+                    .append("\n  ")
+                    .append("金币: ").append(fp.getGold())
+                    .append(" | ").append(fp.isCultivating() ? "⏳修炼中" : "空闲")
+                    .append("\n");
         }
         if (results.size() >= MAX_RESULTS) {
             sb.append("\n...结果过多，请尝试更精确的名称");

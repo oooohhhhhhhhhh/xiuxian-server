@@ -1,6 +1,6 @@
 package com.mtxgdn.util;
 
-import com.mtxgdn.db.DatabaseManager;
+import com.mtxgdn.db.PlayerActionLogDAO;
 
 import java.io.FileWriter;
 import java.io.IOException;
@@ -46,7 +46,9 @@ public class PlayerActionLogger {
             Files.createDirectories(logDirPath);
             String fileName = PLAYER_LOG_PREFIX + "-" + currentLogDate + ".log";
             Path logFile = logDirPath.resolve(fileName);
-            fileWriter = new PrintWriter(new FileWriter(logFile.toFile(), true), true);
+            // 显式 UTF-8：避免中文 Windows 默认 GBK 导致日志乱码
+            fileWriter = new PrintWriter(new java.io.OutputStreamWriter(
+                    new java.io.FileOutputStream(logFile.toFile(), true), java.nio.charset.StandardCharsets.UTF_8), true);
         } catch (IOException e) {
             System.err.println("[PlayerActionLogger] 无法创建玩家操作日志文件: " + e.getMessage());
             fileWriter = null;
@@ -196,7 +198,7 @@ public class PlayerActionLogger {
 
         // 写入数据库
         try {
-            DatabaseManager.insertPlayerActionLog(userId, playerName, action, detail, qqNumber);
+            new PlayerActionLogDAO().insertPlayerActionLog(userId, playerName, action, detail, qqNumber);
         } catch (Exception e) {
             System.err.println("[PlayerActionLogger] 写入数据库失败: " + e.getMessage());
         }

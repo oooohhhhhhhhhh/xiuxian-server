@@ -38,23 +38,56 @@ public class ExplorationEventRegistry {
         return events.get(fullKey);
     }
 
+    /** 按事件 key（不含命名空间）查找；用于地界权重偏置这类只持有 key 的场景。 */
+    public static ExplorationEvent getByKey(String key) {
+        if (key == null) return null;
+        for (ExplorationEvent event : events.values()) {
+            if (event.getKey().equals(key)) {
+                return event;
+            }
+        }
+        return null;
+    }
+
     public static ExplorationEvent randomByWeight(java.util.Random random) {
+        return randomByWeight(random, java.util.Map.of());
+    }
+
+    /**
+     * 按权重随机抽取事件，并按地界偏置调整权重。
+     *
+     * <p>{@code bias} 为「事件 key → 权重倍率」，未列出的 key 倍率视为 1.0。
+     * 这让"落霞山产落霞草""万妖谷妖兽聚集"这类地点描述真正作用于事件抽取。</p>
+     */
+    public static ExplorationEvent randomByWeight(java.util.Random random, java.util.Map<String, Double> bias) {
         if (events.isEmpty()) {
             return null;
         }
-        int totalWeight = 0;
+        double totalWeight = 0;
         for (ExplorationEvent event : events.values()) {
-            totalWeight += event.getWeight();
+            totalWeight += biasedWeight(event, bias);
         }
-        int roll = random.nextInt(totalWeight);
-        int cumulative = 0;
+        if (totalWeight <= 0) {
+            return events.values().iterator().next();
+        }
+        double roll = random.nextDouble() * totalWeight;
+        double cumulative = 0;
         for (ExplorationEvent event : events.values()) {
-            cumulative += event.getWeight();
+            cumulative += biasedWeight(event, bias);
             if (roll < cumulative) {
                 return event;
             }
         }
         return events.values().iterator().next();
+    }
+
+    private static double biasedWeight(ExplorationEvent event, java.util.Map<String, Double> bias) {
+        double weight = event.getWeight();
+        if (bias == null || bias.isEmpty()) {
+            return weight;
+        }
+        Double multiplier = bias.get(event.getKey());
+        return multiplier != null ? weight * multiplier : weight;
     }
 
     public static Collection<ExplorationEvent> getAll() {

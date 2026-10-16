@@ -12,6 +12,7 @@ import java.util.Map;
 public class CultivateBoostCommand extends Command {
     public CultivateBoostCommand() {
         super(new String[]{"修炼加速", "boost"}, "燃烧灵石加速修炼", "/修炼加速 <灵石数量> （每100灵石=1小时×1.5倍）", "经济", null);
+        setModule("economy");
 
         addRoute(RouteDefinition.post("economy/cultivate-boost", this::handleBoostHttp));
     }
@@ -36,6 +37,10 @@ public class CultivateBoostCommand extends Command {
 
         try {
             int stonesToBurn = Integer.parseInt(arg);
+            if (stonesToBurn <= 0) {
+                ctx.reply("灵石数量必须大于 0");
+                return;
+            }
             var eco = ServiceRegistry.getEconomyService();
             var result = eco.boostCultivation(p.getId(), stonesToBurn);
             ctx.reply((String) result.get("message"));

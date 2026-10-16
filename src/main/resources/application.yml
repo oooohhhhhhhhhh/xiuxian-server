@@ -1,140 +1,226 @@
-# ========================================
-#  修仙世界 - 服务器配置文件
-# ========================================
-#  启动时自动生成，修改后重启即可生效
+# 修仙世界服务器配置
+# 修改后重启生效；生产环境请修改密钥、密码等敏感配置。
+# OneBot/Minecraft 适配器的实际运行参数由 config/adapters.json 控制。
 
-# ---- 应用 ----
+# ┌──────────────────────────────────────────────────────────────┐
+# │ 1. 应用信息                                                   │
+# └──────────────────────────────────────────────────────────────┘
 app:
-  name: 修仙世界
+  name: 修仙世界              # 应用显示名称（用于 OAuth 授权页等前端展示）
 
-# ---- 服务器 ----
+
+# ┌──────────────────────────────────────────────────────────────┐
+# │ 2. HTTP 服务器                                                │
+# └──────────────────────────────────────────────────────────────┘
 server:
-  host: 127.0.0.1
-  port: 8080
+  host: 127.0.0.1             # 监听地址（0.0.0.0 对外网开放，127.0.0.1 仅本机）
+  port: 8080                  # HTTP 服务端口（管理后台 /api/admin、REST 接口）
 
-# ---- 数据库 ----
+
+# ┌──────────────────────────────────────────────────────────────┐
+# │ 3. 数据库                                                     │
+# └──────────────────────────────────────────────────────────────┘
 database:
-  type: mysql
+  type: sqlite                 # 数据库类型：sqlite（零依赖，推荐单机）| mysql
   url: jdbc:mysql://localhost:3306/xiuxian?useUnicode=true&characterEncoding=UTF-8&connectionCollation=utf8mb4_unicode_ci
-  username: root
-  password: root
-  sqlite_path: xiuxian.db
+                               # MySQL 连接串（仅 type=mysql 时使用）
+  username: root               # MySQL 用户名（仅 type=mysql 时使用）
+  password: root               # MySQL 密码（仅 type=mysql 时使用）
+  sqlite_path: xiuxian.db      # SQLite 数据库文件路径（仅 type=sqlite 时使用）
+  pool_max: 4                  # 连接池最大连接数（SQLite 建议 2~8，MySQL 建议 8~32）
 
-# ---- JWT ----
+
+# ┌──────────────────────────────────────────────────────────────┐
+# │ 4. JWT 签名密钥                                               │
+# └──────────────────────────────────────────────────────────────┘
 jwt:
-  secret: xiuxian-game-jwt-secret-key-2026-must-be-at-least-256-bits-long!!
+  secret: ""                   # 玩家 Token 签名密钥。
+  # 留空 = 每次启动随机生成（重启后所有玩家 Token 失效，需重新登录）。
+  # 生产环境请设为至少 256 位随机串，生成方式：openssl rand -base64 48
 
-# ---- 管理后台 ----
+
+# ┌──────────────────────────────────────────────────────────────┐
+# │ 5. 全局季节系统                                               │
+# └──────────────────────────────────────────────────────────────┘
+season:
+  mode: calendar               # 更替模式：calendar=按真实月份四季；cycle=按小时循环
+  cycle_hours: 6               # cycle 模式下每季持续小时数（更替时全服广播）
+
+
+# ┌──────────────────────────────────────────────────────────────┐
+# │ 6. OAuth2 支持（独立鉴权端点，不与其他业务系统集成）           │
+# └──────────────────────────────────────────────────────────────┘
+oauth2:
+  enabled: true                # 是否启用 OAuth2 授权端点
+  client_id: xiuxian_oauth_client        # 客户端 ID
+  client_secret: xiuxian_oauth_secret_please_change   # 客户端密钥（务必修改）
+  scopes: read write           # 授权作用域（空格分隔）
+  token_ttl_seconds: 3600      # Access Token 有效时长（秒）
+
+
+# ┌──────────────────────────────────────────────────────────────┐
+# │ 7. 玩家数据文件化（一用户一个 JSON 文件）                      │
+# └──────────────────────────────────────────────────────────────┘
+player-data:
+  enabled: true                # 是否启用玩家数据文件化落盘
+  dir: data/players            # 数据文件存放目录
+  auto-sync-seconds: 30        # 变更数据定期落盘间隔（秒），0 关闭自动同步
+  self-restore: false          # 是否允许玩家用导出文件自助恢复（默认关闭，防刷）
+
+
+# ┌──────────────────────────────────────────────────────────────┐
+# │ 9. 管理后台                                                   │
+# └──────────────────────────────────────────────────────────────┘
 admin:
-  username: admin
-  password: admin123
+  username: admin              # 管理后台账号
+  password_hash: $2a$10$njJJacGfGPEX1FHD6MB1HeKEgjfWx5zF2nrGo.gEbdjb3Q.KA3gcC
+                               # 管理后台密码的 bcrypt 哈希（本值为默认密码 admin123 的哈希）
+                               # ⚠ 请勿再配置明文 admin.password：首次启动会被自动哈希为
+                               # admin.password_hash 并清除明文、重写本文件（注释会丢失）。
+                               # 修改密码请重新运行安装向导；生产环境务必更换此哈希！
 
-# ---- 邮件 (SMTP) ----
+
+# ┌──────────────────────────────────────────────────────────────┐
+# │ 10. 邮件 SMTP（用于注册验证码发送）                           │
+# └──────────────────────────────────────────────────────────────┘
 smtp:
-  host: smtp.qq.com
-  port: 587
-  username: ""
-  password: ""
-  from: ""
-  auth: true
-  starttls: true
+  host: smtp.qq.com            # SMTP 服务器地址
+  port: 587                    # SMTP 端口（587=STARTTLS，465=SSL）
+  username: ""                 # SMTP 登录账号（通常为发件邮箱地址）
+  password: ""                 # SMTP 授权码（非邮箱登录密码）
+  from: ""                     # 发件人地址（留空则使用 username）
+  auth: true                   # 是否启用 SMTP 认证
+  starttls: true               # 是否启用 STARTTLS 加密
 
-# ---- 注册验证码 ----
+
+# ┌──────────────────────────────────────────────────────────────┐
+# │ 11. 注册邮箱验证码                                            │
+# └──────────────────────────────────────────────────────────────┘
 verify_code:
-  enabled: true
-  allowed_domains:
+  enabled: true                # 是否要求注册时通过邮箱验证码
+  allowed_domains:             # 允许注册的邮箱域名（列表，逗号分隔读取）
     - qq.com
     - 163.com
     - 126.com
     - gmail.com
     - outlook.com
     - hotmail.com
-  rate_limit_seconds: 60
+  rate_limit_seconds: 60       # 同一邮箱发送验证码的冷却时间（秒）
 
-# ---- OneBot QQ Bot ----
+
+# ┌──────────────────────────────────────────────────────────────┐
+# │ 12. OneBot QQ 机器人                                          │
+# └──────────────────────────────────────────────────────────────┘
 onebot:
-  enabled: true
-  port: 6700
-  # 运行模式: ws_server(WebSocket服务端) / screenshot(截图模拟真人操作)
-  mode: ws_server
-  # 消息发送方式: text(普通文字) / chat_record(聊天记录/合并转发)
-  # 注意: screenshot 模式只使用 text 方式
-  send_mode: text
-  # 截图模式配置 (仅 mode=screenshot 时生效)
+  enabled: true                # 是否启用 OneBot 接入
+  send_mode: text              # 消息发送模式：text=纯文本；其他可选（截图等）
   screenshot:
-    # 目标窗口标题匹配关键词 (如 "QQ")
-    window_title: ""
-    # 截图轮询间隔 (毫秒)
-    poll_interval: 2000
+    window_title: ""           # 截图目标窗口标题（留空自动识别）
+    poll_interval: 2000        # 截图轮询间隔（毫秒）
 
-# ---- Minecraft 适配器 ----
+
+# ┌──────────────────────────────────────────────────────────────┐
+# │ 13. Minecraft 内置服务器适配                                   │
+# └──────────────────────────────────────────────────────────────┘
 minecraft:
-  adapter:
-    # 是否启用 Minecraft 适配器
-    enabled: false
-  # 服务端 jar 文件路径（绝对路径或相对于项目根目录）
-  jar_path: ""
-  # 服务端运行目录（plugins/等资源放这里）
-  server_dir: mc_server
-  # Java 可执行文件路径（留空则使用系统 PATH 中的 java）
-  java_path: java
-  # 最小/最大 JVM 堆内存 (MB)
-  min_memory_mb: 512
-  max_memory_mb: 1024
-  # 启动 Minecraft 服务端时是否自动开始（false = 手动通过后台启动）
-  auto_start: false
-  # 等待服务端就绪的超时秒数
-  ready_timeout_seconds: 120
-  # 额外 JVM 参数（空格分隔），例: "-XX:+UseG1GC -Dfile.encoding=UTF-8"
-  extra_jvm_args: ""
-  # 在线模式: true = 正版验证(UUID走Mojang API), false = 离线模式(UUID由名字生成)
-  online_mode: false
-  # 指令前缀（避免和其他插件冲突）。如 "xiuxian" 则玩家用 /xiuxian status，
-  # 空串 = 无前缀，所有 /xxx 都走修仙适配器
-  command_prefix: "xiuxian"
+  jar_path: ""                 # 服务端 jar 包路径（内置 MC 服务器用）
+  server_dir: mc_server        # 服务端工作目录
+  java_path: java              # Java 可执行路径
+  min_memory_mb: 512           # JVM 最小堆内存（MB）
+  max_memory_mb: 1024          # JVM 最大堆内存（MB）
+  ready_timeout_seconds: 120   # 等待服务就绪超时（秒）
+  extra_jvm_args: ""           # 额外的 JVM 启动参数
+  online_mode: false           # 是否正版验证（true=正版用户名，false=离线）
+  command_prefix: "xiuxian"    # MC 内指令前缀
 
-# ---- 日志 ----
+
+# ┌──────────────────────────────────────────────────────────────┐
+# │ 14. 日志                                                      │
+# └──────────────────────────────────────────────────────────────┘
 logging:
-  level: DEBUG
-  dir: log
-  color: true
+  level: DEBUG                 # 日志级别：TRACE/DEBUG/INFO/WARN/ERROR
+  dir: log                     # 日志文件输出目录
+  color: true                  # 控制台日志是否着色
 
-# ---- 背包系统 ----
+
+# ┌──────────────────────────────────────────────────────────────┐
+# │ 15. 背包系统                                                  │
+# └──────────────────────────────────────────────────────────────┘
 inventory:
-  # 基础背包容量（物品种类数）
-  base_capacity: 30
-  # 每级增加的背包容量
-  capacity_per_level: 5
+  base_capacity: 30            # 初始背包格子数
+  capacity_per_level: 5        # 每升一级增加的背包格子数
 
-# ---- 性能 / 低内存优化 ----
+
+# ┌──────────────────────────────────────────────────────────────┐
+# │ 15b. 坊市（挂单时限 + 成交价格历史）                         │
+# └──────────────────────────────────────────────────────────────┘
+market:
+  listing_duration_hours: 72   # 挂单有效时长（小时），到期自动下架并把物品退回卖家
+  price_history_keep_days: 30  # 成交价格历史保留天数（超期由清理任务删除）
+  price_history_cleanup_interval_hours: 6  # 价格历史清理任务执行间隔（小时）
+
+
+# ┌──────────────────────────────────────────────────────────────┐
+# │ 15c. Buff（过期回收）                                        │
+# └──────────────────────────────────────────────────────────────┘
+buff:
+  # 过期增益「兜底」回收间隔（秒）。
+  # 活跃玩家在访问 Buff 时即时过期，不依赖此任务；它只负责离线玩家
+  # （加成物化在 players 表上，离线后没有触发点，属性会一直虚高）。
+  # 原实现是每秒一次全表扫描，现已降为低频兜底，最小 10 秒。
+  expire_sweep_seconds: 60
+
+
+# ┌──────────────────────────────────────────────────────────────┐
+# │ 16. 性能 / 线程池                                             │
+# └──────────────────────────────────────────────────────────────┘
 performance:
-  # JVM 启动参数建议 (java -Xms128m -Xmx256m -XX:+UseSerialGC ...)
-  # 可用 start-low-memory.bat 一键启动低内存模式
-  # 低内存模式: 启用后自动缩小连接池、线程池、缓冲区
-  low_memory: false
-  # Grizzly IO线程数 (默认2)
-  grizzly_io_threads: 2
-  # Grizzly工作线程池核心/最大线程数
-  grizzly_worker_cores: 4
-  grizzly_worker_max: 8
+  low_memory: false            # 低内存模式（小内存机器开启，减少缓存占用）
+  grizzly_io_threads: 2        # Grizzly IO 线程数
+  grizzly_worker_cores: 4      # Grizzly 工作线程核心数
+  grizzly_worker_max: 8        # Grizzly 工作线程最大数
+  memory_log_entries: 200      # 内存中保留的日志条数上限
 
-# ---- 网络配置 ----
+
+# ┌──────────────────────────────────────────────────────────────┐
+# │ 17. 网络                                                      │
+# └──────────────────────────────────────────────────────────────┘
 network:
-  # 连接超时（毫秒）
-  connection_timeout_ms: 10000
-  # 读取超时（毫秒）
-  read_timeout_ms: 30000
-  # 写入超时（毫秒）
-  write_timeout_ms: 10000
-  # WebSocket握手超时（毫秒）
-  websocket_handshake_timeout_ms: 15000
-  # HikariCP 连接池最大连接数 (MySQL 默认用此值; SQLite 固定为 1)
-  db_pool_max: 4
-  # 内存日志最大保留条数
-  memory_log_entries: 200
-  # Grizzly IO 工作线程数 (0 = CPU 核心数)
-  grizzly_io_threads: 1
-  # Grizzly 核心工作线程数
-  grizzly_worker_cores: 1
-  # Grizzly 最大工作线程数
-  grizzly_worker_max: 2
+  connection_timeout_ms: 10000 # 连接建立超时（毫秒）
+  read_timeout_ms: 30000       # 读取超时（毫秒）
+
+
+# ┌──────────────────────────────────────────────────────────────┐
+# │ 18. Minecraft MOTD 预览                                       │
+# └──────────────────────────────────────────────────────────────┘
+motd:
+  port: 25565                  # MOTD 监听端口（显示服务器列表预览用）
+  max_players: 2026            # 展示的最大玩家数
+  version_name: "§b§l修仙世界 §r§f— §eAPI v1.0"   # 版本行文案
+  protocol_version: -1         # 协议版本（-1=自动/未知）
+  line1: "§b§l修 仙 世 界 §r§8— §e§lXiuXian Game"  # 第 1 行
+  line2: "§7"                  # 第 2 行
+  line3: "§f⚔ §a境界突破 §7| §d秘境探索 §7| §e游历修仙 §f⚔"  # 第 3 行
+  # 玩家尝试加入（登录）时显示的消息；支持占位符：
+  #   {username} 玩家名   {online} 当前在线   {max} 最大玩家
+  #   {delay} 重定向秒数  {server} 目标服务器
+  join_message: ""
+  # 可选：玩家点"加入服务器"后的目标服务器（host 或 host:port）。
+  # 配置后，任意版本的客户端都会通过 TCP 透传隧道"直接接入"目标服务器
+  # （效果等同玩家直接连目标地址；不再走官方 transfer，也不会再出现
+  #  multiplayer.disconnect.transfer 断开提示）。目标服务器上的 AuthMe 登录
+  #  界面、正版/离线验证等流程照常进行；留空则不跳转，仅显示拒绝提示。
+  # 注意：透传后目标服务器看到的是本服务所在机器的 IP（如同反代/跳板入口）。
+  redirect_server: ""
+  redirect_delay_seconds: 5    # 仅作为 join_message 中 {delay} 占位符的数值（跳转本身是即时的）
+
+
+# ┌──────────────────────────────────────────────────────────────┐
+# │ 19. 内置玩法模块                                               │
+# └──────────────────────────────────────────────────────────────┘
+# 内置插件/玩法模块的启停开关已迁移到独立配置文件 config/plugins.yml
+# （根节点 plugins:，含玩法模块、实验性插件与消息通道适配器开关）。
+# 也可在 WebUI「插件管理」页运行时启停，选择会持久化写入 config/plugins.yml。
+# 旧版本写在下面的 built_in_plugins 段仅作为只读兜底：升级后首次启动会自动迁移，
+# 未迁移到的键仍会读取，但一旦 plugins.yml 里存在同名键即以 plugins.yml 为准。
+

@@ -37,7 +37,7 @@ public final class PluginMakerSelfTest {
         placeholders.put("{{PACKAGE}}",       "com.example.testplugin");
         placeholders.put("{{PACKAGE_PATH}}",  "com/example/testplugin");
         placeholders.put("{{MAIN_CLASS}}",    "TestPlugin");
-        placeholders.put("{{SERVER_VERSION}}","V1.4.1-alpha1");
+        placeholders.put("{{SERVER_VERSION}}", com.mtxgdn.util.BuildInfo.getVersion());
 
         int pass = 0;
         int fail = 0;

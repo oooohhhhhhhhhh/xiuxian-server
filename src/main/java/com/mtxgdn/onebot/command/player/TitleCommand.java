@@ -18,6 +18,7 @@ public class TitleCommand extends Command {
                 "/称号 [装备|卸下|列表]",
                 "我的角色",
                 null);
+        setModule("title");
 
         registerSub(new String[]{"列表", "list", "all"}, this::listAllTitles);
         registerSub(new String[]{"装备", "equip"}, this::equipTitle);
@@ -110,13 +111,11 @@ public class TitleCommand extends Command {
         List<Map<String, Object>> titles = ts.getPlayerTitles(p.getId());
 
         String matchedKey = null;
-        String matchedName = null;
         for (var t : titles) {
             String tName = (String) t.get("name");
             String tKey = (String) t.get("titleKey");
             if (tName.equals(name) || tName.contains(name) || tKey.equals(name)) {
                 matchedKey = tKey;
-                matchedName = tName;
                 break;
             }
         }

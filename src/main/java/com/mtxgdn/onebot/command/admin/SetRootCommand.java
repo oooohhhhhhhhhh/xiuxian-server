@@ -11,20 +11,20 @@ import com.mtxgdn.onebot.QqBindingService;
 
 public class SetRootCommand extends Command {
     public SetRootCommand() {
-        super(new String[]{"修改灵根", "setroot", "设置灵根", "灵根"},
+        super(new String[]{"修改灵根", "setroot", "设置灵根"},
                 "修改玩家的灵根（仅私聊，需要管理员权限）",
                 "/修改灵根 <玩家ID> <灵根名称> 或 /修改灵根 list",
-                "管理", "admin.status", true);
+                "管理", "admin.users.manage", true);
     }
 
     @Override
     public void execute(CommandContext ctx) {
-        QqBinding b = new QqBindingService().findByQq(ctx.getSenderId());
+        QqBinding b = ctx.resolveBoundBinding();
         if (b == null) {
             ctx.reply("请先绑定账号。");
             return;
         }
-        if (!PermissionService.hasPermission(b.getUserId(), "admin.status")) {
+        if (!PermissionService.hasPermission(b.getUserId(), "admin.users.manage")) {
             ctx.reply("权限不足，你无权使用此功能。");
             return;
         }

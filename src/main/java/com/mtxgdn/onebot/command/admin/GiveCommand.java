@@ -2,6 +2,7 @@ package com.mtxgdn.onebot.command.admin;
 
 import com.mtxgdn.common.command.Command;
 import com.mtxgdn.common.command.CommandContext;
+import com.mtxgdn.common.command.CommandUtils;
 import com.mtxgdn.common.service.ServiceRegistry;
 import com.mtxgdn.game.item.Item;
 import com.mtxgdn.game.item.ItemRegistry;
@@ -13,40 +14,38 @@ import com.mtxgdn.onebot.QqBindingService;
 
 public class GiveCommand extends Command {
     public GiveCommand() {
-        super(new String[]{"发放", "give", "发放物品"},
-                "给玩家发放物品/金币/灵力/灵石（仅私聊）",
+        super(new String[]{"发放", "give"},
+                "给玩家发放金币/灵力/灵石/物品（仅私聊，按玩家ID）",
                 "/发放 <玩家ID> <金币|灵力|灵石>=<数量> [物品key]=<数量> ...",
-                "管理", "admin.status", true);
+                "管理", "admin.items.give", true);
     }
 
     @Override
     public void execute(CommandContext ctx) {
-        QqBinding b = new QqBindingService().findByQq(ctx.getSenderId());
+        QqBinding b = ctx.resolveBoundBinding();
         if (b == null) {
             ctx.reply("请先绑定账号。");
             return;
         }
-        if (!PermissionService.hasPermission(b.getUserId(), "admin.status")) {
+        if (!PermissionService.hasPermission(b.getUserId(), "admin.items.give")) {
             ctx.reply("权限不足，你无权使用此功能。");
             return;
         }
 
         String arg = ctx.getArg();
-        if (arg == null || arg.isBlank()) {
+        if (CommandUtils.isBlank(arg)) {
             ctx.reply("用法: /发放 <玩家ID> 金币=<数量> 灵力=<数量> 灵石=<数量> [物品key]=<数量>\n示例: /发放 1 金币=1000 灵石=500 SpiritStone=50");
             return;
         }
 
-        String[] parts = arg.trim().split("\\s+");
-        if (parts.length < 2) {
+        String[] parts = CommandUtils.split(arg);
+        if (!CommandUtils.hasEnoughArgs(parts, 2)) {
             ctx.reply("参数不足。用法: /发放 <玩家ID> 金币=<数量> 灵力=<数量> 灵石=<数量> [物品key]=<数量>");
             return;
         }
 
-        long playerId;
-        try {
-            playerId = Long.parseLong(parts[0]);
-        } catch (NumberFormatException e) {
+        Long playerId = CommandUtils.parseLong(parts[0], null);
+        if (playerId == null) {
             ctx.reply("玩家ID必须为数字。");
             return;
         }
@@ -69,12 +68,8 @@ public class GiveCommand extends Command {
             if (eqIdx <= 0) continue;
             String key = part.substring(0, eqIdx);
             String valStr = part.substring(eqIdx + 1);
-            long value;
-            try {
-                value = Long.parseLong(valStr);
-            } catch (NumberFormatException e) {
-                continue;
-            }
+            Long value = CommandUtils.parseLong(valStr, null);
+            if (value == null) continue;
 
             switch (key) {
                 case "金币":
@@ -98,7 +93,6 @@ public class GiveCommand extends Command {
                     hasAny = true;
                     break;
                 default:
-                    // treat as item key
                     Item item = ItemRegistry.get(key);
                     int qty = (int) Math.min(value, Integer.MAX_VALUE);
                     if (qty > 0) {

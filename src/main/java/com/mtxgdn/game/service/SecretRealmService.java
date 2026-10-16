@@ -1,5 +1,6 @@
 package com.mtxgdn.game.service;
 
+import com.mtxgdn.common.service.ServiceRegistry;
 import com.mtxgdn.entity.Player;
 import com.mtxgdn.game.entity.BossForm;
 import com.mtxgdn.game.entity.Monster;
@@ -7,6 +8,7 @@ import com.mtxgdn.game.entity.PveCombatResult;
 import com.mtxgdn.game.entity.RaidCombatResult;
 import com.mtxgdn.game.entity.SecretRealmResult;
 import com.mtxgdn.game.entity.SpiritualRoot;
+import com.mtxgdn.game.item.Item;
 import com.mtxgdn.game.item.ItemRegistry;
 import com.mtxgdn.game.secretrealm.SecretRealm;
 import com.mtxgdn.game.secretrealm.SecretRealmRegistry;
@@ -18,6 +20,13 @@ public class SecretRealmService {
     private final PlayerService playerService;
     private final ItemService itemService;
     private final Random random = new Random();
+
+    /** 传说材料（高境界秘境专属掉落，供乾坤造化丹/天元丹等高阶配方使用） */
+    private static final String[] LEGENDARY_MATERIALS = {
+            "mtxgdn:five_colored_divine_stone", "mtxgdn:dragon_heart", "mtxgdn:qilin_blood",
+            "mtxgdn:phoenix_gallbladder", "mtxgdn:ten_thousand_year_lingzhi",
+            "mtxgdn:heaven_pill", "mtxgdn:qiankun_zaohua_dan"
+    };
 
     public SecretRealmService() {
         this.playerService = new PlayerService();
@@ -59,7 +68,7 @@ public class SecretRealmService {
 
         long now = System.currentTimeMillis();
         boolean canEnter = com.mtxgdn.db.DatabaseManager.runTransaction(conn -> {
-            String checkSql = "SELECT last_secret_realm_time FROM players WHERE id = ? FOR UPDATE";
+            String checkSql = "SELECT last_secret_realm_time FROM players WHERE id = ? " + com.mtxgdn.db.DatabaseManager.getDialect().getForUpdateClause();
             try (var ps = conn.prepareStatement(checkSql)) {
                 ps.setLong(1, player.getId());
                 try (var rs = ps.executeQuery()) {
@@ -86,10 +95,62 @@ public class SecretRealmService {
 
         SecretRealmResult result = generateRealmEvent(player, area);
         result.setArea(areaName);
+        applyLocationBonus(player, result);
 
         new DailyService().onSecretRealm(player.getId());
 
+        // 玩法计数 + 称号检查（秘境探险家）
+        playerService.incrementSecretRealmCount(player.getId());
+        try {
+            player.setSecretRealmCount(player.getSecretRealmCount() + 1);
+            new com.mtxgdn.game.service.TitleService().checkAndGrantTitles(player);
+        } catch (Exception ignored) {
+        }
+
         return result;
+    }
+
+    /**
+     * 所在地界收益倍率：在高灵气 / 凶险地界开启秘境，收益更高，让"先赶路再入秘境"有实际意义。
+     * 与季节、天象的加成一致，按已结算收益追加，不改动各事件处理器内部的掉落逻辑。
+     */
+    private void applyLocationBonus(Player player, SecretRealmResult result) {
+        if (result == null || !result.isSuccess()) {
+            return;
+        }
+        MapService mapService = ServiceRegistry.getMapService();
+        long locationId = player.getCurrentLocationId() > 0
+                ? player.getCurrentLocationId()
+                : mapService.getPlayerLocationId(player.getId());
+        double multiplier = mapService.getExplorationBonus(locationId);
+        if (multiplier <= 1.0) {
+            return;
+        }
+
+        long bonusExp = (long) (result.getExpGained() * (multiplier - 1));
+        long bonusGold = (long) (result.getGoldGained() * (multiplier - 1));
+        long bonusSS = (long) (result.getSpiritStonesGained() * (multiplier - 1));
+        if (bonusExp <= 0 && bonusGold <= 0 && bonusSS <= 0) {
+            return;
+        }
+
+        if (bonusExp > 0) playerService.addExperience(player.getId(), bonusExp);
+        if (bonusGold > 0) playerService.addGold(player.getId(), bonusGold);
+        if (bonusSS > 0) itemService.addSpiritStones(player.getId(), bonusSS);
+
+        StringBuilder sb = new StringBuilder();
+        if (bonusGold > 0) sb.append("金币+").append(bonusGold);
+        if (bonusSS > 0) sb.append(sb.length() > 0 ? " " : "").append("灵石+").append(bonusSS);
+        if (bonusExp > 0) sb.append(sb.length() > 0 ? " " : "").append("经验+").append(bonusExp);
+
+        String locationName = mapService.getLocationName(locationId);
+        List<String> log = result.getLog();
+        if (log != null) {
+            log.add("🏔 【" + locationName + "】地界加成 ×" + multiplier + ": " + sb);
+        }
+        if (result.getMessage() != null && !result.getMessage().isBlank()) {
+            result.setMessage(result.getMessage() + "（" + locationName + "地界加成 ×" + multiplier + "）");
+        }
     }
 
     private SecretRealmResult generateRealmEvent(Player player, SecretRealm area) {
@@ -103,6 +164,30 @@ public class SecretRealmService {
         SecretRealmResult result = new SecretRealmResult();
         result.setSuccess(true);
         result.setLog(log);
+
+        // 高境界秘境（合体混元仙府 / 大乘太虚天宫）差异化：
+        // 15% 概率触发区域专属奇遇，且 Boss 遭遇概率提高（守护者更强、掉落传说材料）
+        if (area.getRequiredRealm() >= 6) {
+            if (roll < 0.15) {
+                return handleHighRealmSpecial(player, area, result, log);
+            } else if (roll < 0.35) {
+                return handleTreasure(player, area, result, log);
+            } else if (roll < 0.45) {
+                return handleMonsterEncounter(player, area, result, log);
+            } else if (roll < 0.65) {
+                return handleBossEncounter(player, area, result, log);
+            } else if (roll < 0.75) {
+                return handleHerbFinding(player, area, result, log);
+            } else if (roll < 0.85) {
+                return handleCultivatorEncounter(player, area, result, log);
+            } else if (roll < 0.92) {
+                return handleRuinsDiscovery(player, area, result, log);
+            } else if (roll < 0.97) {
+                return handleTrap(player, area, result, log);
+            } else {
+                return handleNothing(player, area, result, log);
+            }
+        }
 
         if (roll < 0.20) {
             return handleTreasure(player, area, result, log);
@@ -121,6 +206,43 @@ public class SecretRealmService {
         } else {
             return handleNothing(player, area, result, log);
         }
+    }
+
+    /** 高境界秘境专属奇遇（按区域差异化） */
+    private SecretRealmResult handleHighRealmSpecial(Player player, SecretRealm area, SecretRealmResult result, List<String> log) {
+        if ("hunyuan_mansion".equals(area.getKey())) {
+            // 混元仙府：混沌灵泉 —— 灌顶灵力 + 大量灵石
+            result.setEventType("chaos_spring");
+            result.setEventDescription("混沌灵泉");
+            long exp = (area.getRequiredRealm() + 1L) * 2000L + random.nextLong(2000, 8000);
+            long stones = (area.getRequiredRealm() + 1L) * 150L + random.nextLong(100, 500);
+            playerService.addExperience(player.getId(), exp);
+            itemService.addSpiritStones(player.getId(), stones);
+            result.setExpGained(exp);
+            result.setSpiritStonesGained(stones);
+            log.add("💧 你在仙府深处发现了一汪混沌灵泉！");
+            log.add("泉水灌顶而入，修为大涨！获得 " + exp + " 经验、"+ stones + " 灵石");
+            result.setMessage("混沌灵泉灌顶！获得 " + exp + " 经验、" + stones + " 灵石");
+            return result;
+        }
+        // 太虚天宫：天宫宝库 —— 随机 1 件传说材料
+        result.setEventType("heavenly_treasury");
+        result.setEventDescription("天宫宝库");
+        String legendary = LEGENDARY_MATERIALS[random.nextInt(LEGENDARY_MATERIALS.length)];
+        if (ItemRegistry.contains(legendary)) {
+            itemService.addItem(player.getId(), legendary, 1);
+            result.setItemGained(legendary);
+            result.setItemQuantity(1);
+        }
+        log.add("🏛 你推开天宫宝库的大门，霞光万丈！");
+        log.add("获得传说宝物【" + getItemName(legendary) + "】！");
+        result.setMessage("天宫宝库！获得传说宝物【" + getItemName(legendary) + "】");
+        return result;
+    }
+
+    private String getItemName(String itemKey) {
+        Item item = ItemRegistry.get(itemKey);
+        return item != null ? item.getName() : itemKey;
     }
 
     private SecretRealmResult handleTreasure(Player player, SecretRealm area, SecretRealmResult result, List<String> log) {
@@ -151,7 +273,8 @@ public class SecretRealmService {
         result.setEventType("encounter_monster");
         result.setEventDescription("遭遇妖兽");
 
-        Monster monster = Monster.random(player.getRealm(), random);
+        // 按区域境界生成怪物（原按玩家境界，导致高境界玩家在低阶秘境也遇强怪、区域难度形同虚设）
+        Monster monster = Monster.random(area.getRequiredRealm(), random);
         CombatService combatService = new CombatService();
         PveCombatResult pveResult = combatService.pveFight(player.getId(), monster);
 
@@ -190,6 +313,17 @@ public class SecretRealmService {
 
         if (pveResult.getBattleLog() != null) {
             log.addAll(pveResult.getBattleLog());
+        }
+
+        // 高境界秘境守护者：击败后额外掉落 1 件传说材料（补全高阶配方材料来源）
+        if (pveResult.isPlayerWon() && area.getRequiredRealm() >= 6) {
+            String legendary = LEGENDARY_MATERIALS[random.nextInt(LEGENDARY_MATERIALS.length)];
+            if (ItemRegistry.contains(legendary)) {
+                itemService.addItem(player.getId(), legendary, 1);
+                result.setItemGained(legendary);
+                result.setItemQuantity(result.getItemQuantity() + 1);
+                log.add("💎 守护者陨落，遗落传说宝物【" + getItemName(legendary) + "】！");
+            }
         }
 
         return result;
@@ -354,6 +488,11 @@ public class SecretRealmService {
             case 3: return "金丹期";
             case 4: return "元婴期";
             case 5: return "化神期";
+            case 6: return "合体期";
+            case 7: return "大乘期";
+            case 8: return "渡劫期";
+            case 9: return "真仙";
+            case 10: return "金仙";
             default: return "未知境界";
         }
     }
@@ -498,9 +637,12 @@ public class SecretRealmService {
 
                 int memberCount = members.size();
                 double teamBonus = 1 + 0.2 * (memberCount - 1);
-                long totalExp = (long)(baseExp * teamBonus);
-                long totalGold = (long)(baseGold * teamBonus);
-                long totalSpiritStones = (long)(baseSpiritStones * teamBonus);
+                // 今日天象：战斗收益倍率作用于经验/金币，灵石倍率作用于灵石
+                com.mtxgdn.game.entity.CelestialPhenomenon phenom =
+                        com.mtxgdn.game.service.DailyService.getTodayPhenomenonStatic();
+                long totalExp = phenom.applyCombat((long)(baseExp * teamBonus));
+                long totalGold = phenom.applyCombat((long)(baseGold * teamBonus));
+                long totalSpiritStones = phenom.applySpiritStone((long)(baseSpiritStones * teamBonus));
 
                 long expPerMember = totalExp / memberCount;
                 long goldPerMember = totalGold / memberCount;

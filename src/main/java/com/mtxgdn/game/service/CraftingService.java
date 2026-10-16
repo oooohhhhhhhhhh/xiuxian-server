@@ -92,8 +92,11 @@ public class CraftingService {
             result.put("success", false); result.put("message", "灵石不足，制造需要 " + recipe.getCostSpiritStones() + " 灵石"); return result;
         }
 
+        // 合成熟练度加成：由累计制造成功次数（craft_count）派生，每级 +0.5% 成功率（上限 +4.5%）
+        final double proficiencyBonus = proficiencySuccessBonus(player.getCraftCount());
+
         try {
-            return DatabaseManager.runTransaction(conn -> {
+            result = DatabaseManager.runTransaction(conn -> {
                 Map<String, Object> txResult = new LinkedHashMap<>();
 
                 // 扣除材料
@@ -112,7 +115,8 @@ public class CraftingService {
                     throw new SQLException("灵石扣除失败");
                 }
 
-                boolean success = random.nextDouble() < recipe.getSuccessRate();
+                double effectiveRate = Math.min(0.95, recipe.getSuccessRate() + proficiencyBonus);
+                boolean success = random.nextDouble() < effectiveRate;
 
                 if (success) {
                     Recipe.PillQuality quality = determinePillQuality(recipe);
@@ -140,6 +144,7 @@ public class CraftingService {
                     long expGain = recipe.getMinExpGain() + random.nextLong(recipe.getMaxExpGain() - recipe.getMinExpGain() + 1);
                     expGain = (long) (expGain * (1 + recipe.getQualityBonusRate() * (bonusMultiplier - 1)));
                     playerService.addExperience(conn, playerId, expGain);
+                    txResult.put("craftSuccess", true);
 
                     Item resultItem = ItemRegistry.get(recipe.getResultItemKey());
                     String resultName = resultItem != null ? resultItem.getName() : recipe.getResultItemKey();
@@ -174,6 +179,46 @@ public class CraftingService {
             result.put("message", "制造失败: " + e.getMessage());
             return result;
         }
+
+        // 制造成功：炼丹计数 + 称号检查（炼丹学徒/丹道尊者）
+        if (Boolean.TRUE.equals(result.get("craftSuccess"))) {
+            try {
+                playerService.incrementCraftCount(playerId);
+                com.mtxgdn.entity.Player p = playerService.getPlayerById(playerId);
+                if (p != null) {
+                    p.setCraftCount(p.getCraftCount() + 1);
+                    new com.mtxgdn.game.service.TitleService().checkAndGrantTitles(p);
+                }
+            } catch (Exception ignored) {
+            }
+        }
+        return result;
+    }
+
+    // ==================== 合成熟练度（真实派生，不再占位） ====================
+
+    /** 熟练度等级：由累计制造成功次数（craft_count，每次成功 +1）派生，每 20 次 +1 级，最高 10 级。 */
+    public static int proficiencyLevelFromCount(int craftCount) {
+        return Math.min(10, 1 + craftCount / 20);
+    }
+
+    /** 熟练度成功率加成：每级 +0.5%（Lv1 为 0），封顶 +4.5%，统一封顶综合成功率 95%。 */
+    public static double proficiencySuccessBonus(int craftCount) {
+        return (proficiencyLevelFromCount(craftCount) - 1) * 0.005;
+    }
+
+    /** 合成熟练度详情（供 `/合成 熟练度` 展示）。 */
+    public Map<String, Object> getProficiencyInfo(long playerId) {
+        Map<String, Object> info = new LinkedHashMap<>();
+        Player p = playerService.getPlayerById(playerId);
+        int count = p != null ? p.getCraftCount() : 0;
+        int level = proficiencyLevelFromCount(count);
+        info.put("craftCount", count);
+        info.put("level", level);
+        info.put("maxLevel", 10);
+        info.put("nextLevelAt", level >= 10 ? -1 : (level * 20) - count);
+        info.put("successBonus", proficiencySuccessBonus(count));
+        return info;
     }
 
     private Recipe.PillQuality determinePillQuality(Recipe recipe) {
@@ -202,8 +247,6 @@ public class CraftingService {
     }
 
     public void insertDefaultRecipes() {
-        if (!getAllRecipes().isEmpty()) return;
-
         String sql = """
             INSERT INTO recipes (name, description, category, required_realm,
                 result_item_key, result_quantity,
@@ -231,7 +274,7 @@ public class CraftingService {
             {"炼制麒麟护符", "蕴含麒麟之力的至尊护符", "EQUIPMENT", 5, "mtxgdn:qilin_amulet", 1, "mtxgdn:qilin_blood", 3, "mtxgdn:dragon_scale", 2, "mtxgdn:phoenix_feather", 2, 80000L, 20000L, 0.20, 500L, 1000L, 0.02, 0.003, 0.5},
             {"炼制星辰法袍", "以星砂编织的法袍", "EQUIPMENT", 3, "mtxgdn:star_robes", 1, "mtxgdn:star_sand", 5, "mtxgdn:spirit_wood", 3, "mtxgdn:spirit_stone_low", 5, 10000L, 2000L, 0.50, 100L, 300L, 0.04, 0.01, 0.3},
             {"锻造空间戒指", "以灵木和星沙锻造的神奇戒指，可增加背包容量", "EQUIPMENT", 2, "mtxgdn:space_ring", 1, "mtxgdn:spirit_wood", 5, "mtxgdn:star_sand", 3, "mtxgdn:spirit_pearl", 2, 800L, 200L, 0.60, 60L, 150L, 0.04, 0.01, 0.2},
-            {"炼制聚灵石", "浓缩灵石精华而成，蕴含大量灵石能量", "CONSUMABLE", 1, "mtxgdn:spirit_stone_pouch", 1, "mtxgdn:spirit_stone_low", 5, "mtxgdn:iron_ore", 3, null, 0, 100L, 0L, 0.90, 10L, 40L, 0.03, 0.005, 0.1},
+            {"炼制灵石袋", "浓缩灵石精华而成，蕴含大量灵石能量", "CONSUMABLE", 1, "mtxgdn:spirit_stone_pouch", 1, "mtxgdn:spirit_stone_low", 5, "mtxgdn:iron_ore", 3, null, 0, 100L, 0L, 0.90, 10L, 40L, 0.03, 0.005, 0.1},
             {"炼制加速符", "以疾风灵力绘制的符箓，使用后提升速度", "CONSUMABLE", 2, "mtxgdn:speed_talisman", 1, "mtxgdn:spirit_grass", 4, "mtxgdn:mana_pill", 2, "mtxgdn:heaven_pill", 1, 500L, 120L, 0.65, 40L, 100L, 0.04, 0.01, 0.15},
             {"炼制强化石", "将铁矿石和妖兽内丹熔炼成强化石", "CONSUMABLE", 1, "mtxgdn:enhance_stone", 1, "mtxgdn:iron_ore", 3, "mtxgdn:beast_core", 1, null, 0, 200L, 30L, 0.80, 15L, 40L, 0.05, 0.01, 0.1},
             {"炼制保护符", "蕴含守护道韵的符箓，强化时可保装备不碎", "CONSUMABLE", 2, "mtxgdn:protect_charm", 1, "mtxgdn:spirit_spring_water", 2, "mtxgdn:healing_pill", 3, "mtxgdn:beast_core", 2, 400L, 80L, 0.70, 30L, 80L, 0.04, 0.01, 0.1},
@@ -245,11 +288,25 @@ public class CraftingService {
             {"炼制千年人参种子", "培育千年人参的珍贵种子", "SEED", 1, "mtxgdn:thousand_year_ginseng_seed", 2, "mtxgdn:thousand_year_ginseng", 1, "mtxgdn:spirit_pearl", 1, null, 0, 200L, 80L, 0.80, 20L, 50L, 0.03, 0.01, 0.15},
             {"炼制暗冰草种子", "培育暗冰草的种子", "SEED", 1, "mtxgdn:dark_ice_grass_seed", 3, "mtxgdn:dark_ice_grass", 2, "mtxgdn:ice_crystal", 1, null, 0, 100L, 30L, 0.90, 10L, 30L, 0.02, 0.005, 0.1},
             {"炼制火焰藤种子", "培育火焰藤的种子", "SEED", 1, "mtxgdn:fire_vine_seed", 3, "mtxgdn:fire_vine", 2, "mtxgdn:heaven_fire_stone", 1, null, 0, 100L, 30L, 0.90, 10L, 30L, 0.02, 0.005, 0.1},
+            // ===== 高境界配方（补全合体~渡劫的制造内容） =====
+            {"炼制乾坤造化丹", "万年灵药与龙血精华炼制的无上仙丹", "PILL", 6, "mtxgdn:qiankun_zaohua_dan", 1, "mtxgdn:ten_thousand_year_lingzhi", 2, "mtxgdn:dragon_blood_crystal", 3, "mtxgdn:tianshan_snow_lotus", 2, 100000L, 50000L, 0.30, 2000L, 5000L, 0.02, 0.003, 0.4},
+            {"炼制天元丹", "以麒麟真血与龙心为引，炼就夺天地造化的仙丹", "PILL", 7, "mtxgdn:heaven_pill", 1, "mtxgdn:qilin_blood", 2, "mtxgdn:dragon_heart", 2, "mtxgdn:five_colored_divine_stone", 1, 300000L, 150000L, 0.20, 5000L, 10000L, 0.015, 0.002, 0.5},
         };
 
         try (Connection conn = DatabaseManager.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             for (Object[] row : defaults) {
+                // 按名称幂等：已存在的配方跳过（支持旧库增量补齐新配方）
+                String recipeName = (String) row[0];
+                String checkSql = "SELECT COUNT(*) FROM recipes WHERE name = ?";
+                try (PreparedStatement cps = conn.prepareStatement(checkSql)) {
+                    cps.setString(1, recipeName);
+                    try (ResultSet rs = cps.executeQuery()) {
+                        if (rs.next() && rs.getInt(1) > 0) {
+                            continue;
+                        }
+                    }
+                }
                 ps.setString(1, (String) row[0]);
                 ps.setString(2, (String) row[1]);
                 ps.setString(3, (String) row[2]);
@@ -271,6 +328,26 @@ public class CraftingService {
                 ps.setDouble(19, (double) row[18]);
                 ps.setDouble(20, (double) row[19]);
                 ps.executeUpdate();
+            }
+
+            // 历史配方命名修正：名称与产物对齐（仅当新名未被占用时重命名，保留原配方 ID）
+            String[][] legacyRename = {
+                {"炼制聚灵石", "炼制灵石袋"},
+                {"炼制九转金丹", "炼制乾坤造化丹"},
+                {"炼制混沌仙丹", "炼制天元丹"},
+            };
+            for (String[] pair : legacyRename) {
+                try (PreparedStatement cnt = conn.prepareStatement("SELECT COUNT(*) FROM recipes WHERE name = ?")) {
+                    cnt.setString(1, pair[1]);
+                    try (ResultSet crs = cnt.executeQuery()) {
+                        if (crs.next() && crs.getInt(1) > 0) continue;
+                    }
+                }
+                try (PreparedStatement up = conn.prepareStatement("UPDATE recipes SET name = ? WHERE name = ?")) {
+                    up.setString(1, pair[1]);
+                    up.setString(2, pair[0]);
+                    up.executeUpdate();
+                }
             }
         } catch (SQLException e) { throw new RuntimeException("初始化配方失败", e); }
         LOG.info("已初始化 " + defaults.length + " 种默认配方");

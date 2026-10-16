@@ -17,6 +17,9 @@ public class EnergyService {
     /** 插件注册的自定义物品能量值 key=fullKey → value=能量值 */
     private static final Map<String, Long> customEnergyValues = new LinkedHashMap<>();
 
+    /** 物品→能量 转化损耗率（转化只得原价 80%，兑换按原价，防止低成本物品套利） */
+    public static final double CONVERT_LOSS_RATE = 0.8;
+
     private static volatile Map<String, Long> customEnergyView;
 
     /**
@@ -56,6 +59,18 @@ public class EnergyService {
             return item.getPrice();
         }
         return 0;
+    }
+
+    /**
+     * 物品转化为能量时的实际获得（原价 × 损耗率）。
+     * 损耗用于防止"低价获取物品 → 全额转化 → 兑换高价物品"的无损套利。
+     */
+    public static long resolveConvertGain(String itemKey) {
+        long value = resolveEnergyValue(itemKey);
+        if (value <= 0) {
+            return 0;
+        }
+        return Math.max(1, (long) (value * CONVERT_LOSS_RATE));
     }
 
     /**
@@ -129,21 +144,18 @@ public class EnergyService {
     }
 
     /**
-     * 减少玩家能量值，返回是否成功（能量不足时返回 false）
+     * 减少玩家能量值，返回是否成功（能量不足时返回 false）。
+     * 条件更新保证并发下不会扣成负数。
      */
     public boolean removeEnergy(long playerId, long amount) {
         if (amount <= 0) return true;
-        long current = getEnergy(playerId);
-        if (current < amount) {
-            return false;
-        }
-        String sql = "UPDATE player_energy SET energy = energy - ? WHERE player_id = ?";
+        String sql = "UPDATE player_energy SET energy = energy - ? WHERE player_id = ? AND energy >= ?";
         try (Connection conn = DatabaseManager.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, amount);
             ps.setLong(2, playerId);
-            ps.executeUpdate();
-            return true;
+            ps.setLong(3, amount);
+            return ps.executeUpdate() > 0;
         } catch (SQLException e) {
             throw new RuntimeException("减少能量值失败", e);
         }

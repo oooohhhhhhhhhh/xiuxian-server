@@ -27,7 +27,7 @@ public class DebugCommand extends Command {
 
     @Override
     public void execute(CommandContext ctx) {
-        QqBinding b = new QqBindingService().findByQq(ctx.getSenderId());
+        QqBinding b = ctx.resolveBoundBinding();
         if (b == null) {
             ctx.reply("请先绑定账号。");
             return;
@@ -119,7 +119,7 @@ public class DebugCommand extends Command {
         ctx.reply("注意: 测试操作不会修改真实数据（事务已回滚）");
 
         try {
-            QqBinding b = new QqBindingService().findByQq(ctx.getSenderId());
+            QqBinding b = ctx.resolveBoundBinding();
             if (b == null) {
                 ctx.reply("测试失败: 未绑定QQ");
                 return;

@@ -2,6 +2,7 @@ package com.mtxgdn.onebot.command.farm;
 
 import com.mtxgdn.common.command.Command;
 import com.mtxgdn.common.command.CommandContext;
+import com.mtxgdn.common.command.CommandUtils;
 import com.mtxgdn.game.entity.CropConfig;
 import com.mtxgdn.game.entity.FarmPlot;
 import com.mtxgdn.game.entity.PlayerInfo;
@@ -21,17 +22,16 @@ public class FarmCommand extends Command {
 
     public FarmCommand() {
         super(new String[]{"种田", "farm"}, "种田系统", "/种田 [查看/种植/浇水/施肥/收获/清理/扩建/种子/一键浇水/一键施肥/一键收获/杀虫]", "探索");
+        setModule("farm");
     }
 
     @Override
     public void execute(CommandContext ctx) {
-        Long userId = ctx.requireBinding();
-        if (userId == null) return;
-        PlayerInfo p = ctx.requirePlayer(userId);
+        PlayerInfo p = requirePlayerInfo(ctx);
         if (p == null) return;
 
         String arg = ctx.getArg();
-        if (arg == null || arg.isBlank()) {
+        if (CommandUtils.isBlank(arg)) {
             ctx.reply(viewPlots(p.getId()));
             return;
         }
@@ -75,9 +75,17 @@ public class FarmCommand extends Command {
         sb.append("【我的农田】\n");
         sb.append("──────────────\n");
 
-        Season currentSeason = Season.getCurrentSeason();
+        Season currentSeason = com.mtxgdn.game.service.SeasonService.getCurrentSeason();
         sb.append("当前季节: ").append(currentSeason.getDisplayName())
-          .append(" ").append(currentSeason.getDescription()).append("\n\n");
+          .append(" ").append(currentSeason.getDescription()).append("\n");
+        sb.append("季节效果: ").append(com.mtxgdn.game.service.SeasonService.getSeasonEffectDescription());
+        long remainingSec = com.mtxgdn.game.service.SeasonService.getSeasonRemainingMs() / 1000;
+        if (remainingSec > 0) {
+            long hours = remainingSec / 3600;
+            long mins = (remainingSec % 3600) / 60;
+            sb.append("\n距季节更替: ").append(hours > 0 ? hours + "小时" : "").append(mins).append("分钟");
+        }
+        sb.append("\n\n");
 
         for (FarmPlot plot : plots) {
             sb.append("地块 ").append(plot.getPlotIndex()).append(": ");
@@ -158,30 +166,15 @@ public class FarmCommand extends Command {
 
     private String resolveSeedKey(String input) {
         if (input.contains(":")) {
-            return input;
+            return CropConfig.contains(input) ? input : null;
         }
-        String[] seedKeys = {
-            "mtxgdn:spirit_grass_seed",
-            "mtxgdn:thousand_year_ginseng_seed",
-            "mtxgdn:dark_ice_grass_seed",
-            "mtxgdn:fire_vine_seed",
-            "mtxgdn:nether_flower_seed",
-            "mtxgdn:star_grass_seed",
-            "mtxgdn:blood_lingzhi_seed",
-            "mtxgdn:tianshan_snow_lotus_seed",
-            "mtxgdn:peach_seed",
-            "mtxgdn:ginseng_fruit_seed",
-            "mtxgdn:dragon_fruit_seed",
-            "mtxgdn:immortal_date_seed",
-            "mtxgdn:nine_turn_grass_seed",
-            "mtxgdn:he_shou_wu_seed",
-            "mtxgdn:wan_ling_grass_seed",
-            "mtxgdn:purple_river_cart_seed"
-        };
-        for (String key : seedKeys) {
-            Item item = ItemRegistry.get(key);
-            if (item != null && item.getName().contains(input)) {
-                return key;
+
+        for (Map.Entry<String, CropConfig> entry : CropConfig.getAll().entrySet()) {
+            CropConfig config = entry.getValue();
+            Item item = ItemRegistry.get(entry.getKey());
+            String name = item != null ? item.getName() : config.getCropName();
+            if (name.contains(input)) {
+                return entry.getKey();
             }
         }
         return null;
@@ -208,14 +201,7 @@ public class FarmCommand extends Command {
 
         try {
             int plotIndex = Integer.parseInt(args[1]);
-            String fertilizerKey = "mtxgdn:low_grade_fertilizer";
-            if (args.length >= 3) {
-                fertilizerKey = switch (args[2].toLowerCase()) {
-                    case "mid", "中级" -> "mtxgdn:mid_grade_fertilizer";
-                    case "high", "高级" -> "mtxgdn:high_grade_fertilizer";
-                    default -> "mtxgdn:low_grade_fertilizer";
-                };
-            }
+            String fertilizerKey = parseFertilizerKey(args);
             Map<String, Object> result = farmService.fertilize(playerId, plotIndex, fertilizerKey);
             return (String) result.get("message");
         } catch (NumberFormatException e) {
@@ -262,14 +248,7 @@ public class FarmCommand extends Command {
     }
 
     private String fertilizeAll(long playerId, String[] args) {
-        String fertilizerKey = "mtxgdn:low_grade_fertilizer";
-        if (args.length >= 2) {
-            fertilizerKey = switch (args[1].toLowerCase()) {
-                case "mid", "中级" -> "mtxgdn:mid_grade_fertilizer";
-                case "high", "高级" -> "mtxgdn:high_grade_fertilizer";
-                default -> "mtxgdn:low_grade_fertilizer";
-            };
-        }
+        String fertilizerKey = args.length >= 2 ? parseFertilizerKey(args) : "mtxgdn:low_grade_fertilizer";
         Map<String, Object> result = farmService.fertilizeAll(playerId, fertilizerKey);
         return (String) result.get("message");
     }
@@ -298,28 +277,38 @@ public class FarmCommand extends Command {
 
     private String listAvailableSeeds(long playerId) {
         StringBuilder sb = new StringBuilder();
-        String[] seedKeys = {
-            "mtxgdn:spirit_grass_seed",
-            "mtxgdn:thousand_year_ginseng_seed",
-            "mtxgdn:dark_ice_grass_seed",
-            "mtxgdn:fire_vine_seed",
-            "mtxgdn:nether_flower_seed",
-            "mtxgdn:star_grass_seed",
-            "mtxgdn:blood_lingzhi_seed",
-            "mtxgdn:tianshan_snow_lotus_seed"
-        };
-
-        for (String key : seedKeys) {
-            Item item = ItemRegistry.get(key);
+        Season currentSeason = com.mtxgdn.game.service.SeasonService.getCurrentSeason();
+        for (Map.Entry<String, CropConfig> entry : CropConfig.getAll().entrySet()) {
+            String seedKey = entry.getKey();
+            CropConfig config = entry.getValue();
+            Item item = ItemRegistry.get(seedKey);
             if (item != null) {
-                long count = itemService.getItemCount(playerId, key);
-                CropConfig config = CropConfig.get(key);
-                String cropName = config != null ? "→ " + config.getCropName() : "";
-                sb.append("- ").append(item.getName()).append(" (").append(key).append(") ")
-                  .append(cropName).append(" | 数量: ").append(count).append("\n");
+                long count = itemService.getItemCount(playerId, seedKey);
+                double modifier = com.mtxgdn.game.service.SeasonService.getGrowthModifier(config.getElementType());
+                String seasonHint;
+                if (modifier > 1) {
+                    seasonHint = "【" + currentSeason.getDisplayName() + "适宜 +" + Math.round((modifier - 1) * 100) + "%】";
+                } else if (modifier < 1) {
+                    seasonHint = "【" + currentSeason.getDisplayName() + "不利 " + Math.round((modifier - 1) * 100) + "%】";
+                } else {
+                    seasonHint = "";
+                }
+                sb.append("- ").append(item.getName()).append(" (").append(seedKey).append(") ")
+                  .append("→ ").append(config.getCropName()).append(" | 数量: ").append(count)
+                  .append(seasonHint.isEmpty() ? "" : " " + seasonHint).append("\n");
             }
         }
-
         return sb.toString();
+    }
+
+    private String parseFertilizerKey(String[] args) {
+        if (args.length < 3) {
+            return "mtxgdn:low_grade_fertilizer";
+        }
+        return switch (args[2].toLowerCase()) {
+            case "mid", "中级" -> "mtxgdn:mid_grade_fertilizer";
+            case "high", "高级" -> "mtxgdn:high_grade_fertilizer";
+            default -> "mtxgdn:low_grade_fertilizer";
+        };
     }
 }

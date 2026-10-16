@@ -55,13 +55,14 @@ public class PermissionService {
             allCodes.add(pc.getCode());
         }
 
-        // PLAYER: 所有 game.* 和 qq.* 权限（不含 admin.* 和不含 qq.command.admin）
+        // PLAYER: 所有 game.* 和 qq.* 权限（不含 admin.*、不含 qq.command.admin、不含发放类权限）
         Set<String> playerPerms = new HashSet<>();
         for (PermissionCode pc : PermissionCode.values()) {
             String code = pc.getCode();
             if ((code.startsWith("game.") || code.startsWith("qq."))
                     && !code.startsWith("admin.")
-                    && !code.equals("qq.command.admin")) {
+                    && !code.equals("qq.command.admin")
+                    && !code.equals("game.item.add")) { // 发放物品属于管理员操作，玩家不可自刷
                 playerPerms.add(code);
             }
         }

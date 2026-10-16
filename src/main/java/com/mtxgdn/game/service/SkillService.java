@@ -178,7 +178,7 @@ public class SkillService {
                     playerService.addGold(conn, playerId, -skill.getLearnCostGold());
                 }
                 if (skill.getLearnCostSpiritStones() > 0) {
-                    if (!itemService.removeItem(conn, playerId, com.mtxgdn.game.item.CurrencyEffect.SPIRIT_STONE_KEY, skill.getLearnCostSpiritStones())) {
+                    if (!itemService.removeSpiritStones(conn, playerId, skill.getLearnCostSpiritStones())) {
                         throw new SQLException("灵石扣除失败");
                     }
                 }
@@ -202,6 +202,12 @@ public class SkillService {
         result.put("message", "成功学会了【" + skill.getName() + "】！");
         result.put("skill", skill);
         new DailyService().onSkillLearn(playerId);
+
+        // 学会第一个技能授予「剑道学徒」
+        try {
+            new com.mtxgdn.game.service.TitleService().grantTitle(playerId, "sword_student");
+        } catch (Exception ignored) {
+        }
         return result;
     }
 
@@ -373,6 +379,13 @@ public class SkillService {
             "INSERT INTO skills (id, name, description, required_realm, learn_cost_gold, learn_cost_spirit_stones, damage, mp_cost, cooldown_seconds, skill_type, heal_amount, max_level) VALUES (7, '风驰电掣', '身法如电，闪避致命一击', 1, 300, 150, 0, 10, 20, 2, 0, 10)",
             "INSERT INTO skills (id, name, description, required_realm, learn_cost_gold, learn_cost_spirit_stones, damage, mp_cost, cooldown_seconds, skill_type, heal_amount, max_level) VALUES (8, '金刚护体', '灵气化盾，坚如金刚', 2, 600, 250, 0, 20, 30, 2, 0, 10)",
             "INSERT INTO skills (id, name, description, required_realm, learn_cost_gold, learn_cost_spirit_stones, damage, mp_cost, cooldown_seconds, skill_type, heal_amount, max_level) VALUES (9, '基础剑诀', '记载了基础剑法的口诀，适合初学者练习', 0, 50, 20, 20, 8, 2, 0, 0, 10)",
+            // ===== 高境界技能（补全合体~真仙的内容天花板） =====
+            "INSERT INTO skills (id, name, description, required_realm, learn_cost_gold, learn_cost_spirit_stones, damage, mp_cost, cooldown_seconds, skill_type, heal_amount, max_level) VALUES (10, '紫霄神雷', '引紫霄天雷淬敌，神威莫测', 6, 20000, 8000, 300, 80, 12, 0, 0, 10)",
+            "INSERT INTO skills (id, name, description, required_realm, learn_cost_gold, learn_cost_spirit_stones, damage, mp_cost, cooldown_seconds, skill_type, heal_amount, max_level) VALUES (11, '焚天圣火', '圣火焚天，万物成灰', 7, 50000, 20000, 450, 120, 15, 0, 0, 10)",
+            "INSERT INTO skills (id, name, description, required_realm, learn_cost_gold, learn_cost_spirit_stones, damage, mp_cost, cooldown_seconds, skill_type, heal_amount, max_level) VALUES (12, '混沌剑气', '混沌初开第一剑，斩尽诸天', 8, 120000, 50000, 650, 180, 18, 0, 0, 10)",
+            "INSERT INTO skills (id, name, description, required_realm, learn_cost_gold, learn_cost_spirit_stones, damage, mp_cost, cooldown_seconds, skill_type, heal_amount, max_level) VALUES (13, '大道归一', '万法归宗，一指点碎虚空', 9, 300000, 150000, 900, 250, 20, 0, 0, 10)",
+            "INSERT INTO skills (id, name, description, required_realm, learn_cost_gold, learn_cost_spirit_stones, damage, mp_cost, cooldown_seconds, skill_type, heal_amount, max_level) VALUES (14, '天元回春', '以天元之力重塑肉身，起死回生', 6, 30000, 10000, 0, 60, 12, 1, 800, 10)",
+            "INSERT INTO skills (id, name, description, required_realm, learn_cost_gold, learn_cost_spirit_stones, damage, mp_cost, cooldown_seconds, skill_type, heal_amount, max_level) VALUES (15, '万象归元', '万象归一，生机无限', 7, 80000, 30000, 0, 90, 15, 1, 2000, 10)",
         };
         try (Connection conn = DatabaseManager.getConnection();
              var stmt = conn.createStatement()) {

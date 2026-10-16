@@ -97,6 +97,12 @@ public class SQLiteDialect implements DatabaseDialect {
     public void initConnection(Connection conn) throws SQLException {
         try (Statement stmt = conn.createStatement()) {
             stmt.execute("PRAGMA foreign_keys = ON");
+            // 等待写锁 5 秒后再放弃，避免在多服务/调度器并发写入时立即 SQLITE_BUSY
+            stmt.execute("PRAGMA busy_timeout = 5000");
+        }
+        try (Statement stmt = conn.createStatement()) {
+            // WAL 模式允许并发读、降低写写阻塞；多服务后台调度 + 前台请求共存时尤其有用
+            stmt.execute("PRAGMA journal_mode = WAL");
         }
     }
 
@@ -163,5 +169,12 @@ public class SQLiteDialect implements DatabaseDialect {
     @Override
     public String quoteColumnName(String columnName) {
         return "\"" + columnName + "\"";
+    }
+    
+    @Override
+    public String getForUpdateClause() {
+        // SQLite 不支持 FOR UPDATE，但在事务内 UPDATE/DELETE 会自动加写锁
+        // 返回空字符串，调用者需要确保在事务内执行
+        return "";
     }
 }

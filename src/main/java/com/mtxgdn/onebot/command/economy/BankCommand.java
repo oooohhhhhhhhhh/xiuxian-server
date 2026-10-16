@@ -22,6 +22,7 @@ import java.util.Map;
 public class BankCommand extends Command {
     public BankCommand() {
         super(new String[]{"灵庄", "bank"}, "灵石存取·利息生息", "/灵庄 [存入|取出|利率]", "经济", null);
+        setModule("economy");
 
         registerSub("存入", (ctx, p, parts) -> doDeposit(ctx, p, parts));
         registerSub("取出", (ctx, p, parts) -> doWithdraw(ctx, p, parts));
@@ -134,14 +135,14 @@ public class BankCommand extends Command {
         ctx.reply("""
             🏦 灵庄利率表
             ────────
-            活期: 日利 0.5%（复利，随时可取）
+            活期: 日利 0.2%（复利，随时可取）
             ────────
-            7天定期: 到期利息 3%
-              例: 存 1000→到期 1030
-            30天定期: 到期利息 10%
-              例: 存 1000→到期 1100
-            90天定期: 到期利息 25%
-              例: 存 1000→到期 1250
+            7天定期: 到期利息 4%
+              例: 存 1000→到期 1040
+            30天定期: 到期利息 15%
+              例: 存 1000→到期 1150
+            90天定期: 到期利息 40%
+              例: 存 1000→到期 1400
             ────────
             ⚠ 定期提前取出损失全部利息！
             起存 100 灵石""");

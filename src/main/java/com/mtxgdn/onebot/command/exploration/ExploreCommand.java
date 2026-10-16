@@ -6,12 +6,11 @@ import com.mtxgdn.game.entity.ExplorationResult;
 import com.mtxgdn.game.entity.PlayerInfo;
 import com.mtxgdn.game.entity.SpiritualRoot;
 import com.mtxgdn.game.service.NewbieGuideService;
+import com.mtxgdn.game.service.ExplorationService;
 import com.mtxgdn.common.service.ServiceRegistry;
 import com.mtxgdn.util.PlayerActionLogger;
 
 public class ExploreCommand extends Command {
-
-    private static final long COOLDOWN_MS = 60_000;
 
     public ExploreCommand() {
         super(new String[]{"游历", "explore"},
@@ -19,21 +18,19 @@ public class ExploreCommand extends Command {
                 "/游历",
                 "探索",
                 "game.explore");
+        setModule("exploration");
 
         registerSub(new String[]{"状态", "status"}, this::showStatus);
     }
 
     @Override
     public void execute(CommandContext ctx) {
-        Long userId = ctx.requireBinding();
-        if (userId == null) return;
-        if (!ctx.checkPermission("game.explore")) return;
-
-        PlayerInfo p = ctx.requirePlayer(userId);
+        PlayerInfo p = requirePlayerInfo(ctx);
         if (p == null) return;
 
         var explorationService = ServiceRegistry.getExplorationService();
         var actionLog = PlayerActionLogger.getInstance();
+        Long userId = p.getUserId();
 
         ExplorationResult result = explorationService.explore(userId);
         actionLog.logExploration(userId, p.getName(),
@@ -61,9 +58,10 @@ public class ExploreCommand extends Command {
 
     private void showStatus(CommandContext ctx, PlayerInfo p, String[] parts) {
         long now = System.currentTimeMillis();
-        long effectiveCd = COOLDOWN_MS;
+        // 与 ExplorationService 真实判定同一口径（基础 300 秒 + 巽风灵根减冷却），避免状态显示短于实际等待
+        long effectiveCd = ExplorationService.BASE_COOLDOWN_MS;
         if (p.getSpiritualRoot() != null && p.getSpiritualRoot().hasEffect(SpiritualRoot.SpecialEffect.EXPLORATION_CD)) {
-            effectiveCd = (long) (COOLDOWN_MS * (1 - p.getSpiritualRoot().getEffectValue()));
+            effectiveCd = (long) (ExplorationService.BASE_COOLDOWN_MS * (1 - p.getSpiritualRoot().getEffectValue()));
         }
 
         long lastTime = p.getLastExplorationTime();

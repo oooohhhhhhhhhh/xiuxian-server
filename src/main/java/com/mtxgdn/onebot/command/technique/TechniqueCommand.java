@@ -16,6 +16,7 @@ public class TechniqueCommand extends Command {
     public TechniqueCommand() {
         super(new String[]{"功法", "technique", "tj"}, "功法系统 — 学习/装备/卸下/升级功法",
                 "/功法 [列表|我的|学习|装备|卸下|升级]", "战斗", null);
+        setModule("technique");
 
         registerSub(new String[]{"列表", "list"}, this::listAll);
         registerSub(new String[]{"我的", "my", "mine"}, this::myTechniques);

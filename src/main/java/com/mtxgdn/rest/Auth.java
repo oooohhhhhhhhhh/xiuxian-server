@@ -4,6 +4,7 @@ import com.google.gson.JsonObject;
 import com.mtxgdn.game.service.PlayerService;
 import com.mtxgdn.service.UserService;
 import com.mtxgdn.service.VerificationCodeService;
+import com.mtxgdn.util.AppConfig;
 import com.mtxgdn.util.EmailService;
 import com.mtxgdn.util.JwtUtil;
 import com.mtxgdn.util.RateLimiter;
@@ -25,13 +26,110 @@ public class Auth {
     @Context
     private ContainerRequestContext requestContext;
 
+    /**
+     * V5 修复：取当前登录用户 ID 时，必须完成与 {@link JwtAuthFilter} 一致的完整校验
+     * （签名/过期 + 黑名单），不能再直接 {@code extractUserId}。
+     * <p>
+     * 原实现的三个问题：
+     * <ol>
+     *   <li>不查 {@link TokenBlacklist}——已登出的 token 仍可改密/删号；</li>
+     *   <li>不先 {@code validateToken}——过期 token 会在 {@code extractUserId} 内部抛
+     *       {@code ExpiredJwtException}，冒泡成 500 而不是 401；</li>
+     *   <li>token 格式非法（非数字 subject）同样抛异常变 500。</li>
+     * </ol>
+     * 任一环节失败一律返回 {@code null}，由调用方统一回 401。
+     */
     private Long getCurrentUserId() {
         String authHeader = requestContext.getHeaderString("Authorization");
-        if (authHeader != null && authHeader.startsWith("Bearer ")) {
-            String token = authHeader.substring(7);
+        if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+            return null;
+        }
+        String token = authHeader.substring("Bearer ".length()).trim();
+        if (token.isEmpty() || TokenBlacklist.isBlacklisted(token)) {
+            return null;
+        }
+        if (!JwtUtil.validateToken(token)) {
+            return null;
+        }
+        try {
             return JwtUtil.extractUserId(token);
+        } catch (Exception e) {
+            // subject 非数字等异常 token：视为未登录，绝不冒泡成 500
+            return null;
+        }
+    }
+
+    /**
+     * V2 修复：客户端指纹不再无条件信任 {@code X-Forwarded-For}。
+     * <p>
+     * 原实现直接取 XFF 首段作为限流 key，任何人都能伪造该头拿到无限多个
+     * "新 IP 桶"，从而绕开按 IP 的邮件限流（配合任意新邮箱即可无限发信）。
+     * <p>
+     * 现在：仅在 {@code security.trust_proxy_headers=true}（部署在可信反代之后）
+     * 时才采信 XFF，否则一律使用 TCP 直连地址。反代场景下也应只信任最后一跳，
+     * 因此取 XFF 的<b>最后一段</b>而非第一段（第一段由客户端完全可控）。
+     */
+    private String clientBucket() {
+        if (AppConfig.getBoolean("security.trust_proxy_headers", false)) {
+            String fwd = requestContext.getHeaderString("X-Forwarded-For");
+            if (fwd != null && !fwd.isBlank()) {
+                String[] hops = fwd.split(",");
+                // 最后一跳由可信反代写入，客户端无法伪造
+                return hops[hops.length - 1].trim();
+            }
+        }
+        return remoteAddress();
+    }
+
+    /** TCP 直连地址；容器不支持时回退为全局桶（宁可粗粒度限流，也不放行伪造 IP）。 */
+    private String remoteAddress() {
+        try {
+            var addr = requestContext.getProperty("org.glassfish.grizzly.http.server.Request");
+            if (addr instanceof org.glassfish.grizzly.http.server.Request req) {
+                String remote = req.getRemoteAddr();
+                if (remote != null && !remote.isBlank()) {
+                    return remote;
+                }
+            }
+        } catch (Throwable ignored) {
+            // 非 Grizzly 容器或属性不可用时走回退
+        }
+        return "global";
+    }
+
+    /**
+     * V2 修复：验证码发送的多层限流检查（注册与找回密码两个入口共用）。
+     * <p>
+     * 三层桶的意义：
+     * <ul>
+     *   <li><b>来源 10/分</b>：拦截突发脚本；</li>
+     *   <li><b>来源 30/时</b>：即使攻击者分散到分钟边界，单来源小时总量仍被封顶；</li>
+     *   <li><b>全局 300/时</b>：兜底防止分布式（多 IP + 任意新邮箱）把 SMTP 配额打满，
+     *       邮箱服务商通常按小时计费/限流，全局桶保证最坏情况成本可控。</li>
+     * </ul>
+     *
+     * @return 需要拒绝时返回 429 响应；放行时返回 {@code null}
+     */
+    private Response checkSendCodeRateLimit() {
+        String bucket = clientBucket();
+
+        if (!RateLimiter.allow("send_code_ip:" + bucket, 10, 60)) {
+            return rateLimitResponse("发送过于频繁，请稍后再试");
+        }
+        if (!RateLimiter.allow("send_code_hour:" + bucket, 30, 3600)) {
+            return rateLimitResponse("发送次数过多，请稍后再试");
+        }
+        if (!RateLimiter.allow("send_code_global", 300, 3600)) {
+            return rateLimitResponse("验证码服务繁忙，请稍后再试");
         }
         return null;
+    }
+
+    private Response rateLimitResponse(String message) {
+        JsonObject err = new JsonObject();
+        err.addProperty("code", 429);
+        err.addProperty("message", message);
+        return Response.status(429).entity(err.toString()).build();
     }
 
     @POST
@@ -78,6 +176,12 @@ public class Auth {
             return Response.status(400).entity(err.toString()).build();
         }
 
+        // V2 修复：多层限流（来源 10/分 + 来源 30/时 + 全局 300/时）
+        Response rateLimited = checkSendCodeRateLimit();
+        if (rateLimited != null) {
+            return rateLimited;
+        }
+
         try {
             String verificationCode = verificationCodeService.generateAndStoreCode(trimmedEmail);
             EmailService.sendVerificationCode(trimmedEmail, verificationCode);
@@ -116,6 +220,17 @@ public class Auth {
 
         String username = json.has("username") ? json.get("username").getAsString() : null;
         String password = json.has("password") ? json.get("password").getAsString() : null;
+
+        // V3 修复：除按用户名限流外，必须叠加"按客户端"限流。
+        // 原实现只按 username 计数（5 次/60s），攻击者可批量注册成千上万个账号
+        // 逐个撞库，每个账号都不触发锁定。叠加来源维度后单机撞库速率被压到
+        // 20 次/分钟，无论换多少用户名都受限。
+        if (!RateLimiter.allow("login_ip:" + clientBucket(), 20, 60)) {
+            JsonObject err = new JsonObject();
+            err.addProperty("code", 429);
+            err.addProperty("message", "登录尝试过于频繁，请稍后再试");
+            return Response.status(429).entity(err.toString()).build();
+        }
 
         if (username != null && !username.trim().isEmpty()) {
             String rateLimitKey = "login_" + username.trim().toLowerCase();
@@ -190,6 +305,12 @@ public class Auth {
             return Response.status(400).entity(err.toString()).build();
         }
 
+        // V2 修复：多层限流（来源 10/分 + 来源 30/时 + 全局 300/时）
+        Response rateLimited = checkSendCodeRateLimit();
+        if (rateLimited != null) {
+            return rateLimited;
+        }
+
         try {
             String verificationCode = verificationCodeService.generateAndStoreCode(trimmedEmail);
             EmailService.sendVerificationCode(trimmedEmail, verificationCode);
@@ -244,10 +365,16 @@ public class Auth {
         }
 
         String trimmedEmail = email.trim().toLowerCase();
+        if (verificationCodeService.isVerifyLocked(trimmedEmail)) {
+            JsonObject err = new JsonObject();
+            err.addProperty("code", 429);
+            err.addProperty("message", "验证码错误次数过多，已锁定，请 5 分钟后再试");
+            return Response.status(429).entity(err.toString()).build();
+        }
         if (!verificationCodeService.verifyCode(trimmedEmail, code.trim())) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 400);
-            err.addProperty("message", "验证码错误或已过期");
+            err.addProperty("message", "验证码错误或已过期（连续错误 3 次将锁定）");
             return Response.status(400).entity(err.toString()).build();
         }
 
@@ -257,14 +384,44 @@ public class Auth {
 
     @DELETE
     @Path("/account")
+    @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
-    public Response deleteAccount() {
+    public Response deleteAccount(String body) {
         Long userId = getCurrentUserId();
         if (userId == null) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 401);
             err.addProperty("message", "请先登录");
             return Response.status(401).entity(err.toString()).build();
+        }
+
+        // V13 修复：删号是不可逆操作，必须二次确认身份。
+        // 原实现仅凭一个（可能被窃取的）Bearer token 就能删除账号与角色，
+        // 一旦 token 泄露即造成不可恢复的数据丢失。
+        // 现在要求 body 中携带当前密码（与 OneBot 通道的删号流程保持一致）。
+        String password = null;
+        try {
+            if (body != null && !body.isBlank()) {
+                JsonObject json = com.google.gson.JsonParser.parseString(body).getAsJsonObject();
+                password = json.has("password") && !json.get("password").isJsonNull()
+                        ? json.get("password").getAsString() : null;
+            }
+        } catch (Exception ignored) {
+            // body 非法时按"未提供密码"处理
+        }
+
+        if (password == null || password.isEmpty()) {
+            JsonObject err = new JsonObject();
+            err.addProperty("code", 400);
+            err.addProperty("message", "注销账号不可恢复，请输入当前密码以确认");
+            return Response.status(400).entity(err.toString()).build();
+        }
+
+        if (!userService.verifyPassword(userId, password)) {
+            JsonObject err = new JsonObject();
+            err.addProperty("code", 403);
+            err.addProperty("message", "密码错误，注销被拒绝");
+            return Response.status(403).entity(err.toString()).build();
         }
 
         var player = playerService.getPlayerByUserId(userId);

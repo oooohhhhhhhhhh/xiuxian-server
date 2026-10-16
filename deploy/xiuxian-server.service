@@ -1,0 +1,107 @@
+# 修仙文字游戏服务器 —— systemd 服务单元
+#
+# 安装步骤（以 root 执行）：
+#
+#   1) 建用户与目录
+#        useradd --system --create-home --shell /usr/sbin/nologin xiuxian
+#        install -d -o xiuxian -g xiuxian /opt/xiuxian-server
+#
+#   2) 放入 jar，并建一个不带版本号的软链接，方便升级
+#        cp target/main-*.jar /opt/xiuxian-server/          # 实际文件名形如 main-0.1.0.jar
+#        ln -sfn main-0.1.0.jar /opt/xiuxian-server/main.jar
+#        chown -R xiuxian:xiuxian /opt/xiuxian-server
+#
+#   3) 装单元并启动
+#        cp deploy/xiuxian-server.service /etc/systemd/system/
+#        systemctl daemon-reload
+#        systemctl enable --now xiuxian-server
+#
+#   4) 看日志 / 看状态
+#        journalctl -u xiuxian-server -f
+#        systemctl status xiuxian-server
+#
+# ── 为什么 WorkingDirectory 必须与 jar 同目录 ─────────────────
+# 服务端的路径解析有两套基准：
+#   • config/application.yml、config/plugins.yml        按「jar 所在目录」解析
+#   • config/adapters.json、xiuxian.db、data/、log/、plugins/  按「工作目录」解析
+# 两者不一致时 Main.reportDeploymentPaths() 会打印告警，且数据会落到意料之外的位置。
+# 下面的配置把两者都钉在 /opt/xiuxian-server，正好与 systemd 建议的
+# WorkingDirectory=<jarDir> 一致。
+#
+# ── 升级 ─────────────────────────────────────────────────────
+#   1) 上传新的 main-<版本>.jar 到 /opt/xiuxian-server/
+#   2) ln -sfn main-<新版本>.jar /opt/xiuxian-server/main.jar
+#   3) chown xiuxian:xiuxian /opt/xiuxian-server/main-<新版本>.jar
+#   4) systemctl restart xiuxian-server
+# 注意：回滚只需把软链接指回旧 jar，再 restart。数据库结构升级是单向的，
+# 跨大版本回滚前请先备份 config/ 与 xiuxian.db（或 MySQL 库）。
+
+[Unit]
+Description=修仙文字游戏服务器 (xiuxian-server)
+Documentation=https://github.com/oooohhhhhhhhhh/xiuxian-server-alpha
+Documentation=https://oooohhhhhhhhhh.github.io/xiuxian-wiki/
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=xiuxian
+Group=xiuxian
+
+# 工作目录 == jar 所在目录，两套路径基准才会一致（见文件顶部说明）
+WorkingDirectory=/opt/xiuxian-server
+ExecStart=/usr/bin/java $JAVA_OPTS -jar /opt/xiuxian-server/main.jar
+
+# 可选的环境变量文件（不存在也不报错），可在里面覆盖 JAVA_OPTS、TZ 等
+EnvironmentFile=-/etc/xiuxian-server.env
+Environment=TZ=Asia/Shanghai
+# 面向小内存机器的保守默认值。本项目历史上多次出现
+# hs_err「out of physical RAM or swap space」崩溃，堆别开太大。
+Environment=JAVA_OPTS=-Xmx512m -XX:MaxMetaspaceSize=256m -Xss1m
+
+# 崩溃或 OOM 被杀后自动拉起
+Restart=on-failure
+RestartSec=5s
+
+# 优雅停止：先发 SIGTERM 让服务端收尾（落盘玩家数据、关闭数据库连接），
+# 120 秒内没退再强杀。
+KillSignal=SIGTERM
+TimeoutStopSec=120
+SuccessExitStatus=143
+
+# 内存上限：超过 MemoryHigh 会被限流，超过 MemoryMax 会被杀（再由上面拉起）。
+# 若跑 MySQL 版或玩家很多，按需调大。
+MemoryHigh=768M
+MemoryMax=1G
+
+# 文件描述符：WebSocket 长连接较多时需要
+LimitNOFILE=65535
+
+# ---- 安全加固 ----
+NoNewPrivileges=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectSystem=strict
+ProtectHome=true
+ProtectKernelTunables=true
+ProtectKernelModules=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+RestrictRealtime=true
+LockPersonality=true
+
+# ProtectSystem=strict 会把整个文件系统挂成只读，
+# 这里显式放开服务端真正需要写的目录：
+#   config/ 安装向导会写入 application.yml；plugins.yml 由 WebUI 插件开关持久化
+#   data/   玩家数据文件
+#   log/    日志
+#   plugins/ 第三方插件 jar
+#   xiuxian.db（SQLite，位于 WorkingDirectory 下）
+ReadWritePaths=/opt/xiuxian-server
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=xiuxian-server
+
+[Install]
+WantedBy=multi-user.target

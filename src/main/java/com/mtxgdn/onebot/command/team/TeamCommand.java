@@ -1,0 +1,137 @@
+package com.mtxgdn.onebot.command.team;
+
+import com.mtxgdn.common.command.Command;
+import com.mtxgdn.common.command.CommandContext;
+import com.mtxgdn.game.entity.PlayerInfo;
+import com.mtxgdn.game.entity.SecretRealmResult;
+import com.mtxgdn.game.service.PlayerService;
+import com.mtxgdn.game.service.SecretRealmService;
+import com.mtxgdn.game.service.TeamService;
+import com.mtxgdn.common.service.ServiceRegistry;
+
+import java.util.List;
+
+/**
+ * 组队系统 QQ 指令：创建/邀请/接受/拒绝/退出队伍，并进入团队副本。
+ * 此前组队只有 REST 入口，QQ 玩家无法使用，此命令补齐主要入口。
+ */
+public class TeamCommand extends Command {
+    public TeamCommand() {
+        super(new String[]{"组队", "team"},
+                "组队系统（2-5人，可挑战团队副本）",
+                "/组队 创建 | /组队 邀请 <玩家名> | /组队 接受 | /组队 拒绝 | /组队 退出 | /组队 信息 | /组队 副本 <秘境名>",
+                "宗门",
+                null);
+        setModule("team");
+    }
+
+    @Override
+    public void execute(CommandContext ctx) {
+        Long userId = ctx.requireBinding();
+        if (userId == null) return;
+        PlayerInfo p = ctx.requirePlayer(userId);
+        if (p == null) return;
+
+        String arg = ctx.getArg();
+        if (arg == null || arg.isBlank()) {
+            ctx.reply(getUsage());
+            return;
+        }
+
+        String[] parts = arg.trim().split("\\s+", 2);
+        String sub = parts[0];
+        String param = parts.length > 1 ? parts[1] : null;
+
+        TeamService teamService = TeamService.getInstance();
+
+        switch (sub) {
+            case "创建" -> {
+                TeamService.Team team = teamService.createTeam(p.getId());
+                if (team == null) {
+                    ctx.reply("创建队伍失败：你可能已在队伍中");
+                } else {
+                    ctx.reply("✅ 队伍创建成功！队伍ID: " + team.getTeamId()
+                            + "\n邀请队友: /组队 邀请 <玩家名>（2-5人可挑战副本）");
+                }
+            }
+            case "邀请" -> {
+                if (param == null || param.isBlank()) {
+                    ctx.reply("用法: /组队 邀请 <玩家名>");
+                    return;
+                }
+                PlayerService playerService = ServiceRegistry.getPlayerService();
+                List<PlayerInfo> targets = playerService.searchPlayersByName(param.trim(), 1, 0);
+                if (targets.isEmpty()) {
+                    ctx.reply("玩家【" + param + "】不存在");
+                    return;
+                }
+                PlayerInfo target = targets.get(0);
+                if (target.getId() == p.getId()) {
+                    ctx.reply("不能邀请自己");
+                    return;
+                }
+                if (teamService.invitePlayer(p.getId(), target.getId())) {
+                    ctx.reply("✅ 已向【" + target.getName() + "】发出组队邀请，等待对方 /组队 接受");
+                } else {
+                    ctx.reply("邀请失败：请确认你是队长、队伍未满员且对方不在其他队伍中");
+                }
+            }
+            case "接受" -> {
+                TeamService.Team team = teamService.acceptInvite(p.getId());
+                if (team == null) {
+                    ctx.reply("没有待处理的组队邀请");
+                } else {
+                    ctx.reply("✅ 你已加入队伍（队伍ID: " + team.getTeamId() + "），队长可发起副本挑战");
+                }
+            }
+            case "拒绝" -> {
+                teamService.declineInvite(p.getId());
+                ctx.reply("已拒绝组队邀请");
+            }
+            case "退出" -> {
+                if (teamService.leaveTeam(p.getId())) {
+                    ctx.reply("你已退出队伍");
+                } else {
+                    ctx.reply("你不在任何队伍中");
+                }
+            }
+            case "信息" -> {
+                TeamService.Team team = teamService.getTeam(p.getId());
+                if (team == null) {
+                    ctx.reply("你不在任何队伍中。\n创建: /组队 创建\n加入: 等队长邀请后 /组队 接受");
+                    return;
+                }
+                PlayerService playerService = ServiceRegistry.getPlayerService();
+                StringBuilder sb = new StringBuilder("👥 队伍信息\n队伍ID: ").append(team.getTeamId())
+                        .append("\n队长ID: ").append(team.getLeaderId())
+                        .append("\n人数: ").append(team.getMemberCount()).append("/5\n成员: ");
+                for (long memberId : team.getMemberIds()) {
+                    PlayerInfo m = playerService.getPlayerInfoById(memberId);
+                    sb.append(m != null ? m.getName() : memberId).append(" ");
+                }
+                sb.append("\n\n副本挑战: /组队 副本 <秘境名>（需至少2人）");
+                ctx.reply(sb.toString());
+            }
+            case "副本" -> {
+                if (param == null || param.isBlank()) {
+                    ctx.reply("用法: /组队 副本 <秘境名>（如：/组队 副本 暗黑森林）");
+                    return;
+                }
+                SecretRealmResult result = new SecretRealmService().enterRaid(p.getId(), param.trim());
+                StringBuilder sb = new StringBuilder();
+                if (result.isSuccess()) {
+                    if (result.getLog() != null) {
+                        for (String line : result.getLog()) {
+                            sb.append(line).append("\n");
+                        }
+                    }
+                    if (result.getMessage() != null) sb.append(result.getMessage());
+                } else {
+                    sb.append(result.getMessage());
+                }
+                ctx.reply(sb.toString());
+            }
+            default -> ctx.reply(getUsage());
+        }
+    }
+}

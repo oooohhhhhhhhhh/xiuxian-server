@@ -9,6 +9,7 @@ import com.mtxgdn.game.entity.RealmConfig;
 import com.mtxgdn.game.entity.SpiritualRoot;
 import com.mtxgdn.game.entity.Title;
 import com.mtxgdn.game.title.TitleRegistry;
+import com.mtxgdn.common.service.ServiceRegistry;
 
 import com.mtxgdn.util.GameLogger;
 
@@ -88,7 +89,33 @@ public class PlayerService {
         return null;
     }
 
+    /** V10：角色名长度上限（与 TextSanitizer.sanitizePlayerName 及各通道校验保持一致）。 */
+    public static final int MAX_PLAYER_NAME_LENGTH = 16;
+
+    /**
+     * V10 修复：创建角色前统一净化并校验角色名。
+     *
+     * <p>原实现在 service 层没有任何校验，REST {@code /game/player/create} 直接把
+     * 请求体里的 name 原样落库 —— 超过 {@code players.name VARCHAR(64)} 会抛 SQLException
+     * 变成 500，且允许写入 {@code <>"'&} 等字符（前端渲染不当即 XSS）。</p>
+     *
+     * <p>这里作为四个通道（REST / OneBot / QQ官方 / Minecraft）共用的唯一收口点，
+     * 统一做"净化 + 长度校验"，避免各通道校验强度不一致。</p>
+     *
+     * @return 净化后的角色名
+     * @throws IllegalArgumentException 角色名为空或净化后为空
+     */
+    static String normalizePlayerName(String name) {
+        String sanitized = com.mtxgdn.util.TextSanitizer.sanitizePlayerName(name);
+        if (sanitized.isEmpty()) {
+            throw new IllegalArgumentException("角色名不能为空，且不能只包含特殊字符");
+        }
+        return sanitized;
+    }
+
     public PlayerInfo createPlayer(long userId, String name) {
+        // V10：统一净化 + 长度限制，防止超长名导致 DB 异常或写入危险字符
+        String safeName = normalizePlayerName(name);
         SpiritualRoot root = SpiritualRoot.drawRandom(new java.util.Random());
         String sql = """
             INSERT INTO players (user_id, name, spiritual_root, level, experience, realm, sub_realm,
@@ -100,7 +127,7 @@ public class PlayerService {
         try (Connection conn = DatabaseManager.getConnection()) {
             try (PreparedStatement ps = conn.prepareStatement(sql, PreparedStatement.RETURN_GENERATED_KEYS)) {
                 ps.setLong(1, userId);
-                ps.setString(2, name);
+                ps.setString(2, safeName);
                 ps.setString(3, root.name());
                 ps.setInt(4, root.applyHpBonus(100));
                 ps.setInt(5, root.applyHpBonus(100));
@@ -141,7 +168,24 @@ public class PlayerService {
         } catch (SQLException e) {
             throw new RuntimeException("创建玩家失败: " + e.getMessage(), e);
         }
-        return getPlayerByUserId(userId);
+        PlayerInfo created = getPlayerByUserId(userId);
+        // 新玩家自动获得「初入仙途」称号
+        if (created != null) {
+            try {
+                new com.mtxgdn.game.service.TitleService().grantTitle(playerId, "beginner");
+            } catch (Exception ignored) {
+                // 称号授予失败不影响创建
+            }
+        }
+        // 新玩家立即生成个人数据文件（一用户一个文件）
+        if (created != null && com.mtxgdn.playerdata.PlayerDataService.isEnabled()) {
+            try {
+                new com.mtxgdn.playerdata.PlayerDataService().exportPlayer(created.getId());
+            } catch (Exception ignored) {
+                // 文件生成失败不影响主流程
+            }
+        }
+        return created;
     }
 
     public void updatePlayer(long playerId, Player player) {
@@ -181,18 +225,31 @@ public class PlayerService {
         } catch (SQLException e) {
             throw new RuntimeException("更新玩家失败", e);
         }
+        markDataDirty(playerId);
+    }
+
+    /** 玩家数据已变更，通知文件化存储（一用户一个文件） */
+    private void markDataDirty(long playerId) {
+        com.mtxgdn.playerdata.PlayerDataService.markDirty(playerId);
     }
 
     public boolean updatePlayerName(long playerId, String newName) {
-        if (newName == null || newName.trim().isEmpty()) {
+        // V10：与 createPlayer 同一套净化/长度规则，避免改名校验弱于创角校验
+        String safeName;
+        try {
+            safeName = normalizePlayerName(newName);
+        } catch (IllegalArgumentException e) {
             return false;
         }
         String sql = "UPDATE players SET name = ? WHERE id = ?";
         try (Connection conn = DatabaseManager.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, newName.trim());
+            ps.setString(1, safeName);
             ps.setLong(2, playerId);
             int affected = ps.executeUpdate();
+            if (affected > 0) {
+                markDataDirty(playerId);
+            }
             return affected > 0;
         } catch (SQLException e) {
             throw new RuntimeException("修改玩家名称失败", e);
@@ -211,6 +268,11 @@ public class PlayerService {
         Player player = getPlayerById(playerId);
         if (player != null) {
             exp = (long) (exp * getFinalExpBonus(player));
+            // 经验翻倍丹等 Buff 加成
+            double buffMult = ServiceRegistry.getBuffService().getExpMultiplier(playerId);
+            if (buffMult > 1.0) {
+                exp = (long) (exp * buffMult);
+            }
         }
         String sql = "UPDATE players SET experience = experience + ? WHERE id = ?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -218,6 +280,7 @@ public class PlayerService {
             ps.setLong(2, playerId);
             ps.executeUpdate();
         }
+        markDataDirty(playerId);
     }
 
     public void updateCultivationProgress(long playerId, int progress) {
@@ -233,22 +296,192 @@ public class PlayerService {
     }
 
     public void setCultivating(long playerId, boolean cultivating) {
-        String sql;
         if (cultivating) {
-            sql = "UPDATE players SET is_cultivating = ?, cultivation_start_time = ?, last_offline_time = 0 WHERE id = ?";
+            startCultivation(playerId, System.currentTimeMillis());
         } else {
-            sql = "UPDATE players SET is_cultivating = ?, cultivation_start_time = 0 WHERE id = ?";
+            stopCultivation(playerId);
         }
+    }
+
+    /**
+     * 计算玩家当前闭关修炼每秒经验（基础值 × 境界倍率 × 季节 × 地点 × 灵根 × 功法 × 称号 × 天象 × 阵法）。
+     * 供 REST / WebSocket / QQ 指令统一使用（仅用于展示，实际结算用 {@link #calculateCultivationExp}）。
+     */
+    public int calculateCultivationPerSecond(Player player) {
+        if (player == null) {
+            return 0;
+        }
+        return (int) Math.max(1, Math.round(cultivationMultiplier(player)));
+    }
+
+    /**
+     * 计算玩家闭关 elapsedSeconds 秒获得的原始经验。
+     * 全程使用 double 累乘（境界 × 季节 × 地点 × 灵根 × 功法 × 称号 × 天象 × 阵法），最后一次性取整，
+     * 避免"每秒取整"导致 1×1.05→1 这类小数倍率被吞掉的问题。
+     */
+    public long calculateCultivationExp(Player player, long elapsedSeconds) {
+        if (player == null || elapsedSeconds <= 0) {
+            return 0;
+        }
+        double total = cultivationMultiplier(player) * elapsedSeconds;
+        return Math.max(0, Math.round(total));
+    }
+
+    /** 汇总全部修炼倍率（在线与离线共用同一套加成） */
+    private double cultivationMultiplier(Player player) {
+        double base = GameConfigLoader.getCultivationMultiplier(player.getRealm())
+                * GameConfigLoader.getCultivationBaseValue();
+        double seasonMultiplier = SeasonService.getCultivationMultiplier();
+        double locationMultiplier = ServiceRegistry.getMapService().getCultivationBonus(player.getCurrentLocationId());
+
+        double mult = base * seasonMultiplier * locationMultiplier;
+
+        // 灵根修炼效率（木水灵根 +15%）
+        SpiritualRoot root = player.getSpiritualRoot();
+        if (root != null && root.hasEffect(SpiritualRoot.SpecialEffect.CULTIVATION_EFFICIENCY)) {
+            mult *= (1 + root.getEffectValue());
+        }
+
+        // 天象修炼加成（紫气东来 +30% 等）
+        mult *= com.mtxgdn.game.service.DailyService.getTodayPhenomenonStatic().getCultivationMultiplier();
+
+        // 功法修炼速度（已装备功法的 cultivation_speed_bonus 之和）
+        double techniqueBonus = ServiceRegistry.getTechniqueService().getEquippedCultivationSpeedBonus(player.getId());
+        if (techniqueBonus > 0) {
+            mult *= (1 + techniqueBonus);
+        }
+
+        // 称号修炼速度
+        mult *= getFinalCultivationSpeed(player);
+
+        // 洞府/阵法修炼加成（聚灵阵等）
+        int formationBonus = ServiceRegistry.getFormationService().getTotalCultivationBonus(player.getId());
+        if (formationBonus > 0) {
+            mult *= (1 + formationBonus / 100.0);
+        }
+
+        return mult;
+    }
+
+    /**
+     * 开始闭关（带完整校验）：角色存在 / 未在闭关中 / 生命值充足。
+     */
+    public Map<String, Object> beginCultivation(long playerId) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        Player player = getPlayerById(playerId);
+        if (player == null) {
+            result.put("success", false);
+            result.put("message", "角色不存在");
+            return result;
+        }
+        if (player.isCultivating()) {
+            // "闭关中" 但没有起始时间，是无意义状态：算不出闭关时长，结算只能给 0 经验。
+            // 它来自历史遗留脏数据（旧版本只写 is_cultivating 未写 cultivation_start_time，
+            // 线上表现为 /停止 回"状态异常，已强制结束"，玩家必须重新闭关）。
+            // 这种情况绝不能把玩家挡在外面 —— 否则他必须先 /停止（白丢一段闭关）才能重新闭关。
+            // 直接以当前时间重新开始，顺带把脏数据自愈掉。
+            if (player.getCultivationStartTime() > 0) {
+                result.put("success", false);
+                result.put("message", "你已在闭关中，无需重复打坐（使用停止修炼来结算）");
+                return result;
+            }
+            LOG.info("检测到无起始时间的闭关脏数据，已按重新闭关自愈: playerId=" + playerId);
+        }
+        if (player.getHp() <= 0) {
+            result.put("success", false);
+            result.put("message", "你已重伤倒地，无法闭关修炼，请先疗伤恢复");
+            return result;
+        }
+
+        long startTime = System.currentTimeMillis();
+        startCultivation(playerId, startTime);
+
+        result.put("success", true);
+        result.put("cultivating", true);
+        result.put("startTime", startTime);
+        result.put("cultivationPerSecond", calculateCultivationPerSecond(player));
+        result.put("season", SeasonService.getCurrentSeason().name());
+        result.put("seasonMultiplier", SeasonService.getCultivationMultiplier());
+        result.put("locationId", player.getCurrentLocationId());
+        result.put("locationName", ServiceRegistry.getMapService().getLocationName(player.getCurrentLocationId()));
+        result.put("locationMultiplier", ServiceRegistry.getMapService().getCultivationBonus(player.getCurrentLocationId()));
+        result.put("message", "开始闭关修炼");
+        return result;
+    }
+
+    /**
+     * 结束闭关（带完整校验）：角色存在 / 确实在闭关中；返回闭关时长与原始经验。
+     */
+    public Map<String, Object> finishCultivation(long playerId) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        Player player = getPlayerById(playerId);
+        if (player == null) {
+            result.put("success", false);
+            result.put("message", "角色不存在");
+            return result;
+        }
+        if (!player.isCultivating()) {
+            result.put("success", false);
+            result.put("message", "你并未在闭关中，无需停止修炼");
+            return result;
+        }
+
+        long startTime = player.getCultivationStartTime();
+        int elapsedSeconds = startTime > 0 ? (int) ((System.currentTimeMillis() - startTime) / 1000) : 0;
+        // 原子认领停止操作：并发多次停止时只有第一次成功，防止经验重复发放
+        if (!stopCultivation(playerId)) {
+            result.put("success", false);
+            result.put("message", "修炼结算正在处理中，请勿重复操作");
+            return result;
+        }
+
+        int perSecond = calculateCultivationPerSecond(player);
+        long rawExpGained = calculateCultivationExp(player, elapsedSeconds);
+        double seasonMultiplier = SeasonService.getCultivationMultiplier();
+        double locationMultiplier = ServiceRegistry.getMapService().getCultivationBonus(player.getCurrentLocationId());
+
+        result.put("success", true);
+        result.put("elapsedSeconds", elapsedSeconds);
+        result.put("cultivationPerSecond", perSecond);
+        result.put("rawExpGained", rawExpGained);
+        result.put("season", SeasonService.getCurrentSeason().name());
+        result.put("seasonMultiplier", seasonMultiplier);
+        result.put("locationId", player.getCurrentLocationId());
+        result.put("locationName", ServiceRegistry.getMapService().getLocationName(player.getCurrentLocationId()));
+        result.put("locationMultiplier", locationMultiplier);
+        result.put("message", "结束闭关修炼");
+        return result;
+    }
+
+    public void startCultivation(long playerId, long startTime) {
+        String sql = "UPDATE players SET is_cultivating = ?, cultivation_start_time = ?, last_offline_time = 0 WHERE id = ?";
         try (Connection conn = DatabaseManager.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setBoolean(1, cultivating);
-            if (cultivating) {
-                ps.setLong(2, System.currentTimeMillis());
-                ps.setLong(3, playerId);
-            } else {
-                ps.setLong(2, playerId);
-            }
+            ps.setBoolean(1, true);
+            ps.setLong(2, startTime);
+            ps.setLong(3, playerId);
             ps.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException("更新修炼状态失败", e);
+        }
+        markDataDirty(playerId);
+    }
+
+    /**
+     * 条件停止闭关：仅当玩家确实处于闭关状态时清零并返回 true。
+     * 并发调用下只有第一个请求成功，防止闭关结算被重复发放经验。
+     */
+    public boolean stopCultivation(long playerId) {
+        String sql = "UPDATE players SET is_cultivating = ?, cultivation_start_time = 0 WHERE id = ? AND is_cultivating = 1";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setBoolean(1, false);
+            ps.setLong(2, playerId);
+            boolean claimed = ps.executeUpdate() > 0;
+            if (claimed) {
+                markDataDirty(playerId);
+            }
+            return claimed;
         } catch (SQLException e) {
             throw new RuntimeException("更新修炼状态失败", e);
         }
@@ -306,6 +539,7 @@ public class PlayerService {
         } catch (SQLException e) {
             throw new RuntimeException("恢复生命值失败", e);
         }
+        markDataDirty(playerId);
     }
 
     public Map<String, Object> healPlayer(long playerId) {
@@ -323,7 +557,7 @@ public class PlayerService {
         }
 
         long cost = (player.getRealm() + 1) * 50L;
-        long currentStones = getSpiritStoneCount(playerId);
+        long currentStones = ServiceRegistry.getItemService().getSpiritStoneCount(playerId);
 
         if (currentStones < cost) {
             result.put("success", false);
@@ -334,7 +568,7 @@ public class PlayerService {
             return result;
         }
 
-        if (!removeSpiritStoneRaw(playerId, cost)) {
+        if (!ServiceRegistry.getItemService().removeSpiritStones(playerId, cost)) {
             result.put("success", false);
             result.put("message", "扣除灵石失败，请重试。");
             return result;
@@ -358,45 +592,6 @@ public class PlayerService {
         return result;
     }
 
-    private long getSpiritStoneCount(long playerId) {
-        String sql = "SELECT quantity FROM players_items WHERE player_id = ? AND item_key = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            ps.setString(2, com.mtxgdn.game.item.CurrencyEffect.SPIRIT_STONE_KEY);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) return rs.getLong("quantity");
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("查询灵石数量失败", e);
-        }
-        return 0;
-    }
-
-    private boolean removeSpiritStoneRaw(long playerId, long amount) {
-        String sql = "UPDATE players_items SET quantity = quantity - ? WHERE player_id = ? AND item_key = ? AND quantity >= ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, amount);
-            ps.setLong(2, playerId);
-            ps.setString(3, com.mtxgdn.game.item.CurrencyEffect.SPIRIT_STONE_KEY);
-            ps.setLong(4, amount);
-            int affected = ps.executeUpdate();
-            // 清理零值行
-            if (affected > 0) {
-                String cleanSql = "DELETE FROM players_items WHERE player_id = ? AND item_key = ? AND quantity <= 0";
-                try (PreparedStatement cps = conn.prepareStatement(cleanSql)) {
-                    cps.setLong(1, playerId);
-                    cps.setString(2, com.mtxgdn.game.item.CurrencyEffect.SPIRIT_STONE_KEY);
-                    cps.executeUpdate();
-                }
-            }
-            return affected > 0;
-        } catch (SQLException e) {
-            throw new RuntimeException("扣除灵石失败", e);
-        }
-    }
-
     public void addMp(long playerId, int amount) {
         String sql = DatabaseManager.isSqlite()
                 ? "UPDATE players SET mp = MIN(mp + ?, max_mp) WHERE id = ?"
@@ -409,6 +604,7 @@ public class PlayerService {
         } catch (SQLException e) {
             throw new RuntimeException("恢复法力失败", e);
         }
+        markDataDirty(playerId);
     }
 
     public void addGold(long playerId, long amount) {
@@ -426,90 +622,57 @@ public class PlayerService {
             ps.setLong(2, playerId);
             ps.executeUpdate();
         }
+        markDataDirty(playerId);
     }
 
     public void addAttack(long playerId, int amount) {
-        String sql = "UPDATE players SET attack = attack + ? WHERE id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, amount);
-            ps.setLong(2, playerId);
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("增加攻击力失败", e);
-        }
+        addStat(playerId, "attack", amount, "增加攻击力");
     }
 
     public void addAttack(Connection conn, long playerId, int amount) throws SQLException {
-        String sql = "UPDATE players SET attack = attack + ? WHERE id = ?";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, amount);
-            ps.setLong(2, playerId);
-            ps.executeUpdate();
-        }
+        addStat(conn, playerId, "attack", amount);
     }
 
     public void addDefense(long playerId, int amount) {
-        String sql = "UPDATE players SET defense = defense + ? WHERE id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, amount);
-            ps.setLong(2, playerId);
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("增加防御力失败", e);
-        }
+        addStat(playerId, "defense", amount, "增加防御力");
     }
 
     public void addDefense(Connection conn, long playerId, int amount) throws SQLException {
-        String sql = "UPDATE players SET defense = defense + ? WHERE id = ?";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, amount);
-            ps.setLong(2, playerId);
-            ps.executeUpdate();
-        }
+        addStat(conn, playerId, "defense", amount);
     }
 
     public void addSpeed(long playerId, int amount) {
-        String sql = "UPDATE players SET speed = speed + ? WHERE id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, amount);
-            ps.setLong(2, playerId);
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("增加速度失败", e);
-        }
+        addStat(playerId, "speed", amount, "增加速度");
     }
 
     public void addSpeed(Connection conn, long playerId, int amount) throws SQLException {
-        String sql = "UPDATE players SET speed = speed + ? WHERE id = ?";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, amount);
-            ps.setLong(2, playerId);
-            ps.executeUpdate();
-        }
+        addStat(conn, playerId, "speed", amount);
     }
 
     public void addSpirit(long playerId, int amount) {
-        String sql = "UPDATE players SET spirit = spirit + ? WHERE id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, amount);
-            ps.setLong(2, playerId);
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("增加灵力失败", e);
-        }
+        addStat(playerId, "spirit", amount, "增加灵力");
     }
 
     public void addSpirit(Connection conn, long playerId, int amount) throws SQLException {
-        String sql = "UPDATE players SET spirit = spirit + ? WHERE id = ?";
+        addStat(conn, playerId, "spirit", amount);
+    }
+
+    private void addStat(long playerId, String column, int amount, String operationName) {
+        try (Connection conn = DatabaseManager.getConnection()) {
+            addStat(conn, playerId, column, amount);
+        } catch (SQLException e) {
+            throw new RuntimeException(operationName + "失败", e);
+        }
+    }
+
+    private void addStat(Connection conn, long playerId, String column, int amount) throws SQLException {
+        String sql = "UPDATE players SET " + column + " = " + column + " + ? WHERE id = ?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, amount);
             ps.setLong(2, playerId);
             ps.executeUpdate();
         }
+        markDataDirty(playerId);
     }
 
     public void updateSpiritualRoot(long playerId, SpiritualRoot newRoot) {
@@ -538,6 +701,7 @@ public class PlayerService {
         } catch (SQLException e) {
             throw new RuntimeException("更新灵根失败", e);
         }
+        markDataDirty(playerId);
     }
 
     public void updateLastSecretRealmTime(long playerId, long lastSecretRealmTime) {
@@ -585,6 +749,47 @@ public class PlayerService {
             ps.executeUpdate();
         } catch (SQLException e) {
             throw new RuntimeException("更新离线时间失败", e);
+        }
+    }
+
+    /**
+     * 原子"认领"离线收益：仅当 last_offline_time 仍等于期望值时清零并返回 true。
+     * 并发下只有第一个请求能认领成功，防止离线收益被重复发放。
+     */
+    public boolean claimOfflineTime(long playerId, long expectedLastOfflineTime) {
+        String sql = "UPDATE players SET last_offline_time = 0 WHERE id = ? AND last_offline_time = ?";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setLong(1, playerId);
+            ps.setLong(2, expectedLastOfflineTime);
+            return ps.executeUpdate() > 0;
+        } catch (SQLException e) {
+            throw new RuntimeException("认领离线时间失败", e);
+        }
+    }
+
+    // ==================== 玩法计数（称号获取） ====================
+
+    public void incrementSecretRealmCount(long playerId) {
+        updateCounter(playerId, "secret_realm_count");
+    }
+
+    public void incrementPvpWins(long playerId) {
+        updateCounter(playerId, "pvp_wins");
+    }
+
+    public void incrementCraftCount(long playerId) {
+        updateCounter(playerId, "craft_count");
+    }
+
+    private void updateCounter(long playerId, String column) {
+        String sql = "UPDATE players SET " + column + " = " + column + " + 1 WHERE id = ?";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setLong(1, playerId);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException("更新玩法计数失败: " + column, e);
         }
     }
 
@@ -800,6 +1005,9 @@ public class PlayerService {
         try { p.setCurrentLocationId(rs.getLong("current_location_id")); } catch (Exception ignored) {}
         try { p.setLastTravelTime(rs.getLong("last_travel_time")); } catch (Exception ignored) {}
         try { p.setLastBreakthroughTime(rs.getLong("last_breakthrough_time")); } catch (Exception ignored) {}
+        try { p.setSecretRealmCount(rs.getInt("secret_realm_count")); } catch (Exception ignored) {}
+        try { p.setPvpWins(rs.getInt("pvp_wins")); } catch (Exception ignored) {}
+        try { p.setCraftCount(rs.getInt("craft_count")); } catch (Exception ignored) {}
         p.setCreatedAt(rs.getString("created_at"));
         p.setUpdatedAt(rs.getString("updated_at"));
         return p;
@@ -823,87 +1031,86 @@ public class PlayerService {
     }
 
     public int getFinalAttack(Player player) {
-        int base = player.getAttack();
-        Title title = getEquippedTitle(player.getId());
-        if (title != null) {
-            base += title.getAttackBonus();
-        }
-        return base;
+        return applyTitleBonus(player, player.getAttack(), (java.util.function.Function<Title, Integer>) t -> t.getAttackBonus())
+                + getEnhanceBonus(player.getId())[0];
     }
 
     public int getFinalDefense(Player player) {
-        int base = player.getDefense();
-        Title title = getEquippedTitle(player.getId());
-        if (title != null) {
-            base += title.getDefenseBonus();
-        }
-        return base;
+        return applyTitleBonus(player, player.getDefense(), (java.util.function.Function<Title, Integer>) t -> t.getDefenseBonus())
+                + getEnhanceBonus(player.getId())[1];
     }
 
     public int getFinalMaxHp(Player player) {
-        int base = player.getMaxHp();
-        Title title = getEquippedTitle(player.getId());
-        if (title != null) {
-            base += title.getHpBonus();
-        }
-        return base;
+        return applyTitleBonus(player, player.getMaxHp(), (java.util.function.Function<Title, Integer>) t -> t.getHpBonus());
     }
 
     public int getFinalMaxMp(Player player) {
-        int base = player.getMaxMp();
-        Title title = getEquippedTitle(player.getId());
-        if (title != null) {
-            base += title.getMpBonus();
-        }
-        return base;
+        return applyTitleBonus(player, player.getMaxMp(), (java.util.function.Function<Title, Integer>) t -> t.getMpBonus());
     }
 
     public int getFinalSpeed(Player player) {
-        int base = player.getSpeed();
-        Title title = getEquippedTitle(player.getId());
-        if (title != null) {
-            base += title.getSpeedBonus();
-        }
-        return base;
+        return applyTitleBonus(player, player.getSpeed(), (java.util.function.Function<Title, Integer>) t -> t.getSpeedBonus())
+                + getEnhanceBonus(player.getId())[2];
     }
 
     public int getFinalSpirit(Player player) {
-        int base = player.getSpirit();
-        Title title = getEquippedTitle(player.getId());
-        if (title != null) {
-            base += title.getSpiritBonus();
+        return applyTitleBonus(player, player.getSpirit(), (java.util.function.Function<Title, Integer>) t -> t.getSpiritBonus())
+                + getEnhanceBonus(player.getId())[3];
+    }
+
+    /** 读取三件装备的强化加成（攻击/防御/速度/灵力），强化等级真实生效于战斗属性 */
+    private int[] getEnhanceBonus(long playerId) {
+        int[] total = {0, 0, 0, 0};
+        String sql = "SELECT slot, enhance_level FROM players_equipment WHERE player_id = ? AND enhance_level > 0";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setLong(1, playerId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    int[] bonus = com.mtxgdn.game.service.EnhanceService.getEnhanceStatBonus(rs.getInt("enhance_level"));
+                    for (int i = 0; i < 4; i++) total[i] += bonus[i];
+                }
+            }
+        } catch (SQLException e) {
+            // 查询强化加成失败不阻断战斗，记录日志
+            java.util.logging.Logger.getLogger(PlayerService.class.getName())
+                    .warning("查询强化加成失败: " + e.getMessage());
         }
-        return base;
+        return total;
     }
 
     public double getFinalCultivationSpeed(Player player) {
-        double base = 1.0;
-        Title title = getEquippedTitle(player.getId());
-        if (title != null) {
-            base += title.getCultivationSpeedBonus();
-        }
-        return base;
+        return applyTitleBonus(player, 1.0, t -> t.getCultivationSpeedBonus());
     }
 
     public double getFinalExpBonus(Player player) {
-        double base = 1.0;
-        Title title = getEquippedTitle(player.getId());
-        if (title != null) {
-            base += title.getExpBonus();
-        }
-        return base;
+        // 称号经验加成 + 已装备功法经验加成（exp_bonus），两者均为经验获取倍率的增量
+        double bonus = applyTitleBonus(player, 1.0, t -> t.getExpBonus());
+        bonus += ServiceRegistry.getTechniqueService().getEquippedExpBonus(player.getId());
+        return bonus;
     }
 
     public double getFinalDropRateBonus(Player player) {
-        double base = 0.0;
+        return applyTitleBonus(player, 0.0, t -> t.getDropRateBonus());
+    }
+
+    private int applyTitleBonus(Player player, int base, java.util.function.Function<Title, Integer> bonusExtractor) {
         Title title = getEquippedTitle(player.getId());
         if (title != null) {
-            base += title.getDropRateBonus();
+            base += bonusExtractor.apply(title);
         }
         return base;
     }
 
-    private SpiritualRoot safeParseSpiritualRoot(String s) {
+    private double applyTitleBonus(Player player, double base, java.util.function.Function<Title, Double> bonusExtractor) {
+        Title title = getEquippedTitle(player.getId());
+        if (title != null) {
+            base += bonusExtractor.apply(title);
+        }
+        return base;
+    }
+
+    SpiritualRoot safeParseSpiritualRoot(String s) {
         if (s == null || s.isBlank()) return SpiritualRoot.CHAOS_MIXED;
         s = s.trim().toUpperCase();
         return switch (s) {
@@ -938,6 +1145,10 @@ public class PlayerService {
         try (Connection conn = DatabaseManager.getConnection()) {
             conn.setAutoCommit(false);
             try {
+                // M20 修复：若该玩家是某宗门的最后一名有管理权限成员，先解散宗门并清空仓库。
+                // 必须在删除 sect_members 之前执行，否则无法查出其宗门身份。
+                cleanupOrphanedSect(conn, playerId);
+
                 for (String table : tables) {
                     String sql = "DELETE FROM " + table + " WHERE player_id = ?";
                     try (PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -946,7 +1157,8 @@ public class PlayerService {
                     }
                 }
 
-                String deleteFriendSql = "DELETE FROM friends WHERE player_id = ? OR friend_id = ?";
+                // S11 修复：friends 表列名是 friend_player_id，不是 friend_id
+                String deleteFriendSql = "DELETE FROM friends WHERE player_id = ? OR friend_player_id = ?";
                 try (PreparedStatement ps = conn.prepareStatement(deleteFriendSql)) {
                     ps.setLong(1, playerId);
                     ps.setLong(2, playerId);
@@ -974,7 +1186,71 @@ public class PlayerService {
         }
     }
 
+    /**
+     * M20 修复：玩家被删除时，若该玩家是某宗门的最后一名有管理权限成员（宗主/副宗主/长老），
+     * 则解散该宗门并清空宗门仓库、申请、战争记录。必须在同一事务内、且删除 sect_members 之前调用。
+     */
+    private void cleanupOrphanedSect(Connection conn, long playerId) throws SQLException {
+        long sectId = -1;
+        String role = null;
+        String findSql = "SELECT sect_id, role FROM sect_members WHERE player_id = ?";
+        try (PreparedStatement ps = conn.prepareStatement(findSql)) {
+            ps.setLong(1, playerId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    sectId = rs.getLong("sect_id");
+                    role = rs.getString("role");
+                }
+            }
+        }
+        if (sectId < 0) {
+            return;
+        }
+        boolean isManager = com.mtxgdn.game.entity.SectMember.ROLE_LEADER.equals(role)
+                || com.mtxgdn.game.entity.SectMember.ROLE_VICE_LEADER.equals(role)
+                || com.mtxgdn.game.entity.SectMember.ROLE_ELDER.equals(role);
+        if (!isManager) {
+            return;
+        }
+
+        // 若宗门内还有其他管理权限成员，则无需解散
+        String countSql = "SELECT COUNT(*) FROM sect_members WHERE sect_id = ? AND player_id != ? " +
+                "AND role IN ('LEADER', 'VICE_LEADER', 'ELDER')";
+        try (PreparedStatement ps = conn.prepareStatement(countSql)) {
+            ps.setLong(1, sectId);
+            ps.setLong(2, playerId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next() && rs.getInt(1) > 0) {
+                    return;
+                }
+            }
+        }
+
+        // 解散宗门：清空仓库/申请/成员/战争记录，再删除宗门本体
+        String[] sectTables = {"sect_warehouse", "sect_applications", "sect_members"};
+        for (String table : sectTables) {
+            try (PreparedStatement ps = conn.prepareStatement("DELETE FROM " + table + " WHERE sect_id = ?")) {
+                ps.setLong(1, sectId);
+                ps.executeUpdate();
+            }
+        }
+        // sect_wars 没有 sect_id 列，按攻/守两方宗门 id 清理
+        String deleteWarsSql = "DELETE FROM sect_wars WHERE attacker_sect_id = ? OR defender_sect_id = ?";
+        try (PreparedStatement ps = conn.prepareStatement(deleteWarsSql)) {
+            ps.setLong(1, sectId);
+            ps.setLong(2, sectId);
+            ps.executeUpdate();
+        }
+        try (PreparedStatement ps = conn.prepareStatement("DELETE FROM sects WHERE id = ?")) {
+            ps.setLong(1, sectId);
+            ps.executeUpdate();
+        }
+        LOG.info("删除玩家 " + playerId + " 时解散了无管理成员的宗门 sectId=" + sectId);
+    }
+
     private static void tickAutoHeal() {
+        // 内置模块门控：角色系统停用后暂停自动疗伤
+        if (!com.mtxgdn.plugin.BuiltInPluginRegistry.getInstance().isEnabledOrUnknown("player")) return;
         String sql;
         if (DatabaseManager.isSqlite()) {
             sql = "UPDATE players SET hp = MIN(hp + CAST(CEILING(max_hp * 0.01) AS INTEGER), max_hp) WHERE hp < max_hp";

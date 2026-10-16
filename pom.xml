@@ -6,7 +6,10 @@
 
     <groupId>com.mtxgdn</groupId>
     <artifactId>main</artifactId>
-    <version>V1.4.1-beta1</version>
+    <!-- 版本号的唯一来源。改这里即可：资源过滤会写入 build-info.properties，
+         shade 会写入 JAR manifest，两者都由 com.mtxgdn.util.BuildInfo 读取。
+         约定：纯数字语义化版本（不带 v 前缀），展示层的 v 前缀由 BuildInfo 补。 -->
+    <version>0.1.0</version>
 
     <properties>
         <maven.compiler.source>23</maven.compiler.source>
@@ -14,6 +17,7 @@
         <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
         <project.reporting.outputEncoding>UTF-8</project.reporting.outputEncoding>
         <file.encoding>UTF-8</file.encoding>
+        <maven.compiler.release>23</maven.compiler.release>
     </properties>
 
     <dependencies>
@@ -71,6 +75,12 @@
             <artifactId>jersey-client</artifactId>
             <version>4.0.2</version>
         </dependency>
+        <!-- Jersey JSON 支持 -->
+        <dependency>
+            <groupId>org.glassfish.jersey.media</groupId>
+            <artifactId>jersey-media-json-jackson</artifactId>
+            <version>4.0.2</version>
+        </dependency>
 
         <!-- JWT -->
         <dependency>
@@ -118,6 +128,40 @@
             <artifactId>snakeyaml</artifactId>
             <version>2.4</version>
         </dependency>
+
+        <!-- JUnit 5 -->
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-api</artifactId>
+            <version>5.10.1</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-engine</artifactId>
+            <version>5.10.1</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.junit.jupiter</groupId>
+            <artifactId>junit-jupiter-params</artifactId>
+            <version>5.10.1</version>
+            <scope>test</scope>
+        </dependency>
+
+        <!-- Mockito -->
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-core</artifactId>
+            <version>5.8.0</version>
+            <scope>test</scope>
+        </dependency>
+        <dependency>
+            <groupId>org.mockito</groupId>
+            <artifactId>mockito-junit-jupiter</artifactId>
+            <version>5.8.0</version>
+            <scope>test</scope>
+        </dependency>
     </dependencies>
 
     <profiles>
@@ -137,6 +181,18 @@
         <resources>
             <resource>
                 <directory>src/main/resources</directory>
+                <!-- build-info.properties 需要过滤，单独放在下面那个 resource 里，
+                     这里必须排除掉，否则会被原样拷贝覆盖掉过滤后的版本。 -->
+                <excludes>
+                    <exclude>build-info.properties</exclude>
+                </excludes>
+            </resource>
+            <resource>
+                <directory>src/main/resources</directory>
+                <filtering>true</filtering>
+                <includes>
+                    <include>build-info.properties</include>
+                </includes>
             </resource>
             <resource>
                 <directory>src/main/java</directory>
@@ -147,17 +203,40 @@
         </resources>
         <plugins>
             <plugin>
+                <artifactId>maven-resources-plugin</artifactId>
+                <version>3.3.1</version>
+                <configuration>
+                    <!-- 资源过滤会写 build-info.properties，其注释是中文；
+                         不钉住编码的话，默认编码非 UTF-8 的机器上会被写成乱码
+                         （版本号本身是 ASCII 不受影响，但注释会读不了）。 -->
+                    <propertiesEncoding>UTF-8</propertiesEncoding>
+                </configuration>
+            </plugin>
+            <plugin>
                 <groupId>org.apache.maven.plugins</groupId>
                 <artifactId>maven-compiler-plugin</artifactId>
                 <version>3.15.0</version>
                 <configuration>
-                    <source>23</source>
-                    <target>23</target>
+                    <!-- 使用 properties 里的 release=23 统一（单一来源，避免 source/target 不一致） -->
                     <encoding>UTF-8</encoding>
                     <excludes>
                         <!-- 插件源码依赖 Bukkit API，由 build-mc-plugin.bat 单独编译 -->
                         <exclude>**/minecraft/plugin/**</exclude>
                     </excludes>
+                </configuration>
+            </plugin>
+            <plugin>
+                <groupId>org.apache.maven.plugins</groupId>
+                <artifactId>maven-surefire-plugin</artifactId>
+                <version>3.2.2</version>
+                <configuration>
+                    <includes>
+                        <include>**/*Test.java</include>
+                    </includes>
+                    <systemPropertyVariables>
+                        <!-- 插件开关配置指向 target/ 下的临时文件：测试的启停持久化不污染 config/plugins.yml -->
+                        <xiuxian.plugins.config>${project.build.directory}/test-config/plugins.yml</xiuxian.plugins.config>
+                    </systemPropertyVariables>
                 </configuration>
             </plugin>
             <plugin>
@@ -177,6 +256,11 @@
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ServicesResourceTransformer"/>
                                 <transformer implementation="org.apache.maven.plugins.shade.resource.ManifestResourceTransformer">
                                     <mainClass>com.mtxgdn.Main</mainClass>
+                                    <!-- 版本写入 manifest 作为兜底来源（主要来源是 build-info.properties） -->
+                                    <manifestEntries>
+                                        <Implementation-Title>${project.artifactId}</Implementation-Title>
+                                        <Implementation-Version>${project.version}</Implementation-Version>
+                                    </manifestEntries>
                                 </transformer>
                             </transformers>
                             <!-- 可选：避免 jar 过大，排除一些签名文件 -->

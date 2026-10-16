@@ -76,6 +76,8 @@ public class FarmPlot {
     private PestState pestState;
     private long pestTime;
     private CropQuality cropQuality;
+    /** 最后一次惰性结算时刻（毫秒），用于按时间差折算水分衰减与病虫害检测 */
+    private long settledTime;
 
     public FarmPlot() {}
 
@@ -115,4 +117,6 @@ public class FarmPlot {
     public void setPestTime(long pestTime) { this.pestTime = pestTime; }
     public CropQuality getCropQuality() { return cropQuality; }
     public void setCropQuality(CropQuality cropQuality) { this.cropQuality = cropQuality; }
+    public long getSettledTime() { return settledTime; }
+    public void setSettledTime(long settledTime) { this.settledTime = settledTime; }
 }

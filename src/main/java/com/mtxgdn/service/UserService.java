@@ -19,21 +19,42 @@ import java.sql.Statement;
 import java.sql.Timestamp;
 import java.util.Arrays;
 import java.util.List;
+import java.util.regex.Pattern;
 
 public class UserService {
+
+    // 用户名格式：3-32字符，只允许字母、数字和下划线
+    private static final Pattern USERNAME_PATTERN = Pattern.compile("^[a-zA-Z0-9_]{3,32}$");
+    // 邮箱格式验证
+    private static final Pattern EMAIL_PATTERN = Pattern.compile("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$");
 
     public Response register(String username, String rawPassword, String email, String code) {
         if (username == null || username.trim().isEmpty()) {
             return buildError(400, "用户名不能为空");
         }
-        if (rawPassword == null || rawPassword.length() < 6) {
-            return buildError(400, "密码长度不能少于6位");
-        }
-        if (username.length() > 64) {
-            return buildError(400, "用户名长度不能超过64位");
-        }
-
+        
         String trimmedUsername = username.trim();
+        
+        // 长度检查：3-32字符
+        if (trimmedUsername.length() < 3) {
+            return buildError(400, "用户名长度不能少于3个字符");
+        }
+        if (trimmedUsername.length() > 32) {
+            return buildError(400, "用户名长度不能超过32个字符");
+        }
+        
+        // 格式检查：只允许字母、数字和下划线
+        if (!USERNAME_PATTERN.matcher(trimmedUsername).matches()) {
+            return buildError(400, "用户名只能包含字母、数字和下划线");
+        }
+        
+        // 密码强度检查：至少8位
+        if (rawPassword == null || rawPassword.length() < 8) {
+            return buildError(400, "密码长度不能少于8位");
+        }
+        if (rawPassword.length() > 128) {
+            return buildError(400, "密码长度不能超过128位");
+        }
 
         if (isUsernameExists(trimmedUsername)) {
             return buildError(409, GameErrorCode.AUTH_USERNAME_EXISTS.getMessage());
@@ -90,7 +111,7 @@ public class UserService {
     }
 
     private boolean isValidEmail(String email) {
-        return email.matches("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$");
+        return EMAIL_PATTERN.matcher(email).matches();
     }
 
     private boolean isAllowedEmailDomain(String email) {
@@ -148,6 +169,14 @@ public class UserService {
         resetFailedAttempts(user.getId());
 
         String token = JwtUtil.generateToken(user.getId(), user.getUsername());
+
+        // 插件事件：玩家登录（REST 通道）
+        com.mtxgdn.plugin.event.PluginEventManager.fireQuietly(
+                com.mtxgdn.plugin.event.PluginEvent.builder()
+                        .type(com.mtxgdn.plugin.event.PluginEvent.Type.PLAYER_LOGIN)
+                        .data("userId", user.getId())
+                        .data("username", user.getUsername())
+                        .build());
 
         JsonObject data = new JsonObject();
         data.addProperty("id", user.getId());
@@ -338,8 +367,11 @@ public class UserService {
         if (oldPassword == null || oldPassword.isEmpty()) {
             return buildError(400, "原密码不能为空");
         }
-        if (newPassword == null || newPassword.length() < 6) {
-            return buildError(400, "新密码长度不能少于6位");
+        if (newPassword == null || newPassword.length() < 8) {
+            return buildError(400, "新密码长度不能少于8位");
+        }
+        if (newPassword.length() > 128) {
+            return buildError(400, "新密码长度不能超过128位");
         }
         if (oldPassword.equals(newPassword)) {
             return buildError(400, "新密码不能与原密码相同");
@@ -375,8 +407,39 @@ public class UserService {
         }
     }
 
-    public Response deleteUser(long userId) {
-        String sql = "DELETE FROM users WHERE id = ?";
+    /**
+     * V13：校验某个用户的密码是否正确（用于删号等不可逆操作的二次确认）。
+     *
+     * <p>与登录路径不同，这里<b>不</b>累加失败计数、不触发账号锁定 ——
+     * 避免攻击者用一个窃取来的 token 反复试探密码把受害者账号锁死。
+     * 调用方（REST/QQ 通道）需自行做限流。</p>
+     *
+     * @return 密码正确返回 true；用户不存在、密码为空或哈希异常返回 false
+     */
+    public boolean verifyPassword(long userId, String rawPassword) {
+        if (rawPassword == null || rawPassword.isEmpty()) {
+            return false;
+        }
+        String sql = "SELECT password FROM users WHERE id = ?";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setLong(1, userId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    String hashed = rs.getString("password");
+                    return hashed != null && BCrypt.checkpw(rawPassword, hashed);
+                }
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("校验密码失败", e);
+        } catch (IllegalArgumentException e) {
+            // bcrypt 哈希格式异常
+            return false;
+        }
+        return false;
+    }
+
+    public Response deleteUser(long userId) {        String sql = "DELETE FROM users WHERE id = ?";
         try (Connection conn = DatabaseManager.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, userId);

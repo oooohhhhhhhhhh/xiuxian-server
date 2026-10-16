@@ -18,6 +18,7 @@ public class CraftCommand extends Command {
     public CraftCommand() {
         super(new String[]{"合成", "炼制", "craft"}, "合成系统 — 查看配方/合成物品",
                 "/合成 [列表|配方 <分类>|制造 <配方ID>]", "实用功能", null);
+        setModule("crafting");
 
         registerSub(new String[]{"列表", "list"}, this::listRecipes);
         registerSub(new String[]{"配方", "recipes"}, this::listRecipesWithCategory);
@@ -129,13 +130,22 @@ public class CraftCommand extends Command {
 
     private void showProficiency(CommandContext ctx, PlayerInfo p, String[] parts) {
         var service = ServiceRegistry.getCraftingService();
-        List<Recipe> recipes = service.getAllRecipes();
+        Map<String, Object> info = service.getProficiencyInfo(p.getId());
         StringBuilder sb = new StringBuilder();
         sb.append("=== 合成熟练度 ===\n");
-        sb.append("当前合成系统暂未追踪熟练度数据。\n");
-        sb.append("可通过制造配方获取经验值来提升境界。\n\n");
-        sb.append("可用配方总数: ").append(recipes.size()).append(" 种\n");
-        sb.append("使用 /合成 列表 查看所有配方");
+        int level = ((Number) info.get("level")).intValue();
+        int maxLevel = ((Number) info.get("maxLevel")).intValue();
+        long count = ((Number) info.get("craftCount")).longValue();
+        long nextAt = ((Number) info.get("nextLevelAt")).longValue();
+        double bonus = ((Number) info.get("successBonus")).doubleValue();
+        sb.append("熟练度等级: Lv.").append(level).append("/").append(maxLevel).append("\n");
+        sb.append("累计制造成功: ").append(count).append(" 次\n");
+        if (nextAt > 0) {
+            sb.append("距离下一级: 还需成功 ").append(nextAt).append(" 次（每 20 次 +1 级）\n");
+        } else {
+            sb.append("已满级（每 20 次 +1 级）\n");
+        }
+        sb.append("成功率加成: +").append(String.format("%.1f", bonus * 100)).append("%（每级 +0.5%，封顶 95%）");
         ctx.reply(sb.toString());
     }
 

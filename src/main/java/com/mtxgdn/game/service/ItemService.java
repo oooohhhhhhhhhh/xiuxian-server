@@ -86,7 +86,11 @@ public class ItemService {
         String resolvedKey = validateAddParams(itemKey, quantity);
         checkCapacity(playerId, resolvedKey);
         try (Connection conn = DatabaseManager.getConnection()) {
-            return addItem(conn, playerId, resolvedKey, quantity);
+            boolean ok = addItem(conn, playerId, resolvedKey, quantity);
+            if (ok) {
+                com.mtxgdn.playerdata.PlayerDataService.markDirty(playerId);
+            }
+            return ok;
         } catch (SQLException e) {
             throw new RuntimeException("添加物品失败", e);
         }
@@ -163,7 +167,11 @@ public class ItemService {
     public boolean removeItem(long playerId, String itemKey, long quantity) {
         validateRemoveParams(quantity);
         try (Connection conn = DatabaseManager.getConnection()) {
-            return removeItem(conn, playerId, itemKey, quantity);
+            boolean ok = removeItem(conn, playerId, itemKey, quantity);
+            if (ok) {
+                com.mtxgdn.playerdata.PlayerDataService.markDirty(playerId);
+            }
+            return ok;
         } catch (SQLException e) {
             throw new RuntimeException("移除物品失败", e);
         }
@@ -304,19 +312,35 @@ public class ItemService {
         return getTotalSpiritStonesInLowGrade(playerId);
     }
 
+    /**
+     * 事务内查询灵石总量（与外部连接同事务，保证一致性）。
+     * 必须在事务内调用。
+     */
+    public long getSpiritStoneCount(Connection conn, long playerId) throws SQLException {
+        return getTotalSpiritStonesInLowGrade(conn, playerId);
+    }
+
     public long getSpiritStoneCount(long playerId, int grade) {
         String key = CurrencyEffect.getStoneKey(grade);
         return getItemCount(playerId, key);
     }
 
     public long getTotalSpiritStonesInLowGrade(long playerId) {
+        try (Connection conn = DatabaseManager.getConnection()) {
+            return getTotalSpiritStonesInLowGrade(conn, playerId);
+        } catch (SQLException e) {
+            throw new RuntimeException("查询灵石数量失败", e);
+        }
+    }
+
+    public long getTotalSpiritStonesInLowGrade(Connection conn, long playerId) throws SQLException {
         long total = 0;
         for (int i = 0; i < 4; i++) {
             String key = CurrencyEffect.getStoneKey(i);
-            long count = getItemCount(playerId, key);
+            long count = getItemCount(conn, playerId, key);
             total += count * CurrencyEffect.getExchangeRate(i);
         }
-        long oldCount = getItemCount(playerId, CurrencyEffect.SPIRIT_STONE_OLD_KEY);
+        long oldCount = getItemCount(conn, playerId, CurrencyEffect.SPIRIT_STONE_OLD_KEY);
         total += oldCount;
         return total;
     }
@@ -364,10 +388,12 @@ public class ItemService {
             long value = count * rate;
 
             if (value >= remaining) {
+                // 用本级灵石支付，超出部分按下品灵石找零
                 long toRemove = (remaining + rate - 1) / rate;
                 removeItem(conn, playerId, key, toRemove);
-                if (remaining % rate > 0 && i < 3) {
-                    addItem(conn, playerId, CurrencyEffect.getStoneKey(i + 1), remaining / rate);
+                long overpaid = toRemove * rate - remaining;
+                if (overpaid > 0) {
+                    addItem(conn, playerId, CurrencyEffect.SPIRIT_STONE_LOW, overpaid);
                 }
                 return true;
             } else {
@@ -378,8 +404,16 @@ public class ItemService {
         return false;
     }
 
+    /** 富甲一方称号检查：每玩家每日最多触发一次（内存态，避免灵石入账热点） */
+    private static final java.util.Set<String> MILLIONAIRE_CHECKED = java.util.concurrent.ConcurrentHashMap.newKeySet();
+    private static volatile String millionaireDate = java.time.LocalDate.now().toString();
+
     public boolean addSpiritStones(long playerId, long amount) {
-        return addSpiritStonesAuto(playerId, amount);
+        boolean ok = addSpiritStonesAuto(playerId, amount);
+        if (ok && amount > 0) {
+            checkMillionaireTitle(playerId);
+        }
+        return ok;
     }
 
     public boolean addSpiritStones(long playerId, long amount, int grade) {
@@ -391,7 +425,32 @@ public class ItemService {
         }
         // 非下品直接添加，不合并
         String key = CurrencyEffect.getStoneKey(grade);
-        return addItem(playerId, key, amount);
+        boolean ok = addItem(playerId, key, amount);
+        if (ok && amount > 0) {
+            checkMillionaireTitle(playerId);
+        }
+        return ok;
+    }
+
+    private void checkMillionaireTitle(long playerId) {
+        try {
+            String today = java.time.LocalDate.now().toString();
+            if (!today.equals(millionaireDate)) {
+                MILLIONAIRE_CHECKED.clear();
+                millionaireDate = today;
+            }
+            if (!MILLIONAIRE_CHECKED.add(playerId + ":" + today)) {
+                return;
+            }
+            // 灵石价值 ≥ 100 万授予「富甲一方」
+            if (getSpiritStoneCount(playerId) >= 1_000_000L) {
+                com.mtxgdn.entity.Player p = playerService.getPlayerById(playerId);
+                if (p != null) {
+                    new com.mtxgdn.game.service.TitleService().checkAndGrantTitles(p);
+                }
+            }
+        } catch (Exception ignored) {
+        }
     }
 
     public boolean addSpiritStones(Connection conn, long playerId, long amount) throws SQLException {
@@ -759,8 +818,8 @@ public class ItemService {
     // ==================== 使用物品 ====================
 
     /**
-     * 使用物品。使用事务包裹：先执行效果，成功后再移除物品。
-     * 如果效果执行失败，物品不会丢失。
+     * 使用物品。使用事务包裹：先锁定物品，检查数量，执行效果，成功后再移除物品。
+     * 如果效果执行失败，物品不会丢失。使用事务锁防止并发重复使用。
      */
     public Map<String, Object> useItem(long playerId, String itemKey) {
         Map<String, Object> result = new LinkedHashMap<>();
@@ -772,20 +831,40 @@ public class ItemService {
         }
         String fullKey = item.getFullKey();
 
+        // 阵图物品（聚灵阵图/护山大阵图/净化阵图）：使用 = 消耗 1 张布置对应 1 级阵法（不另扣灵石）
+        if (com.mtxgdn.game.service.FormationService.treasureKeyToFormationKey(fullKey) != null) {
+            return com.mtxgdn.common.service.ServiceRegistry.getFormationService()
+                    .placeFormationFromTreasure(playerId, fullKey);
+        }
+
         try {
             return DatabaseManager.runTransaction(conn -> {
                 Map<String, Object> innerResult = new LinkedHashMap<>();
 
-                if (getItemCount(conn, playerId, fullKey) < 1) {
-                    innerResult.put("success", false);
-                    innerResult.put("message", "背包中没有该物品");
-                    return innerResult;
+                // 使用 SELECT FOR UPDATE 锁定物品，防止并发重复使用
+                String lockSql = "SELECT quantity FROM players_items WHERE player_id = ? AND item_key = ? " +
+                    DatabaseManager.getDialect().getForUpdateClause();
+                try (java.sql.PreparedStatement ps = conn.prepareStatement(lockSql)) {
+                    ps.setLong(1, playerId);
+                    ps.setString(2, fullKey);
+                    try (java.sql.ResultSet rs = ps.executeQuery()) {
+                        if (!rs.next() || rs.getLong("quantity") < 1) {
+                            innerResult.put("success", false);
+                            innerResult.put("message", "背包中没有该物品");
+                            return innerResult;
+                        }
+                    }
                 }
 
                 // 1. 先执行效果（如果失败则回滚，物品不会丢失）
                 StringBuilder msgBuilder = new StringBuilder();
                 for (ItemEffect effect : item.getEffects()) {
-                    String effectMsg = effect.execute(playerId, playerService, this);
+                    String effectMsg;
+                    if (effect instanceof BuffEffect be) {
+                        effectMsg = be.execute(conn, playerId, playerService, this);
+                    } else {
+                        effectMsg = effect.execute(playerId, playerService, this);
+                    }
                     if (effectMsg != null && !effectMsg.isEmpty()) {
                         msgBuilder.append(effectMsg);
                     }
@@ -811,6 +890,15 @@ public class ItemService {
                 innerResult.put("message", msg);
                 innerResult.put("item", item);
                 innerResult.put("effects", item.getEffects());
+
+                // 插件事件：物品使用成功
+                com.mtxgdn.plugin.event.PluginEventManager.fireQuietly(
+                        com.mtxgdn.plugin.event.PluginEvent.builder()
+                                .type(com.mtxgdn.plugin.event.PluginEvent.Type.ITEM_USED)
+                                .data("playerId", playerId)
+                                .data("itemKey", fullKey)
+                                .build());
+
                 return innerResult;
             });
         } catch (Exception e) {

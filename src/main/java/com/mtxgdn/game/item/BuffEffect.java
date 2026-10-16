@@ -77,7 +77,8 @@ public class BuffEffect extends ItemEffect {
 
         if (durationSeconds > 0) {
             BuffService buffService = new BuffService();
-            buffService.addBuff(playerId, "buff_" + System.currentTimeMillis(),
+            // 同种丹药使用同一 buffId：重复使用只刷新时长，不重复叠加属性
+            buffService.addBuff(playerId, "buff_" + attackBonus + "_" + defenseBonus + "_" + speedBonus + "_" + spiritBonus,
                 attackBonus, defenseBonus, speedBonus, spiritBonus, durationSeconds);
 
             if (attackBonus > 0) sb.append("攻击力 +").append(attackBonus).append("，");
@@ -114,7 +115,8 @@ public class BuffEffect extends ItemEffect {
 
         if (durationSeconds > 0) {
             BuffService buffService = new BuffService();
-            buffService.addBuff(playerId, "buff_" + System.currentTimeMillis(),
+            // 同种丹药使用同一 buffId：重复使用只刷新时长，不重复叠加属性
+            buffService.addBuff(playerId, "buff_" + attackBonus + "_" + defenseBonus + "_" + speedBonus + "_" + spiritBonus,
                 attackBonus, defenseBonus, speedBonus, spiritBonus, durationSeconds);
 
             if (attackBonus > 0) sb.append("攻击力 +").append(attackBonus).append("，");

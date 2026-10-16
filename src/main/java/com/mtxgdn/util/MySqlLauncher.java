@@ -74,12 +74,15 @@ public class MySqlLauncher {
             return;
         }
 
-        if (!isWindows()) {
-            LOG.warn("检测到非Windows系统，跳过本地MySQL启动");
-            LOG.warn("请确保MySQL服务已在 " + host + ":" + port + " 运行，或检查 database.url 配置");
-            return;
+        if (isWindows()) {
+            startLocalMySqlWindows(host, port);
+        } else {
+            startLocalMySqlUnix(host, port);
         }
+    }
 
+    /** Windows：搜索 mysqld.exe 并前台拉起 */
+    private static void startLocalMySqlWindows(String host, int port) {
         LOG.info("MySQL 未运行，正在启动...");
 
         String mysqldPath = findMySqldPath();
@@ -94,7 +97,35 @@ public class MySqlLauncher {
         }
 
         LOG.info("找到 mysqld: " + mysqldPath);
+        startWithRetry(mysqldPath, host, port);
+    }
 
+    /** Linux/macOS：优先通过系统服务启动（systemctl/service），失败则直接拉起 mysqld 二进制 */
+    private static void startLocalMySqlUnix(String host, int port) {
+        LOG.info("MySQL 未运行，尝试通过系统服务或直接拉起 mysqld 启动...");
+
+        if (startViaSystemService(host, port)) {
+            LOG.info("MySQL 已通过系统服务启动 (地址: " + host + ":" + port + ")");
+            return;
+        }
+
+        String mysqldPath = findMySqldPath();
+        if (mysqldPath == null) {
+            LOG.error("系统服务启动失败，且找不到 mysqld 二进制，无法启动 MySQL");
+            LOG.error("已搜索以下位置:");
+            reportSearchPaths();
+            LOG.error("解决方法:");
+            LOG.error("  1. 安装 MySQL/MariaDB 并初始化数据目录（如 mysqld --initialize-insecure）");
+            LOG.error("  2. 或将 mysqld 所在目录加入 PATH，或配置 database.url 指向已运行的 MySQL");
+            return;
+        }
+
+        LOG.info("找到 mysqld: " + mysqldPath);
+        startWithRetry(mysqldPath, host, port);
+    }
+
+    /** 通用：带重试地拉起 mysqld 进程并等待端口就绪 */
+    private static void startWithRetry(String mysqldPath, String host, int port) {
         List<StartAttempt> attempts = new ArrayList<>();
         for (int attempt = 0; attempt < MAX_RETRIES; attempt++) {
             if (attempt > 0) {
@@ -128,13 +159,89 @@ public class MySqlLauncher {
         LOG.error("请检查以下可能原因:");
         LOG.error("  1. MySQL 数据目录是否已初始化 (运行 mysqld --initialize)");
         LOG.error("  2. 端口 " + port + " 是否被其他程序占用");
-        LOG.error("  3. 是否有足够权限运行 mysqld.exe");
-        LOG.error("  4. my.ini 配置是否正确");
+        LOG.error("  3. 是否有足够权限运行 mysqld");
+        LOG.error("  4. my.cnf 配置是否正确");
+    }
+
+    /**
+     * Linux/macOS：尝试通过系统服务管理启动 MySQL（systemctl → service → brew services）。
+     * 服务名依次尝试 mysql / mysqld / mariadb。
+     */
+    private static boolean startViaSystemService(String host, int port) {
+        String[] services = {"mysql", "mysqld", "mariadb"};
+        for (String svc : services) {
+            LOG.info("尝试通过系统服务启动: " + svc);
+            boolean started = false;
+            // systemctl 优先
+            started = runCommand(new String[]{"systemctl", "start", svc});
+            if (!started) {
+                started = runCommand(new String[]{"service", svc, "start"});
+            }
+            if (!started) {
+                started = runCommand(new String[]{"brew", "services", "start", svc});
+            }
+            if (started) {
+                if (waitForPortOnly(host, port, MAX_WAIT_SECONDS)) {
+                    return true;
+                }
+                LOG.warn("服务 " + svc + " 已启动但端口 " + port + " 未就绪，尝试下一个");
+            }
+        }
+        return false;
+    }
+
+    /** 执行外部命令并等待退出码（超时销毁），成功返回 true */
+    private static boolean runCommand(String[] cmd) {
+        try {
+            ProcessBuilder pb = new ProcessBuilder(cmd);
+            pb.redirectErrorStream(true);
+            Process p = pb.start();
+            Thread drain = new Thread(() -> {
+                try (BufferedReader r = new BufferedReader(new InputStreamReader(p.getInputStream()))) {
+                    while (r.readLine() != null) {
+                    }
+                } catch (IOException ignored) {
+                }
+            });
+            drain.setDaemon(true);
+            drain.start();
+            boolean ok = p.waitFor(15, TimeUnit.SECONDS) && p.exitValue() == 0;
+            if (!ok) {
+                p.destroyForcibly();
+            }
+            return ok;
+        } catch (Exception e) {
+            return false;
+        }
+    }
+
+    /** 仅等待端口就绪（不检查进程） */
+    private static boolean waitForPortOnly(String host, int port, int maxWaitSeconds) {
+        int waited = 0;
+        while (waited < maxWaitSeconds) {
+            if (isPortOpen(host, port)) {
+                return true;
+            }
+            try {
+                Thread.sleep(1000);
+                waited++;
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                return false;
+            }
+        }
+        return isPortOpen(host, port);
     }
 
     private static StartAttempt tryStartMySql(String mysqldPath, String host, int port, int attemptNo) {
         try {
-            ProcessBuilder pb = new ProcessBuilder(mysqldPath, "--console");
+            // Windows 传 --console 便于日志落屏；Linux/macOS 直接拉起 mysqld（按 my.cnf 运行）
+            List<String> cmd = new ArrayList<>();
+            cmd.add(mysqldPath);
+            if (isWindows()) {
+                cmd.add("--console");
+            }
+            ProcessBuilder pb = new ProcessBuilder(cmd);
             pb.redirectErrorStream(true);
             mysqlProcess = pb.start();
 
@@ -231,26 +338,30 @@ public class MySqlLauncher {
                 }
             }
         } else {
-            searchPaths.add("/usr/bin");
-            searchPaths.add("/usr/local/bin");
-            searchPaths.add("/usr/local/mysql/bin");
-            searchPaths.add("/usr/mysql/bin");
-            searchPaths.add("/opt/mysql/bin");
-            searchPaths.add("/var/lib/mysql/bin");
-
-            for (String basePath : searchPaths) {
-                Path exePath = Paths.get(basePath, "mysqld");
-                if (Files.isExecutable(exePath)) {
-                    return exePath.toAbsolutePath().toString();
+            // Linux / macOS：常见 mysqld / mariadbd 位置（/usr/sbin 在 Debian/Ubuntu 很常见）
+            String[] binaryNames = {"mysqld", "mariadbd"};
+            String[] basePaths = {
+                    "/usr/sbin", "/usr/bin", "/usr/local/bin",
+                    "/usr/local/mysql/bin", "/usr/mysql/bin",
+                    "/opt/mysql/bin", "/opt/homebrew/bin", "/usr/libexec"
+            };
+            for (String name : binaryNames) {
+                for (String basePath : basePaths) {
+                    Path exePath = Paths.get(basePath, name);
+                    if (Files.isExecutable(exePath)) {
+                        return exePath.toAbsolutePath().toString();
+                    }
                 }
             }
 
             String pathEnv = System.getenv("PATH");
             if (pathEnv != null) {
                 for (String dir : pathEnv.split(File.pathSeparator)) {
-                    Path exePath = Paths.get(dir, "mysqld");
-                    if (Files.isExecutable(exePath)) {
-                        return exePath.toAbsolutePath().toString();
+                    for (String name : binaryNames) {
+                        Path exePath = Paths.get(dir, name);
+                        if (Files.isExecutable(exePath)) {
+                            return exePath.toAbsolutePath().toString();
+                        }
                     }
                 }
             }
@@ -274,11 +385,12 @@ public class MySqlLauncher {
             LOG.error("  - C:\\wamp64\\bin\\mysql\\<版本>\\bin\\mysqld.exe");
             LOG.error("  - PATH 环境变量中的 mysqld.exe");
         } else {
+            LOG.error("  - /usr/sbin/mysqld");
             LOG.error("  - /usr/bin/mysqld");
-            LOG.error("  - /usr/local/bin/mysqld");
             LOG.error("  - /usr/local/mysql/bin/mysqld");
             LOG.error("  - /opt/mysql/bin/mysqld");
-            LOG.error("  - PATH 环境变量中的 mysqld");
+            LOG.error("  - /opt/homebrew/bin/mysqld (macOS)");
+            LOG.error("  - PATH 环境变量中的 mysqld / mariadbd");
         }
     }
 

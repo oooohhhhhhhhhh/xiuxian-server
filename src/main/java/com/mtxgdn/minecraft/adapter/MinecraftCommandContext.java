@@ -6,19 +6,13 @@ import com.mtxgdn.common.service.ServiceRegistry;
 
 /**
  * Minecraft 指令上下文。
- * <p>
- * 与 {@code OneBotCommandContext} 结构对称，但 senderId = mcUuid，
- * groupId 始终为 null（Minecraft 聊天暂时不分群组，公私聊通过 messageType 区分）。
- * <p>
- * MC 中命令通过 {@code /} 前缀自然输入（客户端不拦截未知指令，服务端日志记录后由适配器解析），
- * 因此提示信息统一使用 {@code /} 前缀。
  */
 public class MinecraftCommandContext extends CommandContext {
 
     private final String mcName;
     private final String mcUuid;
     private final MinecraftMessageSender sender;
-    private final String cmdPrefix; // "/xiuxian " or "/"
+    private final String cmdPrefix;
 
     public MinecraftCommandContext(String mcName, String mcUuid, String arg,
                                    MinecraftMessageSender sender, String cmdPrefix) {
@@ -43,7 +37,6 @@ public class MinecraftCommandContext extends CommandContext {
 
     @Override
     public boolean isGroup() {
-        // MC 适配器暂时没有群的概念，所有消息都是类似私聊
         return false;
     }
 
@@ -57,16 +50,13 @@ public class MinecraftCommandContext extends CommandContext {
         sender.sendPrivateMsg(mcName, message);
     }
 
-    /** 向全体在线玩家广播 */
     public void sendBroadcast(String message) {
         sender.sendBroadcast(message);
     }
 
-    // ==================== 覆写提示信息为 . 前缀 ====================
-
     @Override
     public Long requireBinding() {
-        MinecraftPlayerBinding mcB = new MinecraftPlayerBindingService().findByMcUuid(mcUuid);
+        MinecraftPlayerBinding mcB = ServiceRegistry.getMcBindingService().findByMcUuid(mcUuid);
         if (mcB != null) {
             return mcB.getUserId();
         }

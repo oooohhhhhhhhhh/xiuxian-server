@@ -2,13 +2,14 @@ package com.mtxgdn.onebot.command.cultivation;
 
 import com.mtxgdn.common.command.Command;
 import com.mtxgdn.common.command.CommandContext;
-import com.mtxgdn.common.command.CommandRegistry;
-import com.mtxgdn.game.config.GameConfigLoader;
 import com.mtxgdn.game.entity.PlayerInfo;
 import com.mtxgdn.game.service.HeartDemonService;
 import com.mtxgdn.game.service.NewbieGuideService;
+import com.mtxgdn.game.service.SeasonService;
 import com.mtxgdn.common.service.ServiceRegistry;
 import com.mtxgdn.util.PlayerActionLogger;
+
+import java.util.Map;
 
 public class CultivateStopCommand extends Command {
 
@@ -16,72 +17,59 @@ public class CultivateStopCommand extends Command {
         super(new String[]{"停止", "stop"},
                 "结束打坐并结算灵力",
                 "/停止",
-                "打坐",
+                "修炼",
                 "game.cultivate");
+        setModule("cultivation");
     }
 
     @Override
     public void execute(CommandContext ctx) {
-        Long userId = ctx.requireBinding();
-        if (userId == null) return;
-        if (!ctx.checkPermission("game.cultivate")) return;
+        PlayerInfo p = requirePlayerInfo(ctx);
+        if (p == null) return;
 
         var playerService = ServiceRegistry.getPlayerService();
         var heartDemonService = ServiceRegistry.getHeartDemonService();
         var guideService = ServiceRegistry.getGuideService();
         var actionLog = PlayerActionLogger.getInstance();
+        Long userId = p.getUserId();
 
-        PlayerInfo p = ctx.requirePlayer(userId);
-        if (p == null) return;
-
-        if (!p.isCultivating()) {
-            ctx.reply("你还没有开始打坐，使用 /打坐 开始。");
+        Map<String, Object> result = playerService.finishCultivation(p.getId());
+        if (!Boolean.TRUE.equals(result.get("success"))) {
+            ctx.reply((String) result.get("message"));
             return;
         }
 
-        CultivateCommand cultivateCmd = (CultivateCommand) CommandRegistry.get("cultivate");
-        Long startTime = null;
-        if (cultivateCmd != null) {
-            startTime = cultivateCmd.removeStartTime(userId);
-        }
+        int elapsedSeconds = ((Number) result.get("elapsedSeconds")).intValue();
+        long expGained = ((Number) result.get("rawExpGained")).longValue();
 
-        if (startTime == null) {
-            playerService.setCultivating(p.getId(), false);
-            ctx.reply("打坐状态异常，已强制结束。");
-            return;
-        }
-
-        long elapsedMillis = System.currentTimeMillis() - startTime;
-        if (elapsedMillis < 1000) {
-            playerService.setCultivating(p.getId(), false);
+        if (expGained <= 0) {
+            actionLog.logCultivateStop(userId, p.getName(), 0, elapsedSeconds);
             ctx.reply("打坐时间太短，未获得灵力。");
             return;
         }
 
-        int elapsedSeconds = (int) (elapsedMillis / 1000);
-        int currentRealm = p.getRealm();
-        int cultivationPerSec = GameConfigLoader.getCultivationPerSecond(currentRealm);
-        long expGained = (long) elapsedSeconds * cultivationPerSec;
-
-        var player = playerService.getPlayerById(p.getId());
-        if (player != null) {
-            expGained = (long) (expGained * playerService.getFinalCultivationSpeed(player));
+        // 心魔判定：直接按净收益发放，避免 QQ 端与 REST/WS 端行为不一致
+        HeartDemonService.HeartDemonResult heartDemon = heartDemonService.processCultivation(p.getId(), expGained, elapsedSeconds);
+        long netExp = heartDemon.netExpChange;
+        if (netExp != 0) {
+            playerService.addExperience(p.getId(), netExp);
         }
-
-        playerService.addExperience(userId, expGained);
-        playerService.setCultivating(p.getId(), false);
-        actionLog.logCultivateStop(userId, p.getName(), expGained, elapsedSeconds);
+        actionLog.logCultivateStop(userId, p.getName(), netExp, elapsedSeconds);
 
         StringBuilder msg = new StringBuilder();
         msg.append("===== 打坐结算 =====\n");
         msg.append("打坐时长: ").append(elapsedSeconds).append(" 秒\n");
-        msg.append("获得灵力: ").append(expGained).append("\n");
+        double seasonMultiplier = ((Number) result.get("seasonMultiplier")).doubleValue();
+        double locationMultiplier = ((Number) result.get("locationMultiplier")).doubleValue();
+        msg.append("季节: ").append(SeasonService.getCurrentSeason().getDisplayName())
+                .append("（×").append(seasonMultiplier).append("）\n");
+        msg.append("地点: ").append(result.get("locationName"))
+                .append("（灵气 ×").append(locationMultiplier).append("）\n");
+        msg.append("获得灵力: ").append(netExp).append("\n");
 
-        HeartDemonService.HeartDemonResult heartDemon = heartDemonService.processCultivation(p.getId(), expGained, elapsedSeconds);
         if (heartDemon.triggered) {
             msg.append("\n⚠ 心魔劫: ").append(heartDemon.narrative).append("\n");
-            msg.append("灵力损失: ").append(heartDemon.expLost).append("\n");
-            msg.append("实际获得: ").append(heartDemon.netExpChange);
+            msg.append("灵力损失: ").append(heartDemon.expLost);
         }
 
         PlayerInfo updated = playerService.getPlayerByUserId(userId);

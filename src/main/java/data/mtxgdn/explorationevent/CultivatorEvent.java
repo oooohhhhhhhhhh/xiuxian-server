@@ -38,7 +38,9 @@ public class CultivatorEvent extends ExplorationEvent {
             log.add("获得了 " + spiritStones + " 灵石。");
             result.setMessage("散修赠礼，获得 " + spiritStones + " 灵石");
         } else {
-            String[] items = {"spirit_grass", "iron_ore", "healing_pill", "mana_pill", "spirit_recovery_pill", "enhance_stone", "spirit_spring_water"};
+            // 使用带命名空间前缀的完整注册 key（裸 key 无法通过 ItemRegistry.contains 校验，导致该分支永不发物品）
+            String[] items = {"mtxgdn:spirit_grass", "mtxgdn:iron_ore", "mtxgdn:healing_pill",
+                    "mtxgdn:mana_pill", "mtxgdn:spirit_recovery_pill", "mtxgdn:enhance_stone", "mtxgdn:spirit_spring_water"};
             String giftItem = items[random.nextInt(items.length)];
             if (ItemRegistry.contains(giftItem) && random.nextDouble() < 0.6) {
                 itemService.addItem(player.getId(), giftItem, 1);

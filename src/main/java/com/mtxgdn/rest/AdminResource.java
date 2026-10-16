@@ -4,17 +4,23 @@ import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.mtxgdn.Main;
+import com.mtxgdn.adapter.AdapterConfig;
+import com.mtxgdn.adapter.AdapterConfigManager;
+import com.mtxgdn.adapter.AdapterManager;
+import com.mtxgdn.adapter.AdaptersConfig;
 import com.mtxgdn.db.DatabaseManager;
 import com.mtxgdn.game.entity.PlayerInfo;
 import com.mtxgdn.game.item.Item;
 import com.mtxgdn.game.item.ItemRegistry;
 import com.mtxgdn.game.config.GameConfigLoader;
+import com.mtxgdn.game.map.WildernessTerrain;
 import com.mtxgdn.game.entity.RealmConfig;
 import com.mtxgdn.game.service.CraftingService;
 import com.mtxgdn.game.service.ItemService;
 import com.mtxgdn.game.service.PlayerService;
 import com.mtxgdn.game.service.SkillService;
 import com.mtxgdn.game.service.TechniqueService;
+import com.mtxgdn.game.service.TradeService;
 import com.mtxgdn.game.title.TitleRegistry;
 import com.mtxgdn.game.entity.Title;
 import com.mtxgdn.common.service.ServiceRegistry;
@@ -29,10 +35,16 @@ import com.mtxgdn.util.GameLogger;
 import com.mtxgdn.util.RateLimiter;
 import com.mtxgdn.util.StatsCollector;
 
+import io.jsonwebtoken.Claims;
+import io.jsonwebtoken.Jwts;
+
 import jakarta.ws.rs.DELETE;
 import jakarta.ws.rs.DefaultValue;
+import jakarta.ws.rs.core.Context;
+import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.GET;
 import jakarta.ws.rs.POST;
+import jakarta.ws.rs.PUT;
 import jakarta.ws.rs.Path;
 import jakarta.ws.rs.PathParam;
 import jakarta.ws.rs.Produces;
@@ -41,7 +53,13 @@ import jakarta.ws.rs.Consumes;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 
+import org.mindrot.jbcrypt.BCrypt;
+
 import java.io.File;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -51,16 +69,42 @@ import java.util.Set;
 public class AdminResource {
 
     private static final Gson gson = new Gson();
+    private static final com.mtxgdn.util.GameLogger LOG =
+            com.mtxgdn.util.GameLogger.getLogger(AdminResource.class);
     private static final PlayerService playerService = ServiceRegistry.getPlayerService();
     private static final ItemService itemService = ServiceRegistry.getItemService();
+
+    /**
+     * 通用表管理改动地图表后热重载地图缓存。
+     *
+     * <p>此前后台改完 map_locations 必须重启进程才生效（MapService 只缓存内存，
+     * 没有失效入口），管理员改完看不到变化会以为改错了。</p>
+     */
+    private static void reloadMapCacheIfNeeded(String tableName) {
+        if (tableName == null) return;
+        String table = tableName.toLowerCase();
+        if (!table.equals("map_locations")
+                && !table.equals("map_connections")
+                && !table.equals("map_location_event_bias")
+                && !table.equals("map_wilderness_resources")) {
+            return;
+        }
+        try {
+            ServiceRegistry.getMapService().reload();
+        } catch (Exception e) {
+            LOG.warn("地图表 " + table + " 已改动，但地图缓存重载失败: " + e.getMessage());
+        }
+    }
+    
+    @Context
+    private HttpHeaders httpHeaders;
 
     @POST
     @Path("/login")
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
     public Response login(String body) {
-        // 管理后台登录频率限制：每分钟最多10次
-        if (!RateLimiter.allow("admin_login_global", 10, 60)) {
+        if (!RateLimiter.allow("admin_login_global", 20, 60)) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 429);
             err.addProperty("message", "登录尝试过于频繁，请稍后再试");
@@ -69,6 +113,7 @@ public class AdminResource {
         JsonObject req = com.google.gson.JsonParser.parseString(body).getAsJsonObject();
         String username = req.has("username") ? req.get("username").getAsString() : "";
         String password = req.has("password") ? req.get("password").getAsString() : "";
+        String loginType = req.has("loginType") ? req.get("loginType").getAsString() : "admin";
 
         if (username.isBlank() || password.isBlank()) {
             JsonObject err = new JsonObject();
@@ -77,24 +122,50 @@ public class AdminResource {
             return Response.status(401).entity(gson.toJson(err)).build();
         }
 
-        // 优先使用 application.yml 中配置的管理员账号（与玩家账号完全分离）
+        // 按用户名限流，防止对单一账号的暴力枚举
+        if (!RateLimiter.allow("admin_login:" + username, 5, 60)) {
+            JsonObject err = new JsonObject();
+            err.addProperty("code", 429);
+            err.addProperty("message", "该账号登录尝试过于频繁，请稍后再试");
+            return Response.status(429).entity(gson.toJson(err)).build();
+        }
+
+        if ("player".equals(loginType)) {
+            return playerLogin(username, password);
+        }
+
+        return adminLogin(username, password);
+    }
+
+    private Response adminLogin(String username, String password) {
         if (AdminAuthFilter.validateCredentials(username, password)) {
-            String token = AdminAuthFilter.generateAdminToken(username);
+            AdminAuthFilter.resetLoginFailures(username);
+            Long userId = AdminAuthFilter.getUserIdByUsername(username);
+            String role = AdminAuthFilter.getAdminRole(userId);
+            String token = AdminAuthFilter.generateAdminToken(userId != null ? userId : 0L, username, role);
+            
             JsonObject result = new JsonObject();
             result.addProperty("code", 200);
             result.addProperty("token", token);
             result.addProperty("username", username);
-            result.addProperty("userId", 0);
-            result.addProperty("highestRole", "admin");
+            result.addProperty("userId", userId != null ? userId : 0);
+            result.addProperty("highestRole", role);
+            result.addProperty("loginType", "admin");
+            
             JsonArray perms = new JsonArray();
-            for (com.mtxgdn.permission.PermissionCode pc : com.mtxgdn.permission.PermissionCode.values()) {
-                perms.add(pc.getCode());
+            if (userId != null) {
+                for (String code : PermissionService.getAllUserPermissionCodes(userId)) {
+                    perms.add(code);
+                }
+            } else {
+                for (com.mtxgdn.permission.PermissionCode pc : com.mtxgdn.permission.PermissionCode.values()) {
+                    perms.add(pc.getCode());
+                }
             }
             result.add("permissions", perms);
             return Response.ok(gson.toJson(result)).build();
         }
 
-        // 非 yml 管理员，尝试玩家账号（需有 admin.login 权限）
         UserService userService = new UserService();
         User user = userService.authenticate(username, password);
 
@@ -112,8 +183,9 @@ public class AdminResource {
             return Response.status(403).entity(gson.toJson(err)).build();
         }
 
-        String token = JwtUtil.generateToken(user.getId(), user.getUsername());
-        String highestRole = PermissionService.getHighestRole(user.getId());
+        String role = PermissionService.getHighestRole(user.getId());
+        // role 可能为 null（仅持有 ADMIN_LOGIN 权限但未分配角色），generateAdminToken 内部会 toLowerCase，兜底为 admin
+        String token = AdminAuthFilter.generateAdminToken(user.getId(), user.getUsername(), role != null ? role : "admin");
         JsonArray perms = new JsonArray();
         for (String code : PermissionService.getAllUserPermissionCodes(user.getId())) {
             perms.add(code);
@@ -124,7 +196,38 @@ public class AdminResource {
         result.addProperty("token", token);
         result.addProperty("username", user.getUsername());
         result.addProperty("userId", user.getId());
-        result.addProperty("highestRole", highestRole != null ? highestRole : "");
+        result.addProperty("highestRole", role != null ? role : "");
+        result.addProperty("loginType", "admin");
+        result.add("permissions", perms);
+        return Response.ok(gson.toJson(result)).build();
+    }
+
+    private Response playerLogin(String username, String password) {
+        UserService userService = new UserService();
+        User user = userService.authenticate(username, password);
+
+        if (user == null) {
+            JsonObject err = new JsonObject();
+            err.addProperty("code", 401);
+            err.addProperty("message", "用户名或密码错误");
+            return Response.status(401).entity(gson.toJson(err)).build();
+        }
+
+        String token = JwtUtil.generateToken(user.getId(), user.getUsername());
+        String highestRole = PermissionService.getHighestRole(user.getId());
+        
+        JsonObject result = new JsonObject();
+        result.addProperty("code", 200);
+        result.addProperty("token", token);
+        result.addProperty("username", user.getUsername());
+        result.addProperty("userId", user.getId());
+        result.addProperty("highestRole", highestRole != null ? highestRole : "PLAYER");
+        result.addProperty("loginType", "player");
+        
+        JsonArray perms = new JsonArray();
+        for (String code : PermissionService.getAllUserPermissionCodes(user.getId())) {
+            perms.add(code);
+        }
         result.add("permissions", perms);
         return Response.ok(gson.toJson(result)).build();
     }
@@ -173,10 +276,13 @@ public class AdminResource {
     @Produces(MediaType.APPLICATION_JSON)
     @RequirePermission("admin.plugins.manage")
     public Response getPluginList() {
-        List<Map<String, Object>> statuses = com.mtxgdn.plugin.PluginManager.getInstance().getPluginStatuses();
         JsonArray arr = new JsonArray();
-        for (Map<String, Object> s : statuses) {
+        
+        // 添加内置插件
+        List<Map<String, Object>> builtInStatuses = com.mtxgdn.plugin.BuiltInPluginRegistry.getInstance().getStatuses();
+        for (Map<String, Object> s : builtInStatuses) {
             JsonObject obj = new JsonObject();
+            obj.addProperty("type", "builtin");
             for (Map.Entry<String, Object> entry : s.entrySet()) {
                 Object val = entry.getValue();
                 if (val == null) {
@@ -191,10 +297,34 @@ public class AdminResource {
             }
             arr.add(obj);
         }
+        
+        // 添加外部插件
+        List<Map<String, Object>> externalStatuses = com.mtxgdn.plugin.PluginManager.getInstance().getPluginStatuses();
+        for (Map<String, Object> s : externalStatuses) {
+            JsonObject obj = new JsonObject();
+            obj.addProperty("type", "external");
+            for (Map.Entry<String, Object> entry : s.entrySet()) {
+                Object val = entry.getValue();
+                if (val == null) {
+                    obj.add(entry.getKey(), null);
+                } else if (val instanceof Boolean) {
+                    obj.addProperty(entry.getKey(), (Boolean) val);
+                } else if (val instanceof Number) {
+                    obj.addProperty(entry.getKey(), (Number) val);
+                } else {
+                    obj.addProperty(entry.getKey(), String.valueOf(val));
+                }
+            }
+            arr.add(obj);
+        }
+        
         JsonObject result = new JsonObject();
         result.addProperty("code", 200);
         result.add("plugins", arr);
         result.addProperty("watcherRunning", com.mtxgdn.plugin.PluginManager.getInstance().isFileWatcherRunning());
+        // 内置插件开关落盘位置（WebUI 提示用户去哪里改配置）
+        result.addProperty("pluginConfigFile", com.mtxgdn.plugin.PluginSwitches.getConfigPath().toString());
+        result.addProperty("pluginConfigKeyPrefix", com.mtxgdn.plugin.PluginSwitches.KEY_PREFIX);
         return Response.ok(gson.toJson(result)).build();
     }
 
@@ -226,8 +356,8 @@ public class AdminResource {
     @Path("/plugins/enable/{name}")
     @Produces(MediaType.APPLICATION_JSON)
     @RequirePermission("admin.plugins.manage")
-    public Response enablePlugin(@PathParam("name") String name) {
-        boolean ok = com.mtxgdn.plugin.PluginManager.getInstance().enablePlugin(name);
+    public Response enablePlugin(@PathParam("name") String name, @QueryParam("type") String type) {
+        boolean ok = enableDisablePlugin(name, type, true);
         JsonObject result = new JsonObject();
         result.addProperty("code", ok ? 200 : 400);
         result.addProperty("message", ok ? "插件已启用: " + name : "启用失败: " + name);
@@ -238,12 +368,31 @@ public class AdminResource {
     @Path("/plugins/disable/{name}")
     @Produces(MediaType.APPLICATION_JSON)
     @RequirePermission("admin.plugins.manage")
-    public Response disablePlugin(@PathParam("name") String name) {
-        boolean ok = com.mtxgdn.plugin.PluginManager.getInstance().disablePlugin(name);
+    public Response disablePlugin(@PathParam("name") String name, @QueryParam("type") String type) {
+        boolean ok = enableDisablePlugin(name, type, false);
         JsonObject result = new JsonObject();
         result.addProperty("code", ok ? 200 : 400);
         result.addProperty("message", ok ? "插件已停用: " + name : "停用失败: " + name);
         return Response.ok(gson.toJson(result)).build();
+    }
+
+    /**
+     * 启用/停用插件并按类型路由：
+     * 内置插件（编译在主 jar 中，如 farm/sect）由 BuiltInPluginRegistry 管理，
+     * 外部插件（plugins/*.jar）由 PluginManager 管理。
+     * type 未指定时按名字自动路由（内置插件不在 PluginManager 中，直接调用会返回失败）。
+     */
+    private boolean enableDisablePlugin(String name, String type, boolean enable) {
+        boolean isBuiltIn = "builtin".equalsIgnoreCase(type)
+                || (type == null && com.mtxgdn.plugin.BuiltInPluginRegistry.getInstance().getRegisteredNames().contains(name));
+        if (isBuiltIn) {
+            return enable
+                    ? com.mtxgdn.plugin.BuiltInPluginRegistry.getInstance().enablePlugin(name)
+                    : com.mtxgdn.plugin.BuiltInPluginRegistry.getInstance().disablePlugin(name);
+        }
+        return enable
+                ? com.mtxgdn.plugin.PluginManager.getInstance().enablePlugin(name)
+                : com.mtxgdn.plugin.PluginManager.getInstance().disablePlugin(name);
     }
 
     @POST
@@ -251,8 +400,37 @@ public class AdminResource {
     @Produces(MediaType.APPLICATION_JSON)
     @RequirePermission("admin.plugins.manage")
     public Response loadPlugin(@PathParam("jarName") String jarName) {
-        File pluginsDir = new File("plugins");
-        File jarFile = new File(pluginsDir, jarName);
+        // S4 修复：路径校验 — 只允许 plugins/ 目录下的 .jar 文件，禁止路径穿越与绝对路径
+        if (jarName == null || jarName.isBlank()) {
+            JsonObject err = new JsonObject();
+            err.addProperty("code", 400);
+            err.addProperty("message", "jarName 不能为空");
+            return Response.ok(gson.toJson(err)).build();
+        }
+        if (jarName.contains("..") || jarName.contains("/") || jarName.contains("\\")
+                || jarName.contains("\0") || !jarName.toLowerCase().endsWith(".jar")) {
+            JsonObject err = new JsonObject();
+            err.addProperty("code", 400);
+            err.addProperty("message", "非法的插件文件名（仅允许 plugins/ 目录下的 .jar 文件，禁止路径穿越）");
+            return Response.ok(gson.toJson(err)).build();
+        }
+        File pluginsDir = new File("plugins").getAbsoluteFile();
+        File jarFile = new File(pluginsDir, jarName).getAbsoluteFile();
+        // 再次校验：解析后的真实路径必须在 pluginsDir 下
+        try {
+            if (!jarFile.getCanonicalPath().startsWith(pluginsDir.getCanonicalPath() + File.separator)
+                    && !jarFile.getCanonicalPath().equals(pluginsDir.getCanonicalPath())) {
+                JsonObject err = new JsonObject();
+                err.addProperty("code", 400);
+                err.addProperty("message", "非法的插件路径");
+                return Response.ok(gson.toJson(err)).build();
+            }
+        } catch (Exception e) {
+            JsonObject err = new JsonObject();
+            err.addProperty("code", 400);
+            err.addProperty("message", "路径解析失败");
+            return Response.ok(gson.toJson(err)).build();
+        }
         if (!jarFile.exists()) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 404);
@@ -320,21 +498,20 @@ public class AdminResource {
     @Produces(MediaType.APPLICATION_JSON)
     @RequirePermission("admin.database.reset_all")
     public Response shutdown() {
-        new Thread(() -> {
+        Thread shutdownThread = new Thread(() -> {
             try {
                 Thread.sleep(500);
             } catch (InterruptedException ignored) {
             }
-            if (Main.oneBotWebSocketServer != null) Main.oneBotWebSocketServer.shutdown();
-            if (Main.screenshotBot != null) Main.screenshotBot.stop();
-            if (Main.minecraftAdapter != null) Main.minecraftAdapter.stop();
+            com.mtxgdn.adapter.AdapterManager.stopAll();
             if (Main.gameWebSocketApp != null) {
                 try { Main.gameWebSocketApp.shutdownGracefully(); } catch (Exception ignored) {}
             }
-            if (Main.oneBotServer != null) Main.oneBotServer.shutdownNow();
             if (Main.mainServer != null) Main.mainServer.shutdownNow();
             System.exit(0);
-        }).start();
+        });
+        shutdownThread.setDaemon(true);
+        shutdownThread.start();
 
         JsonObject result = new JsonObject();
         result.addProperty("message", "服务器正在关闭...");
@@ -709,6 +886,174 @@ public class AdminResource {
         result.addProperty("code", 200);
         result.addProperty("message", "角色移除成功");
         return Response.ok(gson.toJson(result)).build();
+    }
+
+    @POST
+    @Path("/user/create-admin")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("admin.users.manage")
+    public Response createAdminUser(String body) {
+        JsonObject req = com.google.gson.JsonParser.parseString(body).getAsJsonObject();
+        String username = req.has("username") ? req.get("username").getAsString() : "";
+        String password = req.has("password") ? req.get("password").getAsString() : "";
+        String role = req.has("role") ? req.get("role").getAsString() : "ADMIN";
+
+        if (username.isBlank()) {
+            JsonObject err = new JsonObject();
+            err.addProperty("code", 400);
+            err.addProperty("message", "用户名不能为空");
+            return Response.status(400).entity(gson.toJson(err)).build();
+        }
+        if (password.length() < 6) {
+            JsonObject err = new JsonObject();
+            err.addProperty("code", 400);
+            err.addProperty("message", "密码长度不能少于6位");
+            return Response.status(400).entity(gson.toJson(err)).build();
+        }
+        if (!PermissionService.getRoleNames().contains(role)) {
+            JsonObject err = new JsonObject();
+            err.addProperty("code", 400);
+            err.addProperty("message", "无效的角色名");
+            return Response.status(400).entity(gson.toJson(err)).build();
+        }
+
+        String sql = "SELECT id FROM users WHERE username = ?";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, username);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    JsonObject err = new JsonObject();
+                    err.addProperty("code", 409);
+                    err.addProperty("message", "用户名已存在");
+                    return Response.status(409).entity(gson.toJson(err)).build();
+                }
+            }
+
+            String hashedPassword = BCrypt.hashpw(password, BCrypt.gensalt());
+            String insertSql = "INSERT INTO users (username, password) VALUES (?, ?)";
+            try (PreparedStatement ips = conn.prepareStatement(insertSql, java.sql.Statement.RETURN_GENERATED_KEYS)) {
+                ips.setString(1, username);
+                ips.setString(2, hashedPassword);
+                ips.executeUpdate();
+                try (ResultSet keys = ips.getGeneratedKeys()) {
+                    if (keys.next()) {
+                        long userId = keys.getLong(1);
+                        PermissionService.assignRole(userId, role);
+                        PermissionService.assignRole(userId, "PLAYER");
+
+                        JsonObject result = new JsonObject();
+                        result.addProperty("code", 200);
+                        result.addProperty("message", "管理员账号创建成功");
+                        result.addProperty("userId", userId);
+                        result.addProperty("username", username);
+                        result.addProperty("role", role);
+                        return Response.ok(gson.toJson(result)).build();
+                    }
+                }
+            }
+        } catch (SQLException e) {
+            JsonObject err = new JsonObject();
+            err.addProperty("code", 500);
+            err.addProperty("message", "创建失败: " + e.getMessage());
+            return Response.status(500).entity(gson.toJson(err)).build();
+        }
+
+        JsonObject err = new JsonObject();
+        err.addProperty("code", 500);
+        err.addProperty("message", "创建失败");
+        return Response.status(500).entity(gson.toJson(err)).build();
+    }
+
+    @POST
+    @Path("/user/{userId}/password")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("admin.users.manage")
+    public Response setUserPassword(@PathParam("userId") long userId, String body) {
+        JsonObject req = com.google.gson.JsonParser.parseString(body).getAsJsonObject();
+        String newPassword = req.has("password") ? req.get("password").getAsString() : "";
+
+        if (newPassword.length() < 6) {
+            JsonObject err = new JsonObject();
+            err.addProperty("code", 400);
+            err.addProperty("message", "密码长度不能少于6位");
+            return Response.status(400).entity(gson.toJson(err)).build();
+        }
+
+        String hashedPassword = BCrypt.hashpw(newPassword, BCrypt.gensalt());
+        String sql = "UPDATE users SET password = ?, failed_attempts = 0, locked_until = NULL WHERE id = ?";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, hashedPassword);
+            ps.setLong(2, userId);
+            int affected = ps.executeUpdate();
+            if (affected == 0) {
+                JsonObject err = new JsonObject();
+                err.addProperty("code", 404);
+                err.addProperty("message", "用户不存在");
+                return Response.status(404).entity(gson.toJson(err)).build();
+            }
+
+            JsonObject result = new JsonObject();
+            result.addProperty("code", 200);
+            result.addProperty("message", "密码修改成功");
+            return Response.ok(gson.toJson(result)).build();
+        } catch (SQLException e) {
+            JsonObject err = new JsonObject();
+            err.addProperty("code", 500);
+            err.addProperty("message", "修改失败: " + e.getMessage());
+            return Response.status(500).entity(gson.toJson(err)).build();
+        }
+    }
+
+    @DELETE
+    @Path("/user/{userId}")
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("admin.users.manage")
+    public Response deleteUser(@PathParam("userId") long userId) {
+        try (Connection conn = DatabaseManager.getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                try (PreparedStatement ps = conn.prepareStatement("DELETE FROM user_roles WHERE user_id = ?")) {
+                    ps.setLong(1, userId);
+                    ps.executeUpdate();
+                }
+                try (PreparedStatement ps = conn.prepareStatement("DELETE FROM user_permissions WHERE user_id = ?")) {
+                    ps.setLong(1, userId);
+                    ps.executeUpdate();
+                }
+                String sql = "DELETE FROM users WHERE id = ?";
+                try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                    ps.setLong(1, userId);
+                    int affected = ps.executeUpdate();
+                    if (affected == 0) {
+                        conn.rollback();
+                        JsonObject err = new JsonObject();
+                        err.addProperty("code", 404);
+                        err.addProperty("message", "用户不存在");
+                        return Response.status(404).entity(gson.toJson(err)).build();
+                    }
+                }
+                conn.commit();
+
+                JsonObject result = new JsonObject();
+                result.addProperty("code", 200);
+                result.addProperty("message", "用户删除成功");
+                return Response.ok(gson.toJson(result)).build();
+            } catch (Exception e) {
+                conn.rollback();
+                throw e;
+            } finally {
+                conn.setAutoCommit(true);
+            }
+        } catch (SQLException e) {
+            JsonObject err = new JsonObject();
+            err.addProperty("code", 500);
+            err.addProperty("message", "删除失败: " + e.getMessage());
+            return Response.status(500).entity(gson.toJson(err)).build();
+        }
     }
 
     // ========== 用户单独权限管理 ==========
@@ -1228,6 +1573,7 @@ public class AdminResource {
     @Produces(MediaType.APPLICATION_JSON)
     @RequirePermission("admin.status")
     public Response getTitles() {
+        TitleRegistry.init();
         JsonArray arr = new JsonArray();
         for (Title title : TitleRegistry.getAll()) {
             JsonObject obj = new JsonObject();
@@ -1540,6 +1886,7 @@ public class AdminResource {
             }
 
             long newId = DatabaseManager.insertRow(tableName, data);
+            reloadMapCacheIfNeeded(tableName);
 
             JsonObject result = new JsonObject();
             result.addProperty("code", 200);
@@ -1585,6 +1932,9 @@ public class AdminResource {
             }
 
             int updated = DatabaseManager.updateRow(tableName, id, data);
+            if (updated > 0) {
+                reloadMapCacheIfNeeded(tableName);
+            }
 
             JsonObject result = new JsonObject();
             if (updated > 0) {
@@ -1617,6 +1967,9 @@ public class AdminResource {
             @PathParam("id") long id) {
         try {
             int deleted = DatabaseManager.deleteRow(tableName, id);
+            if (deleted > 0) {
+                reloadMapCacheIfNeeded(tableName);
+            }
 
             JsonObject result = new JsonObject();
             if (deleted > 0) {
@@ -2254,7 +2607,7 @@ public class AdminResource {
     @RequirePermission("admin.status")
     public Response getSystemInfo() {
         JsonObject data = new JsonObject();
-        data.addProperty("serverVersion", "V1.4.1-beta1");
+        data.addProperty("serverVersion", com.mtxgdn.util.BuildInfo.getDisplayVersion());
         data.addProperty("javaVersion", System.getProperty("java.version"));
         data.addProperty("osName", System.getProperty("os.name"));
         data.addProperty("osVersion", System.getProperty("os.version"));
@@ -2285,11 +2638,163 @@ public class AdminResource {
         return Response.ok(gson.toJson(data)).build();
     }
 
+    @GET
+    @Path("/whoami")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response getCurrentUser() {
+        JsonObject result = new JsonObject();
+        try {
+            List<String> authHeaders = httpHeaders.getRequestHeader("Authorization");
+            String authHeader = authHeaders != null && !authHeaders.isEmpty() ? authHeaders.get(0) : null;
+            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+                result.addProperty("code", 401);
+                result.addProperty("message", "未登录");
+                return Response.ok(gson.toJson(result)).build();
+            }
+            String token = authHeader.substring("Bearer ".length()).trim();
+            
+            try {
+                Claims claims = Jwts.parserBuilder()
+                        .setSigningKey(AdminAuthFilter.ADMIN_KEY)
+                        .build()
+                        .parseClaimsJws(token)
+                        .getBody();
+
+                String role = claims.get("role", String.class);
+                if (role != null && ("admin".equals(role) || "super_admin".equals(role) || "moderator".equals(role))) {
+                    String username = claims.get("username", String.class);
+                    Long userId = claims.get("userId", Long.class);
+
+                    result.addProperty("code", 200);
+                    result.addProperty("username", username);
+                    result.addProperty("userId", userId);
+                    result.addProperty("role", role);
+                    result.addProperty("loginType", "admin");
+                    return Response.ok(gson.toJson(result)).build();
+                }
+            } catch (Exception e) {
+                // 非 admin 密钥 token，走下方玩家 JWT 校验
+            }
+
+            // 玩家 token：与 admin 同密钥时上面能解析成功但无 role claim，同样落在这里
+            if (JwtUtil.validateToken(token)) {
+                Long userId = JwtUtil.extractUserId(token);
+                String username = JwtUtil.extractUsername(token);
+                String highestRole = PermissionService.getHighestRole(userId);
+
+                result.addProperty("code", 200);
+                result.addProperty("username", username);
+                result.addProperty("userId", userId);
+                result.addProperty("role", highestRole != null ? highestRole : "PLAYER");
+                result.addProperty("loginType", "player");
+                return Response.ok(gson.toJson(result)).build();
+            }
+        } catch (Exception e) {
+            result.addProperty("code", 500);
+            result.addProperty("message", "获取用户信息失败");
+            return Response.ok(gson.toJson(result)).build();
+        }
+        
+        result.addProperty("code", 401);
+        result.addProperty("message", "未登录");
+        return Response.ok(gson.toJson(result)).build();
+    }
+
+    @GET
+    @Path("/me")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response getMyPlayerInfo() {
+        JsonObject result = new JsonObject();
+        try {
+            List<String> authHeaders = httpHeaders.getRequestHeader("Authorization");
+            String authHeader = authHeaders != null && !authHeaders.isEmpty() ? authHeaders.get(0) : null;
+            if (authHeader == null || !authHeader.startsWith("Bearer ")) {
+                result.addProperty("code", 401);
+                result.addProperty("message", "未登录");
+                return Response.ok(gson.toJson(result)).build();
+            }
+            String token = authHeader.substring("Bearer ".length()).trim();
+            
+            Long userId = null;
+            try {
+                Claims claims = Jwts.parserBuilder()
+                        .setSigningKey(AdminAuthFilter.ADMIN_KEY)
+                        .build()
+                        .parseClaimsJws(token)
+                        .getBody();
+                userId = claims.get("userId", Long.class);
+            } catch (Exception e) {
+                // 与 admin 密钥不同的玩家 token：解析失败，继续走下方游戏 JWT 校验
+            }
+            // 玩家 token 的 userId 位于 subject（而非 userId claim）：即使与 admin 同密钥、
+            // 能被 admin 密钥解析成功（userId 仍为 null），也必须再按游戏 JWT 提取。
+            if (userId == null && JwtUtil.validateToken(token)) {
+                userId = JwtUtil.extractUserId(token);
+            }
+
+            if (userId == null) {
+                result.addProperty("code", 401);
+                result.addProperty("message", "未登录");
+                return Response.ok(gson.toJson(result)).build();
+            }
+            
+            var player = playerService.getPlayerByUserId(userId);
+            if (player == null) {
+                result.addProperty("code", 404);
+                result.addProperty("message", "玩家角色不存在");
+                return Response.ok(gson.toJson(result)).build();
+            }
+            
+            JsonObject obj = new JsonObject();
+            obj.addProperty("id", player.getId());
+            obj.addProperty("userId", player.getUserId());
+            obj.addProperty("name", player.getName());
+            obj.addProperty("level", player.getLevel());
+            obj.addProperty("experience", player.getExperience());
+            obj.addProperty("realm", player.getRealmName());
+            obj.addProperty("hp", player.getHp());
+            obj.addProperty("maxHp", player.getMaxHp());
+            obj.addProperty("mp", player.getMp());
+            obj.addProperty("maxMp", player.getMaxMp());
+            obj.addProperty("attack", player.getAttack());
+            obj.addProperty("defense", player.getDefense());
+            obj.addProperty("speed", player.getSpeed());
+            obj.addProperty("spirit", player.getSpirit());
+            obj.addProperty("gold", player.getGold());
+            obj.addProperty("cultivating", player.isCultivating());
+            obj.addProperty("cultivationProgress", player.getCultivationProgress());
+            long ss = itemService.getSpiritStoneCount(player.getId());
+            obj.addProperty("spiritStones", ss);
+            if (player.getSpiritualRoot() != null) {
+                obj.addProperty("spiritualRoot", player.getSpiritualRoot().getDisplayName());
+                obj.addProperty("rootTier", player.getSpiritualRoot().getTier().getDisplayName());
+            }
+            
+            JsonArray items = new JsonArray();
+            for (var entry : itemService.getInventory(player.getId())) {
+                JsonObject io = new JsonObject();
+                io.addProperty("key", entry.getItem().getKey());
+                io.addProperty("name", entry.getItem().getName());
+                io.addProperty("qty", entry.getQuantity());
+                items.add(io);
+            }
+            obj.add("items", items);
+            
+            result.addProperty("code", 200);
+            result.add("player", obj);
+            return Response.ok(gson.toJson(result)).build();
+        } catch (Exception e) {
+            result.addProperty("code", 500);
+            result.addProperty("message", "获取玩家信息失败: " + e.getMessage());
+            return Response.ok(gson.toJson(result)).build();
+        }
+    }
+
     @POST
     @Path("/announce")
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
-    @RequirePermission("admin.status")
+    @RequirePermission("admin.announce")
     public Response sendAnnounce(String body) {
         JsonObject req = com.google.gson.JsonParser.parseString(body).getAsJsonObject();
         String text = req.has("text") ? req.get("text").getAsString() : "";
@@ -2365,4 +2870,1180 @@ public class AdminResource {
         }
         return String.format("%02d:%02d:%02d", hours, minutes, secs);
     }
+
+    // ==================== 适配器管理 API ====================
+
+    @GET
+    @Path("/adapters")
+    @Produces("application/json;charset=UTF-8")
+    @RequirePermission("admin.adapters")
+    public Response getAdapters() {
+        JsonArray arr = new JsonArray();
+        for (AdapterConfig cfg : AdapterConfigManager.getAdapters()) {
+            JsonObject obj = new JsonObject();
+            obj.addProperty("id", cfg.getId());
+            obj.addProperty("type", cfg.getType());
+            obj.addProperty("enabled", cfg.isEnabled());
+            obj.addProperty("running", AdapterManager.isRunning(cfg.getId()));
+
+            JsonObject config = new JsonObject();
+            for (var entry : cfg.getConfig().entrySet()) {
+                Object val = entry.getValue();
+                if (val instanceof Number n) {
+                    config.addProperty(entry.getKey(), n);
+                } else if (val instanceof Boolean b) {
+                    config.addProperty(entry.getKey(), b);
+                } else {
+                    config.addProperty(entry.getKey(), val != null ? val.toString() : "");
+                }
+            }
+            obj.add("config", config);
+            arr.add(obj);
+        }
+
+        JsonObject result = new JsonObject();
+        result.addProperty("code", 200);
+        result.add("data", arr);
+        return Response.ok(gson.toJson(result)).build();
+    }
+
+    @PUT
+    @Path("/adapters")
+    @Produces("application/json;charset=UTF-8")
+    @Consumes("application/json;charset=UTF-8")
+    @RequirePermission("admin.adapters")
+    public Response updateAdapters(String body) {
+        try {
+            AdaptersConfig newConfig = gson.fromJson(body, AdaptersConfig.class);
+            if (newConfig == null || newConfig.getAdapters() == null) {
+                JsonObject err = new JsonObject();
+                err.addProperty("code", 400);
+                err.addProperty("message", "无效的适配器配置");
+                return Response.ok(gson.toJson(err)).build();
+            }
+
+            // 关键：在更新前先捕获旧配置，否则 reloadAll 无法对比差异
+            AdaptersConfig oldConfig = AdapterConfigManager.getConfig().copy();
+            AdapterConfigManager.updateConfig(newConfig);
+            AdapterManager.reloadAll(oldConfig);
+
+            JsonObject result = new JsonObject();
+            result.addProperty("code", 200);
+            result.addProperty("message", "适配器配置已更新并重载");
+            return Response.ok(gson.toJson(result)).build();
+        } catch (Exception e) {
+            JsonObject err = new JsonObject();
+            err.addProperty("code", 500);
+            err.addProperty("message", "更新失败: " + e.getMessage());
+            return Response.ok(gson.toJson(err)).build();
+        }
+    }
+
+    @POST
+    @Path("/adapters/reload")
+    @Produces("application/json;charset=UTF-8")
+    @RequirePermission("admin.adapters")
+    public Response reloadAdapters() {
+        try {
+            AdapterManager.reloadAll();
+            JsonObject result = new JsonObject();
+            result.addProperty("code", 200);
+            result.addProperty("message", "适配器配置已重载");
+            return Response.ok(gson.toJson(result)).build();
+        } catch (Exception e) {
+            JsonObject err = new JsonObject();
+            err.addProperty("code", 500);
+            err.addProperty("message", "重载失败: " + e.getMessage());
+            return Response.ok(gson.toJson(err)).build();
+        }
+    }
+
+    // ==================== 玩家数据文件（一用户一个文件）====================
+
+    @POST
+    @Path("/player-data/export/{playerId}")
+    @Produces("application/json;charset=UTF-8")
+    @RequirePermission("admin.database.clear_players")
+    public Response exportPlayerData(@PathParam("playerId") long playerId) {
+        com.mtxgdn.playerdata.PlayerDataService dataService = new com.mtxgdn.playerdata.PlayerDataService();
+        Map<String, Object> result = dataService.exportPlayer(playerId);
+        JsonObject out = new JsonObject();
+        out.addProperty("code", Boolean.TRUE.equals(result.get("success")) ? 200 : 400);
+        out.addProperty("message", (String) result.get("message"));
+        return Response.ok(gson.toJson(out)).build();
+    }
+
+    @POST
+    @Path("/player-data/export-all")
+    @Produces("application/json;charset=UTF-8")
+    @RequirePermission("admin.database.clear_players")
+    public Response exportAllPlayerData() {
+        com.mtxgdn.playerdata.PlayerDataService dataService = new com.mtxgdn.playerdata.PlayerDataService();
+        Map<String, Object> result = dataService.exportAllPlayers();
+        JsonObject out = new JsonObject();
+        out.addProperty("code", 200);
+        out.addProperty("message", "已导出 " + result.get("exported") + " 名玩家数据，失败 " + result.get("failed") + " 个");
+        out.addProperty("dir", (String) result.get("dir"));
+        return Response.ok(gson.toJson(out)).build();
+    }
+
+    @GET
+    @Path("/player-data/list")
+    @Produces("application/json;charset=UTF-8")
+    @RequirePermission("admin.database.clear_players")
+    public Response listPlayerDataFiles() {
+        com.mtxgdn.playerdata.PlayerDataService dataService = new com.mtxgdn.playerdata.PlayerDataService();
+        List<String> files = dataService.listPlayerFiles();
+        JsonArray arr = new JsonArray();
+        for (String f : files) {
+            arr.add(f);
+        }
+        JsonObject out = new JsonObject();
+        out.addProperty("code", 200);
+        out.addProperty("count", files.size());
+        out.add("files", arr);
+        return Response.ok(gson.toJson(out)).build();
+    }
+
+    // ==================== OAuth2 配置管理 ====================
+
+    @GET
+    @Path("/oauth/config")
+    @Produces("application/json;charset=UTF-8")
+    @RequirePermission("admin.oauth.manage")
+    public Response getOAuthConfig() {
+        JsonObject out = new JsonObject();
+        out.addProperty("code", 200);
+        JsonObject data = new JsonObject();
+        for (Map.Entry<String, Object> entry : com.mtxgdn.service.OAuthService.getConfig(false).entrySet()) {
+            Object v = entry.getValue();
+            if (v instanceof Boolean b) {
+                data.addProperty(entry.getKey(), b);
+            } else if (v instanceof Number n) {
+                data.addProperty(entry.getKey(), n);
+            } else {
+                data.addProperty(entry.getKey(), v != null ? v.toString() : "");
+            }
+        }
+        out.add("data", data);
+        return Response.ok(gson.toJson(out)).build();
+    }
+
+    @POST
+    @Path("/oauth/config")
+    @Produces("application/json;charset=UTF-8")
+    @Consumes("application/json;charset=UTF-8")
+    @RequirePermission("admin.oauth.manage")
+    public Response updateOAuthConfig(String body) {
+        try {
+            JsonObject req = com.google.gson.JsonParser.parseString(body).getAsJsonObject();
+            Map<String, Object> update = new LinkedHashMap<>();
+            if (req.has("enabled")) update.put("enabled", req.get("enabled").getAsBoolean());
+            if (req.has("client_id")) update.put("client_id", req.get("client_id").getAsString());
+            if (req.has("client_secret")) update.put("client_secret", req.get("client_secret").getAsString());
+            if (req.has("scopes")) update.put("scopes", req.get("scopes").getAsString());
+            if (req.has("token_ttl_seconds")) update.put("token_ttl_seconds", req.get("token_ttl_seconds").getAsLong());
+
+            Map<String, Object> result = com.mtxgdn.service.OAuthService.updateConfig(update);
+            JsonObject out = new JsonObject();
+            out.addProperty("code", 200);
+            out.addProperty("message", (String) result.get("message"));
+            JsonObject data = new JsonObject();
+            for (Map.Entry<String, Object> entry : com.mtxgdn.service.OAuthService.getConfig(false).entrySet()) {
+                Object v = entry.getValue();
+                if (v instanceof Boolean b) {
+                    data.addProperty(entry.getKey(), b);
+                } else if (v instanceof Number n) {
+                    data.addProperty(entry.getKey(), n);
+                } else {
+                    data.addProperty(entry.getKey(), v != null ? v.toString() : "");
+                }
+            }
+            out.add("data", data);
+            return Response.ok(gson.toJson(out)).build();
+        } catch (Exception e) {
+            JsonObject err = new JsonObject();
+            err.addProperty("code", 400);
+            err.addProperty("message", "更新 OAuth2 配置失败: " + e.getMessage());
+            return Response.ok(gson.toJson(err)).build();
+        }
+    }
+
+    // ==================== 地图管理 ====================
+
+    /**
+     * 地图总览：全部地点（含境界名、灵气/地界倍率、安全区、邻居与路程、事件偏置）+ 区域分组。
+     *
+     * <p>通用表管理只能看到 map_locations 的裸行：境界是个数字、邻接关系在另一张表里、
+     * 加成是两列 DOUBLE、事件偏置又在第三张表。地图页把它们拼成"一张看得懂的地图"，
+     * 否则管理员想确认"问道峰到底要什么境界"得自己联三张表。</p>
+     */
+    @GET
+    @Path("/map/locations")
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("admin.database.access")
+    public Response getMapLocations() {
+        JsonObject out = new JsonObject();
+        try {
+            var mapService = ServiceRegistry.getMapService();
+            mapService.ensureInitialized();
+
+            // 已知世界与野外同在一张表，但后台必须分开计数：
+            // 已知世界是固定的 15 个地点 / 17 条边（历史不变量，改坏了要能立刻看出来），
+            // 野外是随机生成、会刷新的临时节点，数量与连接每次刷新都不同。
+            // 混在一起统计，"地点数/连接数"就成了一个每次都变、无法判断是否正常的数字。
+            Set<Long> knownIds = new java.util.HashSet<>();
+            for (var loc : mapService.getAllLocations()) {
+                knownIds.add(loc.getId());
+            }
+
+            JsonArray arr = new JsonArray();
+            Map<String, Integer> regionCounts = new LinkedHashMap<>();
+            int directedEdges = 0;
+            int directedWildernessEdges = 0;
+            // 野外不在库中，因此这里列的只有已知世界；野外分片另有 /admin/map/wilderness 视图
+            for (var loc : mapService.getAllLocations()) {
+                JsonObject o = new JsonObject();
+                o.addProperty("id", loc.getId());
+                o.addProperty("name", loc.getName());
+                o.addProperty("region", loc.getRegion());
+                o.addProperty("description", loc.getDescription());
+                o.addProperty("minRealm", loc.getMinRealm());
+                o.addProperty("minRealmName", mapService.getRealmName(loc.getMinRealm()));
+                o.addProperty("safeZone", loc.isSafeZone());
+                o.addProperty("cultivationBonus", loc.getCultivationBonus());
+                o.addProperty("explorationBonus", loc.getExplorationBonus());
+                o.addProperty("dangerLevel", loc.getDangerLevel());
+                o.addProperty("dangerName", mapService.getDangerName(loc.getDangerLevel()));
+                o.addProperty("wilderness", loc.isWilderness());
+
+                JsonArray neighbors = new JsonArray();
+                for (var nb : loc.getConnections()) {
+                    JsonObject n = new JsonObject();
+                    n.addProperty("id", nb.getId());
+                    n.addProperty("name", nb.getName());
+                    n.addProperty("region", nb.getRegion());
+                    n.addProperty("travelSeconds", mapService.getTravelTimeSeconds(loc.getId(), nb.getId()));
+                    n.addProperty("wilderness", nb.isWilderness());
+                    neighbors.add(n);
+
+                    if (knownIds.contains(loc.getId()) && knownIds.contains(nb.getId())) {
+                        directedEdges++;
+                    } else {
+                        directedWildernessEdges++;
+                    }
+                }
+                o.add("neighbors", neighbors);
+
+                JsonObject bias = new JsonObject();
+                for (Map.Entry<String, Double> entry : mapService.getEventBias(loc.getId()).entrySet()) {
+                    bias.addProperty(entry.getKey(), entry.getValue());
+                }
+                o.add("eventBias", bias);
+
+                arr.add(o);
+                regionCounts.merge(loc.getRegion(), 1, Integer::sum);
+            }
+
+            JsonObject data = new JsonObject();
+            data.add("locations", arr);
+            data.addProperty("locationCount", knownIds.size());
+            data.addProperty("wildernessCount",
+                    ((Number) mapService.getWildernessStats().get("chunkCount")).longValue());
+            // 连接在库里是双向写入的，按无向边计数要除以 2
+            data.addProperty("connectionCount", directedEdges / 2);
+            data.addProperty("wildernessConnectionCount", directedWildernessEdges / 2);
+            data.addProperty("wildernessEnabled", mapService.isWildernessEnabled());
+            data.addProperty("wildernessRefreshAt", 0);
+            JsonArray regions = new JsonArray();
+            for (Map.Entry<String, Integer> entry : regionCounts.entrySet()) {
+                JsonObject r = new JsonObject();
+                r.addProperty("name", entry.getKey());
+                r.addProperty("count", entry.getValue());
+                regions.add(r);
+            }
+            data.add("regions", regions);
+
+            out.addProperty("code", 200);
+            out.add("data", data);
+        } catch (Exception e) {
+            out.addProperty("code", 500);
+            out.addProperty("message", "获取地图数据失败: " + e.getMessage());
+        }
+        return Response.ok(gson.toJson(out)).build();
+    }
+
+    /**
+     * 更新地点参数（名称/描述/区域/境界门槛/安全区/灵气倍率/地界倍率），改完立即热重载。
+     *
+     * <p>只更新请求里出现的字段 —— "没传"不等于"清空"，避免前端漏字段就把数据抹掉。</p>
+     */
+    @POST
+    @Path("/map/locations/{id}")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("admin.database.access")
+    public Response updateMapLocation(@PathParam("id") long id, String body) {
+        JsonObject out = new JsonObject();
+        try {
+            JsonObject req = com.google.gson.JsonParser.parseString(body).getAsJsonObject();
+
+            // SET 子句的列名全部来自下面这些字面量（不是用户输入），因此不存在注入面
+            Map<String, Object> update = new LinkedHashMap<>();
+            if (hasJsonValue(req, "name")) {
+                String name = req.get("name").getAsString().trim();
+                if (name.isEmpty()) throw new IllegalArgumentException("地点名不能为空");
+                update.put("name", name);
+            }
+            if (hasJsonValue(req, "description")) {
+                update.put("description", req.get("description").getAsString());
+            }
+            if (hasJsonValue(req, "region")) {
+                String region = req.get("region").getAsString().trim();
+                if (region.isEmpty()) throw new IllegalArgumentException("区域名不能为空");
+                update.put("region", region);
+            }
+            if (hasJsonValue(req, "minRealm")) {
+                int realm = req.get("minRealm").getAsInt();
+                int maxRealm = GameConfigLoader.getRealmTotal() - 1;
+                if (realm < 0 || realm > maxRealm) {
+                    throw new IllegalArgumentException("境界门槛应在 0~" + maxRealm + " 之间");
+                }
+                update.put("min_realm", realm);
+            }
+            if (hasJsonValue(req, "safeZone")) {
+                update.put("is_safe_zone", req.get("safeZone").getAsBoolean());
+            }
+            if (hasJsonValue(req, "cultivationBonus")) {
+                update.put("cultivation_bonus", parseMapBonus(req.get("cultivationBonus"), "灵气倍率"));
+            }
+            if (hasJsonValue(req, "explorationBonus")) {
+                update.put("exploration_bonus", parseMapBonus(req.get("explorationBonus"), "地界倍率"));
+            }
+            if (hasJsonValue(req, "dangerLevel")) {
+                int danger = req.get("dangerLevel").getAsInt();
+                if (danger < 0 || danger > MAX_DANGER_LEVEL) {
+                    throw new IllegalArgumentException("危险度应在 0~" + MAX_DANGER_LEVEL
+                            + " 之间（0=安全 1=低危 2=中危 3=高危 4=极危）");
+                }
+                update.put("danger_level", danger);
+            }
+            if (update.isEmpty()) {
+                throw new IllegalArgumentException("没有需要更新的字段");
+            }
+
+            // 不变式：安全区不能同时是险地。这里把"库里的现值"和"本次请求"合并后再校验 ——
+            // 只改其中一个字段同样能造出矛盾数据（例如给已是安全区的地点填危险度 3）。
+            checkDangerConsistencyOnUpdate(id, update);
+            // 地点名是 /地图 go <地名> 的唯一解析依据，重名会让其中一个永远走不到
+            if (update.containsKey("name")) {
+                checkMapLocationNameAvailable((String) update.get("name"), id);
+            }
+
+            String sql = "UPDATE map_locations SET "
+                    + String.join(", ", update.keySet().stream().map(col -> col + " = ?").toList())
+                    + " WHERE id = ?";
+            int affected;
+            try (Connection conn = DatabaseManager.getConnection();
+                 PreparedStatement ps = conn.prepareStatement(sql)) {
+                int index = 1;
+                for (Object value : update.values()) {
+                    if (value instanceof Boolean b) {
+                        ps.setBoolean(index++, b);
+                    } else if (value instanceof Integer i) {
+                        ps.setInt(index++, i);
+                    } else if (value instanceof Double d) {
+                        ps.setDouble(index++, d);
+                    } else {
+                        ps.setString(index++, (String) value);
+                    }
+                }
+                ps.setLong(index, id);
+                affected = ps.executeUpdate();
+            }
+
+            if (affected == 0) {
+                out.addProperty("code", 404);
+                out.addProperty("message", "地点不存在: " + id);
+                return Response.ok(gson.toJson(out)).build();
+            }
+
+            // 改完立即热重载：否则地图缓存还是旧值，管理员会以为没改上
+            reloadMapCacheIfNeeded("map_locations");
+
+            JsonObject data = new JsonObject();
+            data.addProperty("updated", affected);
+            out.addProperty("code", 200);
+            out.addProperty("message", "已更新，地图缓存已热重载");
+            out.add("data", data);
+        } catch (IllegalArgumentException e) {
+            out.addProperty("code", 400);
+            out.addProperty("message", e.getMessage());
+        } catch (Exception e) {
+            out.addProperty("code", 500);
+            out.addProperty("message", "更新地点失败: " + e.getMessage());
+        }
+        return Response.ok(gson.toJson(out)).build();
+    }
+
+    /** 倍率校验：限定 0.1~100，挡住 0、负数与手滑多打的 0。 */
+    private static double parseMapBonus(com.google.gson.JsonElement element, String label) {
+        double value = element.getAsDouble();
+        if (Double.isNaN(value) || value < 0.1 || value > 100) {
+            throw new IllegalArgumentException(label + "应在 0.1~100 之间");
+        }
+        return value;
+    }
+
+    // ==================== 地图增删与连接/偏置编辑 ====================
+
+    /** 危险度上限（0=安全 1=低危 2=中危 3=高危 4=极危）。 */
+    private static final int MAX_DANGER_LEVEL = 4;
+
+    /**
+     * 新建地点。
+     *
+     * <p>与 {@code GET /map/locations} 同路径不同方法：GET 是总览、POST 是新增，
+     * 符合集合资源的常规语义。</p>
+     *
+     * <p>id 可省略（自动取已知世界范围内的下一个空位）。<b>不允许手工指定野外保留区
+     * （≥ 野外 idBase）的 id</b>：那一段是程序按槽位循环复用的，手填进去的地点在下次
+     * 野外刷新时会被当成过期节点删掉。</p>
+     */
+    @POST
+    @Path("/map/locations")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("admin.database.access")
+    public Response createMapLocation(String body) {
+        JsonObject out = new JsonObject();
+        try {
+            JsonObject req = com.google.gson.JsonParser.parseString(body).getAsJsonObject();
+
+            String name = hasJsonValue(req, "name") ? req.get("name").getAsString().trim() : "";
+            if (name.isEmpty()) throw new IllegalArgumentException("地点名不能为空");
+            String region = hasJsonValue(req, "region") ? req.get("region").getAsString().trim() : "";
+            if (region.isEmpty()) throw new IllegalArgumentException("区域名不能为空");
+
+            int minRealm = hasJsonValue(req, "minRealm") ? req.get("minRealm").getAsInt() : 0;
+            int maxRealm = GameConfigLoader.getRealmTotal() - 1;
+            if (minRealm < 0 || minRealm > maxRealm) {
+                throw new IllegalArgumentException("境界门槛应在 0~" + maxRealm + " 之间");
+            }
+            boolean safeZone = hasJsonValue(req, "safeZone") && req.get("safeZone").getAsBoolean();
+            int dangerLevel = hasJsonValue(req, "dangerLevel") ? req.get("dangerLevel").getAsInt() : 0;
+            if (dangerLevel < 0 || dangerLevel > MAX_DANGER_LEVEL) {
+                throw new IllegalArgumentException("危险度应在 0~" + MAX_DANGER_LEVEL
+                        + " 之间（0=安全 1=低危 2=中危 3=高危 4=极危）");
+            }
+            requireDangerConsistent(safeZone, dangerLevel);
+
+            double cultivation = hasJsonValue(req, "cultivationBonus")
+                    ? parseMapBonus(req.get("cultivationBonus"), "灵气倍率") : 1.0;
+            double exploration = hasJsonValue(req, "explorationBonus")
+                    ? parseMapBonus(req.get("explorationBonus"), "地界倍率") : 1.0;
+            String description = hasJsonValue(req, "description") ? req.get("description").getAsString() : "";
+
+            // 野外的 id 不再是"保留段"，而是按坐标算出来的极大值；管理员新建地点时
+            // 只需避开这一段，防止 id 撞上某个真实存在的野外节点
+            long wildernessFloor = WildernessTerrain.ID_BASE;
+            long createdId;
+            try (Connection conn = DatabaseManager.getConnection()) {
+                if (hasJsonValue(req, "id")) {
+                    createdId = req.get("id").getAsLong();
+                    if (createdId <= 0) throw new IllegalArgumentException("地点 id 必须为正数");
+                    if (WildernessTerrain.isWildernessId(createdId)) {
+                        throw new IllegalArgumentException("id " + createdId + " 落在野外 id 段（≥ "
+                                + WildernessTerrain.ID_BASE + "），该段由坐标推导、不属于已知世界；"
+                                + "请改用 1~" + (WildernessTerrain.ID_BASE - 1) + " 或省略 id 由系统分配");
+                    }
+                    if (mapLocationExists(conn, createdId)) {
+                        throw new IllegalArgumentException("地点 id " + createdId + " 已存在");
+                    }
+                } else {
+                    createdId = nextKnownWorldLocationId(conn, wildernessFloor);
+                }
+                checkMapLocationNameAvailable(name, 0);
+
+                String sql = "INSERT INTO map_locations "
+                        + "(id, name, description, region, min_realm, is_safe_zone, cultivation_bonus,"
+                        + " exploration_bonus, danger_level, is_wilderness) "
+                        + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)";
+                try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                    ps.setLong(1, createdId);
+                    ps.setString(2, name);
+                    ps.setString(3, description);
+                    ps.setString(4, region);
+                    ps.setInt(5, minRealm);
+                    ps.setBoolean(6, safeZone);
+                    ps.setDouble(7, cultivation);
+                    ps.setDouble(8, exploration);
+                    ps.setInt(9, dangerLevel);
+                    ps.executeUpdate();
+                }
+            }
+
+            reloadMapCacheIfNeeded("map_locations");
+
+            JsonObject data = new JsonObject();
+            data.addProperty("id", createdId);
+            out.addProperty("code", 200);
+            out.addProperty("message", "已新建地点「" + name + "」(id=" + createdId
+                    + ")，尚未与任何地点相连 —— 请到「连接」里接线，否则玩家走不到");
+            out.add("data", data);
+        } catch (IllegalArgumentException e) {
+            out.addProperty("code", 400);
+            out.addProperty("message", e.getMessage());
+        } catch (Exception e) {
+            out.addProperty("code", 500);
+            out.addProperty("message", "新建地点失败: " + e.getMessage());
+        }
+        return Response.ok(gson.toJson(out)).build();
+    }
+
+    /**
+     * 删除地点。
+     *
+     * <p>连带删除该地点的全部连接、事件偏置与野外资源，并把仍站在这里的玩家送回
+     * 出生点 —— 否则会留下一批指向不存在地点的连接，以及"人在虚空里"的存档。</p>
+     */
+    @DELETE
+    @Path("/map/locations/{id}")
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("admin.database.access")
+    public Response deleteMapLocation(@PathParam("id") long id) {
+        JsonObject out = new JsonObject();
+        try {
+            if (id <= 0) throw new IllegalArgumentException("地点 id 必须为正数");
+
+            int affected;
+            try (Connection conn = DatabaseManager.getConnection()) {
+                String name = null;
+                try (PreparedStatement ps = conn.prepareStatement("SELECT name FROM map_locations WHERE id = ?")) {
+                    ps.setLong(1, id);
+                    try (ResultSet rs = ps.executeQuery()) {
+                        if (rs.next()) name = rs.getString(1);
+                    }
+                }
+                if (name == null) {
+                    out.addProperty("code", 404);
+                    out.addProperty("message", "地点不存在: " + id);
+                    return Response.ok(gson.toJson(out)).build();
+                }
+
+                // 玩家先安置：留在已删除地点上的存档会在下次读取时被判为异常位置
+                try (PreparedStatement ps = conn.prepareStatement(
+                        "UPDATE players SET current_location_id = 1, last_travel_time = 0 "
+                                + "WHERE current_location_id = ?")) {
+                    ps.setLong(1, id);
+                    int moved = ps.executeUpdate();
+                    if (moved > 0) {
+                        LOG.warn("删除地点「" + name + "」(id=" + id + ") 时把 " + moved
+                                + " 名玩家送回了出生点");
+                    }
+                }
+                try (PreparedStatement ps = conn.prepareStatement(
+                        "DELETE FROM map_connections WHERE from_location_id = ? OR to_location_id = ?")) {
+                    ps.setLong(1, id);
+                    ps.setLong(2, id);
+                    ps.executeUpdate();
+                }
+                try (PreparedStatement ps = conn.prepareStatement(
+                        "DELETE FROM map_location_event_bias WHERE location_id = ?")) {
+                    ps.setLong(1, id);
+                    ps.executeUpdate();
+                }
+                try (PreparedStatement ps = conn.prepareStatement(
+                        "DELETE FROM player_map_exploration WHERE location_id = ?")) {
+                    ps.setLong(1, id);
+                    ps.executeUpdate();
+                }
+                try (PreparedStatement ps = conn.prepareStatement("DELETE FROM map_locations WHERE id = ?")) {
+                    ps.setLong(1, id);
+                    affected = ps.executeUpdate();
+                }
+            }
+
+            reloadMapCacheIfNeeded("map_locations");
+
+            JsonObject data = new JsonObject();
+            data.addProperty("deleted", affected);
+            out.addProperty("code", 200);
+            out.addProperty("message", "已删除地点及其连接/偏置，地图缓存已热重载");
+            out.add("data", data);
+        } catch (IllegalArgumentException e) {
+            out.addProperty("code", 400);
+            out.addProperty("message", e.getMessage());
+        } catch (Exception e) {
+            out.addProperty("code", 500);
+            out.addProperty("message", "删除地点失败: " + e.getMessage());
+        }
+        return Response.ok(gson.toJson(out)).build();
+    }
+
+    /**
+     * 新增或更新一条<b>有向</b>连接（from → to）。
+     *
+     * <p>默认同时写入反向边：地图的邻接是双向可达的，只加单向会让玩家"去了回不来"，
+     * 而库里历史上就出现过这种数据（{@code repairReverseConnections} 一直在兜）。
+     * 确实需要单向路（例如传送阵式的单行道）时显式传 {@code oneWay: true}。</p>
+     */
+    @POST
+    @Path("/map/connections")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("admin.database.access")
+    public Response upsertMapConnection(String body) {
+        JsonObject out = new JsonObject();
+        try {
+            JsonObject req = com.google.gson.JsonParser.parseString(body).getAsJsonObject();
+            long from = req.get("from").getAsLong();
+            long to = req.get("to").getAsLong();
+            if (from == to) throw new IllegalArgumentException("不能把地点连到它自己");
+            int travelSeconds = hasJsonValue(req, "travelSeconds") ? req.get("travelSeconds").getAsInt() : 5;
+            if (travelSeconds < 1 || travelSeconds > 86400) {
+                throw new IllegalArgumentException("路程秒数应在 1~86400 之间");
+            }
+            boolean oneWay = hasJsonValue(req, "oneWay") && req.get("oneWay").getAsBoolean();
+
+            try (Connection conn = DatabaseManager.getConnection()) {
+                if (!mapLocationExists(conn, from)) throw new IllegalArgumentException("起点不存在: " + from);
+                if (!mapLocationExists(conn, to)) throw new IllegalArgumentException("终点不存在: " + to);
+                upsertConnection(conn, from, to, travelSeconds);
+                if (!oneWay) {
+                    upsertConnection(conn, to, from, travelSeconds);
+                }
+            }
+
+            reloadMapCacheIfNeeded("map_connections");
+
+            JsonObject data = new JsonObject();
+            data.addProperty("from", from);
+            data.addProperty("to", to);
+            data.addProperty("travelSeconds", travelSeconds);
+            data.addProperty("oneWay", oneWay);
+            out.addProperty("code", 200);
+            out.addProperty("message", oneWay
+                    ? "已建立单向连接（注意：玩家去了可能回不来）"
+                    : "已建立双向连接，地图缓存已热重载");
+            out.add("data", data);
+        } catch (IllegalArgumentException e) {
+            out.addProperty("code", 400);
+            out.addProperty("message", e.getMessage());
+        } catch (Exception e) {
+            out.addProperty("code", 500);
+            out.addProperty("message", "保存连接失败: " + e.getMessage());
+        }
+        return Response.ok(gson.toJson(out)).build();
+    }
+
+    /** 删除连接；{@code bothWays=true}（默认）时连反向边一起删，避免留下"只能来不能回"的路。 */
+    @DELETE
+    @Path("/map/connections")
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("admin.database.access")
+    public Response deleteMapConnection(@QueryParam("from") long from,
+                                        @QueryParam("to") long to,
+                                        @QueryParam("bothWays") @DefaultValue("true") boolean bothWays) {
+        JsonObject out = new JsonObject();
+        try {
+            if (from <= 0 || to <= 0) throw new IllegalArgumentException("from 与 to 都必须为正数");
+            int affected;
+            try (Connection conn = DatabaseManager.getConnection();
+                 PreparedStatement ps = conn.prepareStatement(bothWays
+                         ? "DELETE FROM map_connections WHERE (from_location_id = ? AND to_location_id = ?)"
+                         + " OR (from_location_id = ? AND to_location_id = ?)"
+                         : "DELETE FROM map_connections WHERE from_location_id = ? AND to_location_id = ?")) {
+                ps.setLong(1, from);
+                ps.setLong(2, to);
+                if (bothWays) {
+                    ps.setLong(3, to);
+                    ps.setLong(4, from);
+                }
+                affected = ps.executeUpdate();
+            }
+            if (affected == 0) {
+                out.addProperty("code", 404);
+                out.addProperty("message", "连接不存在: " + from + " → " + to);
+                return Response.ok(gson.toJson(out)).build();
+            }
+
+            reloadMapCacheIfNeeded("map_connections");
+
+            JsonObject data = new JsonObject();
+            data.addProperty("deleted", affected);
+            out.addProperty("code", 200);
+            out.addProperty("message", "已删除 " + affected + " 条连接，地图缓存已热重载");
+            out.add("data", data);
+        } catch (IllegalArgumentException e) {
+            out.addProperty("code", 400);
+            out.addProperty("message", e.getMessage());
+        } catch (Exception e) {
+            out.addProperty("code", 500);
+            out.addProperty("message", "删除连接失败: " + e.getMessage());
+        }
+        return Response.ok(gson.toJson(out)).build();
+    }
+
+    /** 新增或更新某地点的事件权重偏置（事件 key → 倍率）。 */
+    @POST
+    @Path("/map/event-bias")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("admin.database.access")
+    public Response upsertMapEventBias(String body) {
+        JsonObject out = new JsonObject();
+        try {
+            JsonObject req = com.google.gson.JsonParser.parseString(body).getAsJsonObject();
+            long locationId = req.get("locationId").getAsLong();
+            String eventKey = hasJsonValue(req, "eventKey") ? req.get("eventKey").getAsString().trim() : "";
+            if (eventKey.isEmpty()) throw new IllegalArgumentException("事件 key 不能为空");
+            if (eventKey.length() > 64) throw new IllegalArgumentException("事件 key 过长（上限 64 字符）");
+            double multiplier = req.get("multiplier").getAsDouble();
+            if (Double.isNaN(multiplier) || multiplier <= 0 || multiplier > 100) {
+                throw new IllegalArgumentException("权重倍率应在 0~100 之间且大于 0");
+            }
+
+            try (Connection conn = DatabaseManager.getConnection()) {
+                if (!mapLocationExists(conn, locationId)) {
+                    throw new IllegalArgumentException("地点不存在: " + locationId);
+                }
+                // 先删后插而不是依赖 UPSERT 语法：SQLite 与 MySQL 的 upsert 写法不同，
+                // 而这里对并发不敏感（管理台手工操作），换来一份两端通用的 SQL。
+                try (PreparedStatement ps = conn.prepareStatement(
+                        "DELETE FROM map_location_event_bias WHERE location_id = ? AND event_key = ?")) {
+                    ps.setLong(1, locationId);
+                    ps.setString(2, eventKey);
+                    ps.executeUpdate();
+                }
+                try (PreparedStatement ps = conn.prepareStatement(
+                        "INSERT INTO map_location_event_bias (location_id, event_key, weight_multiplier) "
+                                + "VALUES (?, ?, ?)")) {
+                    ps.setLong(1, locationId);
+                    ps.setString(2, eventKey);
+                    ps.setDouble(3, multiplier);
+                    ps.executeUpdate();
+                }
+            }
+
+            reloadMapCacheIfNeeded("map_location_event_bias");
+
+            JsonObject data = new JsonObject();
+            data.addProperty("locationId", locationId);
+            data.addProperty("eventKey", eventKey);
+            data.addProperty("multiplier", multiplier);
+            out.addProperty("code", 200);
+            out.addProperty("message", "已保存事件偏置，地图缓存已热重载");
+            out.add("data", data);
+        } catch (IllegalArgumentException e) {
+            out.addProperty("code", 400);
+            out.addProperty("message", e.getMessage());
+        } catch (Exception e) {
+            out.addProperty("code", 500);
+            out.addProperty("message", "保存事件偏置失败: " + e.getMessage());
+        }
+        return Response.ok(gson.toJson(out)).build();
+    }
+
+    /** 删除某地点的一条事件偏置。 */
+    @DELETE
+    @Path("/map/event-bias")
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("admin.database.access")
+    public Response deleteMapEventBias(@QueryParam("locationId") long locationId,
+                                       @QueryParam("eventKey") String eventKey) {
+        JsonObject out = new JsonObject();
+        try {
+            if (locationId <= 0) throw new IllegalArgumentException("locationId 必须为正数");
+            if (eventKey == null || eventKey.isBlank()) throw new IllegalArgumentException("eventKey 不能为空");
+
+            int affected;
+            try (Connection conn = DatabaseManager.getConnection();
+                 PreparedStatement ps = conn.prepareStatement(
+                         "DELETE FROM map_location_event_bias WHERE location_id = ? AND event_key = ?")) {
+                ps.setLong(1, locationId);
+                ps.setString(2, eventKey.trim());
+                affected = ps.executeUpdate();
+            }
+            if (affected == 0) {
+                out.addProperty("code", 404);
+                out.addProperty("message", "该地点没有这条事件偏置");
+                return Response.ok(gson.toJson(out)).build();
+            }
+
+            reloadMapCacheIfNeeded("map_location_event_bias");
+
+            JsonObject data = new JsonObject();
+            data.addProperty("deleted", affected);
+            out.addProperty("code", 200);
+            out.addProperty("message", "已删除事件偏置，地图缓存已热重载");
+            out.add("data", data);
+        } catch (IllegalArgumentException e) {
+            out.addProperty("code", 400);
+            out.addProperty("message", e.getMessage());
+        } catch (Exception e) {
+            out.addProperty("code", 500);
+            out.addProperty("message", "删除事件偏置失败: " + e.getMessage());
+        }
+        return Response.ok(gson.toJson(out)).build();
+    }
+
+    /**
+     * 手动给野外补货：把已采空的资源补回上限。
+     *
+     * <p>只补资源，<b>不换地形、不删任何东西</b>：野外是无限且永久的，
+     * 已探索的内容不会被刷新掉，这里做的只是"矿重新长出来"。</p>
+     */
+    @POST
+    @Path("/map/wilderness/restock")
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("admin.database.access")
+    public Response restockWilderness() {
+        JsonObject out = new JsonObject();
+        try {
+            int chunks = ServiceRegistry.getMapService().restockWilderness();
+            out.addProperty("code", 200);
+            out.addProperty("message", "已给 " + chunks + " 个野外分片原地补货（地形与探索记录均未变动）");
+            JsonObject data = new JsonObject();
+            data.addProperty("restockedChunks", chunks);
+            out.add("data", data);
+        } catch (Exception e) {
+            out.addProperty("code", 500);
+            out.addProperty("message", "野外补货失败: " + e.getMessage());
+        }
+        return Response.ok(gson.toJson(out)).build();
+    }
+
+    /**
+     * 野外分片总览。
+     *
+     * <p>野外不进数据库，所以这里读的是分片文件（{@code data/wilderness/...}）。
+     * 只给只读视图：分片一旦被探索就永久固化，管理台不提供删除入口。</p>
+     */
+    @GET
+    @Path("/map/wilderness")
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("admin.database.access")
+    public Response wildernessOverview(@QueryParam("cx") String cxParam,
+                                       @QueryParam("cy") String cyParam) {
+        JsonObject out = new JsonObject();
+        try {
+            var mapService = ServiceRegistry.getMapService();
+            JsonObject data = new JsonObject();
+            Map<String, Object> stats = mapService.getWildernessStats();
+            for (Map.Entry<String, Object> entry : stats.entrySet()) {
+                data.addProperty(entry.getKey(), String.valueOf(entry.getValue()));
+            }
+
+            JsonArray chunks = new JsonArray();
+            Integer cx = parseCoordinate(cxParam);
+            Integer cy = parseCoordinate(cyParam);
+            if (cx != null && cy != null) {
+                chunks.add(chunkJson(mapService, cx, cy));
+            } else {
+                // 不给坐标时以原点为中心展示一圈，便于一眼看到"世界铺到哪了"
+                for (int x = -2; x <= 2; x++) {
+                    for (int y = -2; y <= 2; y++) {
+                        JsonObject c = chunkJson(mapService, x, y);
+                        if (c.get("exists").getAsBoolean()) {
+                            chunks.add(c);
+                        }
+                    }
+                }
+            }
+            data.add("chunks", chunks);
+            out.addProperty("code", 200);
+            out.addProperty("message", "ok");
+            out.add("data", data);
+        } catch (Exception e) {
+            out.addProperty("code", 500);
+            out.addProperty("message", "读取野外分片失败: " + e.getMessage());
+        }
+        return Response.ok(gson.toJson(out)).build();
+    }
+
+    /** 一个分片的只读快照；{@code exists=false} 表示这片从未有人涉足、磁盘上没有文件。 */
+    private static JsonObject chunkJson(com.mtxgdn.game.service.MapService mapService, int cx, int cy) {
+        JsonObject c = new JsonObject();
+        var nodes = mapService.getChunkNodes(cx, cy);
+        var chunk = mapService.getChunk(cx, cy);
+        boolean exists = chunk.hasAnyExploration() || chunk.resourcesRolled;
+        c.addProperty("chunkX", cx);
+        c.addProperty("chunkY", cy);
+        c.addProperty("exists", exists);
+        c.addProperty("pinned", chunk.pinned);
+        c.addProperty("gateway", chunk.gateway);
+        c.addProperty("exploredNodes", chunk.exploredNodeCount());
+        c.addProperty("explorers", chunk.explorerCount());
+        c.addProperty("restockAt", chunk.restockAt);
+        c.addProperty("resourceEntries", countResources(chunk));
+        if (!nodes.isEmpty()) {
+            c.addProperty("terrain", nodes.get(0).getRegion());
+            c.addProperty("dangerLevel", nodes.get(0).getDangerLevel());
+            c.addProperty("dangerName", mapService.getDangerName(nodes.get(0).getDangerLevel()));
+            c.addProperty("nodeCount", nodes.size());
+        }
+        return c;
+    }
+
+    private static int countResources(com.mtxgdn.game.map.WildernessChunk chunk) {
+        if (chunk.resources == null) {
+            return 0;
+        }
+        int count = 0;
+        for (Map<String, com.mtxgdn.game.map.WildernessChunk.Resource> slot : chunk.resources.values()) {
+            count += slot.size();
+        }
+        return count;
+    }
+
+    private static Integer parseCoordinate(String value) {
+        if (value == null || value.isBlank()) {
+            return null;
+        }
+        try {
+            return Integer.parseInt(value.trim());
+        } catch (NumberFormatException e) {
+            return null;
+        }
+    }
+
+    /** 安全区与危险度不能同时成立（安全区意味着禁止 PK，而危险度是 PK 收益的依据）。 */
+    private static void requireDangerConsistent(boolean safeZone, int dangerLevel) {
+        if (safeZone && dangerLevel > 0) {
+            throw new IllegalArgumentException("安全区的危险度必须为 0（安全区禁止 PK，"
+                    + "危险度是 PK 掠夺的依据，两者不能同时成立）");
+        }
+    }
+
+    /**
+     * 更新地点时校验"改完之后"的安全区/危险度组合是否自洽。
+     * <p>行不存在时静默返回，由 UPDATE 的 affected==0 统一给出 404。</p>
+     */
+    private static void checkDangerConsistencyOnUpdate(long id, Map<String, Object> update) {
+        boolean nextSafe;
+        int nextDanger;
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(
+                     "SELECT is_safe_zone, COALESCE(danger_level, 0) FROM map_locations WHERE id = ?")) {
+            ps.setLong(1, id);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) return;
+                nextSafe = rs.getBoolean(1);
+                nextDanger = rs.getInt(2);
+            }
+        } catch (SQLException e) {
+            return; // 列缺失等异常交给后续 UPDATE 报错，不在这里掩盖
+        }
+        if (update.containsKey("is_safe_zone")) nextSafe = (Boolean) update.get("is_safe_zone");
+        if (update.containsKey("danger_level")) nextDanger = (Integer) update.get("danger_level");
+        requireDangerConsistent(nextSafe, nextDanger);
+    }
+
+    /**
+     * 校验地点名未被占用。
+     * <p>地点名是 {@code /地图 go <地名>} 与 {@code /地图 传送 <地名>} 的唯一解析依据，
+     * 重名会让其中一个地点永远无法通过指令抵达（{@code getLocationByName} 只返回第一个）。</p>
+     *
+     * @param excludeId 更新场景下排除自身；新建传 0
+     */
+    private static void checkMapLocationNameAvailable(String name, long excludeId) throws SQLException {
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(
+                     "SELECT COUNT(*) FROM map_locations WHERE name = ? AND id <> ?")) {
+            ps.setString(1, name);
+            ps.setLong(2, excludeId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next() && rs.getInt(1) > 0) {
+                    throw new IllegalArgumentException("已存在同名地点「" + name
+                            + "」，重名会导致其中一个无法通过 /地图 go 抵达");
+                }
+            }
+        }
+    }
+
+    private static boolean mapLocationExists(Connection conn, long id) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement("SELECT COUNT(*) FROM map_locations WHERE id = ?")) {
+            ps.setLong(1, id);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() && rs.getInt(1) > 0;
+            }
+        }
+    }
+
+    /** 已知世界范围内（id &lt; 野外 idBase）的下一个空闲 id。 */
+    private static long nextKnownWorldLocationId(Connection conn, long wildernessFloor) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT COALESCE(MAX(id), 0) + 1 FROM map_locations WHERE id < ?")) {
+            ps.setLong(1, wildernessFloor);
+            try (ResultSet rs = ps.executeQuery()) {
+                long next = rs.next() ? rs.getLong(1) : 1L;
+                return Math.max(1L, Math.min(next, wildernessFloor - 1));
+            }
+        }
+    }
+
+    private static void upsertConnection(Connection conn, long from, long to, int travelSeconds)
+            throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "DELETE FROM map_connections WHERE from_location_id = ? AND to_location_id = ?")) {
+            ps.setLong(1, from);
+            ps.setLong(2, to);
+            ps.executeUpdate();
+        }
+        try (PreparedStatement ps = conn.prepareStatement(
+                "INSERT INTO map_connections (from_location_id, to_location_id, travel_time_seconds) "
+                        + "VALUES (?, ?, ?)")) {
+            ps.setLong(1, from);
+            ps.setLong(2, to);
+            ps.setInt(3, travelSeconds);
+            ps.executeUpdate();
+        }
+    }
+
+    /** 字段存在且不是 JSON null（区分"没传"与"传了 null"）。 */
+    private static boolean hasJsonValue(JsonObject req, String key) {
+        return req.has(key) && !req.get(key).isJsonNull();
+    }
+
+    // ==================== 坊市管理（挂单 / 成交行情） ====================
+
+    /**
+     * 坊市挂单总览。
+     * <p>
+     * 与 {@code GET /game/market} 的区别：本接口是<b>只读管理视图</b>，用管理台权限
+     * （admin.economy）而非玩家权限，且不受「交易」玩法插件门控影响 ——
+     * 即使交易插件已停用，管理员仍能查看存量挂单与成交历史。
+     */
+    @GET
+    @Path("/market/listings")
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("admin.economy")
+    public Response getMarketListings() {
+        JsonObject out = new JsonObject();
+        try {
+            var listings = ServiceRegistry.getTradeService().getActiveListings();
+            // 一次性查出卖家名，避免逐行查库（挂单可能有上百条）
+            Map<Long, String> sellerNames = loadPlayerNames(
+                    listings.stream().map(l -> l.sellerPlayerId).distinct().toList());
+
+            JsonArray arr = new JsonArray();
+            for (var l : listings) {
+                Item item = ItemRegistry.get(l.itemKey);
+                JsonObject o = new JsonObject();
+                o.addProperty("id", l.id);
+                o.addProperty("sellerPlayerId", l.sellerPlayerId);
+                o.addProperty("sellerName", sellerNames.get(l.sellerPlayerId));
+                o.addProperty("itemKey", l.itemKey);
+                o.addProperty("itemName", item != null ? item.getName() : l.itemKey);
+                o.addProperty("quantity", l.quantity);
+                o.addProperty("priceSpiritStones", l.priceSpiritStones);
+                o.addProperty("unitPrice", l.unitPrice());
+                o.addProperty("fee", l.fee);
+                o.addProperty("createdAt", l.createdAt);
+                o.addProperty("expiresAt", l.expiresAt);
+                long remaining = l.remainingMs();
+                o.addProperty("remainingMs", remaining);
+                // expiresAt=0（历史遗留挂单）时 remainingMs 返回 -1，语义是"永不过期"
+                o.addProperty("remainingText", remaining < 0 ? "永不过期" : formatDuration(remaining));
+                arr.add(o);
+            }
+            out.addProperty("code", 200);
+            JsonObject data = new JsonObject();
+            data.add("listings", arr);
+            data.addProperty("count", arr.size());
+            data.addProperty("listingDurationHours", TradeService.getListingDurationHours());
+            data.addProperty("priceHistoryKeepDays", TradeService.getPriceHistoryKeepDays());
+            out.add("data", data);
+        } catch (Exception e) {
+            out.addProperty("code", 500);
+            out.addProperty("message", "获取坊市挂单失败: " + e.getMessage());
+        }
+        return Response.ok(gson.toJson(out)).build();
+    }
+
+    /**
+     * 某物品的成交行情（均价/最低/最高 + 当前在售最低价），供管理台做定价参考。
+     *
+     * @param itemKey 物品 key（支持短 key）
+     * @param days    统计窗口天数；空或非法值走服务端默认 7 天，上限 90 天
+     */
+    @GET
+    @Path("/market/price")
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("admin.economy")
+    public Response getMarketPrice(@QueryParam("itemKey") String itemKey,
+                                   @QueryParam("item") String item,
+                                   @QueryParam("days") String daysParam) {
+        JsonObject out = new JsonObject();
+        String key = (itemKey != null && !itemKey.isBlank()) ? itemKey : item;
+        if (key == null || key.isBlank()) {
+            out.addProperty("code", 400);
+            out.addProperty("message", "请提供 itemKey 查询参数");
+            return Response.ok(gson.toJson(out)).build();
+        }
+        int days = 0;
+        if (daysParam != null && !daysParam.isBlank()) {
+            try {
+                days = Integer.parseInt(daysParam.trim());
+            } catch (NumberFormatException ignored) {
+                // 非法天数走服务端默认窗口
+            }
+        }
+        try {
+            Map<String, Object> quote = ServiceRegistry.getTradeService().getPriceHistory(key, days);
+            boolean ok = Boolean.TRUE.equals(quote.get("success"));
+            out.addProperty("code", ok ? 200 : 400);
+            out.addProperty("message", String.valueOf(quote.getOrDefault("message", "")));
+            JsonObject data = new JsonObject();
+            for (Map.Entry<String, Object> e : quote.entrySet()) {
+                Object v = e.getValue();
+                if (v == null) continue;
+                if (v instanceof Number n) data.addProperty(e.getKey(), n);
+                else if (v instanceof Boolean b) data.addProperty(e.getKey(), b);
+                else data.addProperty(e.getKey(), String.valueOf(v));
+            }
+            out.add("data", data);
+        } catch (Exception e) {
+            out.addProperty("code", 500);
+            out.addProperty("message", "查询行情失败: " + e.getMessage());
+        }
+        return Response.ok(gson.toJson(out)).build();
+    }
+
+    /** 批量查询玩家名（playerId → name）；查不到的玩家不入 map，避免逐行查库。 */
+    private static Map<Long, String> loadPlayerNames(List<Long> playerIds) {
+        Map<Long, String> names = new LinkedHashMap<>();
+        if (playerIds == null || playerIds.isEmpty()) return names;
+        String placeholders = String.join(",", java.util.Collections.nCopies(playerIds.size(), "?"));
+        String sql = "SELECT id, name FROM players WHERE id IN (" + placeholders + ")";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            for (int i = 0; i < playerIds.size(); i++) {
+                ps.setLong(i + 1, playerIds.get(i));
+            }
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    names.put(rs.getLong("id"), rs.getString("name"));
+                }
+            }
+        } catch (SQLException e) {
+            // 玩家名查不到不影响挂单列表本身，管理员仍能看到 id 与物品
+            GameLogger.getLogger(AdminResource.class).warn("批量查询玩家名失败: " + e.getMessage());
+        }
+        return names;
+    }
+
+    /** 剩余毫秒 → "3天2小时" 这类可读文本。 */
+    private static String formatDuration(long ms) {
+        if (ms <= 0) return "已到期";
+        long totalMinutes = ms / 60000;
+        long days = totalMinutes / (60 * 24);
+        long hours = (totalMinutes / 60) % 24;
+        long minutes = totalMinutes % 60;
+        if (days > 0) return days + "天" + hours + "小时";
+        if (hours > 0) return hours + "小时" + minutes + "分钟";
+        return Math.max(1, minutes) + "分钟";
+    }
+
 }

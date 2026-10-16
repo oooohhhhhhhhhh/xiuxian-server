@@ -76,7 +76,7 @@ public class PluginMakerGUI extends JFrame {
         subtitle.setBorder(BorderFactory.createEmptyBorder(4, 2, 0, 0));
         left.add(subtitle);
 
-        JLabel right = Theme.hintLabel("Plugin Maker · v1.4.1-alpha1");
+        JLabel right = Theme.hintLabel("Plugin Maker · " + com.mtxgdn.util.BuildInfo.getDisplayVersion());
         right.setBorder(BorderFactory.createEmptyBorder(10, 0, 0, 4));
 
         p.add(left, BorderLayout.WEST);

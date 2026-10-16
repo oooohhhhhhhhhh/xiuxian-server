@@ -42,6 +42,16 @@ public final class VarInt {
         return baos.toByteArray();
     }
 
+    /** 将 VarInt 直接写入 DataOutputStream */
+    public static void writeVarInt(int value, DataOutputStream out) throws IOException {
+        out.write(writeVarInt(value));
+    }
+
+    /** 将 VarInt 直接写入 ByteArrayOutputStream */
+    public static void writeVarInt(int value, ByteArrayOutputStream out) throws IOException {
+        out.write(writeVarInt(value));
+    }
+
     public static void writeString(DataOutputStream out, String str) throws IOException {
         byte[] bytes = str.getBytes("UTF-8");
         out.write(writeVarInt(bytes.length));

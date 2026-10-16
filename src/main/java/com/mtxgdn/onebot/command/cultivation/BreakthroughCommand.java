@@ -16,20 +16,18 @@ public class BreakthroughCommand extends Command {
                 "/突破",
                 "修炼",
                 "game.realm.breakthrough");
+        setModule("cultivation");
     }
 
     @Override
     public void execute(CommandContext ctx) {
-        Long userId = ctx.requireBinding();
-        if (userId == null) return;
-        if (!ctx.checkPermission("game.realm.breakthrough")) return;
-
-        PlayerInfo p = ctx.requirePlayer(userId);
+        PlayerInfo p = requirePlayerInfo(ctx);
         if (p == null) return;
 
         var realmService = ServiceRegistry.getRealmService();
         var playerService = ServiceRegistry.getPlayerService();
         var actionLog = PlayerActionLogger.getInstance();
+        Long userId = p.getUserId();
 
         RealmBreakthroughResult result = realmService.tryBreakthrough(userId);
         actionLog.logBreakthrough(userId, p.getName(), result.isSuccess(), result.getMessage());

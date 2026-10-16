@@ -4,8 +4,11 @@ import com.mtxgdn.permission.PermissionService;
 import com.mtxgdn.util.AppConfig;
 import com.zaxxer.hikari.HikariConfig;
 import com.zaxxer.hikari.HikariDataSource;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 import java.sql.Connection;
+import java.sql.DriverManager;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
@@ -14,84 +17,102 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 
 public class DatabaseManager {
 
-    private static final String DB_TYPE = AppConfig.get("database.type", "mysql");
-    private static final boolean IS_SQLITE = "sqlite".equalsIgnoreCase(DB_TYPE);
-    private static final DatabaseDialect DIALECT = IS_SQLITE ? new SQLiteDialect() : new MySQLDialect();
+    private static final Logger logger = LoggerFactory.getLogger(DatabaseManager.class);
 
-    private static final String DB_URL = IS_SQLITE
-            ? "jdbc:sqlite:" + AppConfig.get("database.sqlite_path", "xiuxian.db")
-            : AppConfig.get("database.url", "jdbc:mysql://localhost:3306/xiuxian?useUnicode=true&characterEncoding=UTF-8&connectionCollation=utf8mb4_unicode_ci");
-    private static final String DB_USER = IS_SQLITE ? "" : AppConfig.get("database.username", "root");
-    private static final String DB_PASSWORD = IS_SQLITE ? "" : AppConfig.get("database.password", "root");
+    private static final String MYSQL_DRIVER = "com.mysql.cj.jdbc.Driver";
+    private static final String SQLITE_DRIVER = "org.sqlite.JDBC";
 
-    private static volatile HikariDataSource dataSource;
+    private static String dbUrl;
+    private static String dbUser;
+    private static String dbPassword;
+    private static boolean IS_SQLITE = false;
+    private static DatabaseDialect DIALECT;
+    /** HikariCP 连接池（替代每次裸建连接，显著降低连接开销） */
+    private static HikariDataSource dataSource;
 
-    private static HikariDataSource getDataSource() {
-        if (dataSource == null) {
-            synchronized (DatabaseManager.class) {
-                if (dataSource == null) {
-                    HikariConfig config = new HikariConfig();
-                    config.setJdbcUrl(DB_URL);
-
-                    if (IS_SQLITE) {
-                        config.setMaximumPoolSize(3);
-                        config.setMinimumIdle(1);
-                        config.setConnectionTimeout(10000);
-                        config.addDataSourceProperty("journal_mode", "WAL");
-                        config.addDataSourceProperty("busy_timeout", "5000");
-                    } else {
-                        config.setUsername(DB_USER);
-                        config.setPassword(DB_PASSWORD);
-                        int maxPool = AppConfig.getInt("performance.db_pool_max", 4);
-                        config.setMaximumPoolSize(maxPool);
-                        config.setMinimumIdle(Math.min(1, maxPool));
-                        config.setIdleTimeout(20000);
-                        config.setMaxLifetime(600000);
-                        config.setConnectionTimeout(10000);
-                        config.addDataSourceProperty("cachePrepStmts", "true");
-                        config.addDataSourceProperty("prepStmtCacheSize", "50");
-                        config.addDataSourceProperty("prepStmtCacheSqlLimit", "1024");
-                        config.addDataSourceProperty("useUnicode", "true");
-                        config.addDataSourceProperty("characterEncoding", "UTF-8");
-                        config.setConnectionInitSql("SET NAMES utf8mb4");
-                    }
-
-                    dataSource = new HikariDataSource(config);
-                }
+    public static void init(String url, String user, String password) {
+        dbUrl = url;
+        dbUser = user;
+        dbPassword = password;
+        IS_SQLITE = url.startsWith("jdbc:sqlite:");
+        DIALECT = IS_SQLITE ? new SQLiteDialect() : new MySQLDialect();
+        try {
+            Class.forName(IS_SQLITE ? SQLITE_DRIVER : MYSQL_DRIVER);
+            // 初始化连接池
+            HikariConfig cfg = new HikariConfig();
+            cfg.setJdbcUrl(url);
+            cfg.setUsername(user);
+            cfg.setPassword(password);
+            cfg.setPoolName("xiuxian-db");
+            cfg.setMaximumPoolSize(Math.max(4, AppConfig.getInt("database.pool_max", 4)));
+            cfg.setMinimumIdle(1);
+            cfg.setConnectionTimeout(10_000);
+            cfg.setValidationTimeout(3_000);
+            cfg.setIdleTimeout(300_000);
+            cfg.setMaxLifetime(1_800_000);
+            if (IS_SQLITE) {
+                // SQLite 单写者模型：池内保持少量连接即可，避免写锁争用
+                cfg.setMaximumPoolSize(Math.min(8, Math.max(2, AppConfig.getInt("database.pool_max", 4))));
             }
+            dataSource = new HikariDataSource(cfg);
+            getConnection();
+            initTable();
+        } catch (ClassNotFoundException | SQLException e) {
+            throw new RuntimeException("数据库驱动加载失败", e);
         }
-        return dataSource;
     }
 
-    public static void shutdown() {
-        if (dataSource != null && !dataSource.isClosed()) {
-            dataSource.close();
+    public static Connection getConnection() throws SQLException {
+        if (dataSource != null) {
+            Connection conn = dataSource.getConnection();
+            conn.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
+            DIALECT.initConnection(conn);
+            return conn;
         }
+        // 未初始化时回退裸连接（容错）
+        Connection conn = DriverManager.getConnection(dbUrl, dbUser, dbPassword);
+        conn.setTransactionIsolation(Connection.TRANSACTION_READ_COMMITTED);
+        DIALECT.initConnection(conn);
+        return conn;
     }
 
     public static boolean isSqlite() {
         return IS_SQLITE;
     }
 
-    public static Connection getConnection() throws SQLException {
-        Connection conn = getDataSource().getConnection();
-        DIALECT.initConnection(conn);
-        return conn;
+    public static DatabaseDialect getDialect() {
+        return DIALECT;
     }
 
-    @FunctionalInterface
-    public interface TransactionTask<T> {
-        T execute(Connection conn) throws SQLException;
-    }
-
-    public static <T> T runTransaction(TransactionTask<T> task) {
+    public static void executeInTransaction(SQLRunnable runnable) {
         try (Connection conn = getConnection()) {
             conn.setAutoCommit(false);
             try {
-                T result = task.execute(conn);
+                runnable.run(conn);
+                conn.commit();
+            } catch (Exception e) {
+                try {
+                    conn.rollback();
+                } catch (SQLException ignored) {
+                }
+                throw new RuntimeException("事务执行失败", e);
+            } finally {
+                conn.setAutoCommit(true);
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("事务执行失败", e);
+        }
+    }
+
+    public static <T> T runTransaction(SQLFunction<T> function) {
+        try (Connection conn = getConnection()) {
+            conn.setAutoCommit(false);
+            try {
+                T result = function.run(conn);
                 conn.commit();
                 return result;
             } catch (Exception e) {
@@ -99,7 +120,7 @@ public class DatabaseManager {
                     conn.rollback();
                 } catch (SQLException ignored) {
                 }
-                throw e;
+                throw new RuntimeException("事务执行失败", e);
             } finally {
                 conn.setAutoCommit(true);
             }
@@ -114,679 +135,111 @@ public class DatabaseManager {
         String tsUpdate = DIALECT.getTimestampUpdate();
         String boolType = DIALECT.getBooleanType();
 
-        String userTableSql = "CREATE TABLE IF NOT EXISTS users (" +
-                "id " + pk + ", " +
-                "username VARCHAR(64) NOT NULL UNIQUE, " +
-                "password VARCHAR(256) NOT NULL, " +
-                "email VARCHAR(128) DEFAULT '', " +
-                "failed_attempts INT DEFAULT 0, " +
-                "locked_until TIMESTAMP DEFAULT NULL, " +
-                "created_at " + tsDefault +
-                ")";
-
-        String techniquesTableSql = "CREATE TABLE IF NOT EXISTS techniques (" +
-                "id " + pk + ", " +
-                "name VARCHAR(64) NOT NULL, " +
-                "description VARCHAR(256) DEFAULT '', " +
-                "required_realm INT DEFAULT 0, " +
-                "learn_cost_gold BIGINT DEFAULT 0, " +
-                "learn_cost_spirit_stones BIGINT DEFAULT 0, " +
-                "upgrade_base_cost_gold INT DEFAULT 100, " +
-                "upgrade_base_cost_spirit_stones INT DEFAULT 50, " +
-                "type VARCHAR(16) NOT NULL DEFAULT 'CULTIVATION', " +
-                "max_level INT DEFAULT 10, " +
-                "hp_bonus INT DEFAULT 0, " +
-                "mp_bonus INT DEFAULT 0, " +
-                "attack_bonus INT DEFAULT 0, " +
-                "defense_bonus INT DEFAULT 0, " +
-                "speed_bonus INT DEFAULT 0, " +
-                "spirit_bonus INT DEFAULT 0, " +
-                "cultivation_speed_bonus DOUBLE DEFAULT 0, " +
-                "exp_bonus DOUBLE DEFAULT 0, " +
-                "combat_damage_bonus DOUBLE DEFAULT 0, " +
-                "damage_reduction DOUBLE DEFAULT 0, " +
-                "created_at " + tsDefault +
-                ")";
-
-        String playersTechniquesTableSql = "CREATE TABLE IF NOT EXISTS players_techniques (" +
-                "id " + pk + ", " +
-                "player_id BIGINT NOT NULL, " +
-                "technique_id BIGINT NOT NULL, " +
-                "level INT NOT NULL DEFAULT 1, " +
-                "proficiency INT DEFAULT 0, " +
-                "is_equipped " + boolType + ", " +
-                "created_at " + tsDefault + ", " +
-                "updated_at " + tsUpdate + ", " +
-                (DIALECT.supportsForeignKeysInCreateTable() ? "FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE, FOREIGN KEY (technique_id) REFERENCES techniques(id) ON DELETE CASCADE, " : "") +
-                "UNIQUE (player_id, technique_id)" +
-                ")";
-
-        String recipesTableSql = "CREATE TABLE IF NOT EXISTS recipes (" +
-                "id " + pk + ", " +
-                "name VARCHAR(64) NOT NULL, " +
-                "description VARCHAR(256) DEFAULT '', " +
-                "category VARCHAR(16) NOT NULL DEFAULT 'PILL', " +
-                "required_realm INT DEFAULT 0, " +
-                "result_item_key VARCHAR(128) NOT NULL, " +
-                "result_quantity INT DEFAULT 1, " +
-                "material1_key VARCHAR(128), " +
-                "material1_count INT DEFAULT 0, " +
-                "material2_key VARCHAR(128), " +
-                "material2_count INT DEFAULT 0, " +
-                "material3_key VARCHAR(128), " +
-                "material3_count INT DEFAULT 0, " +
-                "cost_gold BIGINT DEFAULT 0, " +
-                "cost_spirit_stones BIGINT DEFAULT 0, " +
-                "success_rate DOUBLE DEFAULT 0.8, " +
-                "min_exp_gain BIGINT DEFAULT 0, " +
-                "max_exp_gain BIGINT DEFAULT 0, " +
-                "created_at " + tsDefault +
-                ")";
-
-        String verificationCodesTableSql = "CREATE TABLE IF NOT EXISTS verification_codes (" +
-                "id " + pk + ", " +
-                "email VARCHAR(128) NOT NULL, " +
-                "code VARCHAR(6) NOT NULL, " +
-                "expires_at TIMESTAMP NOT NULL, " +
-                "sent_at TIMESTAMP DEFAULT NULL, " +
-                "created_at " + tsDefault +
-                ")";
-
-        String playersTableSql = "CREATE TABLE IF NOT EXISTS players (" +
-                "id " + pk + ", " +
-                "user_id BIGINT NOT NULL UNIQUE, " +
-                "name VARCHAR(64) NOT NULL, " +
-                "spiritual_root VARCHAR(64) DEFAULT 'FIRE', " +
-                "level INT DEFAULT 1, " +
-                "experience BIGINT DEFAULT 0, " +
-                "realm INT DEFAULT 0, " +
-                "sub_realm INT DEFAULT 0, " +
-                "hp INT DEFAULT 100, " +
-                "max_hp INT DEFAULT 100, " +
-                "mp INT DEFAULT 50, " +
-                "max_mp INT DEFAULT 50, " +
-                "attack INT DEFAULT 10, " +
-                "defense INT DEFAULT 5, " +
-                "speed INT DEFAULT 5, " +
-                "spirit INT DEFAULT 5, " +
-                "gold BIGINT DEFAULT 0, " +
-                "cultivation_progress INT DEFAULT 0, " +
-                "is_cultivating " + boolType + ", " +
-                "cultivation_start_time BIGINT DEFAULT 0, " +
-                "last_secret_realm_time BIGINT DEFAULT 0, " +
-                "last_exploration_time BIGINT DEFAULT 0, " +
-                "tutorial_step INT DEFAULT 0, " +
-                "tutorial_tips INT DEFAULT 0, " +
-                "last_offline_time BIGINT DEFAULT 0, " +
-                "current_location_id BIGINT DEFAULT 1, " +
-                "last_travel_time BIGINT DEFAULT 0, " +
-                "last_breakthrough_time BIGINT DEFAULT 0, " +
-                "created_at " + tsDefault + ", " +
-                "updated_at " + tsUpdate;
-
-        if (DIALECT.supportsForeignKeysInCreateTable()) {
-            playersTableSql += ", FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE";
-        }
-        playersTableSql += ")";
-
-        String playersItemsTableSql = "CREATE TABLE IF NOT EXISTS players_items (" +
-                "id " + pk + ", " +
-                "player_id BIGINT NOT NULL, " +
-                "item_key VARCHAR(128) NOT NULL, " +
-                "quantity BIGINT NOT NULL DEFAULT 1, " +
-                "created_at " + tsDefault + ", " +
-                "updated_at " + tsUpdate + ", " +
-                (DIALECT.supportsForeignKeysInCreateTable() ? "FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE, " : "") +
-                "UNIQUE (player_id, item_key)" +
-                ")";
-
-        String playersEquipmentTableSql = "CREATE TABLE IF NOT EXISTS players_equipment (" +
-                "id " + pk + ", " +
-                "player_id BIGINT NOT NULL, " +
-                "slot VARCHAR(32) NOT NULL, " +
-                "item_key VARCHAR(128) NOT NULL, " +
-                "enhance_level INT DEFAULT 0, " +
-                "created_at " + tsDefault + ", " +
-                "updated_at " + tsUpdate + ", " +
-                (DIALECT.supportsForeignKeysInCreateTable() ? "FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE, " : "") +
-                "UNIQUE (player_id, slot)" +
-                ")";
-
-        String skillsTableSql = "CREATE TABLE IF NOT EXISTS skills (" +
-                "id " + pk + ", " +
-                "name VARCHAR(64) NOT NULL, " +
-                "description VARCHAR(256) DEFAULT '', " +
-                "required_realm INT DEFAULT 0, " +
-                "learn_cost_gold BIGINT DEFAULT 0, " +
-                "learn_cost_spirit_stones BIGINT DEFAULT 0, " +
-                "damage INT DEFAULT 0, " +
-                "mp_cost INT DEFAULT 0, " +
-                "cooldown_seconds INT DEFAULT 0, " +
-                "skill_type INT DEFAULT 0, " +
-                "heal_amount INT DEFAULT 0, " +
-                "max_level INT DEFAULT 10, " +
-                "created_at " + tsDefault +
-                ")";
-
-        String playersSkillsTableSql = "CREATE TABLE IF NOT EXISTS players_skills (" +
-                "id " + pk + ", " +
-                "player_id BIGINT NOT NULL, " +
-                "skill_id BIGINT NOT NULL, " +
-                "level INT NOT NULL DEFAULT 1, " +
-                "proficiency INT DEFAULT 0, " +
-                "created_at " + tsDefault + ", " +
-                "updated_at " + tsUpdate + ", " +
-                (DIALECT.supportsForeignKeysInCreateTable() ? "FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE, FOREIGN KEY (skill_id) REFERENCES skills(id) ON DELETE CASCADE, " : "") +
-                "UNIQUE (player_id, skill_id)" +
-                ")";
-
-        String tradeListingsTableSql = "CREATE TABLE IF NOT EXISTS trade_listings (" +
-                "id " + pk + ", " +
-                "seller_player_id BIGINT NOT NULL, " +
-                "item_key VARCHAR(128) NOT NULL, " +
-                "quantity INT NOT NULL, " +
-                "price_spirit_stones BIGINT NOT NULL, " +
-                "fee BIGINT NOT NULL DEFAULT 0, " +
-                "status VARCHAR(16) DEFAULT 'active', " +
-                "created_at " + tsDefault + ", " +
-                "updated_at " + tsUpdate +
-                (DIALECT.supportsForeignKeysInCreateTable() ? ", FOREIGN KEY (seller_player_id) REFERENCES players(id) ON DELETE CASCADE" : "") +
-                ")";
-
-        String playerDailyTableSql = "CREATE TABLE IF NOT EXISTS player_daily (" +
-                "player_id BIGINT PRIMARY KEY, " +
-                "last_morning_cultivation VARCHAR(16), " +
-                "consecutive_days INT DEFAULT 0, " +
-                "total_active_days INT DEFAULT 0, " +
-                "last_daily_reset DATE DEFAULT (CURRENT_DATE), " +
-                "exploration_count INT DEFAULT 0, " +
-                "battle_count INT DEFAULT 0, " +
-                "secret_realm_count INT DEFAULT 0, " +
-                "skill_learn_count INT DEFAULT 0, " +
-                "exploration_rewarded INT DEFAULT 0, " +
-                "battle_rewarded INT DEFAULT 0, " +
-                "secret_realm_rewarded INT DEFAULT 0, " +
-                "skill_learn_rewarded INT DEFAULT 0, " +
-                "resonance7_awarded INT DEFAULT 0, " +
-                "resonance30_awarded INT DEFAULT 0" +
-                (DIALECT.supportsForeignKeysInCreateTable() ? ", FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE" : "") +
-                ")";
-
-        String qqBindingsTableSql = "CREATE TABLE IF NOT EXISTS qq_bindings (" +
-                "id " + pk + ", " +
-                "qq_number VARCHAR(32) NOT NULL UNIQUE, " +
-                "user_id BIGINT NOT NULL UNIQUE, " +
-                "created_at " + tsDefault +
-                (DIALECT.supportsForeignKeysInCreateTable() ? ", FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE" : "") +
-                ")";
-
-        String mcBindingsTableSql = "CREATE TABLE IF NOT EXISTS mc_bindings (" +
-                "id " + pk + ", " +
-                "mc_uuid VARCHAR(64) NOT NULL UNIQUE, " +
-                "mc_name VARCHAR(32) NOT NULL, " +
-                "user_id BIGINT NOT NULL UNIQUE, " +
-                "created_at " + tsDefault +
-                (DIALECT.supportsForeignKeysInCreateTable() ? ", FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE" : "") +
-                ")";
-
-        String rolesTableSql = "CREATE TABLE IF NOT EXISTS roles (" +
-                "id " + pk + ", " +
-                "name VARCHAR(32) NOT NULL UNIQUE, " +
-                "display_name VARCHAR(64) NOT NULL, " +
-                "level INT NOT NULL, " +
-                "created_at " + tsDefault +
-                ")";
-
-        String permissionsTableSql = "CREATE TABLE IF NOT EXISTS permissions (" +
-                "id " + pk + ", " +
-                "code VARCHAR(64) NOT NULL UNIQUE, " +
-                "name VARCHAR(64) NOT NULL, " +
-                "category VARCHAR(32) NOT NULL, " +
-                "created_at " + tsDefault +
-                ")";
-
-        String rolePermissionsTableSql = "CREATE TABLE IF NOT EXISTS role_permissions (" +
-                "id " + pk + ", " +
-                "role_name VARCHAR(32) NOT NULL, " +
-                "permission_code VARCHAR(64) NOT NULL, " +
-                "created_at " + tsDefault + ", " +
-                "UNIQUE (role_name, permission_code)" +
-                ")";
-
-        String userRolesTableSql = "CREATE TABLE IF NOT EXISTS user_roles (" +
-                "id " + pk + ", " +
-                "user_id BIGINT NOT NULL, " +
-                "role_name VARCHAR(32) NOT NULL, " +
-                "created_at " + tsDefault + ", " +
-                (DIALECT.supportsForeignKeysInCreateTable() ? "FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE, " : "") +
-                "UNIQUE (user_id, role_name)" +
-                ")";
-
-        String chatMessagesTableSql = "CREATE TABLE IF NOT EXISTS chat_messages (" +
-                "id " + pk + ", " +
-                "channel VARCHAR(16) NOT NULL DEFAULT 'world', " +
-                "sender_player_id BIGINT NOT NULL, " +
-                "receiver_player_id BIGINT DEFAULT NULL, " +
-                "content VARCHAR(1024) NOT NULL, " +
-                "created_at " + tsDefault +
-                (DIALECT.supportsIndexInCreateTable() ? ", INDEX idx_chat_channel (channel), INDEX idx_chat_receiver (receiver_player_id)" : "") +
-                ")";
-
-        String friendsTableSql = "CREATE TABLE IF NOT EXISTS friends (" +
-                "id " + pk + ", " +
-                "player_id BIGINT NOT NULL, " +
-                "friend_player_id BIGINT NOT NULL, " +
-                "status VARCHAR(16) NOT NULL DEFAULT 'pending', " +
-                "created_at " + tsDefault + ", " +
-                "updated_at " + tsUpdate + ", " +
-                (DIALECT.supportsForeignKeysInCreateTable() ? "FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE, FOREIGN KEY (friend_player_id) REFERENCES players(id) ON DELETE CASCADE, " : "") +
-                "UNIQUE (player_id, friend_player_id)" +
-                ")";
-
-        String playerActionLogsTableSql = "CREATE TABLE IF NOT EXISTS player_action_logs (" +
-                "id " + pk + ", " +
-                "user_id BIGINT DEFAULT NULL, " +
-                "player_name VARCHAR(64) DEFAULT '', " +
-                "action VARCHAR(64) NOT NULL, " +
-                "detail VARCHAR(1024) DEFAULT '', " +
-                "qq_number VARCHAR(32) DEFAULT NULL, " +
-                "created_at " + tsDefault +
-                ")";
-
-        String sectsTableSql = "CREATE TABLE IF NOT EXISTS sects (" +
-                "id " + pk + ", " +
-                "name VARCHAR(32) NOT NULL UNIQUE, " +
-                "description VARCHAR(256) DEFAULT '', " +
-                "leader_player_id BIGINT NOT NULL, " +
-                "level INT DEFAULT 1, " +
-                "prestige BIGINT DEFAULT 0, " +
-                "max_members INT DEFAULT 20, " +
-                "created_at " + tsDefault + ", " +
-                "updated_at " + tsUpdate +
-                (DIALECT.supportsForeignKeysInCreateTable() ? ", FOREIGN KEY (leader_player_id) REFERENCES players(id) ON DELETE CASCADE" : "") +
-                ")";
-
-        String sectMembersTableSql = "CREATE TABLE IF NOT EXISTS sect_members (" +
-                "id " + pk + ", " +
-                "sect_id BIGINT NOT NULL, " +
-                "player_id BIGINT NOT NULL, " +
-                "role VARCHAR(16) NOT NULL DEFAULT 'MEMBER', " +
-                "contribution BIGINT DEFAULT 0, " +
-                "joined_at " + tsDefault +
-                (DIALECT.supportsForeignKeysInCreateTable() ? ", FOREIGN KEY (sect_id) REFERENCES sects(id) ON DELETE CASCADE, FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE" : "") +
-                ", UNIQUE (player_id)" +
-                ")";
-
-        String sectApplicationsTableSql = "CREATE TABLE IF NOT EXISTS sect_applications (" +
-                "id " + pk + ", " +
-                "sect_id BIGINT NOT NULL, " +
-                "player_id BIGINT NOT NULL, " +
-                "message VARCHAR(256) DEFAULT '', " +
-                "status VARCHAR(16) NOT NULL DEFAULT 'pending', " +
-                "created_at " + tsDefault + ", " +
-                "updated_at " + tsUpdate +
-                (DIALECT.supportsForeignKeysInCreateTable() ? ", FOREIGN KEY (sect_id) REFERENCES sects(id) ON DELETE CASCADE, FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE" : "") +
-                ")";
-
-        String sectWarehouseTableSql = "CREATE TABLE IF NOT EXISTS sect_warehouse (" +
-                "id " + pk + ", " +
-                "sect_id BIGINT NOT NULL, " +
-                "item_key VARCHAR(128) NOT NULL, " +
-                "quantity INT NOT NULL DEFAULT 1, " +
-                "donated_by_player_id BIGINT DEFAULT NULL, " +
-                "created_at " + tsDefault + ", " +
-                "updated_at " + tsUpdate +
-                (DIALECT.supportsForeignKeysInCreateTable() ? ", FOREIGN KEY (sect_id) REFERENCES sects(id) ON DELETE CASCADE" : "") +
-                ", UNIQUE (sect_id, item_key)" +
-                ")";
-
-        String sectWarsTableSql = "CREATE TABLE IF NOT EXISTS sect_wars (" +
-                "id " + pk + ", " +
-                "attacker_sect_id BIGINT NOT NULL, " +
-                "defender_sect_id BIGINT NOT NULL, " +
-                "winner_sect_id BIGINT DEFAULT NULL, " +
-                "attacker_wins INT DEFAULT 0, " +
-                "defender_wins INT DEFAULT 0, " +
-                "prestige_stake BIGINT DEFAULT 0, " +
-                "battle_log TEXT, " +
-                "created_at " + tsDefault +
-                (DIALECT.supportsForeignKeysInCreateTable() ? ", FOREIGN KEY (attacker_sect_id) REFERENCES sects(id) ON DELETE CASCADE, FOREIGN KEY (defender_sect_id) REFERENCES sects(id) ON DELETE CASCADE" : "") +
-                ")";
-
-        String mapLocationsTableSql = "CREATE TABLE IF NOT EXISTS map_locations (" +
-                "id BIGINT PRIMARY KEY, " +
-                "name VARCHAR(64) NOT NULL, " +
-                "description TEXT, " +
-                "region VARCHAR(32) DEFAULT '未知', " +
-                "min_realm INT DEFAULT 0, " +
-                "is_safe_zone " + boolType + ", " +
-                "created_at " + tsDefault + ")";
-
-        String mapConnectionsTableSql = "CREATE TABLE IF NOT EXISTS map_connections (" +
-                "id " + pk + ", " +
-                "from_location_id BIGINT NOT NULL, " +
-                "to_location_id BIGINT NOT NULL, " +
-                "travel_time_seconds INT DEFAULT 5, " +
-                "created_at " + tsDefault +
-                (DIALECT.supportsForeignKeysInCreateTable() ? ", FOREIGN KEY (from_location_id) REFERENCES map_locations(id) ON DELETE CASCADE, FOREIGN KEY (to_location_id) REFERENCES map_locations(id) ON DELETE CASCADE" : "") +
-                ")";
-
-        String redeemCodesTableSql = "CREATE TABLE IF NOT EXISTS redeem_codes (" +
-                "id " + pk + ", " +
-                "code VARCHAR(32) NOT NULL UNIQUE, " +
-                "name VARCHAR(64) DEFAULT '', " +
-                "items_json TEXT, " +
-                "gold BIGINT DEFAULT 0, " +
-                "spirit_stones BIGINT DEFAULT 0, " +
-                "exp BIGINT DEFAULT 0, " +
-                "max_uses INT DEFAULT 1, " +
-                "current_uses INT DEFAULT 0, " +
-                "status VARCHAR(16) DEFAULT 'active', " +
-                "expires_at TIMESTAMP NULL, " +
-                "created_by VARCHAR(64) DEFAULT '', " +
-                "created_at " + tsDefault + ", " +
-                "updated_at " + tsUpdate +
-                ")";
-
-        String redeemedCodesTableSql = "CREATE TABLE IF NOT EXISTS redeemed_codes (" +
-                "id " + pk + ", " +
-                "code_id BIGINT NOT NULL, " +
-                "player_id BIGINT NOT NULL, " +
-                "redeemed_at " + tsDefault +
-                (DIALECT.supportsForeignKeysInCreateTable() ? ", FOREIGN KEY (code_id) REFERENCES redeem_codes(id) ON DELETE CASCADE, FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE" : "") +
-                ", UNIQUE (code_id, player_id)" +
-                ")";
-
         try (Connection conn = getConnection();
              Statement stmt = conn.createStatement()) {
-            stmt.execute(userTableSql);
-            stmt.execute(verificationCodesTableSql);
-            try { stmt.execute("ALTER TABLE verification_codes ADD COLUMN IF NOT EXISTS sent_at TIMESTAMP DEFAULT NULL"); } catch (SQLException ignored) {}
-            stmt.execute(playersTableSql);
-            stmt.execute(playersItemsTableSql);
-            stmt.execute(playersEquipmentTableSql);
-            stmt.execute(skillsTableSql);
-            stmt.execute(playersSkillsTableSql);
-            stmt.execute(techniquesTableSql);
-            stmt.execute(playersTechniquesTableSql);
-            stmt.execute(recipesTableSql);
-            stmt.execute(tradeListingsTableSql);
-            stmt.execute(playerDailyTableSql);
-            stmt.execute(qqBindingsTableSql);
-            stmt.execute(mcBindingsTableSql);
-            stmt.execute(rolesTableSql);
-            stmt.execute(permissionsTableSql);
-            stmt.execute(rolePermissionsTableSql);
-            stmt.execute(userRolesTableSql);
-            stmt.execute(chatMessagesTableSql);
-            stmt.execute(friendsTableSql);
-            stmt.execute(playerActionLogsTableSql);
-            stmt.execute(sectsTableSql);
-            stmt.execute(sectMembersTableSql);
-            stmt.execute(sectApplicationsTableSql);
-            stmt.execute(sectWarehouseTableSql);
-            stmt.execute(sectWarsTableSql);
-            stmt.execute(mapLocationsTableSql);
-            stmt.execute(mapConnectionsTableSql);
-            stmt.execute(redeemCodesTableSql);
-            stmt.execute(redeemedCodesTableSql);
+            stmt.execute(DatabaseSchema.createUsersTable(pk, tsDefault));
+            stmt.execute(DatabaseSchema.createVerificationCodesTable(pk, tsDefault));
+            stmt.execute(DatabaseSchema.createPlayersTable(pk, tsDefault, tsUpdate, boolType, DIALECT));
+            stmt.execute(DatabaseSchema.createPlayersItemsTable(pk, tsDefault, tsUpdate, DIALECT));
+            stmt.execute(DatabaseSchema.createPlayersEquipmentTable(pk, tsDefault, tsUpdate, DIALECT));
+            stmt.execute(DatabaseSchema.createSkillsTable(pk, tsDefault));
+            stmt.execute(DatabaseSchema.createPlayersSkillsTable(pk, tsDefault, tsUpdate, DIALECT));
+            stmt.execute(DatabaseSchema.createTechniquesTable(pk, tsDefault));
+            stmt.execute(DatabaseSchema.createPlayersTechniquesTable(pk, tsDefault, tsUpdate, boolType, DIALECT));
+            stmt.execute(DatabaseSchema.createRecipesTable(pk, tsDefault));
+            stmt.execute(DatabaseSchema.createTradeListingsTable(pk, tsDefault, tsUpdate, DIALECT));
+            stmt.execute(DatabaseSchema.createPlayerDailyTable(pk, tsDefault, DIALECT));
+            stmt.execute(DatabaseSchema.createQqBindingsTable(pk, tsDefault, DIALECT));
+            stmt.execute(DatabaseSchema.createQqOfficialBindingsTable(pk, tsDefault, DIALECT));
+            stmt.execute(DatabaseSchema.createMcBindingsTable(pk, tsDefault, DIALECT));
+            stmt.execute(DatabaseSchema.createRolesTable(pk, tsDefault));
+            stmt.execute(DatabaseSchema.createPermissionsTable(pk, tsDefault));
+            stmt.execute(DatabaseSchema.createRolePermissionsTable(pk, tsDefault));
+            stmt.execute(DatabaseSchema.createUserRolesTable(pk, tsDefault, DIALECT));
+            stmt.execute(DatabaseSchema.createChatMessagesTable(pk, tsDefault, DIALECT));
+            stmt.execute(DatabaseSchema.createFriendsTable(pk, tsDefault, tsUpdate, DIALECT));
+            stmt.execute(DatabaseSchema.createPlayerActionLogsTable(pk, tsDefault));
+            stmt.execute(DatabaseSchema.createSectsTable(pk, tsDefault, tsUpdate, DIALECT));
+            stmt.execute(DatabaseSchema.createSectMembersTable(pk, tsDefault, DIALECT));
+            stmt.execute(DatabaseSchema.createSectApplicationsTable(pk, tsDefault, tsUpdate, DIALECT));
+            stmt.execute(DatabaseSchema.createSectWarehouseTable(pk, tsDefault, tsUpdate, DIALECT));
+            stmt.execute(DatabaseSchema.createSectWarsTable(pk, tsDefault, DIALECT));
+            stmt.execute(DatabaseSchema.createMapLocationsTable(pk, tsDefault, boolType));
+            stmt.execute(DatabaseSchema.createMapConnectionsTable(pk, tsDefault, DIALECT));
+            stmt.execute(DatabaseSchema.createMapLocationEventBiasTable(pk, DIALECT));
+            stmt.execute(DatabaseSchema.createPlayerMapExplorationTable(pk, tsDefault, DIALECT));
+            // 野外资源表已废弃：野外改存分片文件，新库不再建这张表（老库留着的空表无害）
+            stmt.execute(DatabaseSchema.createRedeemCodesTable(pk, tsDefault, tsUpdate));
+            stmt.execute(DatabaseSchema.createRedeemedCodesTable(pk, tsDefault, DIALECT));
+            stmt.execute(DatabaseSchema.createCavesTable(pk, tsDefault, tsUpdate, DIALECT));
+            stmt.execute(DatabaseSchema.createFormationsTable(pk, tsDefault, tsUpdate, DIALECT));
+            stmt.execute(DatabaseSchema.createPlayerEconomyTable(pk, DIALECT));
+            stmt.execute(DatabaseSchema.createPlayerBankTable(pk, tsDefault, tsUpdate));
+            stmt.execute(DatabaseSchema.createAuctionListingsTable(pk, tsDefault, tsUpdate));
+            stmt.execute(DatabaseSchema.createAuctionBidsTable(pk, tsDefault));
+            stmt.execute(DatabaseSchema.createPlayerEnergyTable(pk, DIALECT));
+            stmt.execute(DatabaseSchema.createPlayerTitlesTable(pk, tsDefault, boolType, DIALECT));
+            // V4 修复：JWT 吊销名单持久化表（登出后重启不复活）
+            stmt.execute(DatabaseSchema.createTokenBlacklistTable(pk, tsDefault));
+            // 坊市挂单时限 + 成交价格历史
+            stmt.execute(DatabaseSchema.createTradePriceHistoryTable(pk, tsDefault));
 
-            // 洞府表
-            String cavesTableSql = "CREATE TABLE IF NOT EXISTS caves (" +
-                    "id " + pk + ", " +
-                    "player_id BIGINT NOT NULL, " +
-                    "name VARCHAR(32) NOT NULL DEFAULT '山间洞府', " +
-                    "level INT DEFAULT 1, " +
-                    "spirit_energy BIGINT DEFAULT 0, " +
-                    "max_spirit_energy INT DEFAULT 1000, " +
-                    "cultivation_bonus INT DEFAULT 5, " +
-                    "storage_bonus INT DEFAULT 10, " +
-                    "last_collect_time BIGINT DEFAULT 0, " +
-                    "created_at " + tsDefault + ", " +
-                    "updated_at " + tsUpdate +
-                    (DIALECT.supportsForeignKeysInCreateTable() ? ", FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE" : "") +
-                    ", UNIQUE (player_id)" +
-                    ")";
-            stmt.execute(cavesTableSql);
+            new DatabaseMigration(DIALECT, IS_SQLITE).executeMigrations(conn);
 
-            // 阵法表
-            String formationsTableSql = "CREATE TABLE IF NOT EXISTS formations (" +
-                    "id " + pk + ", " +
-                    "player_id BIGINT NOT NULL, " +
-                    "formation_key VARCHAR(32) NOT NULL, " +
-                    "name VARCHAR(32) NOT NULL, " +
-                    "level INT DEFAULT 1, " +
-                    "spirit_energy_boost INT DEFAULT 0, " +
-                    "cultivation_bonus INT DEFAULT 0, " +
-                    "defense_bonus INT DEFAULT 0, " +
-                    "heart_demon_resist INT DEFAULT 0, " +
-                    "duration_minutes INT DEFAULT 60, " +
-                    "placed_at BIGINT DEFAULT 0, " +
-                    "expires_at BIGINT DEFAULT 0, " +
-                    "active BOOLEAN DEFAULT 0, " +
-                    "created_at " + tsDefault + ", " +
-                    "updated_at " + tsUpdate +
-                    (DIALECT.supportsForeignKeysInCreateTable() ? ", FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE" : "") +
-                    ")";
-            stmt.execute(formationsTableSql);
+            // 索引必须在迁移之后创建。
+            //
+            // 老库的 trade_listings 没有 expires_at 列，该列是由 executeMigrations 里的
+            // ALTER TABLE 补上的；索引却曾经先于迁移执行，于是任何"升级上来的库"都会在
+            // 启动时直接抛 no such column: expires_at —— 表建好了、服务却起不来。
+            // 建表用 CREATE TABLE IF NOT EXISTS，对老库是空操作，真正补列的是迁移，
+            // 所以"先迁移、后建索引"才是唯一正确的顺序。
+            // 回归测试：LegacySchemaUpgradeTest
+            createIndexQuietly(stmt, DatabaseSchema.createTradePriceHistoryIndex());
+            createIndexQuietly(stmt, DatabaseSchema.createTradeListingsStatusExpiresIndex());
+            createIndexQuietly(stmt, DatabaseSchema.createTradeListingsSellerStatusIndex());
+            createIndexQuietly(stmt, DatabaseSchema.createPlayerBuffsExpireIndex());
 
-            // 迁移：为旧表添加 battle_strategy 列
-            try { stmt.execute("ALTER TABLE players ADD COLUMN battle_strategy VARCHAR(16) DEFAULT 'balanced'"); } catch (SQLException ignored) {}
-
-            // 迁移：添加地图位置相关列
-            try { stmt.execute("ALTER TABLE players ADD COLUMN current_location_id BIGINT DEFAULT 1"); } catch (SQLException ignored) {}
-            try { stmt.execute("ALTER TABLE players ADD COLUMN last_travel_time BIGINT DEFAULT 0"); } catch (SQLException ignored) {}
-
-            // 经济系统表
-            String playerEconomyTableSql = "CREATE TABLE IF NOT EXISTS player_economy (" +
-                    "player_id BIGINT PRIMARY KEY, " +
-                    "last_sign_in VARCHAR(16), " +
-                    "streak INT DEFAULT 0, " +
-                    "cultivation_boost_count INT DEFAULT 0, " +
-                    "total_stones_spent BIGINT DEFAULT 0, " +
-                    "total_stones_earned BIGINT DEFAULT 0" +
-                    (DIALECT.supportsForeignKeysInCreateTable() ? ", FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE" : "") +
-                    ")";
-            stmt.execute(playerEconomyTableSql);
-
-            // 灵庄表
-            String playerBankTableSql = "CREATE TABLE IF NOT EXISTS player_bank (" +
-                    "id " + pk + ", " +
-                    "player_id BIGINT NOT NULL, " +
-                    "deposit_type VARCHAR(16) NOT NULL DEFAULT 'current', " +
-                    "principal BIGINT NOT NULL DEFAULT 0, " +
-                    "interest_earned BIGINT NOT NULL DEFAULT 0, " +
-                    "rate DOUBLE NOT NULL, " +
-                    "deposited_at BIGINT NOT NULL, " +
-                    "matures_at BIGINT DEFAULT 0, " +
-                    "status VARCHAR(16) NOT NULL DEFAULT 'active', " +
-                    "created_at " + tsDefault + ", " +
-                    "updated_at " + tsUpdate +
-                    ")";
-            stmt.execute(playerBankTableSql);
-
-            // 竞拍行表
-            String auctionListingsTableSql = "CREATE TABLE IF NOT EXISTS auction_listings (" +
-                    "id " + pk + ", " +
-                    "seller_player_id BIGINT NOT NULL, " +
-                    "item_key VARCHAR(128) NOT NULL, " +
-                    "quantity INT NOT NULL, " +
-                    "start_price BIGINT NOT NULL, " +
-                    "current_bid BIGINT DEFAULT NULL, " +
-                    "current_bidder_id BIGINT DEFAULT NULL, " +
-                    "fee_rate DOUBLE DEFAULT 0.07, " +
-                    "status VARCHAR(16) DEFAULT 'active', " +
-                    "end_time TIMESTAMP NOT NULL, " +
-                    "created_at " + tsDefault + ", " +
-                    "updated_at " + tsUpdate +
-                    ")";
-            stmt.execute(auctionListingsTableSql);
-
-            String auctionBidsTableSql = "CREATE TABLE IF NOT EXISTS auction_bids (" +
-                    "id " + pk + ", " +
-                    "listing_id BIGINT NOT NULL, " +
-                    "bidder_player_id BIGINT NOT NULL, " +
-                    "amount BIGINT NOT NULL, " +
-                    "created_at " + tsDefault +
-                    ")";
-            stmt.execute(auctionBidsTableSql);
-
-            String playerEnergyTableSql = "CREATE TABLE IF NOT EXISTS player_energy (" +
-                    "player_id BIGINT PRIMARY KEY, " +
-                    "energy BIGINT DEFAULT 0" +
-                    (DIALECT.supportsForeignKeysInCreateTable() ? ", FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE" : "") +
-                    ")";
-            stmt.execute(playerEnergyTableSql);
-
-            String playerTitlesTableSql = "CREATE TABLE IF NOT EXISTS player_titles (" +
-                    "id " + pk + ", " +
-                    "player_id BIGINT NOT NULL, " +
-                    "title_key VARCHAR(64) NOT NULL, " +
-                    "is_equipped " + boolType + ", " +
-                    "acquired_at " + tsDefault + ", " +
-                    (DIALECT.supportsForeignKeysInCreateTable() ? "FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE, " : "") +
-                    "UNIQUE (player_id, title_key)" +
-                    ")";
-            stmt.execute(playerTitlesTableSql);
+            logger.info("所有数据库表创建完成");
         } catch (SQLException e) {
             throw new RuntimeException("创建数据库表失败", e);
         }
 
         PermissionService.initDefaultData();
-        migrateColumns();
     }
 
-    private static void migrateColumns() {
-        try (Connection conn = getConnection();
-             Statement stmt = conn.createStatement()) {
-            try {
-                stmt.execute("ALTER TABLE players ADD COLUMN last_breakthrough_time BIGINT DEFAULT 0");
-            } catch (SQLException ignored) {
-            }
-            try {
-                stmt.execute("ALTER TABLE players_equipment ADD COLUMN enhance_level INT DEFAULT 0");
-            } catch (SQLException ignored) {
-            }
-            // 兑换码 is_active -> status 迁移
-            try {
-                stmt.execute("ALTER TABLE redeem_codes ADD COLUMN status VARCHAR(16) DEFAULT 'active'");
-            } catch (SQLException ignored) {
-            }
-            // 尝试把旧 is_active 数据迁移到 status（仅 SQLite 不支持的 ALTER DROP 忽略即可）
-            try {
-                if (!IS_SQLITE) {
-                    stmt.execute("UPDATE redeem_codes SET status = CASE WHEN is_active THEN 'active' ELSE 'disabled' END WHERE status = 'active'");
-                    stmt.execute("ALTER TABLE redeem_codes DROP COLUMN is_active");
-                }
-            } catch (SQLException ignored) {
-            }
-            // 迁移：players_items.quantity INT → BIGINT（SQLite 无需迁移，动态类型自动兼容）
-            try {
-                if (!IS_SQLITE) {
-                    stmt.execute("ALTER TABLE players_items MODIFY COLUMN quantity BIGINT NOT NULL DEFAULT 1");
-                }
-            } catch (SQLException ignored) {
-            }
-            // 迁移：recipes 表添加品阶字段
-            try {
-                stmt.execute("ALTER TABLE recipes ADD COLUMN high_quality_rate DOUBLE DEFAULT 0");
-            } catch (SQLException ignored) {
-            }
-            try {
-                stmt.execute("ALTER TABLE recipes ADD COLUMN max_quality_rate DOUBLE DEFAULT 0");
-            } catch (SQLException ignored) {
-            }
-            try {
-                stmt.execute("ALTER TABLE recipes ADD COLUMN quality_bonus_rate DOUBLE DEFAULT 0");
-            } catch (SQLException ignored) {
-            }
-            // 迁移：buff表
-            try {
-                String buffTableSql = "CREATE TABLE IF NOT EXISTS player_buffs (" +
-                        "id " + DIALECT.getPkDefinition() + ", " +
-                        "player_id BIGINT NOT NULL, " +
-                        "buff_id VARCHAR(64) NOT NULL, " +
-                        "attack_bonus INT DEFAULT 0, " +
-                        "defense_bonus INT DEFAULT 0, " +
-                        "speed_bonus INT DEFAULT 0, " +
-                        "spirit_bonus INT DEFAULT 0, " +
-                        "expire_time BIGINT NOT NULL, " +
-                        "created_at " + DIALECT.getTimestampDefault() +
-                        (DIALECT.supportsForeignKeysInCreateTable() ? ", FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE" : "") +
-                        ")";
-                stmt.execute(buffTableSql);
-            } catch (SQLException ignored) {
-            }
-            // 迁移：农田表
-            try {
-                String farmPlotsTableSql = "CREATE TABLE IF NOT EXISTS farm_plots (" +
-                        "id " + DIALECT.getPkDefinition() + ", " +
-                        "player_id BIGINT NOT NULL, " +
-                        "plot_index INT NOT NULL, " +
-                        "state VARCHAR(16) NOT NULL DEFAULT 'EMPTY', " +
-                        "seed_key VARCHAR(128), " +
-                        "crop_key VARCHAR(128), " +
-                        "planted_time BIGINT DEFAULT 0, " +
-                        "harvest_time BIGINT DEFAULT 0, " +
-                        "wilted_time BIGINT DEFAULT 0, " +
-                        "growth_stage INT DEFAULT 0, " +
-                        "water_level INT DEFAULT 100, " +
-                        "fertilizer_level INT DEFAULT 0, " +
-                        "yield INT DEFAULT 0" +
-                        (DIALECT.supportsForeignKeysInCreateTable() ? ", FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE" : "") +
-                        ")";
-                stmt.execute(farmPlotsTableSql);
-                try { stmt.execute("ALTER TABLE farm_plots ADD COLUMN wilted_time BIGINT DEFAULT 0"); } catch (SQLException ignored) {}
-                try { stmt.execute("ALTER TABLE farm_plots ADD COLUMN root_bonus DOUBLE DEFAULT 0"); } catch (SQLException ignored) {}
-                try { stmt.execute("ALTER TABLE farm_plots ADD COLUMN season_modifier DOUBLE DEFAULT 1"); } catch (SQLException ignored) {}
-                try { stmt.execute("ALTER TABLE farm_plots ADD COLUMN pest_state VARCHAR(16) DEFAULT 'CLEAN'"); } catch (SQLException ignored) {}
-                try { stmt.execute("ALTER TABLE farm_plots ADD COLUMN pest_time BIGINT DEFAULT 0"); } catch (SQLException ignored) {}
-                try { stmt.execute("ALTER TABLE farm_plots ADD COLUMN crop_quality VARCHAR(16)"); } catch (SQLException ignored) {}
-            } catch (SQLException ignored) {
-            }
+    /**
+     * 创建索引，失败只告警、不中断启动。
+     *
+     * <p>索引只是性能优化，不该成为"服务器起不来"的原因。万一将来某个索引引用了
+     * 迁移尚未补上的列，宁可少一个索引（查询慢一点）也不能让服务完全不可用。</p>
+     */
+    private static void createIndexQuietly(Statement stmt, String sql) {
+        try {
+            stmt.execute(sql);
         } catch (SQLException e) {
-            throw new RuntimeException("数据库迁移失败", e);
+            logger.warn("创建索引失败（不影响启动）: {} -> {}", sql, e.getMessage());
         }
     }
 
     public static Map<String, Integer> clearPlayerData() {
         Map<String, Integer> result = new LinkedHashMap<>();
+        String[] tables = {
+                "players_skills", "players_techniques", "players_items", "players_equipment",
+                "player_daily", "trade_listings", "chat_messages", "friends", "player_action_logs",
+                "sect_members", "sect_applications", "sect_warehouse", "sects", "player_energy",
+                "players", "player_buffs", "farm_plots", "player_economy", "player_bank",
+                "auction_listings", "auction_bids", "player_titles", "caves", "formations",
+                "redeemed_codes", "sect_wars"
+        };
 
         try (Connection conn = getConnection();
              Statement stmt = conn.createStatement()) {
             DIALECT.disableForeignKeyChecks(stmt);
-            int ps = stmt.executeUpdate("DELETE FROM players_skills");
-            int pt = stmt.executeUpdate("DELETE FROM players_techniques");
-            int pi = stmt.executeUpdate("DELETE FROM players_items");
-            int pe = stmt.executeUpdate("DELETE FROM players_equipment");
-            int pd = stmt.executeUpdate("DELETE FROM player_daily");
-            int tl = stmt.executeUpdate("DELETE FROM trade_listings");
-            int cm = stmt.executeUpdate("DELETE FROM chat_messages");
-            int fr = stmt.executeUpdate("DELETE FROM friends");
-            int pal = stmt.executeUpdate("DELETE FROM player_action_logs");
-            int sm = stmt.executeUpdate("DELETE FROM sect_members");
-            int sa = stmt.executeUpdate("DELETE FROM sect_applications");
-            int sw = stmt.executeUpdate("DELETE FROM sect_warehouse");
-            int sc = stmt.executeUpdate("DELETE FROM sects");
-            int pegy = stmt.executeUpdate("DELETE FROM player_energy");
-            int pl = stmt.executeUpdate("DELETE FROM players");
+            for (String table : tables) {
+                int count = stmt.executeUpdate("DELETE FROM " + table);
+                result.put(table, count);
+            }
             DIALECT.enableForeignKeyChecks(stmt);
-
-            result.put("players_skills", ps);
-            result.put("players_techniques", pt);
-            result.put("players_items", pi);
-            result.put("players_equipment", pe);
-            result.put("player_daily", pd);
-            result.put("trade_listings", tl);
-            result.put("chat_messages", cm);
-            result.put("friends", fr);
-            result.put("player_action_logs", pal);
-            result.put("sect_members", sm);
-            result.put("sect_applications", sa);
-            result.put("sect_warehouse", sw);
-            result.put("sects", sc);
-            result.put("player_energy", pegy);
-            result.put("players", pl);
         } catch (SQLException e) {
             throw new RuntimeException("清除玩家数据失败", e);
         }
@@ -796,54 +249,25 @@ public class DatabaseManager {
 
     public static Map<String, Integer> resetAllData() {
         Map<String, Integer> result = new LinkedHashMap<>();
+        String[] tables = {
+                "players_skills", "players_techniques", "players_items", "players_equipment",
+                "player_daily", "trade_listings", "chat_messages", "friends", "player_action_logs",
+                "sect_members", "sect_applications", "sect_warehouse", "sects", "player_energy",
+                "players", "qq_bindings", "qq_official_bindings", "mc_bindings", "user_roles", "role_permissions",
+                "roles", "permissions", "verification_codes", "player_buffs", "farm_plots",
+                "player_economy", "player_bank", "auction_listings", "auction_bids",
+                "player_titles", "caves", "formations", "redeemed_codes", "sect_wars",
+                "redeem_codes"
+        };
 
         try (Connection conn = getConnection();
              Statement stmt = conn.createStatement()) {
             DIALECT.disableForeignKeyChecks(stmt);
-            int ps = stmt.executeUpdate("DELETE FROM players_skills");
-            int pt = stmt.executeUpdate("DELETE FROM players_techniques");
-            int pi = stmt.executeUpdate("DELETE FROM players_items");
-            int pe = stmt.executeUpdate("DELETE FROM players_equipment");
-            int pd = stmt.executeUpdate("DELETE FROM player_daily");
-            int tl = stmt.executeUpdate("DELETE FROM trade_listings");
-            int cm = stmt.executeUpdate("DELETE FROM chat_messages");
-            int fr = stmt.executeUpdate("DELETE FROM friends");
-            int pal = stmt.executeUpdate("DELETE FROM player_action_logs");
-            int sm2 = stmt.executeUpdate("DELETE FROM sect_members");
-            int sa2 = stmt.executeUpdate("DELETE FROM sect_applications");
-            int sw2 = stmt.executeUpdate("DELETE FROM sect_warehouse");
-            int sc2 = stmt.executeUpdate("DELETE FROM sects");
-            int pl = stmt.executeUpdate("DELETE FROM players");
-            int qb = stmt.executeUpdate("DELETE FROM qq_bindings");
-            int mb = stmt.executeUpdate("DELETE FROM mc_bindings");
-            int ur = stmt.executeUpdate("DELETE FROM user_roles");
-            int rp = stmt.executeUpdate("DELETE FROM role_permissions");
-            int roles = stmt.executeUpdate("DELETE FROM roles");
-            int perm = stmt.executeUpdate("DELETE FROM permissions");
-            int vc = stmt.executeUpdate("DELETE FROM verification_codes");
+            for (String table : tables) {
+                int count = stmt.executeUpdate("DELETE FROM " + table);
+                result.put(table, count);
+            }
             DIALECT.enableForeignKeyChecks(stmt);
-
-            result.put("players_skills", ps);
-            result.put("players_techniques", pt);
-            result.put("players_items", pi);
-            result.put("players_equipment", pe);
-            result.put("player_daily", pd);
-            result.put("trade_listings", tl);
-            result.put("chat_messages", cm);
-            result.put("friends", fr);
-            result.put("player_action_logs", pal);
-            result.put("sect_members", sm2);
-            result.put("sect_applications", sa2);
-            result.put("sect_warehouse", sw2);
-            result.put("sects", sc2);
-            result.put("players", pl);
-            result.put("qq_bindings", qb);
-            result.put("mc_bindings", mb);
-            result.put("user_roles", ur);
-            result.put("role_permissions", rp);
-            result.put("roles", roles);
-            result.put("permissions", perm);
-            result.put("verification_codes", vc);
         } catch (SQLException e) {
             throw new RuntimeException("重置数据库失败", e);
         }
@@ -852,132 +276,6 @@ public class DatabaseManager {
         return result;
     }
 
-    public static void insertPlayerActionLog(long userId, String playerName, String action, String detail, String qqNumber) {
-        String sql = "INSERT INTO player_action_logs (user_id, player_name, action, detail, qq_number) VALUES (?, ?, ?, ?, ?)";
-        try (Connection conn = getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, userId);
-            ps.setString(2, playerName != null ? playerName : "");
-            ps.setString(3, action);
-            ps.setString(4, detail != null ? detail : "");
-            ps.setString(5, qqNumber != null ? qqNumber : null);
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("插入玩家操作日志失败", e);
-        }
-    }
-
-    public static List<Map<String, Object>> queryPlayerActionLogs(Long userId, String playerName, String action,
-                                                                   String qqNumber, String startTime, String endTime,
-                                                                   int limit, int offset) {
-        List<Map<String, Object>> result = new ArrayList<>();
-        StringBuilder sql = new StringBuilder("SELECT * FROM player_action_logs WHERE 1=1");
-        List<Object> params = new ArrayList<>();
-
-        if (userId != null) {
-            sql.append(" AND user_id = ?");
-            params.add(userId);
-        }
-        if (playerName != null && !playerName.isBlank()) {
-            sql.append(" AND player_name LIKE ?");
-            params.add("%" + playerName + "%");
-        }
-        if (action != null && !action.isBlank()) {
-            sql.append(" AND action LIKE ?");
-            params.add("%" + action + "%");
-        }
-        if (qqNumber != null && !qqNumber.isBlank()) {
-            sql.append(" AND qq_number = ?");
-            params.add(qqNumber);
-        }
-        if (startTime != null && !startTime.isBlank()) {
-            sql.append(" AND created_at >= ?");
-            params.add(startTime);
-        }
-        if (endTime != null && !endTime.isBlank()) {
-            sql.append(" AND created_at <= ?");
-            params.add(endTime);
-        }
-
-        sql.append(" ORDER BY created_at DESC LIMIT ? OFFSET ?");
-        params.add(limit);
-        params.add(offset);
-
-        try (Connection conn = getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql.toString())) {
-            for (int i = 0; i < params.size(); i++) {
-                ps.setObject(i + 1, params.get(i));
-            }
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    Map<String, Object> row = new LinkedHashMap<>();
-                    row.put("id", rs.getLong("id"));
-                    row.put("userId", rs.getLong("user_id"));
-                    row.put("playerName", rs.getString("player_name"));
-                    row.put("action", rs.getString("action"));
-                    row.put("detail", rs.getString("detail"));
-                    row.put("qqNumber", rs.getString("qq_number"));
-                    row.put("createdAt", rs.getTimestamp("created_at").toString());
-                    result.add(row);
-                }
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("查询玩家操作日志失败", e);
-        }
-        return result;
-    }
-
-    public static int countPlayerActionLogs(Long userId, String playerName, String action,
-                                             String qqNumber, String startTime, String endTime) {
-        StringBuilder sql = new StringBuilder("SELECT COUNT(*) FROM player_action_logs WHERE 1=1");
-        List<Object> params = new ArrayList<>();
-
-        if (userId != null) {
-            sql.append(" AND user_id = ?");
-            params.add(userId);
-        }
-        if (playerName != null && !playerName.isBlank()) {
-            sql.append(" AND player_name LIKE ?");
-            params.add("%" + playerName + "%");
-        }
-        if (action != null && !action.isBlank()) {
-            sql.append(" AND action LIKE ?");
-            params.add("%" + action + "%");
-        }
-        if (qqNumber != null && !qqNumber.isBlank()) {
-            sql.append(" AND qq_number = ?");
-            params.add(qqNumber);
-        }
-        if (startTime != null && !startTime.isBlank()) {
-            sql.append(" AND created_at >= ?");
-            params.add(startTime);
-        }
-        if (endTime != null && !endTime.isBlank()) {
-            sql.append(" AND created_at <= ?");
-            params.add(endTime);
-        }
-
-        try (Connection conn = getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql.toString())) {
-            for (int i = 0; i < params.size(); i++) {
-                ps.setObject(i + 1, params.get(i));
-            }
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    return rs.getInt(1);
-                }
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("统计玩家操作日志失败", e);
-        }
-        return 0;
-    }
-
-    // ========== 通用数据库浏览 ==========
-
-    /**
-     * 获取所有表名
-     */
     public static List<String> getAllTableNames() {
         List<String> names = new ArrayList<>();
         if (IS_SQLITE) {
@@ -989,145 +287,224 @@ public class DatabaseManager {
                     names.add(rs.getString("name"));
                 }
             } catch (SQLException e) {
-                throw new RuntimeException("获取表名失败", e);
+                logger.error("获取SQLite表名失败", e);
             }
         } else {
             try (Connection conn = getConnection();
-                 Statement stmt = conn.createStatement();
-                 ResultSet rs = stmt.executeQuery("SHOW TABLES")) {
+                 ResultSet rs = conn.getMetaData().getTables(null, null, "%", new String[]{"TABLE"})) {
                 while (rs.next()) {
-                    names.add(rs.getString(1));
+                    names.add(rs.getString("TABLE_NAME"));
                 }
             } catch (SQLException e) {
-                throw new RuntimeException("获取表名失败", e);
+                logger.error("获取MySQL表名失败", e);
             }
         }
         return names;
     }
 
-    /**
-     * 获取表的列信息
-     */
-    public static List<Map<String, Object>> getTableColumns(String tableName) {
-        validateTableName(tableName);
-        List<Map<String, Object>> columns = new ArrayList<>();
-        try (Connection conn = getConnection();
-             Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery(DIALECT.getTableColumnsQuery(tableName))) {
-            while (rs.next()) {
-                Map<String, Object> col = new LinkedHashMap<>();
-                col.put("name", DIALECT.getColumnNameFromMetadata(rs));
-                col.put("type", DIALECT.getColumnTypeFromMetadata(rs));
-                col.put("notnull", DIALECT.getColumnNotNullFromMetadata(rs));
-                col.put("pk", DIALECT.getColumnPkFromMetadata(rs));
-                columns.add(col);
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("获取表结构失败: " + tableName, e);
+    /** 表名白名单：硬编码所有合法表名（安全加固） */
+    private static final java.util.Set<String> ALLOWED_TABLES = java.util.Set.of(
+        "users", "verification_codes", "players", "players_items", "players_equipment",
+        "skills", "players_skills", "techniques", "players_techniques", "recipes",
+        "trade_listings", "player_daily", "qq_bindings", "qq_official_bindings",
+        "mc_bindings", "roles", "permissions", "role_permissions", "user_roles",
+        "chat_messages", "friends", "player_action_logs", "sects", "sect_members",
+        "sect_applications", "sect_warehouse", "sect_wars", "map_locations",
+        "map_connections", "map_location_event_bias", "player_map_exploration",
+        "map_wilderness_resources", "redeem_codes", "redeemed_codes", "caves", "formations",
+        "player_economy", "player_bank", "auction_listings", "auction_bids",
+        "player_energy", "player_titles", "player_buffs", "farm_plots"
+    );
+
+    /** 表名白名单缓存（避免每次校验都查库） */
+    private static volatile Set<String> tableNameCache;
+    private static volatile long tableNameCacheTime;
+
+    /** 表名白名单校验：仅允许当前数据库中真实存在的表（防 SQL 标识符注入）。 */
+    private static void assertSafeTableName(String tableName) {
+        if (tableName == null || tableName.isBlank()) {
+            throw new IllegalArgumentException("非法表名: " + tableName);
         }
-        return columns;
+        
+        // 先检查格式：只允许小写字母和下划线
+        if (!tableName.matches("^[a-z_]+$")) {
+            throw new IllegalArgumentException("非法表名格式: " + tableName);
+        }
+        
+        // 再检查硬编码白名单
+        if (!ALLOWED_TABLES.contains(tableName)) {
+            throw new IllegalArgumentException("表名不在白名单中: " + tableName);
+        }
+        
+        // 最后检查缓存（确保表真实存在）
+        long now = System.currentTimeMillis();
+        Set<String> cache = tableNameCache;
+        if (cache == null || now - tableNameCacheTime > 30_000L) { // 缓存时间改为30秒
+            cache = new java.util.HashSet<>(getAllTableNames());
+            tableNameCache = cache;
+            tableNameCacheTime = now;
+        }
+        if (!cache.contains(tableName)) {
+            throw new IllegalArgumentException("表不存在: " + tableName);
+        }
     }
 
-    /**
-     * 查询表数据（分页）
-     */
-    public static List<Map<String, Object>> queryTableData(String tableName, int limit, int offset) {
-        validateTableName(tableName);
-        String sql = "SELECT * FROM " + DIALECT.quoteTableName(tableName) + " LIMIT ? OFFSET ?";
-        List<Map<String, Object>> rows = new ArrayList<>();
+    /** 列名校验：仅允许纯标识符字符（防 SQL 标识符注入）。 */
+    private static void assertSafeColumnName(String columnName) {
+        if (columnName == null || !columnName.matches("^[A-Za-z_][A-Za-z0-9_]*$")) {
+            throw new IllegalArgumentException("非法列名: " + columnName);
+        }
+    }
+
+    public static List<Map<String, Object>> queryTable(String tableName, int limit, int offset) {
+        List<Map<String, Object>> result = new ArrayList<>();
+        assertSafeTableName(tableName);
+        String sql = "SELECT * FROM " + tableName + " LIMIT ? OFFSET ?";
         try (Connection conn = getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setInt(1, limit);
             ps.setInt(2, offset);
             try (ResultSet rs = ps.executeQuery()) {
-                var meta = rs.getMetaData();
-                int colCount = meta.getColumnCount();
+                int columnCount = rs.getMetaData().getColumnCount();
                 while (rs.next()) {
                     Map<String, Object> row = new LinkedHashMap<>();
-                    for (int i = 1; i <= colCount; i++) {
-                        Object val = rs.getObject(i);
-                        row.put(meta.getColumnName(i), val);
+                    for (int i = 1; i <= columnCount; i++) {
+                        String name = rs.getMetaData().getColumnName(i);
+                        Object value = rs.getObject(i);
+                        row.put(name, value);
                     }
-                    rows.add(row);
+                    result.add(row);
                 }
             }
         } catch (SQLException e) {
+            logger.error("查询表数据失败: {}", tableName, e);
             throw new RuntimeException("查询表数据失败: " + tableName, e);
         }
-        return rows;
+        return result;
     }
 
-    /**
-     * 统计表行数
-     */
-    public static int countTableRows(String tableName) {
-        validateTableName(tableName);
+    public static int countTable(String tableName) {
+        assertSafeTableName(tableName);
+        String sql = "SELECT COUNT(*) FROM " + tableName;
         try (Connection conn = getConnection();
-             Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery("SELECT COUNT(*) FROM " + DIALECT.quoteTableName(tableName))) {
+             PreparedStatement ps = conn.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
             if (rs.next()) {
                 return rs.getInt(1);
             }
         } catch (SQLException e) {
-            throw new RuntimeException("统计行数失败: " + tableName, e);
+            logger.error("统计表记录失败: {}", tableName, e);
+            throw new RuntimeException("统计表记录失败: " + tableName, e);
         }
         return 0;
     }
 
-    /**
-     * 获取单行数据
-     */
+    public static void shutdown() {
+        if (dataSource != null) {
+            dataSource.close();
+            dataSource = null;
+            logger.info("数据库连接池已关闭");
+        }
+    }
+
+    public static List<Map<String, Object>> queryPlayerActionLogs(Long userId, String playerName, String action,
+                                                                   String qqNumber, String startTime, String endTime,
+                                                                   int limit, int offset) {
+        return new PlayerActionLogDAO().queryPlayerActionLogs(userId, playerName, action, qqNumber, startTime, endTime, limit, offset);
+    }
+
+    public static int countPlayerActionLogs(Long userId, String playerName, String action,
+                                             String qqNumber, String startTime, String endTime) {
+        return new PlayerActionLogDAO().countPlayerActionLogs(userId, playerName, action, qqNumber, startTime, endTime);
+    }
+
+    public static int countTableRows(String tableName) {
+        return countTable(tableName);
+    }
+
+    public static List<Map<String, Object>> getTableColumns(String tableName) {
+        List<Map<String, Object>> columns = new ArrayList<>();
+        try (Connection conn = getConnection();
+             ResultSet rs = conn.getMetaData().getColumns(null, null, tableName.toUpperCase(), "%")) {
+            while (rs.next()) {
+                Map<String, Object> col = new LinkedHashMap<>();
+                col.put("name", rs.getString("COLUMN_NAME"));
+                col.put("type", rs.getString("TYPE_NAME"));
+                col.put("size", rs.getInt("COLUMN_SIZE"));
+                col.put("notnull", rs.getInt("NULLABLE") == 0);
+                col.put("pk", false);
+                columns.add(col);
+            }
+        } catch (SQLException e) {
+            logger.error("获取表列信息失败: {}", tableName, e);
+        }
+
+        // 补全主键标记：通过 JDBC 主键元数据识别（SQLite/MySQL 通用）
+        try (Connection conn = getConnection();
+             ResultSet pkRs = conn.getMetaData().getPrimaryKeys(null, null, tableName)) {
+            java.util.Set<String> pkColumns = new java.util.HashSet<>();
+            while (pkRs.next()) {
+                pkColumns.add(pkRs.getString("COLUMN_NAME"));
+            }
+            for (Map<String, Object> col : columns) {
+                if (pkColumns.contains(String.valueOf(col.get("name")))) {
+                    col.put("pk", true);
+                }
+            }
+        } catch (SQLException e) {
+            logger.error("获取表主键信息失败: {}", tableName, e);
+        }
+        return columns;
+    }
+
+    public static List<Map<String, Object>> queryTableData(String tableName, int limit, int offset) {
+        return queryTable(tableName, limit, offset);
+    }
+
     public static Map<String, Object> getRowById(String tableName, long id) {
-        validateTableName(tableName);
-        String sql = "SELECT * FROM " + DIALECT.quoteTableName(tableName) + " WHERE id = ?";
+        assertSafeTableName(tableName);
+        String sql = "SELECT * FROM " + tableName + " WHERE id = ?";
         try (Connection conn = getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, id);
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
                     Map<String, Object> row = new LinkedHashMap<>();
-                    var meta = rs.getMetaData();
-                    int colCount = meta.getColumnCount();
-                    for (int i = 1; i <= colCount; i++) {
-                        row.put(meta.getColumnName(i), rs.getObject(i));
+                    int columnCount = rs.getMetaData().getColumnCount();
+                    for (int i = 1; i <= columnCount; i++) {
+                        row.put(rs.getMetaData().getColumnName(i), rs.getObject(i));
                     }
                     return row;
                 }
             }
         } catch (SQLException e) {
-            throw new RuntimeException("查询行数据失败: " + tableName + " id=" + id, e);
+            logger.error("查询行失败: {}", tableName, e);
         }
         return null;
     }
 
-    /**
-     * 插入新行
-     */
     public static long insertRow(String tableName, Map<String, Object> data) {
-        validateTableName(tableName);
-        if (data.isEmpty()) {
-            throw new IllegalArgumentException("数据不能为空");
-        }
-
-        StringBuilder cols = new StringBuilder();
-        StringBuilder vals = new StringBuilder();
+        assertSafeTableName(tableName);
+        StringBuilder sql = new StringBuilder("INSERT INTO " + tableName + " (");
+        StringBuilder values = new StringBuilder("VALUES (");
         List<Object> params = new ArrayList<>();
 
+        boolean first = true;
         for (Map.Entry<String, Object> entry : data.entrySet()) {
-            validateColumnName(entry.getKey());
-            if (cols.length() > 0) {
-                cols.append(", ");
-                vals.append(", ");
+            assertSafeColumnName(entry.getKey());
+            if (!first) {
+                sql.append(", ");
+                values.append(", ");
             }
-            cols.append(DIALECT.quoteColumnName(entry.getKey()));
-            vals.append("?");
+            sql.append(entry.getKey());
+            values.append("?");
             params.add(entry.getValue());
+            first = false;
         }
-
-        String sql = "INSERT INTO " + DIALECT.quoteTableName(tableName) + " (" + cols + ") VALUES (" + vals + ")";
+        sql.append(") ").append(values).append(")");
 
         try (Connection conn = getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+             PreparedStatement ps = conn.prepareStatement(sql.toString(), Statement.RETURN_GENERATED_KEYS)) {
             for (int i = 0; i < params.size(); i++) {
                 ps.setObject(i + 1, params.get(i));
             }
@@ -1137,245 +514,154 @@ public class DatabaseManager {
                     return rs.getLong(1);
                 }
             }
+            return 0;
         } catch (SQLException e) {
-            throw new RuntimeException("插入数据失败: " + tableName, e);
+            logger.error("插入行失败: {}", tableName, e);
+            throw new RuntimeException("插入行失败: " + tableName, e);
         }
-        return -1;
     }
 
-    /**
-     * 更新行
-     */
     public static int updateRow(String tableName, long id, Map<String, Object> data) {
-        validateTableName(tableName);
-        if (data.isEmpty()) {
-            throw new IllegalArgumentException("数据不能为空");
-        }
-
-        StringBuilder setClause = new StringBuilder();
+        assertSafeTableName(tableName);
+        StringBuilder sql = new StringBuilder("UPDATE " + tableName + " SET ");
         List<Object> params = new ArrayList<>();
 
+        boolean first = true;
         for (Map.Entry<String, Object> entry : data.entrySet()) {
-            validateColumnName(entry.getKey());
-            if (setClause.length() > 0) {
-                setClause.append(", ");
-            }
-            setClause.append(DIALECT.quoteColumnName(entry.getKey()) + " = ?");
+            assertSafeColumnName(entry.getKey());
+            if (!first) sql.append(", ");
+            sql.append(entry.getKey()).append(" = ?");
             params.add(entry.getValue());
+            first = false;
         }
+        sql.append(" WHERE id = ?");
         params.add(id);
 
-        String sql = "UPDATE " + DIALECT.quoteTableName(tableName) + " SET " + setClause + " WHERE id = ?";
-
         try (Connection conn = getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+             PreparedStatement ps = conn.prepareStatement(sql.toString())) {
             for (int i = 0; i < params.size(); i++) {
                 ps.setObject(i + 1, params.get(i));
             }
             return ps.executeUpdate();
         } catch (SQLException e) {
-            throw new RuntimeException("更新数据失败: " + tableName + " id=" + id, e);
+            logger.error("更新行失败: {}", tableName, e);
+            throw new RuntimeException("更新行失败: " + tableName, e);
         }
     }
 
-    /**
-     * 删除行
-     */
     public static int deleteRow(String tableName, long id) {
-        validateTableName(tableName);
-        String sql = "DELETE FROM " + DIALECT.quoteTableName(tableName) + " WHERE id = ?";
+        assertSafeTableName(tableName);
+        String sql = "DELETE FROM " + tableName + " WHERE id = ?";
         try (Connection conn = getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, id);
             return ps.executeUpdate();
         } catch (SQLException e) {
-            throw new RuntimeException("删除数据失败: " + tableName + " id=" + id, e);
+            logger.error("删除行失败: {}", tableName, e);
+            throw new RuntimeException("删除行失败: " + tableName, e);
         }
     }
 
-    /**
-     * 验证表名是否合法
-     */
-    private static void validateTableName(String tableName) {
-        if (tableName == null || tableName.isBlank()) {
-            throw new IllegalArgumentException("表名不能为空");
-        }
-        if (!tableName.matches("^[a-zA-Z_][a-zA-Z0-9_]*$")) {
-            throw new IllegalArgumentException("无效的表名: " + tableName);
-        }
-    }
-
-    /**
-     * 验证列名是否合法
-     */
-    private static void validateColumnName(String columnName) {
-        if (columnName == null || columnName.isBlank()) {
-            throw new IllegalArgumentException("列名不能为空");
-        }
-        if (!columnName.matches("^[a-zA-Z_][a-zA-Z0-9_]*$")) {
-            throw new IllegalArgumentException("无效的列名: " + columnName);
-        }
-    }
-
-    /**
-     * 查询所有行（不分页），用于备份导出
-     */
-    public static List<Map<String, Object>> queryAllRows(String tableName) {
-        validateTableName(tableName);
-        String sql = "SELECT * FROM " + DIALECT.quoteTableName(tableName);
-        List<Map<String, Object>> rows = new ArrayList<>();
-        try (Connection conn = getConnection();
-             Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery(sql)) {
-            var meta = rs.getMetaData();
-            int colCount = meta.getColumnCount();
-            while (rs.next()) {
-                Map<String, Object> row = new LinkedHashMap<>();
-                for (int i = 1; i <= colCount; i++) {
-                    Object val = rs.getObject(i);
-                    row.put(meta.getColumnName(i), val);
-                }
-                rows.add(row);
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("查询全表数据失败: " + tableName, e);
-        }
-        return rows;
-    }
-
-    /**
-     * 导出全部数据为 JSON 字符串（用于备份）
-     */
     public static String exportAllData() {
-        com.google.gson.Gson gson = new com.google.gson.Gson();
-        com.google.gson.JsonObject root = new com.google.gson.JsonObject();
-        root.addProperty("version", "1.0");
-        root.addProperty("timestamp", java.time.LocalDateTime.now().toString());
-        root.addProperty("dbType", DB_TYPE);
-
-        com.google.gson.JsonObject tablesJson = new com.google.gson.JsonObject();
-        List<String> tableNames = getAllTableNames();
-
-        for (String tableName : tableNames) {
-            com.google.gson.JsonObject tableJson = new com.google.gson.JsonObject();
-
-            // 列信息
-            com.google.gson.JsonArray colsArr = new com.google.gson.JsonArray();
-            List<Map<String, Object>> columns = getTableColumns(tableName);
-            for (Map<String, Object> col : columns) {
-                com.google.gson.JsonObject co = new com.google.gson.JsonObject();
-                co.addProperty("name", String.valueOf(col.get("name")));
-                co.addProperty("type", String.valueOf(col.get("type")));
-                colsArr.add(co);
-            }
-            tableJson.add("columns", colsArr);
-
-            // 行数据
-            com.google.gson.JsonArray rowsArr = new com.google.gson.JsonArray();
-            List<Map<String, Object>> rows = queryAllRows(tableName);
-            for (Map<String, Object> row : rows) {
-                com.google.gson.JsonObject ro = new com.google.gson.JsonObject();
-                for (Map.Entry<String, Object> entry : row.entrySet()) {
-                    Object val = entry.getValue();
-                    if (val == null) {
-                        ro.add(entry.getKey(), null);
-                    } else if (val instanceof Number) {
-                        ro.addProperty(entry.getKey(), (Number) val);
-                    } else if (val instanceof Boolean) {
-                        ro.addProperty(entry.getKey(), (Boolean) val);
-                    } else {
-                        ro.addProperty(entry.getKey(), String.valueOf(val));
-                    }
-                }
-                rowsArr.add(ro);
-            }
-            tableJson.add("rows", rowsArr);
-
-            tablesJson.add(tableName, tableJson);
+        Map<String, List<Map<String, Object>>> result = new LinkedHashMap<>();
+        List<String> tables = getAllTableNames();
+        for (String table : tables) {
+            result.put(table, queryTable(table, Integer.MAX_VALUE, 0));
         }
-
-        root.add("tables", tablesJson);
-        return gson.toJson(root);
+        try {
+            return new com.google.gson.Gson().toJson(result);
+        } catch (Exception e) {
+            logger.error("导出数据失败", e);
+            throw new RuntimeException("导出数据失败", e);
+        }
     }
 
     /**
-     * 从 JSON 备份导入数据（清空所有表后重新插入）
+     * 整库数据还原：解析 exportAllData 的 JSON 格式（{表名: [行...]}），
+     * 逐表清空后按显式列插入（含 id）。全程单事务，失败自动回滚；表名/列名均做白名单校验。
      */
-    public static Map<String, Integer> importData(String json) {
+    public static Map<String, Integer> importData(String jsonData) {
         Map<String, Integer> result = new LinkedHashMap<>();
-        com.google.gson.JsonObject root = com.google.gson.JsonParser.parseString(json).getAsJsonObject();
-
-        if (!root.has("tables")) {
-            throw new IllegalArgumentException("备份文件格式错误：缺少 tables 字段");
+        if (jsonData == null || jsonData.isBlank()) {
+            return result;
+        }
+        com.google.gson.JsonObject root;
+        try {
+            root = com.google.gson.JsonParser.parseString(jsonData).getAsJsonObject();
+        } catch (Exception e) {
+            throw new RuntimeException("导入数据格式错误: " + e.getMessage(), e);
         }
 
-        com.google.gson.JsonObject tablesJson = root.getAsJsonObject("tables");
-
-        try (Connection conn = getConnection();
-             Statement stmt = conn.createStatement()) {
-
-            DIALECT.disableForeignKeyChecks(stmt);
-
-            // 按表名排序，优先删除有外键依赖的表
-            List<String> tableNames = new ArrayList<>(tablesJson.keySet());
-
-            // 先清除所有备份中包含的表数据
-            for (String tableName : tableNames) {
-                try {
-                    String delSql = "DELETE FROM " + DIALECT.quoteTableName(tableName);
-                    int deleted = stmt.executeUpdate(delSql);
-                    result.put(tableName + "_deleted", deleted);
-                } catch (SQLException e) {
-                    result.put(tableName + "_delete_error", -1);
+        try {
+            DatabaseManager.runTransaction(conn -> {
+                try (Statement st = conn.createStatement()) {
+                    DIALECT.disableForeignKeyChecks(st);
                 }
-            }
-
-            // 再插入数据
-            for (String tableName : tableNames) {
-                com.google.gson.JsonObject tableJson = tablesJson.getAsJsonObject(tableName);
-                if (!tableJson.has("rows")) continue;
-
-                com.google.gson.JsonArray rowsArr = tableJson.getAsJsonArray("rows");
-                int inserted = 0;
-                int errors = 0;
-
-                for (var element : rowsArr) {
-                    com.google.gson.JsonObject rowObj = element.getAsJsonObject();
-                    Map<String, Object> data = new LinkedHashMap<>();
-
-                    for (String key : rowObj.keySet()) {
-                        var val = rowObj.get(key);
-                        if (val.isJsonNull()) {
-                            data.put(key, null);
-                        } else if (val.getAsJsonPrimitive().isNumber()) {
-                            data.put(key, val.getAsNumber());
-                        } else if (val.getAsJsonPrimitive().isBoolean()) {
-                            data.put(key, val.getAsBoolean());
-                        } else {
-                            data.put(key, val.getAsString());
+                for (String table : root.keySet()) {
+                    assertSafeTableName(table);
+                    try (Statement st = conn.createStatement()) {
+                        st.executeUpdate("DELETE FROM " + table);
+                    }
+                    com.google.gson.JsonArray rows = root.getAsJsonArray(table);
+                    int inserted = 0;
+                    if (rows != null) {
+                        for (com.google.gson.JsonElement el : rows) {
+                            if (!el.isJsonObject()) continue;
+                            com.google.gson.JsonObject row = el.getAsJsonObject();
+                            StringBuilder cols = new StringBuilder();
+                            StringBuilder vals = new StringBuilder();
+                            List<Object> params = new ArrayList<>();
+                            for (String col : row.keySet()) {
+                                assertSafeColumnName(col);
+                                if (cols.length() > 0) cols.append(", ");
+                                if (vals.length() > 0) vals.append(", ");
+                                cols.append(col);
+                                vals.append("?");
+                                params.add(jsonToSqlValue(row.get(col)));
+                            }
+                            if (cols.length() == 0) continue;
+                            String sql = "INSERT INTO " + table + " (" + cols + ") VALUES (" + vals + ")";
+                            try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                                for (int i = 0; i < params.size(); i++) {
+                                    ps.setObject(i + 1, params.get(i));
+                                }
+                                ps.executeUpdate();
+                                inserted++;
+                            }
                         }
                     }
-
-                    try {
-                        insertRow(tableName, data);
-                        inserted++;
-                    } catch (Exception e) {
-                        errors++;
-                    }
+                    result.put(table, inserted);
                 }
-
-                result.put(tableName, inserted);
-                if (errors > 0) {
-                    result.put(tableName + "_errors", errors);
+                try (Statement st = conn.createStatement()) {
+                    DIALECT.enableForeignKeyChecks(st);
                 }
-            }
-
-            DIALECT.enableForeignKeyChecks(stmt);
-
-        } catch (SQLException e) {
-            throw new RuntimeException("导入数据失败", e);
+                return null;
+            });
+        } catch (Exception e) {
+            logger.error("导入数据失败（已回滚）", e);
+            throw new RuntimeException("导入数据失败（已回滚）: " + e.getMessage(), e);
         }
-
         return result;
+    }
+
+    private static Object jsonToSqlValue(com.google.gson.JsonElement el) {
+        if (el == null || el.isJsonNull()) return null;
+        if (el.isJsonPrimitive()) {
+            com.google.gson.JsonPrimitive p = el.getAsJsonPrimitive();
+            if (p.isBoolean()) return p.getAsBoolean();
+            if (p.isNumber()) return p.getAsNumber();
+            return p.getAsString();
+        }
+        return el.toString();
+    }
+
+    @FunctionalInterface
+    public interface SQLRunnable {
+        void run(Connection conn) throws Exception;
+    }
+
+    @FunctionalInterface
+    public interface SQLFunction<T> {
+        T run(Connection conn) throws Exception;
     }
 }

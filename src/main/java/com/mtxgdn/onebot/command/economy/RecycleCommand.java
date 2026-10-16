@@ -13,6 +13,7 @@ import java.util.Map;
 public class RecycleCommand extends Command {
     public RecycleCommand() {
         super(new String[]{"回收", "recycle"}, "将物品回收为灵石", "/回收 <物品名> [数量]", "经济", null);
+        setModule("economy");
 
         // REST API
         addRoute(RouteDefinition.post("economy/recycle", this::handleRecycleHttp));
@@ -77,11 +78,12 @@ public class RecycleCommand extends Command {
 
             var eco = ServiceRegistry.getEconomyService();
             Map<String, Object> data = eco.recycleItem(ctx.playerId(), itemKey, quantity);
-            result.addProperty("code", (boolean) data.get("success") ? 200 : 400);
-            result.addProperty("success", (boolean) data.get("success"));
-            result.addProperty("message", (String) data.get("message"));
-            if (data.containsKey("stonesGained")) result.addProperty("stonesGained", (long) data.get("stonesGained"));
-            if (data.containsKey("recycled")) result.addProperty("recycled", (String) data.get("recycled"));
+            boolean success = Boolean.TRUE.equals(data.get("success"));
+            result.addProperty("code", success ? 200 : 400);
+            result.addProperty("success", success);
+            result.addProperty("message", String.valueOf(data.getOrDefault("message", "")));
+            if (data.containsKey("stonesGained")) result.addProperty("stonesGained", ((Number) data.get("stonesGained")).longValue());
+            if (data.containsKey("recycled")) result.addProperty("recycled", String.valueOf(data.get("recycled")));
         } catch (Exception e) {
             result.addProperty("code", 500);
             result.addProperty("message", "服务器错误: " + e.getMessage());

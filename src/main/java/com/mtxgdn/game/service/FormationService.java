@@ -55,6 +55,7 @@ public class FormationService {
     }
 
     public Map<String, Object> placeFormation(long playerId, String formationKey, int level) {
+        com.mtxgdn.playerdata.PlayerDataService.markDirty(playerId);
         Map<String, Object> result = new LinkedHashMap<>();
 
         Player player = playerService.getPlayerById(playerId);
@@ -85,7 +86,7 @@ public class FormationService {
         }
 
         DatabaseManager.runTransaction(conn -> {
-            if (!itemService.removeItem(conn, playerId, com.mtxgdn.game.item.CurrencyEffect.SPIRIT_STONE_KEY, cost)) {
+            if (!itemService.removeSpiritStones(conn, playerId, cost)) {
                 throw new SQLException("灵石扣除失败");
             }
             long now = System.currentTimeMillis();
@@ -120,6 +121,7 @@ public class FormationService {
     }
 
     public Map<String, Object> upgradeFormation(long playerId) {
+        com.mtxgdn.playerdata.PlayerDataService.markDirty(playerId);
         Map<String, Object> result = new LinkedHashMap<>();
 
         Formation formation = getActiveFormation(playerId);
@@ -145,7 +147,7 @@ public class FormationService {
         }
 
         DatabaseManager.runTransaction(conn -> {
-            if (!itemService.removeItem(conn, playerId, com.mtxgdn.game.item.CurrencyEffect.SPIRIT_STONE_KEY, cost)) {
+            if (!itemService.removeSpiritStones(conn, playerId, cost)) {
                 throw new SQLException("灵石扣除失败");
             }
             String sql = "UPDATE formations SET level = ?, spirit_energy_boost = ?, " +
@@ -170,6 +172,7 @@ public class FormationService {
     }
 
     public Map<String, Object> removeFormation(long playerId) {
+        com.mtxgdn.playerdata.PlayerDataService.markDirty(playerId);
         Map<String, Object> result = new LinkedHashMap<>();
 
         Formation formation = getActiveFormation(playerId);
@@ -203,6 +206,8 @@ public class FormationService {
     }
 
     public static void tickFormations() {
+        // 内置模块门控：阵法模块停用后暂停阵法到期结算
+        if (!com.mtxgdn.plugin.BuiltInPluginRegistry.getInstance().isEnabledOrUnknown("formation")) return;
         String sql = "UPDATE formations SET active = 0 WHERE active = 1 AND expires_at < ?";
         try (Connection conn = DatabaseManager.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -224,6 +229,101 @@ public class FormationService {
     public int getTotalHeartDemonResist(long playerId) {
         Formation f = getActiveFormation(playerId);
         return f != null ? f.getHeartDemonResist() : 0;
+    }
+
+    /**
+     * 已激活阵法的防御加成（% 减伤）：护山大阵每级 +10%、迷踪阵每级 +5%。
+     * 供 PVE / PVP / 团队 Boss 结算按百分比削减受到的伤害，激活期间全程生效。
+     */
+    public int getTotalDefenseBonus(long playerId) {
+        Formation f = getActiveFormation(playerId);
+        return f != null ? f.getDefenseBonus() : 0;
+    }
+
+    /** 阵图物品 fullKey → 阵法 key；非阵图返回 null。 */
+    public static String treasureKeyToFormationKey(String fullKey) {
+        return switch (fullKey) {
+            case "mtxgdn:spirit_gathering_formation" -> "spirit_gathering";
+            case "mtxgdn:mountain_protection_formation" -> "mountain_protection";
+            case "mtxgdn:purification_formation" -> "purification";
+            default -> null;
+        };
+    }
+
+    /**
+     * 使用阵图物品布置对应 1 级阵法：消耗 1 张阵图（不另扣灵石）。
+     * 需要洞府且当前未布置阵法；成功后按该阵法 1 级效果激活。
+     */
+    public Map<String, Object> placeFormationFromTreasure(long playerId, String treasureFullKey) {
+        com.mtxgdn.playerdata.PlayerDataService.markDirty(playerId);
+        Map<String, Object> result = new LinkedHashMap<>();
+        String formationKey = treasureKeyToFormationKey(treasureFullKey);
+        if (formationKey == null) {
+            result.put("success", false);
+            result.put("message", "这不是可布置阵法的阵图");
+            return result;
+        }
+        if (com.mtxgdn.common.service.ServiceRegistry.getCaveService().getCaveByPlayerId(playerId) == null) {
+            result.put("success", false);
+            result.put("message", "你还没有洞府，无法布置阵法");
+            return result;
+        }
+        if (getActiveFormation(playerId) != null) {
+            result.put("success", false);
+            result.put("message", "你已经布置了一个阵法，需先拆除");
+            return result;
+        }
+        final int level = 1;
+        try {
+            DatabaseManager.runTransaction(conn -> {
+                try (PreparedStatement ps = conn.prepareStatement(
+                        "SELECT quantity FROM players_items WHERE player_id = ? AND item_key = ?")) {
+                    ps.setLong(1, playerId);
+                    ps.setString(2, treasureFullKey);
+                    try (ResultSet rs = ps.executeQuery()) {
+                        if (!rs.next() || rs.getLong(1) < 1) {
+                            throw new SQLException("背包中没有该阵图");
+                        }
+                    }
+                }
+                long now = System.currentTimeMillis();
+                long durationMs = (long) Formation.getBaseDuration(formationKey) * 60 * 1000;
+                String sql = "INSERT INTO formations (player_id, formation_key, name, level, " +
+                        "spirit_energy_boost, cultivation_bonus, defense_bonus, heart_demon_resist, " +
+                        "duration_minutes, placed_at, expires_at, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)";
+                try (PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+                    ps.setLong(1, playerId);
+                    ps.setString(2, formationKey);
+                    ps.setString(3, Formation.getNameForKey(formationKey));
+                    ps.setInt(4, level);
+                    ps.setInt(5, Formation.getSpiritEnergyBoostForLevel(formationKey, level));
+                    ps.setInt(6, Formation.getCultivationBonusForLevel(formationKey, level));
+                    ps.setInt(7, Formation.getDefenseBonusForLevel(formationKey, level));
+                    ps.setInt(8, Formation.getHeartDemonResistForLevel(formationKey, level));
+                    ps.setInt(9, Formation.getBaseDuration(formationKey));
+                    ps.setLong(10, now);
+                    ps.setLong(11, now + durationMs);
+                    ps.executeUpdate();
+                }
+                if (!itemService.removeItem(conn, playerId, treasureFullKey, 1)) {
+                    throw new SQLException("阵图扣除失败: " + treasureFullKey);
+                }
+                return null;
+            });
+        } catch (Exception e) {
+            result.put("success", false);
+            result.put("message", "使用阵图失败: " + e.getMessage());
+            return result;
+        }
+        Formation formation = getActiveFormation(playerId);
+        result.put("success", true);
+        result.put("message", "使用阵图布置【" + formation.getName() + "】成功！(消耗阵图 1 张，无需灵石)\n" +
+                "持续时间: " + formation.getDurationMinutes() + " 分钟\n" +
+                "效果: 灵气汇聚 +" + formation.getSpiritEnergyBoost() + "%，修炼加成 +" + formation.getCultivationBonus() + "%" +
+                (formation.getDefenseBonus() > 0 ? "，防御加成 +" + formation.getDefenseBonus() + "%" : "") +
+                (formation.getHeartDemonResist() > 0 ? "，心魔抵抗 +" + formation.getHeartDemonResist() : ""));
+        result.put("formation", formation);
+        return result;
     }
 
     private Formation mapFormation(ResultSet rs) throws SQLException {

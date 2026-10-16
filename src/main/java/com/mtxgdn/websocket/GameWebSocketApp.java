@@ -40,6 +40,7 @@ import com.mtxgdn.permission.PermissionService;
 import com.mtxgdn.util.JwtUtil;
 import com.mtxgdn.util.PlayerActionLogger;
 import com.mtxgdn.util.RateLimiter;
+import com.mtxgdn.util.TokenBlacklist;
 import org.glassfish.grizzly.websockets.*;
 
 import java.util.List;
@@ -62,7 +63,7 @@ public class GameWebSocketApp extends WebSocketApplication {
     private static final ChatService chatService = new ChatService();
     private static final FriendService friendService = new FriendService();
     private static final SectService sectService = new SectService();
-    private static final MapService mapService = new MapService();
+    private static final MapService mapService = com.mtxgdn.common.service.ServiceRegistry.getMapService();
 
     private final Map<WebSocket, Long> sessionUsers = new ConcurrentHashMap<>();
     private final Map<Long, WebSocket> userSessions = new ConcurrentHashMap<>();
@@ -73,8 +74,33 @@ public class GameWebSocketApp extends WebSocketApplication {
         authenticated.put(socket, false);
     }
 
+    /**
+     * V1 修复：单帧大小上限（默认 64KB，可由 {@code network.ws_max_message_size} 配置）。
+     * <p>
+     * Grizzly 4.0.2 的 WebSocket 栈不提供框架级单帧上限（已核实 API），
+     * 因此这里在反序列化<b>之前</b>做长度检查，是唯一可靠的拦截点：
+     * 保证超大帧不会进入 Gson 解析与业务逻辑，也不会被复制进各 service。
+     */
+    private static final int MAX_MESSAGE_CHARS =
+            com.mtxgdn.server.ServerConfigurator.getMaxWebSocketMessageSize();
+
     @Override
     public void onMessage(WebSocket socket, String text) {
+        // V1：超长帧直接断开，不给 Gson/业务代码分配内存的机会
+        if (text == null || text.length() > MAX_MESSAGE_CHARS) {
+            try {
+                GameMessage err = GameMessage.error(0, "error", GameErrorCode.PARAM_INVALID);
+                socket.send(err.toJson());
+            } catch (Exception ignored) {
+                // 连接可能已断开
+            }
+            try {
+                socket.close(4009, "消息过大");
+            } catch (Exception ignored) {
+            }
+            return;
+        }
+
         if (!authenticated.getOrDefault(socket, false)) {
             handleAuth(socket, text);
             return;
@@ -120,14 +146,43 @@ public class GameWebSocketApp extends WebSocketApplication {
                 return;
             }
 
+            // 登出/被吊销的 token 禁止建立 WebSocket 连接
+            if (TokenBlacklist.isBlacklisted(token)) {
+                GameMessage err = GameMessage.error(0, "error", GameErrorCode.AUTH_INVALID_TOKEN);
+                socket.send(err.toJson());
+                socket.close(4001, "Token 已失效，请重新登录");
+                return;
+            }
+
             Long userId = JwtUtil.extractUserId(token);
             String username = JwtUtil.extractUsername(token);
+
+            // 同一账号重复登录：关闭旧连接，避免两个连接同时在线导致
+            // 消息双发 / userSessions 被覆盖后旧连接变成"幽灵连接"继续收消息。
+            WebSocket previous = userSessions.get(userId);
+            if (previous != null && previous != socket) {
+                sessionUsers.remove(previous);
+                authenticated.put(previous, false);
+                try {
+                    previous.close(4002, "账号在其它位置登录");
+                } catch (Exception ignored) {
+                    // 旧连接可能已断开
+                }
+            }
 
             sessionUsers.put(socket, userId);
             userSessions.put(userId, socket);
             authenticated.put(socket, true);
 
             actionLog.logConnect(userId, username);
+
+            // 插件事件：玩家登录
+            com.mtxgdn.plugin.event.PluginEventManager.fireQuietly(
+                    com.mtxgdn.plugin.event.PluginEvent.builder()
+                            .type(com.mtxgdn.plugin.event.PluginEvent.Type.PLAYER_LOGIN)
+                            .data("userId", userId)
+                            .data("username", username)
+                            .build());
 
             OfflineRewardService.OfflineRewardResult offlineReward =
                     new OfflineRewardService().processOfflineRewards(userId);
@@ -173,7 +228,8 @@ public class GameWebSocketApp extends WebSocketApplication {
         Long userId = sessionUsers.remove(socket);
         authenticated.remove(socket);
         if (userId != null) {
-            userSessions.remove(userId);
+            // 条件删除：仅当映射仍指向本连接时才移除，避免同账号多连接时误删新连接
+            userSessions.remove(userId, socket);
             broadcastUserOffline(userId);
             PlayerInfo player = playerService.getPlayerByUserId(userId);
             if (player != null) {
@@ -181,6 +237,51 @@ public class GameWebSocketApp extends WebSocketApplication {
             }
             String name = player != null ? player.getName() : "未知玩家";
             actionLog.logDisconnect(userId, name);
+            // 插件事件：玩家登出
+            com.mtxgdn.plugin.event.PluginEventManager.fireQuietly(
+                    com.mtxgdn.plugin.event.PluginEvent.builder()
+                            .type(com.mtxgdn.plugin.event.PluginEvent.Type.PLAYER_LOGOUT)
+                            .data("userId", userId)
+                            .data("playerName", name)
+                            .build());
+        }
+    }
+
+    /** WebSocket 动作 → 所属内置插件名（config/plugins.yml 的 plugins.*）；非模块动作返回 null。 */
+    private static String wsModuleForAction(String type) {
+        if (type == null) return null;
+        // 实验性插件：宗门战独立于宗门系统开关
+        if ("sect_war".equals(type)) return "experimental_sect_war";
+        if (type.startsWith("sect_")) return "sect";
+        if (type.startsWith("secret_realm_")) return "secret_realm";
+        if ("exploration".equals(type)) return "exploration";
+        if (type.startsWith("friend_")) return "friend";
+        if (type.startsWith("technique_") || "techniques".equals(type)
+                || "my_techniques".equals(type)) return "technique";
+        if (type.startsWith("crafting_")) return "crafting";
+        if (type.startsWith("map_")) return "map";
+        switch (type) {
+            case "chat":
+            case "chat_private":
+            case "chat_history":
+                return "chat";
+            case "rank":
+                return "rank";
+            case "heal":
+            case "player_info":
+                return "player";
+            case "cultivate_start":
+            case "cultivate_stop":
+            case "breakthrough":
+            case "season_info":
+                return "cultivation";
+            case "inventory":
+            case "item_use":
+            case "item_registry":
+            case "equipment_enhance":
+                return "inventory";
+            default:
+                return null;
         }
     }
 
@@ -192,6 +293,13 @@ public class GameWebSocketApp extends WebSocketApplication {
         String rateKey = "ws:" + userId + ":" + type;
         if (!RateLimiter.allow(rateKey, 20, 60)) {
             socket.send(GameMessage.error(msgId, type, GameErrorCode.RATE_LIMITED).toJson());
+            return;
+        }
+
+        // 内置模块门控：模块停用后其 WebSocket 动作一并失效
+        String module = wsModuleForAction(type);
+        if (module != null && !com.mtxgdn.plugin.BuiltInPluginRegistry.getInstance().isEnabledOrUnknown(module)) {
+            socket.send(GameMessage.error(msgId, type, 403, "该玩法系统已停用，暂时无法使用").toJson());
             return;
         }
 
@@ -219,6 +327,10 @@ public class GameWebSocketApp extends WebSocketApplication {
                 if (!checkWsPermission(socket, msgId, userId, "game.friend.manage")) break;
                 handleFriendAccept(socket, msgId, userId, data);
                 break;
+            case "friend_reject":
+                if (!checkWsPermission(socket, msgId, userId, "game.friend.manage")) break;
+                handleFriendReject(socket, msgId, userId, data);
+                break;
             case "friend_remove":
                 if (!checkWsPermission(socket, msgId, userId, "game.friend.manage")) break;
                 handleFriendRemove(socket, msgId, userId, data);
@@ -234,6 +346,10 @@ public class GameWebSocketApp extends WebSocketApplication {
             case "heal":
                 if (!checkWsPermission(socket, msgId, userId, "game.player.info")) break;
                 handleHeal(socket, msgId, userId);
+                break;
+            case "morning_cultivation":
+                if (!checkWsPermission(socket, msgId, userId, "game.player.info")) break;
+                handleMorningCultivation(socket, msgId, userId);
                 break;
             case "player_info":
                 if (!checkWsPermission(socket, msgId, userId, "game.player.info")) break;
@@ -405,6 +521,9 @@ public class GameWebSocketApp extends WebSocketApplication {
                 if (!checkWsPermission(socket, msgId, userId, "game.player.info")) break;
                 handleMapLocations(socket, msgId);
                 break;
+            case "season_info":
+                handleSeasonInfo(socket, msgId);
+                break;
             default:
                 // 先尝试插件 WebSocket 处理器
                 if (com.mtxgdn.plugin.PluginWebManager.getInstance()
@@ -426,7 +545,11 @@ public class GameWebSocketApp extends WebSocketApplication {
         }
 
         PlayerInfo player = playerService.getPlayerByUserId(userId);
-        String name = player != null ? player.getName() : "未知玩家";
+        if (player == null) {
+            socket.send(GameMessage.error(msgId, "chat", GameErrorCode.PLAYER_NOT_FOUND).toJson());
+            return;
+        }
+        String name = player.getName();
 
         ChatMessage msg = chatService.sendWorldMessage(player.getId(), name, content);
         if (msg == null) {
@@ -613,6 +736,28 @@ public class GameWebSocketApp extends WebSocketApplication {
         socket.send(GameMessage.ok(msgId, "friend_accept", "已添加好友", null).toJson());
     }
 
+    private void handleFriendReject(WebSocket socket, long msgId, Long userId, JsonObject data) {
+        if (data == null || !data.has("requesterPlayerId")) {
+            socket.send(GameMessage.error(msgId, "friend_reject", GameErrorCode.PARAM_MISSING).toJson());
+            return;
+        }
+        long requesterId = data.get("requesterPlayerId").getAsLong();
+
+        PlayerInfo player = playerService.getPlayerByUserId(userId);
+        if (player == null) {
+            socket.send(GameMessage.error(msgId, "friend_reject", GameErrorCode.PLAYER_NOT_FOUND).toJson());
+            return;
+        }
+
+        boolean success = friendService.rejectRequest(player.getId(), requesterId);
+        if (!success) {
+            socket.send(GameMessage.error(msgId, "friend_reject", GameErrorCode.FRIEND_REQUEST_NOT_FOUND).toJson());
+            return;
+        }
+
+        socket.send(GameMessage.ok(msgId, "friend_reject", "已拒绝该好友申请", null).toJson());
+    }
+
     private void handleFriendRemove(WebSocket socket, long msgId, Long userId, JsonObject data) {
         if (data == null || !data.has("friendPlayerId")) {
             socket.send(GameMessage.error(msgId, "friend_remove", GameErrorCode.PARAM_MISSING).toJson());
@@ -698,6 +843,21 @@ public class GameWebSocketApp extends WebSocketApplication {
         }
     }
 
+    private void handleMorningCultivation(WebSocket socket, long msgId, Long userId) {
+        PlayerInfo player = playerService.getPlayerByUserId(userId);
+        if (player == null) {
+            socket.send(GameMessage.error(msgId, "morning_cultivation", GameErrorCode.PLAYER_NOT_FOUND).toJson());
+            return;
+        }
+        Map<String, Object> result = new com.mtxgdn.game.service.DailyService().doMorningCultivation(player.getId());
+        if (Boolean.TRUE.equals(result.get("success"))) {
+            JsonObject data = gson.toJsonTree(result).getAsJsonObject();
+            socket.send(GameMessage.ok(msgId, "morning_cultivation", (String) result.get("message"), data).toJson());
+        } else {
+            socket.send(GameMessage.error(msgId, "morning_cultivation", 400, (String) result.get("message")).toJson());
+        }
+    }
+
     private boolean checkWsPermission(WebSocket socket, long msgId, Long userId, String permission) {
         if (!PermissionService.hasPermission(userId, permission)) {
             GameMessage err = GameMessage.error(msgId, "error", GameErrorCode.PARAM_INVALID.getCode(), "权限不足: " + permission);
@@ -751,15 +911,25 @@ public class GameWebSocketApp extends WebSocketApplication {
             return;
         }
 
-        playerService.setCultivating(player.getId(), true);
+        Map<String, Object> result = playerService.beginCultivation(player.getId());
+        if (!Boolean.TRUE.equals(result.get("success"))) {
+            GameMessage err = GameMessage.error(msgId, "cultivate_start", GameErrorCode.REALM_NOT_CULTIVATING.getCode(), (String) result.get("message"));
+            socket.send(err.toJson());
+            return;
+        }
 
         actionLog.logCultivateStart(userId, player.getName(), player.getRealm());
 
         JsonObject data = new JsonObject();
         data.addProperty("cultivating", true);
-        data.addProperty("cultivationPerSecond", getRealmCultivationPerSecond(player.getRealm()));
+        data.addProperty("cultivationPerSecond", ((Number) result.get("cultivationPerSecond")).intValue());
+        data.addProperty("startTime", ((Number) result.get("startTime")).longValue());
+        data.addProperty("season", (String) result.get("season"));
+        data.addProperty("locationName", (String) result.get("locationName"));
+        data.addProperty("locationMultiplier", ((Number) result.get("locationMultiplier")).doubleValue());
 
-        GameMessage response = GameMessage.ok(msgId, "cultivate_start", "开始修炼", data);
+        GameMessage response = GameMessage.ok(msgId, "cultivate_start",
+                "开始闭关修炼（" + result.get("locationName") + "）", data);
         socket.send(response.toJson());
     }
 
@@ -772,11 +942,15 @@ public class GameWebSocketApp extends WebSocketApplication {
             return;
         }
 
-        int elapsedSeconds = reqData != null && reqData.has("elapsedSeconds") ? reqData.get("elapsedSeconds").getAsInt() : 0;
-        int cultivationPerSec = getRealmCultivationPerSecond(player.getRealm());
-        long expGained = (long) elapsedSeconds * cultivationPerSec;
+        Map<String, Object> result = playerService.finishCultivation(player.getId());
+        if (!Boolean.TRUE.equals(result.get("success"))) {
+            GameMessage err = GameMessage.error(msgId, "cultivate_stop", GameErrorCode.REALM_NOT_CULTIVATING.getCode(), (String) result.get("message"));
+            socket.send(err.toJson());
+            return;
+        }
 
-        playerService.setCultivating(player.getId(), false);
+        int elapsedSeconds = ((Number) result.get("elapsedSeconds")).intValue();
+        long expGained = ((Number) result.get("rawExpGained")).longValue();
 
         HeartDemonService.HeartDemonResult hdResult = heartDemonService.processCultivation(
                 player.getId(), expGained, elapsedSeconds);
@@ -790,6 +964,7 @@ public class GameWebSocketApp extends WebSocketApplication {
         PlayerInfo updated = playerService.getPlayerByUserId(userId);
         JsonObject respData = gson.toJsonTree(updated).getAsJsonObject();
         respData.addProperty("experienceGained", netExp);
+        respData.addProperty("elapsedSeconds", elapsedSeconds);
         if (hdResult.triggered) {
             respData.addProperty("heartDemonTriggered", true);
             respData.addProperty("heartDemonSeverity", hdResult.severity);
@@ -897,17 +1072,32 @@ public class GameWebSocketApp extends WebSocketApplication {
         socket.send(response.toJson());
     }
 
-    private int getRealmCultivationPerSecond(int realm) {
-        double multiplier = com.mtxgdn.game.config.GameConfigLoader.getCultivationMultiplier(realm);
-        int base = com.mtxgdn.game.config.GameConfigLoader.getCultivationBaseValue();
-        return (int) (base * multiplier);
+    private void handleSeasonInfo(WebSocket socket, long msgId) {
+        JsonObject data = new JsonObject();
+        data.addProperty("season", com.mtxgdn.game.service.SeasonService.getCurrentSeason().name());
+        data.addProperty("seasonDisplay", com.mtxgdn.game.service.SeasonService.getCurrentSeason().getDisplayName());
+        data.addProperty("seasonDesc", com.mtxgdn.game.service.SeasonService.getCurrentSeason().getDescription());
+        data.addProperty("seasonEffect", com.mtxgdn.game.service.SeasonService.getSeasonEffectDescription());
+        data.addProperty("cultivationMultiplier", com.mtxgdn.game.service.SeasonService.getCultivationMultiplier());
+        data.addProperty("explorationMultiplier", com.mtxgdn.game.service.SeasonService.getExplorationMultiplier());
+        data.addProperty("spiritStoneMultiplier", com.mtxgdn.game.service.SeasonService.getSpiritStoneMultiplier());
+        data.addProperty("dropMultiplier", com.mtxgdn.game.service.SeasonService.getDropMultiplier());
+        data.addProperty("seasonStartMs", com.mtxgdn.game.service.SeasonService.getSeasonStartMs());
+        data.addProperty("seasonEndMs", com.mtxgdn.game.service.SeasonService.getSeasonEndMs());
+        data.addProperty("remainingMs", com.mtxgdn.game.service.SeasonService.getSeasonRemainingMs());
+        GameMessage response = GameMessage.ok(msgId, "season_info", data);
+        socket.send(response.toJson());
     }
 
     public void broadcast(GameMessage message) {
         String json = message.toJson();
         for (WebSocket socket : sessionUsers.keySet()) {
             if (socket.isConnected()) {
-                socket.send(json);
+                try {
+                    socket.send(json);
+                } catch (Exception e) {
+                    // 单连接发送失败不影响其他玩家
+                }
             }
         }
     }
@@ -915,7 +1105,11 @@ public class GameWebSocketApp extends WebSocketApplication {
     public void sendToUser(Long userId, GameMessage message) {
         WebSocket socket = userSessions.get(userId);
         if (socket != null && socket.isConnected()) {
-            socket.send(message.toJson());
+            try {
+                socket.send(message.toJson());
+            } catch (Exception e) {
+                // 发送失败静默处理
+            }
         }
     }
 
@@ -1653,9 +1847,18 @@ public class GameWebSocketApp extends WebSocketApplication {
                 n.addProperty("region", (String) nb.get("region"));
                 n.addProperty("safeZone", (boolean) nb.get("safeZone"));
                 n.addProperty("accessible", (boolean) nb.get("accessible"));
+                n.addProperty("travelSeconds", ((Number) nb.getOrDefault("travelSeconds", 5)).intValue());
                 neighbors.add(n);
             }
             resp.add("neighbors", neighbors);
+            Object cultivationBonus = result.get("cultivationBonus");
+            if (cultivationBonus instanceof Number) {
+                resp.addProperty("cultivationBonus", ((Number) cultivationBonus).doubleValue());
+            }
+            Object explorationBonus = result.get("explorationBonus");
+            if (explorationBonus instanceof Number) {
+                resp.addProperty("explorationBonus", ((Number) explorationBonus).doubleValue());
+            }
             socket.send(GameMessage.ok(msgId, "map_surroundings", resp).toJson());
         } else {
             socket.send(GameMessage.error(msgId, "map_surroundings", 400, (String) result.get("message")).toJson());
@@ -1698,6 +1901,8 @@ public class GameWebSocketApp extends WebSocketApplication {
             o.addProperty("region", loc.getRegion());
             o.addProperty("minRealm", loc.getMinRealm());
             o.addProperty("safeZone", loc.isSafeZone());
+            o.addProperty("cultivationBonus", loc.getCultivationBonus());
+            o.addProperty("explorationBonus", loc.getExplorationBonus());
             arr.add(o);
         }
         JsonObject resp = new JsonObject();

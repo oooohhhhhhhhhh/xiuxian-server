@@ -41,6 +41,11 @@ public class OfflineRewardService {
             return OfflineRewardResult.noReward();
         }
 
+        // 原子认领：只有认领成功的请求才结算，防止并发重复发放（WebSocket/REST/QQ 多端同时上线）
+        if (!playerService.claimOfflineTime(player.getId(), lastOffline)) {
+            return OfflineRewardResult.noReward();
+        }
+
         elapsedSeconds = Math.min(elapsedSeconds, MAX_OFFLINE_SECONDS);
 
         OfflineRewardResult result = new OfflineRewardResult();
@@ -57,27 +62,24 @@ public class OfflineRewardService {
             processOfflineCultivation(player, elapsedSeconds, result);
         }
 
-        playerService.updateLastOfflineTime(player.getId(), 0);
-
         return result;
     }
 
     private void processOfflineCultivation(Player player, int elapsedSeconds, OfflineRewardResult result) {
-        double multiplier = GameConfigLoader.getCultivationMultiplier(player.getRealm());
-        int base = GameConfigLoader.getCultivationBaseValue();
-        int cultivationPerSec = (int)(base * multiplier * OFFLINE_CULTIVATION_RATE);
+        // 与在线闭关一致的结算（境界/季节/地点 double 累乘），再乘离线效率
+        double rawExp = playerService.calculateCultivationExp(player, elapsedSeconds) * OFFLINE_CULTIVATION_RATE;
 
         CelestialPhenomenon phenomenon = dailyService.getTodayPhenomenon();
         if (phenomenon != null) {
-            cultivationPerSec = (int)(cultivationPerSec * phenomenon.getCultivationMultiplier());
+            rawExp = rawExp * phenomenon.getCultivationMultiplier();
         }
 
         SpiritualRoot root = player.getSpiritualRoot();
         if (root != null && root.hasEffect(SpiritualRoot.SpecialEffect.CULTIVATION_EFFICIENCY)) {
-            cultivationPerSec = (int)(cultivationPerSec * (1 + root.getEffectValue()));
+            rawExp = rawExp * (1 + root.getEffectValue());
         }
 
-        long rawExpGained = (long)elapsedSeconds * cultivationPerSec;
+        long rawExpGained = Math.max(0, Math.round(rawExp));
         if (rawExpGained <= 0) {
             rawExpGained = elapsedSeconds;
         }

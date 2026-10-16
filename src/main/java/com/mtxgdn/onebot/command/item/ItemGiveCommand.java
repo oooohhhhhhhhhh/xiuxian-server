@@ -14,9 +14,9 @@ import java.util.List;
 public class ItemGiveCommand extends Command {
 
     public ItemGiveCommand() {
-        super(new String[]{"发放", "give", "giveitem", "give_item"},
+        super(new String[]{"发放物品", "giveitem", "give_item"},
                 "[管理] 向指定玩家发放物品",
-                "/发放 <玩家名> <物品Key> [数量]",
+                "/发放物品 <玩家名> <物品Key> [数量]",
                 "管理",
                 "admin.items.give");
 
@@ -33,13 +33,13 @@ public class ItemGiveCommand extends Command {
 
         String arg = ctx.getArg().trim();
         if (arg.isEmpty()) {
-            ctx.reply("用法: /发放 <玩家名> <物品Key> [数量=1]\n例: /发放 李白 spirit_stone 100");
+            ctx.reply("用法: /发放物品 <玩家名> <物品Key> [数量=1]\n例: /发放物品 李白 spirit_stone 100");
             return;
         }
 
         String[] parts = arg.split("\\s+", 3);
         if (parts.length < 2) {
-            ctx.reply("参数不足。用法: /发放 <玩家名> <物品Key> [数量]");
+            ctx.reply("参数不足。用法: /发放物品 <玩家名> <物品Key> [数量]");
             return;
         }
 

@@ -9,7 +9,7 @@ import com.mtxgdn.onebot.QqBindingService;
 
 public class StatusCommand extends Command {
     public StatusCommand() {
-        super(new String[]{"服务器状态", "serverstatus", "status"},
+        super(new String[]{"服务器状态", "serverstatus"},
                 "查看服务器运行状态（仅私聊）",
                 "/服务器状态",
                 "管理", "admin.status", true);
@@ -17,7 +17,7 @@ public class StatusCommand extends Command {
 
     @Override
     public void execute(CommandContext ctx) {
-        QqBinding b = new QqBindingService().findByQq(ctx.getSenderId());
+        QqBinding b = ctx.resolveBoundBinding();
         if (b == null) {
             ctx.reply("请先绑定账号。");
             return;

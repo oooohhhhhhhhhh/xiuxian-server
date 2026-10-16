@@ -321,10 +321,6 @@ public class OneBotWebSocketServer extends WebSocketApplication
             return;
         }
 
-        com.mtxgdn.onebot.quiz.QuizService.getInstance().processMessage(rawMessage);
-
-        if (tryHandleQuiz(socket, selfId, senderQq, null, trimmed)) return;
-
         if (!isCommand(trimmed)) return;
 
         String[] parsed = parseCommand(trimmed);
@@ -355,10 +351,6 @@ public class OneBotWebSocketServer extends WebSocketApplication
             return;
         }
 
-        com.mtxgdn.onebot.quiz.QuizService.getInstance().processMessage(rawMessage);
-
-        if (tryHandleQuiz(socket, selfId, senderQq, groupId, trimmed)) return;
-
         if (!isCommand(trimmed)) return;
 
         String[] parsed = parseCommand(trimmed);
@@ -375,25 +367,24 @@ public class OneBotWebSocketServer extends WebSocketApplication
         dispatchCommand(socket, selfId, senderQq, senderNickname, groupId, parsed[0], parsed[1]);
     }
 
-    private boolean tryHandleQuiz(WebSocket socket, String selfId, String senderQq,
-                                   Long groupId, String message) {
-        com.mtxgdn.onebot.quiz.QuizService quiz = com.mtxgdn.onebot.quiz.QuizService.getInstance();
-        com.mtxgdn.onebot.quiz.QuizQuestion q = quiz.findMatch(message);
-        if (q == null) return false;
-
-        StringBuilder sb = new StringBuilder();
-        sb.append(q.getQuestion()).append("\n");
-        sb.append("\n修仙答").append(q.getAnswer());
-        replyToSource(socket, selfId, senderQq, groupId, sb.toString());
-        return true;
-    }
-
     private void dispatchCommand(WebSocket socket, String selfId, String senderQq,
                                   String senderNickname, Long groupId, String cmd, String arg) {
         StatsCollector.getInstance().recordCommand(cmd, groupId);
 
+        // "/cancel" 是向导流程的保留取消词（待处理向导在上游已拦截）；
+        // 无待取消操作时给出提示，避免误触其他指令或静默无响应
+        if ("cancel".equalsIgnoreCase(cmd)) {
+            replyToSource(socket, selfId, senderQq, groupId, "当前没有待取消的操作。");
+            return;
+        }
+
         Command command = CommandRegistry.get(cmd);
         if (command == null) {
+            // 命令存在但所属内置模块已停用：给出提示而非静默忽略
+            Command raw = CommandRegistry.getRaw(cmd);
+            if (raw != null && !raw.isModuleEnabled()) {
+                replyToSource(socket, selfId, senderQq, groupId, "该玩法系统已停用，暂时无法使用。");
+            }
             return;
         }
 
@@ -413,6 +404,15 @@ public class OneBotWebSocketServer extends WebSocketApplication
 
         OneBotCommandContext ctx = new OneBotCommandContext(
                 socket, selfId, senderQq, senderNickname, groupId, arg, this, this);
+        // 插件事件：命令执行
+        com.mtxgdn.plugin.event.PluginEventManager.fireQuietly(
+                com.mtxgdn.plugin.event.PluginEvent.builder()
+                        .type(com.mtxgdn.plugin.event.PluginEvent.Type.COMMAND)
+                        .data("command", command.getNames() != null && command.getNames().length > 0 ? command.getNames()[0] : cmd)
+                        .data("arg", arg == null ? "" : arg)
+                        .data("senderQq", senderQq)
+                        .data("groupId", groupId == null ? 0L : groupId)
+                        .build());
         command.execute(ctx);
     }
 

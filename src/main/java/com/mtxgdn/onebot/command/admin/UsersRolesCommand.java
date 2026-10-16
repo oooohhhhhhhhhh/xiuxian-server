@@ -15,17 +15,17 @@ public class UsersRolesCommand extends Command {
         super(new String[]{"用户列表", "users", "userlist"},
                 "查看所有用户及其角色（仅私聊）",
                 "/用户列表",
-                "管理", "admin.status", true);
+                "管理", "admin.users.manage", true);
     }
 
     @Override
     public void execute(CommandContext ctx) {
-        QqBinding b = new QqBindingService().findByQq(ctx.getSenderId());
+        QqBinding b = ctx.resolveBoundBinding();
         if (b == null) {
             ctx.reply("请先绑定账号。");
             return;
         }
-        if (!PermissionService.hasPermission(b.getUserId(), "admin.status")) {
+        if (!PermissionService.hasPermission(b.getUserId(), "admin.users.manage")) {
             ctx.reply("权限不足，你无权使用此功能。");
             return;
         }
@@ -46,8 +46,8 @@ public class UsersRolesCommand extends Command {
             if (roles != null && !roles.isEmpty()) {
                 sb.append(" [").append(String.join(", ", roles)).append("]");
             }
-            // also show QQ binding
-            QqBinding binding = new QqBindingService().findByUserId(id);
+            // also show QQ binding（跨平台：OneBot QQ号 或 QQ官方 openid）
+            QqBinding binding = new QqBindingService().findAnyBindingByUserId(id);
             if (binding != null) {
                 sb.append(" QQ:").append(binding.getQqNumber());
             }

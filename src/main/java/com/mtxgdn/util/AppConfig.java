@@ -1,5 +1,6 @@
 package com.mtxgdn.util;
 
+import org.yaml.snakeyaml.DumperOptions;
 import org.yaml.snakeyaml.Yaml;
 
 import java.io.File;
@@ -120,6 +121,11 @@ public class AppConfig {
             Object value = entry.getValue();
             if (value instanceof Map) {
                 result.putAll(flatten((Map<String, Object>) value, key));
+            } else if (value instanceof java.util.List) {
+                // YAML 列表统一转成逗号分隔字符串，避免 "[a, b]" 形态导致按 split(",") 解析失败
+                result.put(key, ((java.util.List<?>) value).stream()
+                        .map(String::valueOf)
+                        .collect(java.util.stream.Collectors.joining(",")));
             } else {
                 result.put(key, value != null ? value.toString() : "");
             }
@@ -156,4 +162,59 @@ public class AppConfig {
         }
         return "true".equalsIgnoreCase(value);
     }
+
+    /** 是否存在以指定前缀开头的配置键（如旧安装遗留的 {@code built_in_plugins.}）。 */
+    public static boolean hasKeyPrefix(String prefix) {
+        if (prefix == null || prefix.isEmpty()) {
+            return false;
+        }
+        for (String key : config.keySet()) {
+            if (key.startsWith(prefix)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 创建一个以 block 风格（缩进分行、可读）输出的 Yaml 实例。
+     * <p>默认 {@code new Yaml()} 在 SnakeYAML 下会把嵌套 Map 序列化为
+     * flow 紧凑风格（如 {@code app: {name: xxx}}），可读性差且与手写模板
+     * 不一致。使用 block 风格后，安装向导 / 配置升级写回的
+     * application.yml 会与仓库模板保持一致的缩进结构。</p>
+     */
+    public static Yaml newBlockYaml() {
+        DumperOptions options = new DumperOptions();
+        options.setDefaultFlowStyle(DumperOptions.FlowStyle.BLOCK);
+        options.setIndent(2);
+        options.setPrettyFlow(true);
+        options.setSplitLines(false);
+        return new Yaml(options);
+    }
+
+    /**
+     * 更新 application.yml 中的若干键并写入磁盘（保留注释与排版）。
+     * <p>v2：不再用 SnakeYAML 整文件 dump（旧实现会丢弃全部注释并按默认排版重排），
+     * 改为对目标键做<b>行级值替换</b>：只改值，保留原有注释、空行与缩进结构；
+     * 不存在的键追加到对应父节末尾（父节不存在则追加到文件末尾）。</p>
+     * <p>值语义：{@code null} 表示删除该键所在行（含紧随其后缩进更深的注释延续行，
+     * 例如旧模板中 admin.password 的说明注释）；空字符串表示写入空值 {@code ''}；
+     * 其余值按 YAML 标量写入（必要时自动加引号）。</p>
+     * <p>注意：仅更新外部 config/application.yml；若不存在则先从 classpath 释放模板再写入。
+     * 写盘使用临时文件 + rename 的原子方式，避免半截写入。</p>
+     * <p>v3：行级编辑逻辑抽到 {@link YamlFileEditor}，与 plugins.yml 等独立配置文件共用。</p>
+     */
+    public static synchronized void update(Map<String, Object> updates) {
+        if (updates == null || updates.isEmpty()) {
+            return;
+        }
+        Path jarDir = getJarDir();
+        Path externalPath = jarDir.resolve(CONFIG_DIR).resolve(CONFIG_FILE);
+        if (!Files.exists(externalPath)) {
+            extractConfigFromClasspath(externalPath);
+        }
+        YamlFileEditor.update(externalPath, updates);
+    }
+
 }
+

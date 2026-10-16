@@ -13,17 +13,17 @@ public class EditPlayerCommand extends Command {
         super(new String[]{"编辑玩家", "editplayer", "修改玩家"},
                 "修改玩家属性（仅私聊）",
                 "/编辑玩家 <玩家ID> <属性>=<值> ...",
-                "管理", "admin.status", true);
+                "管理", "admin.users.manage", true);
     }
 
     @Override
     public void execute(CommandContext ctx) {
-        QqBinding b = new QqBindingService().findByQq(ctx.getSenderId());
+        QqBinding b = ctx.resolveBoundBinding();
         if (b == null) {
             ctx.reply("请先绑定账号。");
             return;
         }
-        if (!PermissionService.hasPermission(b.getUserId(), "admin.status")) {
+        if (!PermissionService.hasPermission(b.getUserId(), "admin.users.manage")) {
             ctx.reply("权限不足，你无权使用此功能。");
             return;
         }

@@ -13,16 +13,24 @@ public class JwtAuthFilter implements ContainerRequestFilter {
     @Override
     public void filter(ContainerRequestContext requestContext) {
         String path = requestContext.getUriInfo().getPath();
+        if (path == null) {
+            path = "";
+        }
 
-        if (path.startsWith("auth/") || path.startsWith("test/")) {
+        // V9 修复：原实现把 "test/" 列入免鉴权白名单，调试端点 /api/test/test 可匿名访问。
+        // 这里移除该白名单（端点本身保留，但现在需要一个合法的玩家 token）。
+        //
+        // 同时把前缀匹配收紧为"路径段"匹配：原实现用 path.startsWith("auth/")，
+        // 会让 "authXxx/..." 这类路径被误判进白名单。
+        if (isBypassPath(path, "auth") || isBypassPath(path, "install") || isBypassPath(path, "mc-command")) {
             System.out.println("[JwtFilter] bypass: " + path);
             return;
         }
 
         // admin/energy/* 路径支持双鉴权：不强制要求用户 JWT，但如有则设置 userId
-        boolean isDualAuthPath = path.startsWith("admin/energy/");
+        boolean isDualAuthPath = isBypassPath(path, "admin/energy");
 
-        if (path.startsWith("admin/") && !isDualAuthPath) {
+        if (isBypassPath(path, "admin") && !isDualAuthPath) {
             System.out.println("[JwtFilter] bypass: " + path);
             return;
         }
@@ -60,5 +68,18 @@ public class JwtAuthFilter implements ContainerRequestFilter {
 
         requestContext.setProperty("token", token);
         requestContext.setProperty("userId", JwtUtil.extractUserId(token));
+    }
+
+    /**
+     * V9：按"路径段"判断是否命中白名单前缀。
+     *
+     * <p>要求前缀后紧跟 {@code /}（或路径与该段完全相等），
+     * 避免 {@code adminXxx}、{@code authEvil} 这类路径因 {@code startsWith} 被误放行。</p>
+     */
+    private static boolean isBypassPath(String path, String segment) {
+        if (path == null || path.isEmpty()) {
+            return false;
+        }
+        return path.equals(segment) || path.startsWith(segment + "/");
     }
 }

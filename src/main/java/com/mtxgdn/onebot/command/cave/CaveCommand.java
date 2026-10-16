@@ -1,7 +1,9 @@
 package com.mtxgdn.onebot.command.cave;
 
+import com.google.gson.JsonObject;
 import com.mtxgdn.common.command.Command;
 import com.mtxgdn.common.command.CommandContext;
+import com.mtxgdn.common.command.RouteDefinition;
 import com.mtxgdn.game.entity.Cave;
 import com.mtxgdn.game.entity.PlayerInfo;
 import com.mtxgdn.game.service.CaveService;
@@ -13,6 +15,7 @@ public class CaveCommand extends Command {
         super(new String[]{"洞府", "cave"},
                 "洞府管理：修炼、收集灵气、升级洞府",
                 "/洞府 <子命令> [参数]", "洞府", "game.cave.manage");
+        setModule("cave");
 
         registerSub(new String[]{"create", "开辟"}, this::handleCreate);
         registerSub(new String[]{"info", "信息"}, this::handleInfo);
@@ -20,6 +23,131 @@ public class CaveCommand extends Command {
         registerSub(new String[]{"meditate", "冥想"}, this::handleMeditate);
         registerSub(new String[]{"levelup", "升级"}, this::handleLevelUp);
         registerSub(new String[]{"help", "帮助", "?"}, this::handleHelp);
+
+        // HTTP 路由补齐：此前洞府只有 QQ 子命令、没有任何 addRoute，
+        // 导致 Web/REST 通道完全访问不到洞府系统。
+        addRoute(RouteDefinition.get("cave/info", "game.cave.manage", this::httpInfo));
+        addRoute(RouteDefinition.post("cave/create", "game.cave.manage", this::httpCreate));
+        addRoute(RouteDefinition.post("cave/collect", "game.cave.manage", this::httpCollect));
+        addRoute(RouteDefinition.post("cave/meditate", "game.cave.manage", this::httpMeditate));
+        addRoute(RouteDefinition.post("cave/levelup", "game.cave.manage", this::httpLevelUp));
+    }
+
+    // ==================== HTTP 处理器 ====================
+
+    private JsonObject httpInfo(RouteDefinition.RestContext ctx) {
+        JsonObject result = new JsonObject();
+        try {
+            Cave cave = caveService.getCaveByPlayerId(ctx.playerId());
+            if (cave == null) {
+                result.addProperty("code", 404);
+                result.addProperty("success", false);
+                result.addProperty("message", "你还没有洞府，请先开辟洞府（需要金丹期 + 300 灵石）");
+                result.addProperty("hasCave", false);
+                return result;
+            }
+            result.addProperty("code", 200);
+            result.addProperty("success", true);
+            result.addProperty("hasCave", true);
+            result.addProperty("name", cave.getName());
+            result.addProperty("level", cave.getLevel());
+            result.addProperty("maxLevel", Cave.MAX_LEVEL);
+            result.addProperty("spiritEnergy", cave.getSpiritEnergy());
+            result.addProperty("maxSpiritEnergy", cave.getMaxSpiritEnergy());
+            result.addProperty("cultivationBonus", cave.getCultivationBonus());
+            result.addProperty("storageBonus", cave.getStorageBonus());
+            if (cave.getLevel() < Cave.MAX_LEVEL) {
+                result.addProperty("levelUpCost", Cave.getLevelUpCost(cave.getLevel()));
+            }
+        } catch (Exception e) {
+            result.addProperty("code", 500);
+            result.addProperty("success", false);
+            result.addProperty("message", "服务器错误: " + e.getMessage());
+        }
+        return result;
+    }
+
+    private JsonObject httpCreate(RouteDefinition.RestContext ctx) {
+        JsonObject result = new JsonObject();
+        try {
+            JsonObject req = ctx.bodyJson();
+            String name = req.has("name") && !req.get("name").isJsonNull()
+                    ? req.get("name").getAsString() : "";
+            var data = caveService.createCave(ctx.playerId(), name);
+            boolean ok = Boolean.TRUE.equals(data.get("success"));
+            result.addProperty("code", ok ? 200 : 400);
+            result.addProperty("success", ok);
+            result.addProperty("message", String.valueOf(data.get("message")));
+        } catch (Exception e) {
+            result.addProperty("code", 500);
+            result.addProperty("success", false);
+            result.addProperty("message", "服务器错误: " + e.getMessage());
+        }
+        return result;
+    }
+
+    private JsonObject httpCollect(RouteDefinition.RestContext ctx) {
+        JsonObject result = new JsonObject();
+        try {
+            var data = caveService.collectSpiritEnergy(ctx.playerId());
+            boolean ok = Boolean.TRUE.equals(data.get("success"));
+            result.addProperty("code", ok ? 200 : 400);
+            result.addProperty("success", ok);
+            result.addProperty("message", String.valueOf(data.get("message")));
+            copyIfPresent(data, result, "collected");
+            copyIfPresent(data, result, "spiritEnergy");
+        } catch (Exception e) {
+            result.addProperty("code", 500);
+            result.addProperty("success", false);
+            result.addProperty("message", "服务器错误: " + e.getMessage());
+        }
+        return result;
+    }
+
+    private JsonObject httpMeditate(RouteDefinition.RestContext ctx) {
+        JsonObject result = new JsonObject();
+        try {
+            var data = caveService.meditate(ctx.playerId());
+            boolean ok = Boolean.TRUE.equals(data.get("success"));
+            result.addProperty("code", ok ? 200 : 400);
+            result.addProperty("success", ok);
+            result.addProperty("message", String.valueOf(data.get("message")));
+            copyIfPresent(data, result, "expGain");
+            copyIfPresent(data, result, "bonus");
+            copyIfPresent(data, result, "heartDemon");
+        } catch (Exception e) {
+            result.addProperty("code", 500);
+            result.addProperty("success", false);
+            result.addProperty("message", "服务器错误: " + e.getMessage());
+        }
+        return result;
+    }
+
+    private JsonObject httpLevelUp(RouteDefinition.RestContext ctx) {
+        JsonObject result = new JsonObject();
+        try {
+            var data = caveService.levelUp(ctx.playerId());
+            boolean ok = Boolean.TRUE.equals(data.get("success"));
+            result.addProperty("code", ok ? 200 : 400);
+            result.addProperty("success", ok);
+            result.addProperty("message", String.valueOf(data.get("message")));
+            copyIfPresent(data, result, "newLevel");
+            copyIfPresent(data, result, "spiritEnergy");
+        } catch (Exception e) {
+            result.addProperty("code", 500);
+            result.addProperty("success", false);
+            result.addProperty("message", "服务器错误: " + e.getMessage());
+        }
+        return result;
+    }
+
+    /** 把 Service 返回 Map 中的可选字段原样透传给前端（数字/字符串/布尔）。 */
+    private static void copyIfPresent(java.util.Map<String, Object> src, JsonObject dst, String key) {
+        Object v = src.get(key);
+        if (v == null) return;
+        if (v instanceof Number n) dst.addProperty(key, n);
+        else if (v instanceof Boolean b) dst.addProperty(key, b);
+        else dst.addProperty(key, String.valueOf(v));
     }
 
     @Override
@@ -45,7 +173,7 @@ public class CaveCommand extends Command {
     private void handleInfo(CommandContext ctx, PlayerInfo p, String[] parts) {
         Cave cave = caveService.getCaveByPlayerId(p.getId());
         if (cave == null) {
-            ctx.reply("你还没有洞府。\n使用 /洞府 create [名称] 开辟洞府（需要筑基期+300灵石）");
+            ctx.reply("你还没有洞府。\n使用 /洞府 create [名称] 开辟洞府（需要金丹期+300灵石）");
             return;
         }
         StringBuilder sb = new StringBuilder();
@@ -101,7 +229,7 @@ public class CaveCommand extends Command {
 洞府是修仙者的修炼圣地，可提供修炼加成和灵气收集。
 
 ▍开辟洞府
-  /洞府 create [名称]    开辟洞府（筑基期+300灵石）
+  /洞府 create [名称]    开辟洞府（金丹期+300灵石）
 
 ▍洞府功能
   修炼加成   - 洞府等级越高，修炼速度越快
@@ -115,7 +243,7 @@ public class CaveCommand extends Command {
     private String buildHelp() {
         return """
 ===== 洞府系统 =====
-/洞府 create [名称]      开辟洞府（筑基期，300灵石）
+/洞府 create [名称]      开辟洞府（金丹期，300灵石）
 /洞府 info               查看洞府信息
 /洞府 collect            收集洞府灵气（每5分钟可收集一次）
 /洞府 meditate           在洞府中冥想修炼（获得经验）

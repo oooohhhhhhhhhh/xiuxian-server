@@ -4,6 +4,7 @@ import com.mtxgdn.common.command.Command;
 import com.mtxgdn.common.command.CommandContext;
 import com.mtxgdn.minecraft.adapter.MinecraftAdapter;
 import com.mtxgdn.minecraft.adapter.MinecraftCommandContext;
+import com.mtxgdn.onebot.command.OneBotClientCommandContext;
 import com.mtxgdn.onebot.command.OneBotCommandContext;
 
 public class RegisterCommand extends Command {
@@ -12,7 +13,10 @@ public class RegisterCommand extends Command {
         super(new String[]{"注册", "register"},
                 "注册修仙角色",
                 "/注册 <角色名>",
-                "账号");
+                "账号",
+                null,
+                false,
+                false);
     }
 
     @Override
@@ -22,6 +26,11 @@ public class RegisterCommand extends Command {
             octx.getAccountFlow().handleRegister(
                     octx.getSocket(), octx.getSelfId(),
                     octx.getSenderId(), octx.getArg(), octx.getGroupId());
+        } else if (ctx instanceof OneBotClientCommandContext) {
+            OneBotClientCommandContext cctx = (OneBotClientCommandContext) ctx;
+            cctx.getAccountFlow().handleRegister(
+                    cctx.getSession(), cctx.getSelfId(),
+                    cctx.getSenderId(), cctx.getArg(), cctx.getGroupId());
         } else if (ctx instanceof MinecraftCommandContext) {
             MinecraftCommandContext mctx = (MinecraftCommandContext) ctx;
             MinecraftAdapter.getInstance().handleRegister(

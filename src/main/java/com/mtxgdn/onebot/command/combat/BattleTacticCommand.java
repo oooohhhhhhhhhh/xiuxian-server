@@ -15,6 +15,7 @@ public class BattleTacticCommand extends Command {
 
     public BattleTacticCommand() {
         super(new String[]{"战斗策略", "战术", "tactic"}, "设置战斗策略", "/战斗策略 <猛攻|均衡|防守>", "战斗", null);
+        setModule("skill");
     }
 
     @Override

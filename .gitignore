@@ -1,5 +1,7 @@
 target/
-!.mvn/wrapper/maven-wrapper.jar
+# Maven wrapper 为 distributionType=only-script（见 .mvn/wrapper/maven-wrapper.properties），
+# 由 mvnw / mvnw.cmd 自行下载 Maven，不需要也不使用 maven-wrapper.jar。
+# 故此处不再对 .mvn/wrapper/maven-wrapper.jar 做白名单放行。
 !**/src/main/**/target/
 !**/src/test/**/target/
 .kotlin
@@ -8,9 +10,34 @@ target/
 hs_err_pid*.log
 replay_pid*.log
 
+# 运行时数据（不入库）
+# 必须写成 /config/（锚定仓库根）：若写成 config/，会连带忽略
+# src/main/resources/config/ 下的内置配置（blacklist.yml、onebot_group_config.yml）。
+# 根目录的 config/ 是运行期生成的，内含 jwt.secret、admin.password_hash、
+# 数据库口令等敏感信息，绝不能入库。
+/config/
+data/players/
+# 野外分片存档：一个分片一个 JSON，无限生成，属于运行期世界状态，不入库
+data/wilderness/
+
+# 同类项目调研的原始抓取结果：由 docs/similar-projects/*.mjs 从 GitHub API 拉取生成，
+# 共约 15 MB，重跑脚本即可复现。只入库脚本、人工精选与报告本身。
+# 注意 curation.json 是 gen-report.mjs 的**输入**（人工精选条目），不能忽略。
+docs/similar-projects/raw-search*.json
+docs/similar-projects/merged.json
+docs/similar-projects/candidates.json
+docs/similar-projects/deduped.json
+*.db
+*.db-journal
+*.db-shm
+*.db-wal
+
 .env
 .docs/
 log/
+
+# maven-shade-plugin 的生成物：每次 package 都会重写，属构建产物
+dependency-reduced-pom.xml
 
 ### IntelliJ IDEA ###
 .idea/modules.xml
@@ -47,4 +74,5 @@ build/
 .DS_Store
 
 ### Trae ###
+# Trae IDE 本地规格/任务文档（.trae/specs 等），属于本地 AI 助手产物，不入库
 .trae/

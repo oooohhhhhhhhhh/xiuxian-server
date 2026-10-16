@@ -14,14 +14,26 @@ import com.mtxgdn.permission.PermissionService;
 
 public abstract class CommandContext {
 
+    /** 平台感知的绑定查找器：OneBot 查 qq_bindings，QQ 官方查 qq_official_bindings */
+    @FunctionalInterface
+    public interface QqBindingLookup {
+        QqBinding lookup(String id);
+    }
+
     private final String senderId;
     private final String senderNickname;
     private final String arg;
+    private final QqBindingLookup qqBindingLookup;
 
     protected CommandContext(String senderId, String senderNickname, String arg) {
+        this(senderId, senderNickname, arg, null);
+    }
+
+    protected CommandContext(String senderId, String senderNickname, String arg, QqBindingLookup qqBindingLookup) {
         this.senderId = senderId;
         this.senderNickname = senderNickname;
         this.arg = arg;
+        this.qqBindingLookup = qqBindingLookup;
     }
 
     public String getSenderId() {
@@ -42,16 +54,36 @@ public abstract class CommandContext {
 
     public abstract void replyPrivate(String message);
 
-    public Long requireBinding() {
-        // 先查 QQ 绑定
-        QqBinding qqB = new QqBindingService().findByQq(senderId);
-        if (qqB != null) {
-            return qqB.getUserId();
+    /** 解析 QQ 绑定：优先使用平台查找器（如 QQ 官方 openid），否则回退 OneBot qq_bindings */
+    private QqBinding resolveQqBinding() {
+        if (qqBindingLookup != null) {
+            QqBinding b = qqBindingLookup.lookup(senderId);
+            if (b != null) return b;
         }
-        // 再查 MC 绑定
+        return new QqBindingService().findByQq(senderId);
+    }
+
+    /**
+     * 平台感知地解析当前发送者的绑定（OneBot qq_bindings / QQ官方 qq_official_bindings）。
+     * 供指令内自行校验操作者绑定时使用，避免硬编码查 OneBot 绑定表导致 QQ官方用户被误判未绑定。
+     */
+    public QqBinding resolveBoundBinding() {
+        return resolveQqBinding();
+    }
+
+    /** 平台感知地解析绑定用户 ID（不回复提示）；未绑定返回 null。供 /帮助 等免登录指令使用 */
+    public Long resolveBoundUserId() {
+        QqBinding qqB = resolveQqBinding();
+        if (qqB != null) return qqB.getUserId();
         MinecraftPlayerBinding mcB = new MinecraftPlayerBindingService().findByMcUuid(senderId);
-        if (mcB != null) {
-            return mcB.getUserId();
+        if (mcB != null) return mcB.getUserId();
+        return null;
+    }
+
+    public Long requireBinding() {
+        Long userId = resolveBoundUserId();
+        if (userId != null) {
+            return userId;
         }
         reply("请先注册或绑定账号。\n注册: /register <用户名> <密码>\n绑定: /bind");
         return null;
@@ -92,7 +124,7 @@ public abstract class CommandContext {
     }
 
     private Long resolveUserId() {
-        QqBinding qqB = new QqBindingService().findByQq(senderId);
+        QqBinding qqB = resolveQqBinding();
         if (qqB != null) return qqB.getUserId();
         MinecraftPlayerBinding mcB = new MinecraftPlayerBindingService().findByMcUuid(senderId);
         if (mcB != null) return mcB.getUserId();

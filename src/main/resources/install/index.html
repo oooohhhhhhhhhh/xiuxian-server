@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>修仙世界 · 安装向导</title>
+<style>
+  :root {
+    --bg: #ffffff; --s: #f8f9fa; --s2: #e9ecef; --s3: #dee2e6;
+    --brd: rgba(0,0,0,0.08); --brd2: rgba(0,0,0,0.12);
+    --t: #212529; --t2: #495057; --t3: #868e96;
+    --ac: #e03131; --ac2: #c92a2a; --ac-bg: rgba(224,49,49,0.08);
+    --gn: #2b8a3e; --bl: #1c7ed6; --or: #e67700;
+    --gn-bg: rgba(43,138,62,0.08); --bl-bg: rgba(28,126,214,0.08);
+    --or-bg: rgba(230,119,0,0.08);
+    --r: 10px; --r2: 16px; --sh: 0 1px 4px rgba(0,0,0,0.08);
+  }
+  * { margin:0; padding:0; box-sizing:border-box }
+  body {
+    min-height:100vh; background:var(--bg); color:var(--t);
+    font:14px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    background-image: radial-gradient(circle at 20% 10%, rgba(224,49,49,0.04), transparent 40%),
+                      radial-gradient(circle at 80% 90%, rgba(224,49,49,0.05), transparent 40%);
+  }
+  .wrap { max-width:760px; margin:0 auto; padding:48px 20px 80px }
+  .head { text-align:center; margin-bottom:36px }
+  .head .logo { font-size:44px; line-height:1 }
+  .head h1 { font-size:26px; margin-top:12px; letter-spacing:4px }
+  .head p { color:var(--t3); margin-top:6px }
+  .head::after { content:''; display:block; width:64px; height:3px; margin:16px auto 0;
+    background:linear-gradient(90deg, transparent, var(--ac), transparent); border-radius:3px }
+  .card { background:var(--s); border:1px solid var(--brd); border-radius:var(--r2);
+    padding:28px 32px; margin-bottom:20px; box-shadow:var(--sh) }
+  .card h2 { font-size:16px; margin-bottom:16px; display:flex; align-items:center; gap:8px }
+  .card h2 .step { width:24px; height:24px; border-radius:50%; background:var(--ac); color:#fff;
+    display:inline-flex; align-items:center; justify-content:center; font-size:13px; flex-shrink:0 }
+  .row { display:flex; gap:16px; flex-wrap:wrap }
+  .field { flex:1; min-width:220px; margin-bottom:14px }
+  .field label { display:block; color:var(--t2); margin-bottom:6px; font-size:13px }
+  .field input, .field select {
+    width:100%; padding:9px 12px; border:1px solid var(--brd2); border-radius:var(--r);
+    font-size:14px; background:#fff; color:var(--t); outline:none; transition:border-color .15s
+  }
+  .field input:focus, .field select:focus { border-color:var(--ac) }
+  .hint { color:var(--t3); font-size:12px; margin-top:5px }
+  .hint-warn { color:var(--or); font-size:12px; margin-top:5px; font-weight:500 }
+  .db-detail { display:none }
+  .db-detail.show { display:block }
+  .actions { display:flex; gap:12px; justify-content:center; margin-top:24px; flex-wrap:wrap }
+  .btn {
+    padding:11px 34px; border:none; border-radius:var(--r); font-size:15px; cursor:pointer;
+    transition:transform .1s, box-shadow .1s; letter-spacing:2px
+  }
+  .btn:active { transform:translateY(1px) }
+  .btn-primary { background:var(--ac); color:#fff; box-shadow:0 2px 8px rgba(224,49,49,.35) }
+  .btn-primary:hover { background:var(--ac2) }
+  .btn-ghost { background:transparent; color:var(--t3); border:1px solid var(--brd2) }
+  .btn-ghost:hover { color:var(--t) }
+  .btn:disabled { opacity:.5; cursor:not-allowed }
+  .status { text-align:center; padding:14px; border-radius:var(--r); margin-top:16px; display:none; font-size:14px }
+  .status.ok { background:var(--gn-bg); color:var(--gn); display:block }
+  .status.err { background:var(--ac-bg); color:var(--ac); display:block }
+  .status.info { background:var(--bl-bg); color:var(--bl); display:block }
+  .env { display:grid; grid-template-columns:repeat(auto-fit,minmax(220px,1fr)); gap:10px; margin-bottom:6px }
+  .env-item { background:#fff; border:1px solid var(--brd); border-radius:var(--r); padding:10px 14px }
+  .env-item .k { color:var(--t3); font-size:12px }
+  .env-item .v { font-size:14px; margin-top:2px; word-break:break-all }
+  .done-box { text-align:center; padding:40px 20px }
+  .done-box .big { font-size:52px }
+  .done-box h2 { font-size:22px; margin:14px 0 8px }
+  .done-box p { color:var(--t3) }
+  .footer { text-align:center; color:var(--t4); font-size:12px; margin-top:32px }
+  .pwd-strength { display:flex; gap:4px; margin-top:6px; height:4px }
+  .pwd-strength .bar { flex:1; border-radius:2px; background:var(--s3); transition:background .2s }
+  .pwd-strength.level-1 .bar:nth-child(1) { background:var(--ac) }
+  .pwd-strength.level-2 .bar:nth-child(-n+2) { background:var(--or) }
+  .pwd-strength.level-3 .bar:nth-child(-n+3) { background:var(--gn) }
+  .pwd-strength.level-4 .bar { background:var(--gn) }
+  .tip { background:var(--or-bg); border:1px solid rgba(230,119,0,0.2); border-radius:var(--r);
+    padding:12px 16px; margin-top:12px; font-size:13px; color:var(--or); line-height:1.6 }
+</style>
+</head>
+<body>
+<div class="wrap">
+  <div class="head">
+    <div class="logo">⚔️</div>
+    <h1>修仙世界 · 安装向导</h1>
+    <p>一步完成服务器配置，踏上仙途</p>
+  </div>
+
+  <!-- 步骤 1：环境检测 -->
+  <div class="card" id="card-env">
+    <h2><span class="step">1</span>环境检测</h2>
+    <div class="env" id="env-box"><div class="env-item"><div class="k">检测中…</div></div></div>
+  </div>
+
+  <!-- 步骤 2：基础配置 -->
+  <div class="card" id="card-base">
+    <h2><span class="step">2</span>基础配置</h2>
+    <div class="row">
+      <div class="field">
+        <label>服务器端口</label>
+        <input type="number" id="serverPort" value="8080" min="1" max="65535">
+        <div class="hint">REST / WebSocket / 管理台共用端口</div>
+      </div>
+      <div class="field">
+        <label>数据库模式</label>
+        <select id="dbType">
+          <option value="sqlite" selected>SQLite（零配置，推荐单机）</option>
+          <option value="mysql">MySQL（多人在线）</option>
+        </select>
+      </div>
+    </div>
+    <div class="db-detail" id="db-mysql">
+      <div class="row">
+        <div class="field" style="flex:2">
+          <label>连接地址</label>
+          <input type="text" id="mysqlUrl" placeholder="jdbc:mysql://localhost:3306/xiuxian?useUnicode=true&amp;characterEncoding=UTF-8">
+        </div>
+        <div class="field">
+          <label>用户名</label>
+          <input type="text" id="mysqlUser" placeholder="root">
+        </div>
+        <div class="field">
+          <label>密码</label>
+          <input type="password" id="mysqlPassword" placeholder="数据库密码">
+        </div>
+      </div>
+      <div class="hint">请提前创建数据库：CREATE DATABASE xiuxian CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;</div>
+    </div>
+    <div class="db-detail" id="db-sqlite">
+      <div class="field">
+        <label>SQLite 文件路径</label>
+        <input type="text" id="sqlitePath" value="xiuxian.db">
+        <div class="hint">相对服务器运行目录，零配置开箱即用</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- 步骤 3：管理员账号 -->
+  <div class="card" id="card-admin">
+    <h2><span class="step">3</span>管理员账号（Web 管理台登录）</h2>
+    <div class="row">
+      <div class="field">
+        <label>管理员用户名</label>
+        <input type="text" id="adminUsername" value="admin" pattern="[a-zA-Z0-9_]{3,32}">
+        <div class="hint">3-32 位，只允许字母、数字、下划线</div>
+      </div>
+      <div class="field">
+        <label>管理员密码（至少 8 位）</label>
+        <input type="password" id="adminPassword" placeholder="设置高强度密码" autocomplete="new-password">
+        <div class="pwd-strength" id="pwd-strength">
+          <div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div>
+        </div>
+      </div>
+      <div class="field">
+        <label>确认密码</label>
+        <input type="password" id="adminPassword2" placeholder="再次输入密码" autocomplete="new-password">
+      </div>
+    </div>
+  </div>
+
+  <!-- 步骤 4：JWT 密钥 -->
+  <div class="card" id="card-jwt">
+    <h2><span class="step">4</span>JWT 签名密钥</h2>
+    <div class="field">
+      <label>密钥（留空自动生成安全随机密钥）</label>
+      <input type="text" id="jwtSecret" placeholder="留空自动生成（推荐）">
+      <div class="hint">密钥用于签发玩家登录令牌，最少 48 字节（约 64 个 Base64 字符）</div>
+    </div>
+    <div class="tip">
+      🔒 安全提示：密钥会在重启后使所有已登录玩家失效。请妥善保管您自定义的密钥。
+      留空将自动生成 64 字节（512 位）的高强度随机密钥。
+    </div>
+  </div>
+
+  <div class="actions">
+    <button class="btn btn-primary" id="btn-install" onclick="doInstall()">开 始 安 装</button>
+  </div>
+
+  <div class="status" id="status"></div>
+  <div class="footer">修仙世界 Xiuxian World · 一键安装向导</div>
+</div>
+
+<script>
+const $ = id => document.getElementById(id);
+let statusData = null;
+
+async function loadStatus() {
+  try {
+    const r = await fetch('/api/install/status');
+    statusData = await r.json();
+    renderEnv(statusData);
+    if (statusData.installed) {
+      renderDone();
+    }
+  } catch (e) {
+    $('env-box').innerHTML = '<div class="env-item"><div class="k">无法连接服务器 API，请确认服务器已启动</div></div>';
+  }
+}
+
+function renderEnv(s) {
+  $('env-box').innerHTML = [
+    ['Java 版本', s.javaVersion || '未知'],
+    ['操作系统', s.osName || '未知'],
+    ['数据库模式', s.databaseType === 'mysql' ? 'MySQL' : 'SQLite'],
+    ['服务器端口', String(s.serverPort)],
+    ['管理台账号', s.adminConfigured ? '已配置' : '未配置'],
+    ['JWT 密钥', s.jwtConfigured ? '已配置 (' + (s.jwtFingerprint || '') + ')' : '未配置'],
+    ['运行目录', s.jarDir || '未知']
+  ].map(([k, v]) => '<div class="env-item"><div class="k">' + k + '</div><div class="v">' + v + '</div></div>').join('');
+}
+
+function renderDone() {
+  document.querySelectorAll('.card, .actions').forEach(el => el.style.display = 'none');
+  $('status').className = 'status';
+  const box = document.createElement('div');
+  box.className = 'card done-box';
+  box.innerHTML = '<div class="big">🎉</div><h2>安装已完成</h2><p>服务器配置就绪，正在前往管理台…</p>';
+  document.querySelector('.wrap').insertBefore(box, document.querySelector('.footer'));
+  setTimeout(() => location.href = '/admin/', 5000);
+}
+
+$('dbType').addEventListener('change', () => {
+  const mysql = $('dbType').value === 'mysql';
+  $('db-mysql').classList.toggle('show', mysql);
+  $('db-sqlite').classList.toggle('show', !mysql);
+});
+$('db-sqlite').classList.add('show');
+
+function showStatus(text, type) {
+  const el = $('status');
+  el.className = 'status ' + type;
+  el.textContent = text;
+}
+
+// 密码强度检测
+$('adminPassword').addEventListener('input', () => {
+  const pwd = $('adminPassword').value;
+  let score = 0;
+  if (pwd.length >= 8) score++;
+  if (pwd.length >= 12) score++;
+  if (/[A-Z]/.test(pwd) && /[a-z]/.test(pwd)) score++;
+  if (/\d/.test(pwd) || /[^A-Za-z0-9]/.test(pwd)) score++;
+  const el = $('pwd-strength');
+  el.className = 'pwd-strength' + (score > 0 ? ' level-' + score : '');
+});
+
+async function doInstall() {
+  const btn = $('btn-install');
+  const port = parseInt($('serverPort').value, 10);
+  const adminUsername = $('adminUsername').value.trim();
+  const adminPassword = $('adminPassword').value;
+  const adminPassword2 = $('adminPassword2').value;
+
+  if (!port || port < 1 || port > 65535) return showStatus('请输入有效的服务器端口', 'err');
+  if (!adminUsername || adminUsername.length < 3) return showStatus('管理员用户名至少 3 个字符', 'err');
+  if (!/^[a-zA-Z0-9_]{3,32}$/.test(adminUsername)) return showStatus('管理员用户名只能包含字母、数字和下划线', 'err');
+  if (adminPassword.length < 8) return showStatus('管理员密码至少 8 位', 'err');
+  if (adminPassword !== adminPassword2) return showStatus('两次输入的密码不一致', 'err');
+
+  const dbType = $('dbType').value;
+  const body = {
+    serverPort: port,
+    databaseType: dbType,
+    mysqlUrl: $('mysqlUrl').value.trim(),
+    mysqlUser: $('mysqlUser').value.trim(),
+    mysqlPassword: $('mysqlPassword').value,
+    sqlitePath: $('sqlitePath').value.trim(),
+    adminUsername: adminUsername,
+    adminPassword: adminPassword,
+    adminPassword2: adminPassword2,
+    jwtSecret: $('jwtSecret').value.trim()
+  };
+
+  btn.disabled = true;
+  showStatus('正在写入配置…', 'info');
+  try {
+    const r = await fetch('/api/install/configure', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(body)
+    });
+    const data = await r.json();
+    if (!data.success) {
+      showStatus(data.message || '配置保存失败', 'err');
+      btn.disabled = false;
+      return;
+    }
+    showStatus('配置已保存，即将进入管理台…（服务器将自动重启使配置生效）', 'ok');
+    // 触发服务器重启（配置中保存的端口/JWT 等将在重启后生效）
+    fetch('/api/install/restart', { method: 'POST' }).catch(() => {});
+    // 重启前即跳转到管理台，由管理台登录页引导登录流程
+    setTimeout(() => location.href = '/admin/', 5000);
+  } catch (e) {
+    showStatus('请求失败：' + e.message, 'err');
+    btn.disabled = false;
+  }
+}
+
+loadStatus();
+</script>
+</body>
+</html>

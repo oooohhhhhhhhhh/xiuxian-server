@@ -4,6 +4,8 @@ public class QqBinding {
 
     private Long id;
     private String qqNumber;
+    /** QQ 官方通道：机器人 AppID（OneBot/QQ号 场景为空）；历史兼容行为空字符串 */
+    private String appId;
     private Long userId;
     private String createdAt;
 
@@ -29,6 +31,14 @@ public class QqBinding {
 
     public void setQqNumber(String qqNumber) {
         this.qqNumber = qqNumber;
+    }
+
+    public String getAppId() {
+        return appId;
+    }
+
+    public void setAppId(String appId) {
+        this.appId = appId;
     }
 
     public Long getUserId() {

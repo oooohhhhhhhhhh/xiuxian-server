@@ -32,6 +32,16 @@ public enum PermissionCode {
     GAME_SECT_WAREHOUSE("game.sect.warehouse", "宗门仓库", "游戏功能"),
     GAME_CAVE_MANAGE("game.cave.manage", "洞府管理", "游戏功能"),
 
+    GAME_DAILY("game.daily", "每日系统", "游戏功能"),
+    GAME_MARKET_VIEW("game.market.view", "查看坊市", "游戏功能"),
+    GAME_MARKET_LIST("game.market.list", "坊市上架", "游戏功能"),
+    GAME_MARKET_BUY("game.market.buy", "坊市购买", "游戏功能"),
+    GAME_MARKET_CANCEL("game.market.cancel", "坊市撤单", "游戏功能"),
+    GAME_SECRETREALM_ENTER("game.secretrealm.enter", "进入秘境", "游戏功能"),
+    GAME_TITLE_VIEW("game.title.view", "查看称号", "游戏功能"),
+    GAME_TITLE_EQUIP("game.title.equip", "装备称号", "游戏功能"),
+    GAME_STONE_PURIFY("game.stone.purify", "提纯灵石", "游戏功能"),
+
     QQ_BIND("qq.bind", "绑定QQ", "QQ指令"),
     QQ_UNBIND("qq.unbind", "解绑QQ", "QQ指令"),
     QQ_COMMAND_BASIC("qq.command.basic", "基本查询指令", "QQ指令"),
@@ -62,7 +72,14 @@ public enum PermissionCode {
     ADMIN_PLUGINS_MANAGE("admin.plugins.manage", "管理插件", "管理后台"),
     ADMIN_TITLES_MANAGE("admin.titles.manage", "管理称号", "管理后台"),
     ADMIN_DEBUG("admin.debug", "调试指令", "管理后台"),
-    ADMIN_FIX_EQUIPMENT("admin.fix.equipment", "修复装备数据", "管理后台");
+    ADMIN_FIX_EQUIPMENT("admin.fix.equipment", "修复装备数据", "管理后台"),
+    ADMIN_OAUTH_MANAGE("admin.oauth.manage", "管理OAuth2配置", "管理后台"),
+    ADMIN_ADAPTERS("admin.adapters", "管理适配器", "管理后台"),
+    ADMIN_CONFIG_MANAGE("admin.config.manage", "管理配置", "管理后台"),
+    ADMIN_ECONOMY("admin.economy", "管理经济", "管理后台"),
+    ADMIN_ITEMS_GIVE("admin.items.give", "发放物品", "管理后台"),
+    ADMIN_ANNOUNCE("admin.announce", "发送全服公告", "管理后台"),
+    ;
 
     private final String code;
     private final String name;

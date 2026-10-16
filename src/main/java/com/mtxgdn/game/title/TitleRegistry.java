@@ -52,17 +52,17 @@ public class TitleRegistry {
         register(title("immortal_venerable", "不朽尊者", "千年修行，万古长青", Title.Rarity.EPIC, 5,
                 20, 50, 40, 15, 15, 20, 0.10, 0.20, 0.10));
 
-        register(title("heaven_defier", "逆天者", "天道之下，唯我独行", Title.Rarity.EPIC, 6,
+        register(title("heaven_defier", "逆天者", "天道之下，唯我独行", Title.Rarity.EPIC, 8,
                 25, 40, 50, 20, 15, 15, 0.10, 0.20, 0.10));
 
         register(title("sect_founder", "开山祖师", "一宗之创始人，门人万千", Title.Rarity.EPIC, 6,
                 15, 80, 60, 15, 20, 25, 0.15, 0.20, 0.10));
 
         // === 传说称号 ===
-        register(title("dao_lord", "大道之主", "执掌天道，万界俯首", Title.Rarity.LEGENDARY, 7,
+        register(title("dao_lord", "大道之主", "执掌天道，万界俯首", Title.Rarity.LEGENDARY, 9,
                 30, 100, 80, 25, 25, 30, 0.20, 0.30, 0.15));
 
-        register(title("chaos_emperor", "混沌帝尊", "超脱三界，不在五行", Title.Rarity.LEGENDARY, 8,
+        register(title("chaos_emperor", "混沌帝尊", "超脱三界，不在五行", Title.Rarity.LEGENDARY, 10,
                 40, 150, 100, 30, 30, 40, 0.25, 0.35, 0.20));
 
         // === 特殊称号 ===

@@ -26,7 +26,7 @@ public class RestartCommand extends Command {
 
     @Override
     public void execute(CommandContext ctx) {
-        QqBinding b = new QqBindingService().findByQq(ctx.getSenderId());
+        QqBinding b = ctx.resolveBoundBinding();
         if (b == null) {
             ctx.reply("请先绑定账号。");
             return;
@@ -37,7 +37,7 @@ public class RestartCommand extends Command {
             return;
         }
         ctx.reply("服务器正在重启...");
-        new Thread(() -> {
+        Thread restartThread = new Thread(() -> {
             try {
                 Thread.sleep(800);
 
@@ -61,14 +61,16 @@ public class RestartCommand extends Command {
                 Thread.sleep(1000);
 
                 Main.mainServer.shutdownNow();
-                if (Main.oneBotServer != null) Main.oneBotServer.shutdownNow();
+                com.mtxgdn.adapter.AdapterManager.stopAll();
                 Thread.sleep(500);
                 System.exit(0);
             } catch (Exception e) {
                 LOG.error("重启失败", e);
                 System.exit(0);
             }
-        }).start();
+        });
+        restartThread.setDaemon(true);
+        restartThread.start();
     }
 
     private static List<String> buildRestartCommand() {
