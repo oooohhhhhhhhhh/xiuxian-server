@@ -28,6 +28,8 @@ public class PlayerInfo {
     private int tutorialStep;
     private int tutorialTips;
     private long lastOfflineTime;
+    /** 最近活跃时间（毫秒，惰性节流写入），所有通道通用，供宗门宗主弃坑判定使用。 */
+    private long lastActiveTime;
     private String createdAt;
     private String updatedAt;
 
@@ -226,6 +228,9 @@ public class PlayerInfo {
 
     public long getLastOfflineTime() { return lastOfflineTime; }
     public void setLastOfflineTime(long lastOfflineTime) { this.lastOfflineTime = lastOfflineTime; }
+
+    public long getLastActiveTime() { return lastActiveTime; }
+    public void setLastActiveTime(long lastActiveTime) { this.lastActiveTime = lastActiveTime; }
 
     public String getCreatedAt() {
         return createdAt;

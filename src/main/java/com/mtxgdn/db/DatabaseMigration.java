@@ -38,6 +38,49 @@ public class DatabaseMigration {
             addMapLocationBonusColumns(stmt);
             addMapDangerAndWildernessColumns(stmt);
             addPlayersLastGatherColumn(stmt);
+            addPlayersLastActiveColumn(stmt);
+            addSectSuccessionColumns(stmt);
+        }
+    }
+
+    /**
+     * 宗主缺位继位 / 竞争期列：老库的 sects 补 leader_absent_since / contest_until /
+     * contest_challenger_id / contest_requested。
+     *
+     * <p>全部带 DEFAULT，语义上 0 就是"宗主在任、无竞争期"的出厂值，因此老宗门升级后
+     * 直接落到 0 即可，不需要区分"未播种"与"已设为 0"。</p>
+     */
+    private void addSectSuccessionColumns(Statement stmt) {
+        try {
+            stmt.execute("ALTER TABLE sects ADD COLUMN leader_absent_since BIGINT DEFAULT 0");
+        } catch (SQLException ignored) {
+            // 列已存在（新库由 CREATE TABLE 直接建出）
+        }
+        try {
+            stmt.execute("ALTER TABLE sects ADD COLUMN contest_until BIGINT DEFAULT 0");
+        } catch (SQLException ignored) {
+        }
+        try {
+            stmt.execute("ALTER TABLE sects ADD COLUMN contest_challenger_id BIGINT DEFAULT NULL");
+        } catch (SQLException ignored) {
+        }
+        try {
+            stmt.execute("ALTER TABLE sects ADD COLUMN contest_requested INT DEFAULT 0");
+        } catch (SQLException ignored) {
+        }
+    }
+
+    /**
+     * 最近活跃时间列：老库的 players 补 last_active_time。
+     *
+     * <p>刻意<b>回填为 0 而非当前时间</b>：0 表示"尚未观测到活跃"，SectService 的
+     * 弃坑判定会跳过这类玩家。这样升级瞬间不会因为所有老玩家都是 0 而误判成
+     * "全服宗主集体弃坑"、把大批宗门一次性换掉宗主 —— 判定从各自下一次登录开始计时。</p>
+     */
+    private void addPlayersLastActiveColumn(Statement stmt) {
+        try {
+            stmt.execute("ALTER TABLE players ADD COLUMN last_active_time BIGINT DEFAULT 0");
+        } catch (SQLException ignored) {
         }
     }
 

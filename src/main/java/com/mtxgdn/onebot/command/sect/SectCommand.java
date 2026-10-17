@@ -47,6 +47,8 @@ public class SectCommand extends Command {
         registerSub(new String[]{"pending", "申请列表"}, this::handlePendingList);
         registerSub(new String[]{"levelup", "升级"}, this::handleLevelUp);
         registerSub(new String[]{"transfer", "转让"}, this::handleTransfer);
+        registerSub(new String[]{"stepdown", "退位", "卸任"}, this::handleStepDown);
+        registerSub(new String[]{"challenge", "挑战", "争夺"}, this::handleChallenge);
         registerSub(new String[]{"war", "宣战"}, this::handleWar);
         registerSub(new String[]{"help", "帮助", "?"}, this::handleHelp);
 
@@ -122,6 +124,10 @@ public class SectCommand extends Command {
         sb.append("等级: ").append(sect.getLevel()).append("级\n");
         sb.append("声望: ").append(sect.getPrestige()).append("\n");
         sb.append("成员: ").append(sect.getMemberCount()).append("/").append(Sect.getMaxMembersForLevel(sect.getLevel())).append("\n");
+        String leadership = sectService.leadershipStatus(sect);
+        if (leadership != null) {
+            sb.append(leadership).append("\n");
+        }
         if (me != null) {
             sb.append("你的职位: ").append(SectMember.getRoleDisplayName(me.getRole()));
             sb.append("  贡献: ").append(me.getContribution()).append("\n");
@@ -352,6 +358,41 @@ public class SectCommand extends Command {
         ctx.reply((String) result.get("message"));
     }
 
+    /** 宗主退位：卸任后由系统按贡献选出继任者，宗主本人降为副宗主，可正常退宗。 */
+    private void handleStepDown(CommandContext ctx, PlayerInfo p, String[] parts) {
+        var result = sectService.stepDown(p.getId());
+        ctx.reply((String) result.get("message"));
+    }
+
+    /**
+     * 宗主竞争期。
+     * <ul>
+     *   <li>{@code /宗门 挑战} —— 挑战者发起挑战；宗主则查看竞争期状态</li>
+     *   <li>{@code /宗门 挑战 接受} —— 宗主应战，三局两胜</li>
+     * </ul>
+     */
+    private void handleChallenge(CommandContext ctx, PlayerInfo p, String[] parts) {
+        String action = parts.length > 1 ? parts[1].trim() : "";
+        boolean accept;
+        if (action.isEmpty() || action.equals("发起")) {
+            accept = false;
+        } else if (action.equals("接受") || action.equals("应战") || action.equalsIgnoreCase("accept")) {
+            accept = true;
+        } else {
+            ctx.reply("用法: /宗门 挑战        挑战者发起 / 宗主查看竞争期\n"
+                    + "      /宗门 挑战 接受   宗主应战（三局两胜）");
+            return;
+        }
+        var result = sectService.challengeLeader(p.getId(), accept);
+        String message = (String) result.get("message");
+        Object battleLog = result.get("battleLog");
+        if (Boolean.TRUE.equals(result.get("success")) && battleLog != null) {
+            ctx.reply(message + "\n\n" + battleLog);
+        } else {
+            ctx.reply(message);
+        }
+    }
+
     private void handleWar(CommandContext ctx, PlayerInfo p, String[] parts) {
         String targetName = parts.length > 1 ? parts[1].trim() : "";
         if (targetName.isEmpty()) { ctx.reply("用法: /宗门 war <宗门名>"); return; }
@@ -381,6 +422,7 @@ public class SectCommand extends Command {
             o.addProperty("prestige", s.getPrestige());
             o.addProperty("memberCount", s.getMemberCount());
             o.addProperty("maxMembers", Sect.getMaxMembersForLevel(s.getLevel()));
+            addLeadershipJson(o, s);
             arr.add(o);
         }
         JsonObject data = new JsonObject();
@@ -433,6 +475,14 @@ public class SectCommand extends Command {
                 sb.append("  /\u5b97\u95e8 levelup     \u5347\u7ea7\u5b97\u95e8\n");
                 sb.append("  /\u5b97\u95e8 transfer    \u8f6c\u8ba9\u5b97\u4e3b\n");
                 sb.append("  /\u5b97\u95e8 war         \u5ba3\u6218\u5b97\u95e8\n");
+                sb.append("  /宗门 stepdown    宗主退位（卸任后可按贡献继位）\n");
+            }
+            if (mySect.hasActiveContest(System.currentTimeMillis())) {
+                if (p.getId() == mySect.getLeaderPlayerId()) {
+                    sb.append("  /宗门 challenge 接受  应战宗主争夺（三局两胜）\n");
+                } else if (p.getId() == mySect.getContestChallengerId()) {
+                    sb.append("  /宗门 challenge    发起宗主挑战\n");
+                }
             }
             sb.append("\n输入 /宗门 help 查看全部命令");
             return sb.toString();
@@ -470,6 +520,9 @@ public class SectCommand extends Command {
 /宗门 kick <玩家名>          踢出成员（宗主/副宗主/长老）
 /宗门 appoint <玩家名> <副宗主|长老|内门弟子|外门弟子>  任命职位（宗主可任命所有，副宗主可任命长老及以下，长老可任命内门外门）
 /宗门 transfer <玩家名>      转让宗主之位（宗主，需200灵石）
+/宗门 stepdown               宗主退位：卸任后系统按贡献自动选出继任宗主（退位后即可正常退宗）
+/宗门 challenge              宗主竞争期：挑战者发起挑战 / 宗主查看状态
+/宗门 challenge 接受         宗主应战（三局两胜，双方战力归一化）
 /宗门 levelup                升级宗门（宗主，消耗声望）
 /宗门 war <宗门名>           向其他宗门宣战（宗主，消耗1000声望+300灵石）
 /宗门 donate <物品key> <数量>  向宗门仓库捐献
@@ -490,6 +543,7 @@ public class SectCommand extends Command {
         data.addProperty("prestige", sect.getPrestige());
         data.addProperty("memberCount", sect.getMemberCount());
         data.addProperty("maxMembers", Sect.getMaxMembersForLevel(sect.getLevel()));
+        addLeadershipJson(data, sect);
         SectMember me = sectService.getMember(sect.getId(), playerId);
         if (me != null) {
             data.addProperty("myRole", me.getRole());
@@ -497,5 +551,23 @@ public class SectCommand extends Command {
             data.addProperty("myContribution", me.getContribution());
         }
         return GameMessage.restOk("获取成功", data);
+    }
+
+    /**
+     * 把宗主缺位 / 竞争期状态挂到宗门 JSON 上（列表页与详情页共用）。
+     * <p>时间戳一律用毫秒数值下发，由前端决定怎么展示 —— 服务端不替 UI 做本地化。</p>
+     */
+    private void addLeadershipJson(JsonObject o, Sect sect) {
+        long now = System.currentTimeMillis();
+        o.addProperty("leaderAbsent", sect.isLeaderAbsent());
+        o.addProperty("leaderAbsentSince", sect.getLeaderAbsentSince());
+        o.addProperty("contestActive", sect.hasActiveContest(now));
+        o.addProperty("contestUntil", sect.getContestUntil());
+        o.addProperty("contestChallengerId", sect.getContestChallengerId());
+        o.addProperty("contestRequested", sect.isContestRequested());
+        String status = sectService.leadershipStatus(sect);
+        if (status != null) {
+            o.addProperty("leadershipStatus", status);
+        }
     }
 }

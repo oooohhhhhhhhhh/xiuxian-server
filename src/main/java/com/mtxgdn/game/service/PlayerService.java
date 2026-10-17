@@ -48,7 +48,9 @@ public class PlayerService {
             ps.setLong(1, userId);
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
-                    return mapPlayerInfo(rs);
+                    PlayerInfo info = mapPlayerInfo(rs);
+                    touchActive(info.getId(), info.getLastActiveTime());
+                    return info;
                 }
             }
         } catch (SQLException e) {
@@ -64,13 +66,50 @@ public class PlayerService {
             ps.setLong(1, playerId);
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
-                    return mapPlayer(rs);
+                    Player player = mapPlayer(rs);
+                    touchActive(player.getId(), player.getLastActiveTime());
+                    return player;
                 }
             }
         } catch (SQLException e) {
             throw new RuntimeException("获取玩家信息失败", e);
         }
         return null;
+    }
+
+    /**
+     * 「最近活跃时间」的节流写入间隔（毫秒）。
+     * <p>同一玩家每小时最多写一次 —— 它只服务于"是否弃坑"这种天级的判定，
+     * 没必要每条指令都写一次库。</p>
+     */
+    private static final long ACTIVE_TOUCH_INTERVAL_MS = 60L * 60 * 1000;
+
+    /**
+     * 惰性刷新玩家的 {@code last_active_time}（所有通道通用的"最后出现时间"）。
+     *
+     * <p>设计取舍：</p>
+     * <ul>
+     *   <li><b>为什么不用 {@code last_offline_time}</b>：那个字段只有 WebSocket 断线路径写入
+     *       （见 GameWebSocketApp），QQ / REST / Minecraft 玩家永远是 0，无法作为弃坑依据。</li>
+     *   <li><b>为什么在读取路径上写库</b>：玩家活跃的唯一可靠信号就是"他被读到了"。
+     *       为控制成本，按小时节流；写入失败<b>绝不影响任何玩法</b>，直接吞掉异常。</li>
+     *   <li><b>为什么 0 视为需要刷新</b>：老库升级后该列全为 0（见 DatabaseMigration），
+     *       意味着"从未观测到活跃"，从玩家下一次出现开始计时。</li>
+     * </ul>
+     */
+    private void touchActive(long playerId, long lastActiveTime) {
+        long now = System.currentTimeMillis();
+        if (lastActiveTime > 0 && now - lastActiveTime < ACTIVE_TOUCH_INTERVAL_MS) {
+            return;
+        }
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement("UPDATE players SET last_active_time = ? WHERE id = ?")) {
+            ps.setLong(1, now);
+            ps.setLong(2, playerId);
+            ps.executeUpdate();
+        } catch (SQLException ignored) {
+            // 活跃时间只用于弃坑判定，写失败不应阻断任何玩法
+        }
     }
 
     public Player getPlayerRaw(long userId) {
@@ -195,7 +234,7 @@ public class PlayerService {
                 speed = ?, spirit = ?, gold = ?,
                 cultivation_progress = ?, is_cultivating = ?, cultivation_start_time = ?,
                 last_secret_realm_time = ?, last_exploration_time = ?, last_offline_time = ?,
-                last_breakthrough_time = ?
+                last_breakthrough_time = ?, last_active_time = ?
             WHERE id = ?
             """;
         try (Connection conn = DatabaseManager.getConnection();
@@ -220,7 +259,8 @@ public class PlayerService {
             ps.setLong(18, player.getLastExplorationTime());
             ps.setLong(19, player.getLastOfflineTime());
             ps.setLong(20, player.getLastBreakthroughTime());
-            ps.setLong(21, playerId);
+            ps.setLong(21, System.currentTimeMillis()); // last_active_time：落库本身就是一次活跃信号
+            ps.setLong(22, playerId);
             ps.executeUpdate();
         } catch (SQLException e) {
             throw new RuntimeException("更新玩家失败", e);
@@ -963,6 +1003,7 @@ public class PlayerService {
         pi.setTutorialStep(rs.getInt("tutorial_step"));
         pi.setTutorialTips(rs.getInt("tutorial_tips"));
         pi.setLastOfflineTime(rs.getLong("last_offline_time"));
+        try { pi.setLastActiveTime(rs.getLong("last_active_time")); } catch (Exception ignored) {}
         pi.setCreatedAt(rs.getString("created_at"));
         pi.setUpdatedAt(rs.getString("updated_at"));
 
@@ -1001,6 +1042,7 @@ public class PlayerService {
         p.setTutorialStep(rs.getInt("tutorial_step"));
         p.setTutorialTips(rs.getInt("tutorial_tips"));
         p.setLastOfflineTime(rs.getLong("last_offline_time"));
+        try { p.setLastActiveTime(rs.getLong("last_active_time")); } catch (Exception ignored) {}
         try { p.setBattleStrategy(rs.getString("battle_strategy")); } catch (Exception ignored) {}
         try { p.setCurrentLocationId(rs.getLong("current_location_id")); } catch (Exception ignored) {}
         try { p.setLastTravelTime(rs.getLong("last_travel_time")); } catch (Exception ignored) {}

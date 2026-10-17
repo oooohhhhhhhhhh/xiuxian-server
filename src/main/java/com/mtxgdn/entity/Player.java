@@ -34,6 +34,13 @@ public class Player {
     private int tutorialStep;
     private int tutorialTips;
     private long lastOfflineTime;
+    /**
+     * 最近活跃时间（毫秒，惰性节流写入）。
+     * <p>与 {@link #lastOfflineTime} 的区别：后者只有 WebSocket 断线时才写，
+     * 覆盖不到 QQ / REST / Minecraft 通道；本字段由 {@code PlayerService} 在读取玩家时
+     * 按小时节流刷新，是所有通道通用的"最后出现时间"，供宗门宗主弃坑判定使用。</p>
+     */
+    private long lastActiveTime;
     private String battleStrategy = "balanced";
     private long currentLocationId = 1;
     private long lastTravelTime;
@@ -254,6 +261,9 @@ public class Player {
 
     public long getLastOfflineTime() { return lastOfflineTime; }
     public void setLastOfflineTime(long lastOfflineTime) { this.lastOfflineTime = lastOfflineTime; }
+
+    public long getLastActiveTime() { return lastActiveTime; }
+    public void setLastActiveTime(long lastActiveTime) { this.lastActiveTime = lastActiveTime; }
 
     public String getBattleStrategy() { return battleStrategy; }
     public void setBattleStrategy(String battleStrategy) { this.battleStrategy = battleStrategy; }

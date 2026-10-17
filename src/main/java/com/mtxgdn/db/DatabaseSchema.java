@@ -122,6 +122,9 @@ public class DatabaseSchema {
            .append("tutorial_step INT DEFAULT 0, ")
            .append("tutorial_tips INT DEFAULT 0, ")
            .append("last_offline_time BIGINT DEFAULT 0, ")
+           // 最近活跃时间（毫秒）。与 last_offline_time 不同，它覆盖所有通道
+           // （QQ / REST / WebSocket / MC），是"弃坑判定"的唯一依据，见 SectService 继位逻辑。
+           .append("last_active_time BIGINT DEFAULT 0, ")
            .append("current_location_id BIGINT DEFAULT 1, ")
            .append("last_gather_time BIGINT DEFAULT 0, ")
            .append("created_at ").append(tsDefault).append(", ")
@@ -464,6 +467,16 @@ public class DatabaseSchema {
                 "level INT DEFAULT 1, " +
                 "prestige BIGINT DEFAULT 0, " +
                 "max_members INT DEFAULT 20, " +
+                // ---- 宗主缺位继位 / 竞争期（B5）----
+                // leader_absent_since：0 = 宗主在任；>0 = 自该毫秒时间戳起宗主缺位
+                // （主动退位，或长期不活跃被判定弃坑），等待按贡献继位。
+                "leader_absent_since BIGINT DEFAULT 0, " +
+                // contest_until：0 = 无竞争期；>0 = 竞争期截止的毫秒时间戳。
+                "contest_until BIGINT DEFAULT 0, " +
+                // contest_challenger_id：竞争期内的挑战者；NULL/0 = 无。
+                "contest_challenger_id BIGINT DEFAULT NULL, " +
+                // contest_requested：挑战者已发起，等待宗主应战（0/1）。
+                "contest_requested INT DEFAULT 0, " +
                 "created_at " + tsDefault + ", " +
                 "updated_at " + tsUpdate +
                 (dialect.supportsForeignKeysInCreateTable()

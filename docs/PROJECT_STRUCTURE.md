@@ -820,7 +820,7 @@ public class HealingPill extends Item {
 | 文件 | 大小 | 职责 |
 |---|---:|---|
 | `build-info.properties` | 3 行 | **构建期生成**（`filtering=true` 注入 `pom.xml` 的 `<version>`），不要手工改；由 `com.mtxgdn.util.BuildInfo` 读取，是版本号的主来源 |
-| `application.yml` | 16.9 KB | **主配置模板**（首启释放到 `config/application.yml`）。段：`app`、`server`、`database`、`jwt`、`season`、`oauth2`、`player-data`、`admin`、`smtp`、`verify_code`、`onebot`、`minecraft`、`logging`、`inventory`、`market`、`buff`、`performance`、`network`、`motd`（详见第 11 节） |
+| `application.yml` | 16.9 KB | **主配置模板**（首启释放到 `config/application.yml`）。段：`app`、`server`、`database`、`jwt`、`season`、`oauth2`、`player-data`、`admin`、`smtp`、`verify_code`、`onebot`、`minecraft`、`logging`、`inventory`、`market`、`buff`、`sect`、`performance`、`network`、`motd`（详见第 10 节） |
 | `plugins.yml` | 3.7 KB | **内置插件开关模板**（释放到 `config/plugins.yml`）：24 个稳定模块 + 2 个实验性插件 + 4 个消息通道 |
 | `built_in_plugins.yml` | 1.2 KB | 旧版内置模块开关（已全部注释），仅作只读兜底，由 `PluginSwitches.migrateLegacyKeys()` 迁移 |
 | `config/blacklist.yml` | 757 B | 黑名单模板（`qqNumber` 或 `userId` + 原因 + 执行人 + 时间） |
@@ -1049,6 +1049,7 @@ HTTP 侧由 `UnifiedRestResource`（`/game/{path:.*}`）把同一批 `RouteDefin
 | `inventory` | `base_capacity`（30）、`capacity_per_level`（5） |
 | `market` | `listing_duration_hours`（72）、`price_history_keep_days`（30）、`price_history_cleanup_interval_hours`（6） |
 | `buff` | `expire_sweep_seconds`（60，过期增益兜底回收间隔；活跃玩家走访问时的惰性过期，最小 10 秒） |
+| `sect` | `leader_absent_days`（14，宗主连续不活跃多少天判定弃坑并自动继位；0 = 关闭）、`contest_days`（7，继位后宗主竞争期时长）、`contest_level_gap`（6，继任者与最强竞争者的境界序位差小于该值才开竞争期）、`succession_sweep_seconds`（600，继位维护扫描间隔，最小 30） |
 | `performance` | `low_memory`、`grizzly_io_threads`、`grizzly_worker_cores`、`grizzly_worker_max`、`memory_log_entries` |
 | `network` | `connection_timeout_ms`、`read_timeout_ms`、`ws_max_message_size` |
 | `motd` | `port`（25565）、`max_players`、`version_name`、`protocol_version`、`line1/2/3`、`join_message`、`redirect_server`、`redirect_delay_seconds` |
