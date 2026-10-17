@@ -114,7 +114,7 @@ public class SectService {
         if (player == null) {
             return 0;
         }
-        return player.getRealm() * 3 + player.getSubRealm();
+        return player.getRealmStage();
     }
 
     // ==================== 宗门查询 ====================

@@ -183,6 +183,9 @@ public class DatabaseManager {
             stmt.execute(DatabaseSchema.createTokenBlacklistTable(pk, tsDefault));
             // 坊市挂单时限 + 成交价格历史
             stmt.execute(DatabaseSchema.createTradePriceHistoryTable(pk, tsDefault));
+            // 世界 Boss（B6）：共享血量 + 伤害台账
+            stmt.execute(DatabaseSchema.createWorldBossesTable(pk, tsDefault, tsUpdate, DIALECT));
+            stmt.execute(DatabaseSchema.createWorldBossDamageTable(pk, tsDefault, DIALECT));
 
             new DatabaseMigration(DIALECT, IS_SQLITE).executeMigrations(conn);
 
@@ -198,6 +201,7 @@ public class DatabaseManager {
             createIndexQuietly(stmt, DatabaseSchema.createTradeListingsStatusExpiresIndex());
             createIndexQuietly(stmt, DatabaseSchema.createTradeListingsSellerStatusIndex());
             createIndexQuietly(stmt, DatabaseSchema.createPlayerBuffsExpireIndex());
+            createIndexQuietly(stmt, DatabaseSchema.createWorldBossesScopeIndex());
 
             logger.info("所有数据库表创建完成");
         } catch (SQLException e) {

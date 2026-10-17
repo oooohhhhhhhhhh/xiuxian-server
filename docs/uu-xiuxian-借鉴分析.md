@@ -10,12 +10,12 @@
 
 | | uu-xiuxian | 本工作区 |
 |---|---|---|
-| 形态 | 单体 Koishi 插件，25 个 ts 文件 / 3902 行 | 服务端 + Web 控制台 + 4 个消息通道，481 个 Java 文件 |
+| 形态 | 单体 Koishi 插件，25 个 ts 文件 / 3902 行 | 服务端 + Web 控制台 + 4 个消息通道，486 个 Java 文件 |
 | 数据 | 全部 JSON 配置驱动（traditions/items/boss/work/guides…） | 物品=Java 类，灵根=enum，境界=单份 realm_config.json |
 | 玩法广度 | 1 条主线 + 2 道统 + 蛊道/悬赏/花卡/秘境/宗门/轮回/银行 | 24 个稳定玩法模块 + 2 个实验插件（农场/坊市/拍卖/秘境/宗门战/荒野分片/阵法/洞府…） |
 | 表现层 | **文字 → 图片卡片自动渲染**，昼夜双主题，自动分页 | 纯文字；有窗口截图机器人但那是操作 QQ 客户端，与渲染无关 |
 | 数值层 | BigInt 十进制串，上限 10^60，全整数有理数倍率链 | `long experience` + `int` 属性 + `double` 倍率 |
-| 工程完备度 | 21 个测试文件、启动期 fail-fast 校验 | 34 个测试文件、RBAC/OAuth2/安装向导/插件系统/热重载/多端适配器 |
+| 工程完备度 | 21 个测试文件、启动期 fail-fast 校验 | 36 个测试文件、RBAC/OAuth2/安装向导/插件系统/热重载/多端适配器 |
 
 ---
 
@@ -178,7 +178,7 @@
 
 **成本**：1 天（实际约 1 天，含 16 例回归测试）。
 
-### B6. 世界 Boss：按 scope 共享血量 + 伤害分红 + 超发熔断
+### B6. 世界 Boss：按 scope 共享血量 + 伤害分红 + 超发熔断 ✅ 已落地
 **参照**：`src/boss.ts`
 
 做法：
@@ -188,7 +188,19 @@
 
 **价值**：本工作区有 PVE Boss（`Monster.createBoss`）与团队 Boss（`CombatService.raidBossFight`，`BossForm` 按血量 66%/33% 三形态推进，比参照项目强得多），但**没有「全服共享血量」的世界 Boss**（全库无 `WorldBoss`/`world_boss`）。参照项目的模式恰好补这一块，且实现成本低：一张 `(scope, expireAt)` 唯一键的表 + 乐观锁扣血 + 按伤害比例分红。
 
-**成本**：3 天。
+**落地情况（已完成）**：
+- 新增 `WorldBossService` + `WorldBoss` / `WorldBossDamage` 实体 + `world_bosses` / `world_boss_damage` 两张表 + `/世界boss` 指令 + 4 条 REST 路由；
+- **共享血量真的落库**：`world_bosses.hp` 是全服唯一的那一条血。挑战时 `pveFight` 拿当前血量当对手血量，战后 `SELECT ... FOR UPDATE` 锁行再扣，因此并发挑战既不丢更新，也不会两个人都以为自己补了最后一刀；
+- **无定时器**：到期重建走读取时的惰性判断（`WorldBoss.isExpired`），与 `FarmService` / `BuffService` 的惰性结算同一路数；
+- **分红**：`灵石 = stone_budget × 本次伤害 / max_hp`，修为同理；补最后一刀的人额外拿 `exp_budget × kill_bonus_ratio`（默认 20%）。因为全服累计伤害不会超过 `max_hp`，**总发放天然不超过预算** —— 这是结构性保证，不靠事后核对；
+- **熔断**照抄参照项目但加强了：灵石与修为**都**过一遍 `applyOverflowBreaker`，超阈值改发 `阈值/(5+rand(6))`，触发时战报会明示"已按超发熔断折算"；
+- **没有照抄的两处**，都因为本项目与参照项目的底层不同：
+  - 参照项目用体力（每次挑战 20 点）限制刷取频率，本项目**没有体力系统**，于是改用**挑战冷却**（默认 300 秒，记在伤害台账的 `last_hit_at` 上，并用条件更新抢占 —— 连点两下只会有一个真正进入战斗）。若不限次，一个高境界玩家可以连着把 Boss 打死，其他人连参与的份都没有；
+  - 参照项目的 `scope` 是 `[platform, user|group]`（QQ 群里各有一批 Boss）。本项目的 `CommandContext` 不携带群号，且服务器只有一个世界，因此 `scope` 固定 `global`（全服共享同一批）。列保留着，将来要按群/按分线分组只需改配置。
+- 境界门槛用 `realm * 3 + subRealm`（`Player.getRealmStage()`），**不用 `level`** —— 同 B5 的理由；
+- 测试：`WorldBossTest` 18 例，全套 281 个测试通过。
+
+**成本**：3 天（实际约 1 天，含 18 例回归测试）。
 
 ### B7. 银行懒结算利息
 **参照**：`src/bank.ts:26,41-44`
@@ -289,7 +301,7 @@
 - **经济**：坊市 + 拍卖 + 成交价历史 + 挂单到期回填 vs 参照项目无市场；
 - **多端**：REST / WebSocket / OneBot / QQ 官方 / Minecraft 五通道 + 适配器热插拔 vs 参照项目只有 Koishi 的 QQ；
 - **运维**：Web 管理台（20 个前端模块）、安装向导、Docker/systemd、自动迁移、RBAC + OAuth2 vs 参照项目全靠插件配置项；
-- **测试**：34 个测试文件，含并发测试（`TradeServiceConcurrencyTest` 17KB、`EconomyServiceConcurrencyTest` 15KB）、安全回归（`SecurityFixRegressionTest`、`AdminWritePermissionTest`、`EndpointAlignmentTest`）。
+- **测试**：36 个测试文件，含并发测试（`TradeServiceConcurrencyTest` 17KB、`EconomyServiceConcurrencyTest` 15KB）、安全回归（`SecurityFixRegressionTest`、`AdminWritePermissionTest`、`EndpointAlignmentTest`）。
 
 ---
 
@@ -297,12 +309,13 @@
 
 | 阶段 | 内容 | 工期 | 收益 |
 |---|---|---|---|
-| ✅ 已完成 | **B5 宗门缺席继位 + 竞争期**（`SectService` + `/宗门 退位`、`/宗门 挑战`，16 例回归测试） | 1 天 | 解开「宗主弃坑 → 宗门永久死锁」的运营事故 |
+| ✅ 已完成 | **B5 宗门缺席继位 + 竞争期**（`SectService` + `/宗门 退位`、`/宗门 挑战`，17 例回归测试） | 1 天 | 解开「宗主弃坑 → 宗门永久死锁」的运营事故 |
+| ✅ 已完成 | **B6 世界 Boss**（`WorldBossService` + `/世界boss`，全服共享血量 / 伤害分红 / 超发熔断，18 例回归测试） | 1 天 | 补上「全服共同参与」这一层玩法 |
 | 第一步 | **A1 图片卡片渲染**（挂在 `CommandContext.reply()` 收口） | 2–4 天 | 所有长输出观感一次性升级，最高性价比 |
 | 第二步 | **A4 突破 pity + A5 境界引导 + A2 idle guard** | 3 天 | 直接改善流失点与中期留存 |
 | 第三步 | **A3 体力/魂力 + B1 悬赏令** | 5–8 天 | 补齐"可积累的行动货币 + 挂机任务"这一层 |
 | 第四步 | **C1 配置 fail-fast 校验 + C2 JsonItemLoader + C3 有理数倍率** | 3–4 天 | 工程债偿还，为后续快速加内容铺路 |
-| 第五步 | B6 世界 Boss / B2 花卡抽卡 / B4 归一化 PVP 择机 | 各 2–3 天 | 运营向增量 |
+| 第五步 | B2 花卡抽卡 / B4 归一化 PVP / B7 银行整数利息 择机 | 各 2–3 天 | 运营向增量 |
 
 ---
 

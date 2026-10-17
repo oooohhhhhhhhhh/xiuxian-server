@@ -43,6 +43,7 @@ class BuiltInModuleSetTest {
             {"cultivation", "com.mtxgdn.plugin.builtin.CultivationPlugin"},
             {"skill", "com.mtxgdn.plugin.builtin.SkillPlugin"},
             {"pvp", "com.mtxgdn.plugin.builtin.PvpPlugin"},
+            {"world_boss", "com.mtxgdn.plugin.builtin.WorldBossPlugin"},
             {"inventory", "com.mtxgdn.plugin.builtin.InventoryPlugin"},
             {"economy", "com.mtxgdn.plugin.builtin.EconomyPlugin"},
             {"rank", "com.mtxgdn.plugin.builtin.RankPlugin"},
@@ -110,8 +111,8 @@ class BuiltInModuleSetTest {
             assertEquals(plugin.getDefaultEnabled(), Boolean.parseBoolean(raw),
                     "模板默认值必须与插件的 getDefaultEnabled() 一致: " + plugin.getName());
         }
-        assertEquals(24 + EXPERIMENTAL_PLUGINS.length + 4, names.size(),
-                "PluginCatalog 应覆盖 24 个玩法模块 + 2 个实验性插件 + 4 个消息通道适配器");
+        assertEquals(25 + EXPERIMENTAL_PLUGINS.length + 4, names.size(),
+                "PluginCatalog 应覆盖 25 个玩法模块 + 2 个实验性插件 + 4 个消息通道适配器");
     }
 
     /** 校验插件类名、注册名与配置键一致。 */

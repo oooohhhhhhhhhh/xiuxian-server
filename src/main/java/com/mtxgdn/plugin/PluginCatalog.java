@@ -25,6 +25,7 @@ import com.mtxgdn.plugin.builtin.TeamPlugin;
 import com.mtxgdn.plugin.builtin.TechniquePlugin;
 import com.mtxgdn.plugin.builtin.TitlePlugin;
 import com.mtxgdn.plugin.builtin.TradePlugin;
+import com.mtxgdn.plugin.builtin.WorldBossPlugin;
 import com.mtxgdn.plugin.experimental.EnergyExchangePlugin;
 import com.mtxgdn.plugin.experimental.SectWarPlugin;
 
@@ -77,6 +78,7 @@ public final class PluginCatalog {
         plugins.add(new CultivationPlugin());
         plugins.add(new SkillPlugin());
         plugins.add(new PvpPlugin());
+        plugins.add(new WorldBossPlugin());
         plugins.add(new InventoryPlugin());
 
         // ---- 经济/制造玩法模块 ----

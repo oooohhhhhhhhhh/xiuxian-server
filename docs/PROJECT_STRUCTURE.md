@@ -4,7 +4,7 @@
 >
 > - 项目版本：`0.1.0`（唯一来源为 `pom.xml` 的 `<version>`；运行时由 `com.mtxgdn.util.BuildInfo` 读取，见 `build-info.properties`）
 > - 构建：Maven（JDK 23）；产物 `target/main-0.1.0.jar`
-> - 统计口径：`src/main/java` 481 个 `.java`（另有 1 个 `data/mtxgdn/lang/zh_cn.json` 语言包）、`src/test/java` 34 个 `.java`，主源码约 6.8 万行（67732 非空白行）；`src` 下共 553 个文件
+> - 统计口径：`src/main/java` 486 个 `.java`（另有 1 个 `data/mtxgdn/lang/zh_cn.json` 语言包）、`src/test/java` 36 个 `.java`，主源码约 7.0 万行（70087 非空白行）；`src` 下共 560 个文件
 > - 文中「行数」为该文件的物理行数，用于判断文件体量
 
 ---
@@ -116,7 +116,7 @@
 | `com.mtxgdn.demo` | 1 | 交互式演示客户端 |
 | `com.mtxgdn.entity` | 2 | 根层实体（`Player` 精简模型、`User`） |
 | `com.mtxgdn.game.config` | 4 | 配置文件释放、地图出厂数据、野外随机地图定义、新手奖励配置 |
-| `com.mtxgdn.game.entity` | 29 | 玩法实体/DTO/枚举 |
+| `com.mtxgdn.game.entity` | 31 | 玩法实体/DTO/枚举 |
 | `com.mtxgdn.game.explorationevent` | 3 | 游历事件框架与注册表 |
 | `com.mtxgdn.game.item` | 22 | 物品框架（模型、注册表、扫描器、19 种效果） |
 | `com.mtxgdn.game.map` | 3 | 野外分片世界：确定性地形生成、分片状态模型、分片文件存储 |
@@ -129,11 +129,11 @@
 | `com.mtxgdn.minecraft.agent` | 1 | Java Agent（注入 Brigadier 注册 `/xiuxian`） |
 | `com.mtxgdn.minecraft.plugin` | 1 | Bukkit 辅助插件（构建时排除，单独打包） |
 | `com.mtxgdn.onebot` | 14 | OneBot 通道、绑定、黑名单、群配置、截图机器人 |
-| `com.mtxgdn.onebot.command` | 85 | 全部玩家/管理指令（21 个子分类目录） |
+| `com.mtxgdn.onebot.command` | 86 | 全部玩家/管理指令（22 个子分类目录） |
 | `com.mtxgdn.permission` | 3 | RBAC 权限码、权限服务、注解 |
 | `com.mtxgdn.playerdata` | 2 | 玩家数据文件化（导出/还原/自动落盘） |
 | `com.mtxgdn.plugin` | 13 | 插件系统内核（加载器、上下文、清单、开关、Web 管理） |
-| `com.mtxgdn.plugin.builtin` | 25 | 24 个稳定玩法模块 + 适配器通道插件 |
+| `com.mtxgdn.plugin.builtin` | 26 | 25 个稳定玩法模块 + 适配器通道插件 |
 | `com.mtxgdn.plugin.event` | 3 | 插件事件总线 |
 | `com.mtxgdn.plugin.experimental` | 2 | 实验性插件（宗门战、能量转化） |
 | `com.mtxgdn.plugin.gui` | 13 | 插件制作器 GUI 与代码生成器 |
@@ -189,7 +189,7 @@
 
 | 文件 | 行数 | 职责 |
 |---|---:|---|
-| `ServiceRegistry.java` | 293 | 服务定位器：26 个玩法服务的双检锁懒加载单例访问点（`PlayerService`、`RealmService`、`ItemService`、`SecretRealmService`、`ExplorationService`、`NewbieGuideService`、`SkillService`、`CombatService`、`DailyService`、`TradeService`、`HeartDemonService`、`ChatService`、`FriendService`、`EnhanceService`、`CraftingService`、`TechniqueService`、`SectService`、`EconomyService`、`EnergyService`、`TitleService`、`CaveService`、`FormationService`、`BuffService`、`FarmService`、`MapService`、`MinecraftPlayerBindingService`） |
+| `ServiceRegistry.java` | 335 | 服务定位器：27 个玩法服务的双检锁懒加载单例访问点（`PlayerService`、`RealmService`、`ItemService`、`SecretRealmService`、`ExplorationService`、`NewbieGuideService`、`SkillService`、`CombatService`、`DailyService`、`TradeService`、`HeartDemonService`、`ChatService`、`FriendService`、`EnhanceService`、`CraftingService`、`TechniqueService`、`SectService`、`EconomyService`、`EnergyService`、`TitleService`、`CaveService`、`FormationService`、`BuffService`、`FarmService`、`MapService`、`WorldBossService`、`MinecraftPlayerBindingService`） |
 
 ### 4.3 数据库层 `com/mtxgdn/db`（7）
 
@@ -227,7 +227,7 @@
 | `WildernessChunk.java` | 200 | **一个分片的持久化状态**（对应磁盘上一个 JSON）。刻意只存可变状态：谁探索过（`exploredBy`）、资源剩余（`resources`）、补货时间、`pinned` / `gateway` 标记。**地形一概不存** —— 它是种子的纯函数，存一份反而会与生成器走样。`consume()` / `markExplored()` 是 `synchronized` 的：分片对象全进程共享同一份实例，在分片粒度上互斥，替代了数据库版 `UPDATE ... WHERE remaining >= ?` 的条件更新 |
 | `WildernessChunkStore.java` | 291 | **分片文件存储**：`data/wilderness/<cx>>6>/<cy>>6>/<cx>_<cy>.json`，每 64x64 片一个分桶目录（避免单目录塞几十万文件）。写入走 `.tmp` + `ATOMIC_MOVE`（与 `PlayerDataService` 同一套约定）。`load()` 是「缓存 -> 文件 -> 新建」三级：野外无限大，绝大多数分片从未被访问过、磁盘上根本不存在。文件里带 `seedHash`，管理员改过 `worldSeed` 后陈旧存档会被识别并丢弃（否则旧记录会挂到另一片地形上）。另提供 `listChunks()`（回收与统计用，要遍历目录树，调用方需限频）与 `delete()`（仅用于回收从未被探索的分片） |
 
-### 4.6 玩法实体 `com/mtxgdn/game/entity`（29）
+### 4.6 玩法实体 `com/mtxgdn/game/entity`（31）
 
 | 文件 | 行数 | 职责 |
 |---|---:|---|
@@ -260,6 +260,8 @@
 | `CelestialPhenomenon.java` | 35 | 天象枚举 |
 | `SectApplication.java` | 24 | 入宗申请 |
 | `SectWarehouseItem.java` | 24 | 宗门仓库条目 |
+| `WorldBoss.java` | 115 | 世界 Boss：全服共享血量 `hp`/`maxHp`、奖励预算、到期时刻、击杀归属 |
+| `WorldBossDamage.java` | 56 | 世界 Boss 伤害台账：累计伤害 / 次数 / 上次挑战时刻（同时是挑战冷却的依据） |
 
 ### 4.7 物品框架 `com/mtxgdn/game/item`（22）
 
@@ -317,6 +319,7 @@
 | `CombatService.java` | 1220 | 回合制战斗核心：技能、暴击、灵根特效、PVE Boss、PVP 决斗 |
 | `PlayerService.java` | 1153 | 玩家主服务：创建角色、属性、经验、金币、状态、在线/离线、改名等 |
 | `SectService.java` | 1142 | 宗门：创建/申请/审批/任命/捐献/仓库/踢人/解散/升级/转让/宗门战/排行 |
+| `WorldBossService.java` | 796 | 世界 Boss：全服共享血量（落库，无内存态无定时器）、惰性整池重建、伤害分红、超发熔断、挑战冷却 |
 | `EconomyService.java` | 906 | 经济：竞拍行（限时竞价）、灵庄（活期/定期+利息）、商店、签到、灵石提纯、回收 |
 | `ItemService.java` | 829 | 背包与物品：upsert 式添加、使用、装备/卸下、灵石流转、容量 |
 | `FarmService.java` | 882 | 农场：4–12 块地、8 种作物、浇水/施肥/病虫害、一键操作，受季节影响。**生长改为惰性结算**：无后台线程，玩家访问农田时按 `now - settled_time` 一次性推进（水分按时间差衰减、病虫害按区间累计概率 `1-(1-p)^n`、成熟即掷定品质并落库） |
@@ -368,14 +371,14 @@
 | `PluginSwitches.java` | 344 | 插件开关配置：独立文件 `config/plugins.yml`，含模板释放与旧键迁移 `migrateLegacyKeys()` |
 | `BuiltInPluginRegistry.java` | 280 | 内置插件注册表：注册、`init()`、`enableAll()`、`disableAll()`、运行时单模块启停、`isEnabledOrUnknown()` 门控判定 |
 | `PluginMaker.java` | 201 | 插件生成器：按内置模板生成可编译的插件项目骨架（CLI 入口 `--plugin-make`） |
-| `PluginCatalog.java` | 106 | **内置插件清单唯一登记处**：24 个稳定玩法模块 + 2 个实验性插件 + 4 个消息通道适配器 |
+| `PluginCatalog.java` | 108 | **内置插件清单唯一登记处**：25 个稳定玩法模块 + 2 个实验性插件 + 4 个消息通道适配器 |
 | `PluginInfo.java` | 27 | 插件元数据（由 `plugin.json` 或 `@PluginMeta` 解析） |
 | `PluginMeta.java` | 24 | 主类注解式元数据声明 |
 | `PluginClassLoader.java` | 59 | 插件专用 `URLClassLoader` |
 | `BuiltInPlugin.java` | 37 | 内置插件基类（jar 内玩法模块继承此类） |
 | `PluginMakerSelfTest.java` | 81 | 插件模板加载/替换的独立自测程序（不依赖 Grizzly） |
 
-**`com/mtxgdn/plugin/builtin`（25）— 24 个玩法模块 + 适配器通道**
+**`com/mtxgdn/plugin/builtin`（26）— 25 个玩法模块 + 适配器通道**
 
 每个玩法模块约 31 行，职责为「声明模块名 + 默认开关 + 绑定的服务/指令集合」：
 
@@ -398,6 +401,7 @@
 | `CultivationPlugin.java` | `cultivation` | 修炼/突破/转世/天象 |
 | `SkillPlugin.java` | `skill` | 技能系统 |
 | `PvpPlugin.java` | `pvp` | 战斗系统 |
+| `WorldBossPlugin.java` | `world_boss` | 世界 Boss（全服共享血量、伤害分红、贡献榜） |
 | `InventoryPlugin.java` | `inventory` | 背包/装备 |
 | `EconomyPlugin.java` | `economy` | 经济系统 |
 | `EnergyPlugin.java` | `energy` | 能量系统 |
@@ -505,7 +509,7 @@
 |---|---:|---|
 | `XiuxianBridgePlugin.java` | 101 | Bukkit 辅助插件主类：转发指令到服务端 `McCommandResource`。由 `build-mc-plugin.bat` 单独编译打包 |
 
-### 4.15 指令层 `com/mtxgdn/onebot/command`（85）
+### 4.15 指令层 `com/mtxgdn/onebot/command`（86）
 
 **上下文（2）**
 
@@ -637,6 +641,7 @@
 | 文件 | 行数 | 指令名 | 模块 | REST 路由 |
 |---|---:|---|---|---|
 | `sect/SectCommand.java` | 440 | `宗门` / `sect` | `sect` | `sect/list`、`sect/info`、`sect/info/{sectId}` |
+| `worldboss/WorldBossCommand.java` | 353 | `世界boss` / `worldboss` | `world_boss` | `worldboss/list`、`worldboss/challenge`、`admin/world-boss`、`admin/world-boss/refresh` |
 | `farm/FarmCommand.java` | 273 | `种田` / `farm` | `farm` | — |
 | `formation/FormationCommand.java` | 273 | `阵法` / `formation` | `formation` | `formation/info`、`/list`、`/place`、`/upgrade`、`/remove` |
 | `cave/CaveCommand.java` | 227 | `洞府` / `cave` | `cave` | `cave/info`、`/create`、`/collect`、`/meditate`、`/levelup` |
@@ -821,7 +826,7 @@ public class HealingPill extends Item {
 |---|---:|---|
 | `build-info.properties` | 3 行 | **构建期生成**（`filtering=true` 注入 `pom.xml` 的 `<version>`），不要手工改；由 `com.mtxgdn.util.BuildInfo` 读取，是版本号的主来源 |
 | `application.yml` | 16.9 KB | **主配置模板**（首启释放到 `config/application.yml`）。段：`app`、`server`、`database`、`jwt`、`season`、`oauth2`、`player-data`、`admin`、`smtp`、`verify_code`、`onebot`、`minecraft`、`logging`、`inventory`、`market`、`buff`、`sect`、`performance`、`network`、`motd`（详见第 10 节） |
-| `plugins.yml` | 3.7 KB | **内置插件开关模板**（释放到 `config/plugins.yml`）：24 个稳定模块 + 2 个实验性插件 + 4 个消息通道 |
+| `plugins.yml` | 3.7 KB | **内置插件开关模板**（释放到 `config/plugins.yml`）：25 个稳定模块 + 2 个实验性插件 + 4 个消息通道 |
 | `built_in_plugins.yml` | 1.2 KB | 旧版内置模块开关（已全部注释），仅作只读兜底，由 `PluginSwitches.migrateLegacyKeys()` 迁移 |
 | `config/blacklist.yml` | 757 B | 黑名单模板（`qqNumber` 或 `userId` + 原因 + 执行人 + 时间） |
 | `config/onebot_group_config.yml` | 706 B | OneBot 群配置模板（`groupId` / `autoMuteEnabled` / `muteDurationDays`） |
@@ -885,6 +890,7 @@ public class HealingPill extends Item {
 | `security/AdminWritePermissionTest.java` | 263 | `admin.status` 只读性回归：读/写权限划分的 3 条不变量 + 具体指令与路由的权限归属 |
 | `MultiPlayerFullTest.java` | 607 | 全面集成测试（SQLite，模拟 5 名玩家完整交互） |
 | `game/service/TradeListingExpiryTest.java` | 552 | 坊市挂单时限 + 成交价格历史回归 |
+| `game/service/WorldBossTest.java` | 475 | 世界 Boss 回归：池子生命周期（生成数量 / TTL 内稳定 / 到期换批 / 刷新换批）、**血量全服共享**（A 打完落库、B 从剩余血量起算）、**伤害分红精确性**（`灵石 == 预算 × 伤害 / 最大血量` 逐位相等）、**超发熔断**（阈值内原样、超阈值折算到 `阈值/10..阈值/5`）、**挑战冷却**（期内被拒 / 期后可再战）、击杀归属与三种拒绝（已死 / 境界差距 / 闭关）**均不扣血**，外加战报灵石数与实际入账一致性校验 |
 | `game/service/FarmLazySettlementTest.java` | 262 | 农田惰性结算回归：无后台线程也能成熟、水分按时间差衰减、离线枯萎取精确穿零点、重复访问幂等、收获前先结算、只结算被访问玩家，以及"不得再引入后台调度器"的防回归锁 |
 | `game/service/BuffLazyExpiryTest.java` | 184 | Buff 惰性过期回归：读取即回退属性、重复访问只回退一次、刷新时长的增益不被误删、离线玩家由低频兜底回收、回收间隔不得回到秒级 |
 | `game/service/TradeServiceConcurrencyTest.java` | 286 | 坊市并发回归 |
@@ -1014,6 +1020,8 @@ HTTP 侧由 `UnifiedRestResource`（`/game/{path:.*}`）把同一批 `RouteDefin
 
 **玩法**：`sects`、`sect_members`、`sect_applications`、`sect_warehouse`、`sect_wars`、`caves`、`formations`、`farm_plots`
 
+**世界 Boss**：`world_bosses`（**全服共享的那一条血** `hp`/`max_hp`、奖励预算 `stone_budget`/`exp_budget`、整池重建时刻 `expires_at`、击杀归属 `killed_at`/`killer_player_id`，`UNIQUE(scope, slot)` 是并发重建的护栏）、`world_boss_damage`（伤害台账 `damage`/`hits`/`last_hit_at`，`UNIQUE(boss_id, player_id)`；`last_hit_at` 同时是挑战冷却的唯一依据）。两张表都**没有**内存态与定时器，到期重建走读取时的惰性判断
+
 **地图**：`map_locations`（`danger_level` 危险度 0–4、`is_wilderness` 野外标记、`expires_at` 到期时间、`entry_location_id` 入口地点）、`map_connections`、`map_location_event_bias`、`player_map_exploration`（**已知世界的**首达记录，`UNIQUE(player_id, location_id)`）
 
 > ⚠️ **野外不在此列**：野外没有 `map_locations` 行、没有 `map_connections` 行、探索记录也不在
@@ -1050,6 +1058,7 @@ HTTP 侧由 `UnifiedRestResource`（`/game/{path:.*}`）把同一批 `RouteDefin
 | `market` | `listing_duration_hours`（72）、`price_history_keep_days`（30）、`price_history_cleanup_interval_hours`（6） |
 | `buff` | `expire_sweep_seconds`（60，过期增益兜底回收间隔；活跃玩家走访问时的惰性过期，最小 10 秒） |
 | `sect` | `leader_absent_days`（14，宗主连续不活跃多少天判定弃坑并自动继位；0 = 关闭）、`contest_days`（7，继位后宗主竞争期时长）、`contest_level_gap`（6，继任者与最强竞争者的境界序位差小于该值才开竞争期）、`succession_sweep_seconds`（600，继位维护扫描间隔，最小 30） |
+| `world_boss` | `scope`（`global`，Boss 池归属键；单世界服务器全服共享同一批）、`boss_count`（3，池内 Boss 数，1–10）、`respawn_hours`（4，整池重建周期；到期走读取时的惰性重建，无定时器）、`hp_multiplier`（12，相对同境界普通 Boss 的血量倍率）、`max_stage_gap`（9，境界序位差达到该值即不可挑战）、`challenge_cooldown_seconds`（300，每人每只 Boss 的挑战冷却；0 = 不限制）、`max_single_reward`（1000000，单次奖励熔断阈值，超过改发 `阈值/(5+rand(6))`）、`kill_bonus_ratio`（0.2，补最后一刀者额外获得的修为比例） |
 | `performance` | `low_memory`、`grizzly_io_threads`、`grizzly_worker_cores`、`grizzly_worker_max`、`memory_log_entries` |
 | `network` | `connection_timeout_ms`、`read_timeout_ms`、`ws_max_message_size` |
 | `motd` | `port`（25565）、`max_players`、`version_name`、`protocol_version`、`line1/2/3`、`join_message`、`redirect_server`、`redirect_delay_seconds` |
@@ -1078,6 +1087,7 @@ HTTP 侧由 `UnifiedRestResource`（`/game/{path:.*}`）把同一批 `RouteDefin
 | `cultivation` | `CultivationPlugin` | ✅ | `cultivation` |
 | `skill` | `SkillPlugin` | ✅ | `skill` |
 | `pvp` | `PvpPlugin` | ✅ | `pvp` |
+| `world_boss` | `WorldBossPlugin` | ✅ | `world_boss` |
 | `inventory` | `InventoryPlugin` | ✅ | `inventory` |
 | `economy` | `EconomyPlugin` | ✅ | `economy` |
 | `energy` | `EnergyPlugin` | ✅ | `energy` |

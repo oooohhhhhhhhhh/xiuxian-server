@@ -119,6 +119,17 @@ public class Player {
         this.subRealm = subRealm;
     }
 
+    /**
+     * 境界序位：把 (大境界, 小境界) 压成一个单调递增的整数（每大境界 3 小境界）。
+     *
+     * <p>用于<b>跨玩家比较实力</b>的场合（宗主继位、世界 Boss 境界门槛）。
+     * 刻意不用 {@link #getLevel()}：本项目中 {@code level} 并不随修炼推进，
+     * 只有建档与后台改库会写，拿它比较会得到一批并列的 1 级。</p>
+     */
+    public int getRealmStage() {
+        return realm * 3 + subRealm;
+    }
+
     public String getCurrentTitle() {
         return currentTitle;
     }

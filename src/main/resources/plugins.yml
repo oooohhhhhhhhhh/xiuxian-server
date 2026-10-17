@@ -38,6 +38,7 @@ plugins:
   cultivation: true            # 修炼系统（打坐、突破、转世、天象、晨修）
   skill: true                  # 技能系统（学习技能、技能列表、战斗策略）
   pvp: true                    # 战斗系统（挑战、决斗）
+  world_boss: true             # 世界Boss（全服共享血量、按伤害分红、贡献榜）
   inventory: true              # 背包/装备系统（物品、装备、强化）
 
   # ---- 经济/制造玩法模块 ----

@@ -603,6 +603,78 @@ public class DatabaseSchema {
     }
 
     /**
+     * 世界 Boss 池（B6）。
+     * <p>
+     * 与「个人 PVE Boss」「团队 Raid Boss」的根本区别：<b>血量是全服共享的，而且直接落库</b>。
+     * 没有任何内存态、没有定时器 —— 谁打掉多少就扣多少，重启后血条原样还在。
+     * 到期（{@code expires_at}）由读取时的惰性重建处理，不依赖调度任务。</p>
+     *
+     * <p>{@code UNIQUE (scope, slot)} 是并发重建的护栏：两个请求同时发现池子过期时，
+     * 后写入的那个会撞唯一键失败，捕获后重新读取即可，不会出现两套 Boss。</p>
+     */
+    public static String createWorldBossesTable(String pk, String tsDefault, String tsUpdate, DatabaseDialect dialect) {
+        return "CREATE TABLE IF NOT EXISTS world_bosses (" +
+                "id " + pk + ", " +
+                // scope：Boss 池的归属键。单世界服务器固定 "global"（全服共享同一批 Boss）。
+                // 保留这一列是为了将来支持「按群/按分线」的世界 Boss，而不必改表。
+                "scope VARCHAR(64) NOT NULL, " +
+                // slot：池内序号 1..N，与 scope 组成唯一键。
+                "slot INT NOT NULL, " +
+                "name VARCHAR(64) NOT NULL, " +
+                "description VARCHAR(256) DEFAULT '', " +
+                "realm INT NOT NULL DEFAULT 0, " +
+                // hp / max_hp：共享血量。hp 归零即被击杀，等到 expires_at 后随整池重建。
+                "hp BIGINT NOT NULL DEFAULT 0, " +
+                "max_hp BIGINT NOT NULL DEFAULT 0, " +
+                "attack INT NOT NULL DEFAULT 0, " +
+                "defense INT NOT NULL DEFAULT 0, " +
+                "speed INT NOT NULL DEFAULT 0, " +
+                // 灵石/修为总预算：按伤害比例分红，因此全服总发放天然不超过预算（见 WorldBossService）。
+                "stone_budget BIGINT NOT NULL DEFAULT 0, " +
+                "exp_budget BIGINT NOT NULL DEFAULT 0, " +
+                "expires_at BIGINT NOT NULL DEFAULT 0, " +
+                "killed_at BIGINT NOT NULL DEFAULT 0, " +
+                "killer_player_id BIGINT DEFAULT NULL, " +
+                "created_at " + tsDefault + ", " +
+                "updated_at " + tsUpdate + ", " +
+                "UNIQUE (scope, slot)" +
+                (dialect.supportsForeignKeysInCreateTable()
+                        ? ", FOREIGN KEY (killer_player_id) REFERENCES players(id) ON DELETE SET NULL"
+                        : "") +
+                ")";
+    }
+
+    /**
+     * 世界 Boss 伤害台账（B6）。
+     * <p>
+     * 两个用途：一是排行榜展示（谁打了多少），二是<b>挑战冷却</b>的唯一依据
+     * （{@code last_hit_at}）。后者很关键 —— 本项目没有体力系统，
+     * 若不限次，一个高境界玩家可以连着把 Boss 一次性打死，其他人连参与的份都没有。
+     * </p>
+     */
+    public static String createWorldBossDamageTable(String pk, String tsDefault, DatabaseDialect dialect) {
+        return "CREATE TABLE IF NOT EXISTS world_boss_damage (" +
+                "id " + pk + ", " +
+                "boss_id BIGINT NOT NULL, " +
+                "player_id BIGINT NOT NULL, " +
+                "damage BIGINT NOT NULL DEFAULT 0, " +
+                "hits INT NOT NULL DEFAULT 0, " +
+                "last_hit_at BIGINT NOT NULL DEFAULT 0, " +
+                "created_at " + tsDefault + ", " +
+                "UNIQUE (boss_id, player_id)" +
+                (dialect.supportsForeignKeysInCreateTable()
+                        ? ", FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE"
+                        : "") +
+                ")";
+    }
+
+    /** 世界 Boss 按 (scope, 到期时间) 查询的索引：列表与惰性重建都走这个条件。 */
+    public static String createWorldBossesScopeIndex() {
+        return "CREATE INDEX IF NOT EXISTS idx_world_bosses_scope_expires "
+                + "ON world_bosses (scope, expires_at)";
+    }
+
+    /**
      * 野外资源点：野外地点上的可采集资源，带存量。
      * <p><b>已废弃</b>：野外改为文件存储（每个分片一个 JSON，
      * 见 {@code com.mtxgdn.game.map.WildernessChunkStore}），{@code DatabaseManager}

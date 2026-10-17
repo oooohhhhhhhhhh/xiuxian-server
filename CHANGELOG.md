@@ -177,6 +177,54 @@
     `sect.succession_sweep_seconds`（默认 600，最小 30）。
   - `/宗门 info` 会显示「宗主缺位中」或「宗主竞争期至 …」，
     `/宗门` 概览会按身份给出 `/宗门 挑战` 或 `/宗门 挑战 接受` 的入口提示。
+- **世界 Boss：全服共享血量 + 伤害分红 + 超发熔断**：
+  此前项目里已经有两套 Boss —— `Monster.createBoss`（一次性 PVE 对手，血量只属于你这一场）
+  与 `CombatService.raidBossFight`（团队 Raid，三形态推进，血量属于这一队），
+  但**没有「全服共享同一条血」的世界 Boss**。本次补上这一层：
+  - **共享血量直接落库**：`world_bosses.hp` 就是全服唯一的那条血。
+    挑战时把当前血量交给 `pveFight` 当对手血量，战后在事务里
+    `SELECT ... FOR UPDATE` 锁行再扣，因此并发挑战既不丢更新，
+    也不会出现两个人都以为自己补了最后一刀。**没有任何内存态** ——
+    服务重启后血条原样还在。
+  - **无定时器**：整池到期（默认 4 小时）走读取时的惰性重建，
+    与 `FarmService` / `BuffService` 的惰性结算同一路数，不新增调度线程。
+  - **奖励按伤害分红，不是击杀独占**：每次挑战发放
+    `灵石 = stone_budget × 本次伤害 / max_hp`，修为同理；
+    补最后一刀的人额外拿 `exp_budget × kill_bonus_ratio`（默认 20%）。
+    因为全服累计伤害不会超过 `max_hp`，**总发放天然不超过预算** ——
+    这是结构性保证，不依赖事后核对账本。
+  - **超发熔断**：单次奖励超过 `world_boss.max_single_reward`（默认 100 万）时，
+    改发 `阈值 / (5 + rand(6))`。灵石与修为**都**过这一道闸。
+    它不是日常路径（分红已被预算限死），防的是"配置里多写一个零"
+    被一次击杀放大成经济崩溃；触发时战报会明示「已按超发熔断折算」。
+  - **挑战冷却**：本项目**没有体力系统**，若不限次，一个高境界玩家可以连着把
+    Boss 打死，其他人连参与的份都没有。因此加了每人每只 Boss 的冷却
+    （`world_boss.challenge_cooldown_seconds`，默认 300 秒），记在伤害台账的
+    `last_hit_at` 上，并用**条件更新抢占** —— 连点两下的并发请求
+    只会有一个真正进入战斗。
+  - **境界门槛**：玩家与 Boss 的「境界序位差」达到
+    `world_boss.max_stage_gap`（默认 9 ≈ 三个大境界）即不可挑战。
+    境界序位 = `realm * 3 + subRealm`（新增 `Player.getRealmStage()`，
+    `SectService` 的同类逻辑一并改为复用它），**不用 `level`** ——
+    本项目中该列不随修炼推进。
+  - **Boss 生成**：名字/描述/攻防速复用 `Monster.createBossForRealm`（同一套本地化文案），
+    血量按 `world_boss.hp_multiplier`（默认 12）放大，境界上限取全服最高境界（至少 3），
+    三只按序号切成低/中/高三档区间。血量刻意夹到 `Integer.MAX_VALUE`：
+    `Monster.getHp()` 是 `int`，库里的血条若超过它，战斗模拟就会和显示对不上。
+  - **新增指令 `/世界boss`**（别名 `worldboss`）：列表（血条 / 预算 / 重建时间 /
+    我的累计伤害与冷却）、`挑战 <序号|名称>`、`排行 [序号]`、
+    `刷新`（管理员，`admin.database.access`）。
+  - **新增 REST**：`GET /worldboss/list`、`POST /worldboss/challenge`、
+    `GET /admin/world-boss`、`POST /admin/world-boss/refresh`。
+  - **数据库**：新增 `world_bosses`（`UNIQUE (scope, slot)` 是并发重建的护栏）
+    与 `world_boss_damage`（`UNIQUE (boss_id, player_id)`）两张表 +
+    索引 `idx_world_bosses_scope_expires`。两张表都是 `CREATE TABLE IF NOT EXISTS`，
+    老库启动时自动建好，不需要迁移。
+  - **新增配置段** `world_boss.*`：`scope`、`boss_count`、`respawn_hours`、
+    `hp_multiplier`、`max_stage_gap`、`challenge_cooldown_seconds`、
+    `max_single_reward`、`kill_bonus_ratio`。
+  - **新增内置插件模块 `world_boss`**（默认启用，`plugins.yml` 里可单独停用），
+    内置模块由 24 个增至 25 个。
 
 ### 修复
 
@@ -606,6 +654,26 @@ Minecraft 26.2 协议修复另加 2 个测试类（17 例），全套 **221 个�
   未到期的竞争期不被误清）。
   夹具全部走裸 SQL 建行（`createSect` 按名字回查 id，不用 `getGeneratedKeys`
   以免踩驱动差异），玩家境界用 `realm` / `sub_realm` 直接落库以越过修炼流程。
+
+世界 Boss 另加 1 个测试类（18 例），全套 **281 个测试通过**：
+
+- `game/service/WorldBossTest`（18 例）：钉住六条不变量 ——
+  **池子生命周期**（按配置数量生成且满血、TTL 内重复读取返回同一批 id、
+  到期整池换成一批全新的、管理员刷新立即换一批）、
+  **血量全服共享**（A 打掉的血落库，B 从 A 剩下的血量起算并继续扣，
+  库里的血量恒等于最后一次挑战返回的剩余血量）、
+  **伤害分红精确性**（`灵石 == 预算 × 伤害 / 最大血量` 逐位相等；
+  一击必杀时恰好拿满预算 + 20% 击杀加成）、
+  **超发熔断**（正常奖励原样通过、刚好等于阈值不折算、
+  超阈值被折算到 `阈值/10 .. 阈值/5` 区间内）、
+  **挑战冷却**（冷却期内第二次被拒且文案含"冷却"、冷却过后可再战）、
+  **击杀归属与各种拒绝**（补最后一刀的人才被记为击杀者；已死、境界差距过大、
+  闭关中三种情况都被拒**且不扣血**）。
+  另有一条**端到端入账校验**：战报里的灵石数必须与
+  `ItemService.getSpiritStoneCount` 的实际增量一致 —— 防"战报发了、钱没到账"。
+  夹具会把生成出来的 Boss 数值直接改写（境界/血量/预算），
+  避免断言依赖随机生成结果；`ItemScanner.scanAndRegister()` 必须在
+  `@BeforeAll` 里先跑，否则所有涉及灵石的断言都会以"物品不存在"炸掉。
 
 
 ---
