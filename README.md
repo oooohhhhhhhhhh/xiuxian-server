@@ -132,6 +132,9 @@ docker compose restart
 靠 systemd 拉起；服务端检测到 `INVOCATION_ID`（systemd 注入的环境变量）时只退出、不自我 spawn
 —— 否则新进程会被 cgroup 清理连带杀掉。若你自定义了 unit，请务必保留 `Restart=always`。
 
+用面板（如 MCSM）托管且**没开**「自动重启」时，把 `restart.mode` 设为 `self-spawn`
+（默认 `auto` 会按环境判断，面板托管通常走自我 spawn；面板开了自动重启则建议 `supervised`）。
+
 ### 首次启动：安装向导
 
 首次启动（未配置 JWT 密钥）时，浏览器打开 **http://127.0.0.1:8080/install** 完成一步式安装：

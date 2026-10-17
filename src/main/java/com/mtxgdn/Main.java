@@ -130,6 +130,9 @@ public class Main {
 
         serverStartTime = System.currentTimeMillis();
         LOG.info("服务器正在启动...");
+        LOG.info("重启方式: " + restartMode() + "（restart.mode=" + AppConfig.get("restart.mode", "auto")
+                + "，systemd/容器环境变量: INVOCATION_ID=" + (System.getenv("INVOCATION_ID") != null)
+                + ", container=" + (System.getenv("container") != null) + "）");
 
         // JWT 密钥初始化（未完成安装时使用临时密钥，完成后强制要求配置）
         boolean installMode = !com.mtxgdn.rest.InstallResource.isInstalled();
@@ -343,8 +346,26 @@ public class Main {
      */
     public enum RestartMode { SUPERVISED, SELF_SPAWN }
 
-    /** 判断当前进程是否由外部托管（决定"重启"是自我 spawn 还是退出等托管方拉起）。 */
+    /**
+     * 判断"重启"应该自我 spawn 还是退出等托管方拉起。
+     *
+     * <p>优先读 {@code restart.mode}：{@code auto}（默认）/ {@code supervised} /
+     * {@code self-spawn}。自动模式按环境探测：systemd 注入 {@code INVOCATION_ID}、
+     * 容器内存在 {@code /.dockerenv} 或 {@code /run/.containerenv}、或设置了
+     * {@code container} 环境变量 → 视为托管。面板（MCSM 等）托管且未开自动重启时，
+     * 自动模式会走自我 spawn（面板看不到 INVOCATION_ID），也可显式写 {@code self-spawn}。</p>
+     */
     public static RestartMode restartMode() {
+        String override = AppConfig.get("restart.mode", "auto");
+        if (override != null) {
+            String v = override.trim().toLowerCase();
+            if ("supervised".equals(v) || "supervisor".equals(v)) {
+                return RestartMode.SUPERVISED;
+            }
+            if ("self-spawn".equals(v) || "self_spawn".equals(v) || "spawn".equals(v)) {
+                return RestartMode.SELF_SPAWN;
+            }
+        }
         // systemd 会给服务进程注入 INVOCATION_ID
         if (System.getenv("INVOCATION_ID") != null) {
             return RestartMode.SUPERVISED;

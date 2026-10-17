@@ -139,6 +139,8 @@
   现在服务端按环境分流：检测到 `INVOCATION_ID`（systemd）/ `/.dockerenv` /
   `container` 时**只退出**，由托管方拉起（单元文件改为 `Restart=always` 并加重启风暴
   保护）；裸跑（`java -jar` / `start.sh` / `install.bat`）仍自我 spawn。
+  新增配置项 `restart.mode`（`auto` / `supervised` / `self-spawn`）可强制覆盖自动判断
+  —— 面板托管（MCSM 等）且未开自动重启时应显式设 `self-spawn`。
   同时把 `RestartCommand`（QQ `/重启`）合并到同一条 `Main.restartServer()` 路径，
   并让自我 spawn 保留 `-Xmx` 等 JVM 参数（旧实现重启后堆大小会掉回默认值）。
 - **重启的"就绪探测"其实在探测自己**：旧实现 spawn 后轮询
