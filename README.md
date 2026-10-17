@@ -128,6 +128,10 @@ docker compose restart
 见 [deploy/xiuxian-server.service](deploy/xiuxian-server.service)，文件顶部有完整安装步骤。
 其中 `WorkingDirectory` 已按服务端的路径规则钉在 jar 同目录，避免数据落到意料之外的位置。
 
+单元文件用的是 `Restart=always`：安装向导和 QQ `/重启` 触发的重启都是**干净退出**（exit 0），
+靠 systemd 拉起；服务端检测到 `INVOCATION_ID`（systemd 注入的环境变量）时只退出、不自我 spawn
+—— 否则新进程会被 cgroup 清理连带杀掉。若你自定义了 unit，请务必保留 `Restart=always`。
+
 ### 首次启动：安装向导
 
 首次启动（未配置 JWT 密钥）时，浏览器打开 **http://127.0.0.1:8080/install** 完成一步式安装：

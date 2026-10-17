@@ -208,6 +208,8 @@ public class Main {
             }
         }
         int serverPort = AppConfig.getInt("server.port", 8080);
+        // 重启场景：上一个实例可能尚未释放端口（Windows 上尤其明显），先等它退出再 bind
+        waitForPortRelease(serverHost, serverPort);
         HttpServer server = GrizzlyHttpServerFactory.createHttpServer(
                 URI.create("http://" + serverHost + ":" + serverPort + "/api/"), config);
         mainServer = server;
@@ -327,10 +329,56 @@ public class Main {
     }
 
     /**
-     * 自动重启服务器（安装向导配置完成后调用）：
-     * 以 java -jar <当前jar> [原启动参数] 启动新进程，新进程 HTTP 端口就绪后退出当前进程释放端口。
+     * 重启方式。
+     *
+     * <ul>
+     *   <li>{@link #SUPERVISED}：由外部托管（systemd / 容器 / 进程守护面板）负责拉起 ——
+     *       只做"干净退出"，绝不自我 spawn。systemd 默认 {@code KillMode=control-group}，
+     *       主进程退出时会把 cgroup 里残留的子进程一起 SIGTERM 掉，自我 spawn 出来的
+     *       新 JVM 必然被杀；而 {@code System.exit(0)} 又让 {@code Restart=on-failure}
+     *       不触发，结果就是服务停在那里没人管。</li>
+     *   <li>{@link #SELF_SPAWN}：裸跑（{@code java -jar} / start.sh / install.bat）——
+     *       自己拉起新进程再退出。</li>
+     * </ul>
+     */
+    public enum RestartMode { SUPERVISED, SELF_SPAWN }
+
+    /** 判断当前进程是否由外部托管（决定"重启"是自我 spawn 还是退出等托管方拉起）。 */
+    public static RestartMode restartMode() {
+        // systemd 会给服务进程注入 INVOCATION_ID
+        if (System.getenv("INVOCATION_ID") != null) {
+            return RestartMode.SUPERVISED;
+        }
+        // Docker / Podman 等容器：进程退出后由容器 restart 策略拉起
+        try {
+            if (java.nio.file.Files.exists(java.nio.file.Paths.get("/.dockerenv"))
+                    || java.nio.file.Files.exists(java.nio.file.Paths.get("/run/.containerenv"))) {
+                return RestartMode.SUPERVISED;
+            }
+        } catch (Throwable ignored) {
+            // 文件系统不可读时按裸跑处理
+        }
+        if (System.getenv("container") != null) {
+            return RestartMode.SUPERVISED;
+        }
+        return RestartMode.SELF_SPAWN;
+    }
+
+    /**
+     * 自动重启服务器（安装向导配置完成后调用）。
+     *
+     * <p>托管模式（systemd / 容器）下只退出，由托管方拉起新实例；
+     * 裸跑模式下以 {@code java -jar <当前jar> <原启动参数>} 启动新进程，
+     * 然后<b>立即</b>退出释放端口 —— 新进程启动时会自己等端口释放
+     * （见 {@link #waitForPortRelease}），因此不需要、也不能在这里等子进程就绪。</p>
      */
     public static void restartServer() {
+        if (restartMode() == RestartMode.SUPERVISED) {
+            LOG.info("重启方式：外部托管（systemd / 容器）—— 退出当前进程，由托管方拉起新实例");
+            LOG.info("提示：若服务没有自动回来，请确认 systemd 单元为 Restart=always、或容器已配置 restart 策略");
+            System.exit(0);
+            return;
+        }
         try {
             String javaBin = System.getProperty("java.home") + java.io.File.separator + "bin" + java.io.File.separator
                     + (System.getProperty("os.name", "").toLowerCase().contains("win") ? "java.exe" : "java");
@@ -348,47 +396,70 @@ public class Main {
             }
             java.util.List<String> cmd = new java.util.ArrayList<>();
             cmd.add(javaBin);
+            // 保留当前 JVM 参数（-Xmx / -Xss / -Dfile.encoding 等），否则重启后堆大小会掉回默认值；
+            // 调试代理除外：新进程不该去抢同一个调试端口
+            for (String jvmArg : java.lang.management.ManagementFactory.getRuntimeMXBean().getInputArguments()) {
+                if (jvmArg.startsWith("-agentlib") || jvmArg.startsWith("-Xrunjdwp")) {
+                    continue;
+                }
+                cmd.add(jvmArg);
+            }
             cmd.add("-jar");
             cmd.add(jarPath);
             for (String arg : startupArgs) {
                 cmd.add(arg);
             }
             LOG.info("正在自动重启: " + String.join(" ", cmd));
-            java.lang.Process newProc = new ProcessBuilder(cmd).inheritIO().start();
-            // M23 修复：轮询检测新进程 HTTP 端口就绪后再退出，避免端口空窗期（最多等 60s）
-            int port = AppConfig.getInt("server.port", 8080);
-            java.net.http.HttpClient client = java.net.http.HttpClient.newBuilder()
-                    .connectTimeout(java.time.Duration.ofSeconds(1)).build();
-            boolean ready = false;
-            long deadline = System.currentTimeMillis() + 60_000L;
-            while (System.currentTimeMillis() < deadline && newProc.isAlive()) {
-                try {
-                    java.net.http.HttpRequest req = java.net.http.HttpRequest.newBuilder()
-                            .uri(java.net.URI.create("http://127.0.0.1:" + port + "/api/game/status"))
-                            .timeout(java.time.Duration.ofSeconds(2))
-                            .GET().build();
-                    java.net.http.HttpResponse<String> resp = client.send(req,
-                            java.net.http.HttpResponse.BodyHandlers.ofString());
-                    int code = resp.statusCode();
-                    if (code == 200 || code == 401) {
-                        ready = true;
-                        break;
-                    }
-                } catch (Exception ignored) {
-                    // 新进程尚未就绪，继续等待
-                }
-                try { Thread.sleep(500); } catch (InterruptedException e) { Thread.currentThread().interrupt(); break; }
-            }
-            if (!ready) {
-                LOG.warn("新进程 60s 内未就绪，仍然退出当前进程（端口可能短暂空窗）");
-            } else {
-                LOG.info("新进程 HTTP 端口已就绪，退出当前进程");
-            }
+            new ProcessBuilder(cmd).inheritIO().start();
+            // 不再轮询"新进程是否就绪"：端口还握在自己手里，子进程不可能就绪，
+            // 那样的探测只会命中当前进程自己（永远"成功"）。新进程会等端口释放后再 bind。
+            LOG.info("已拉起新进程，当前进程退出并释放端口");
             System.exit(0);
         } catch (Exception e) {
             LOG.error("自动重启失败，请手动重启服务器", e);
         }
     }
+
+    /**
+     * 等端口释放后再 bind。
+     *
+     * <p>重启时父进程 spawn 完新进程就退出，新进程可能比父进程更快走到 bind；
+     * 在 Windows 上这会直接 {@code Address already in use}，把"重启"变成"停机"。
+     * 这里最多等 15 秒，端口空闲就立刻返回。</p>
+     */
+    private static void waitForPortRelease(String host, int port) {
+        java.net.InetAddress addr;
+        try {
+            addr = "0.0.0.0".equals(host) ? null : java.net.InetAddress.getByName(host);
+        } catch (Exception e) {
+            return; // 地址解析失败交给后面真正的 bind 报错
+        }
+        long deadline = System.currentTimeMillis() + 15_000L;
+        boolean logged = false;
+        while (System.currentTimeMillis() < deadline) {
+            try (java.net.ServerSocket probe = new java.net.ServerSocket()) {
+                probe.setReuseAddress(false);
+                probe.bind(new java.net.InetSocketAddress(addr, port), 1);
+                if (logged) {
+                    LOG.info("端口 " + host + ":" + port + " 已释放，继续启动");
+                }
+                return;
+            } catch (Exception e) {
+                if (!logged) {
+                    LOG.info("端口 " + host + ":" + port + " 仍被占用（上一个实例正在退出），最多等待 15 秒…");
+                    logged = true;
+                }
+                try {
+                    Thread.sleep(500);
+                } catch (InterruptedException ie) {
+                    Thread.currentThread().interrupt();
+                    return;
+                }
+            }
+        }
+        LOG.warn("等待端口 " + host + ":" + port + " 释放超时（15s），继续尝试启动");
+    }
+
 
     private static void reportDeploymentPaths() {        java.nio.file.Path jarDir = AppConfig.getJarDir().toAbsolutePath();
         String cwd = System.getProperty("user.dir", ".");

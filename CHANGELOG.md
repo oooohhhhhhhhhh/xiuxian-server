@@ -132,6 +132,22 @@
 
 ### 修复
 
+- **systemd 下重启后服务直接停摆**：安装向导 / QQ `/重启` 触发的重启走的是
+  `System.exit(0)`（干净退出），而单元文件写的是 `Restart=on-failure`（只认非零退出码
+  与信号）→ systemd 视为正常停止，**不会拉起**；更糟的是自我 spawn 出来的新进程还在
+  同一个 cgroup 里，主进程退出时会被默认的 `KillMode=control-group` 一并 SIGTERM 掉。
+  现在服务端按环境分流：检测到 `INVOCATION_ID`（systemd）/ `/.dockerenv` /
+  `container` 时**只退出**，由托管方拉起（单元文件改为 `Restart=always` 并加重启风暴
+  保护）；裸跑（`java -jar` / `start.sh` / `install.bat`）仍自我 spawn。
+  同时把 `RestartCommand`（QQ `/重启`）合并到同一条 `Main.restartServer()` 路径，
+  并让自我 spawn 保留 `-Xmx` 等 JVM 参数（旧实现重启后堆大小会掉回默认值）。
+- **重启的"就绪探测"其实在探测自己**：旧实现 spawn 后轮询
+  `127.0.0.1:<port>/api/game/status` 判断新进程是否就绪，但端口此时还握在**父进程**手里，
+  请求命中的是父进程自己 —— 实测 spawn 后 3.9 秒就"就绪"退出，而新进程真正 bind 是
+  37 秒之后，中间一直是空的。现在父进程 spawn 完立即退出释放端口，新进程在 bind 前
+  用 `waitForPortRelease` 最多等 15 秒端口释放（Windows 上父进程退出慢时不会再
+  `Address already in use` 直接崩）。
+
 - **安装向导「仅限本机」把本机也拒了（向导全新实例完全不可用）**：
   `InstallResource.isLocalRequest` 用
   `ContainerRequestContext.getProperty("org.glassfish.grizzly.http.server.Request")`

@@ -43,6 +43,10 @@ Documentation=https://oooohhhhhhhhhh.github.io/xiuxian-wiki/
 After=network-online.target
 Wants=network-online.target
 
+# 重启风暴保护：10 秒内最多拉起 5 次，超过则进入 failed（避免配置写错时无限重启）
+StartLimitIntervalSec=10s
+StartLimitBurst=5
+
 [Service]
 Type=simple
 User=xiuxian
@@ -59,8 +63,12 @@ Environment=TZ=Asia/Shanghai
 # hs_err「out of physical RAM or swap space」崩溃，堆别开太大。
 Environment=JAVA_OPTS=-Xmx512m -XX:MaxMetaspaceSize=256m -Xss1m
 
-# 崩溃或 OOM 被杀后自动拉起
-Restart=on-failure
+# 崩溃或 OOM 被杀后自动拉起；安装向导 / QQ「/重启」触发的重启同样是"干净退出"
+# （exit 0），所以必须是 Restart=always —— on-failure 只认非零退出码和信号，
+# 用它的话装完向导服务会停在那里没人管。
+# 服务端检测到 INVOCATION_ID（systemd 注入）时只退出、不自我 spawn，
+# 因此默认的 KillMode=control-group 不会把"新进程"当成残留子进程杀掉。
+Restart=always
 RestartSec=5s
 
 # 优雅停止：先发 SIGTERM 让服务端收尾（落盘玩家数据、关闭数据库连接），
