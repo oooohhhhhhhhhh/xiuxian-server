@@ -277,6 +277,16 @@
 
 ### 变更
 
+- **安装向导「仅限本机」开关显式化**：默认模板 `src/main/resources/application.yml`
+  新增 `install:` 段（`allow_remote: false`），把此前只存在于代码里的隐藏开关
+  `install.allow_remote` 写进配置并附完整说明；403 提示文案补上配置文件路径
+  （含 Docker 的 `/app/config/application.yml`）。README 新增「远程 / 局域网 /
+  Docker 安装」小节，Docker 方式补上打开开关的两步命令 —— 容器内看到的来源是
+  Docker 网关 IP 而非回环地址，按旧文档直接访问 `/install` 会被 403 拦下。
+  同时修正 README 中「清空 `jwt.secret` 即可重装」的过期说法：V7 起以锁文件
+  `config/.installed` 为准，重装须走 `POST /api/install/reset`（需当前管理员密码）
+  或手动删除锁文件。
+
 - **移除 quiz 遗留内容**：删除 `data/quiz/questions_template.csv`、空包目录
   `com/mtxgdn/onebot/quiz/` 与 `src/main/resources/data/quiz/`，以及 `.gitignore`
   中的 `data/quiz/questions.json` 忽略项。代码侧从未引用过题库，属纯遗留物。

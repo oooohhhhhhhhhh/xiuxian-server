@@ -5,7 +5,11 @@
 #   docker compose down           停止（保留数据卷）
 #   docker compose down -v        停止并删除数据（慎用）
 #
-# 首次启动后打开 http://127.0.0.1:8080/install 完成安装向导。
+# 首次启动后需要先打开「远程安装」开关，再进向导（宿主机浏览器访问映射端口时，
+# 容器内看到的来源是 Docker 网关 IP 而非回环地址，安装向导默认会 403）：
+#   docker compose exec xiuxian sh -c "printf '\ninstall:\n  allow_remote: true\n' >> /app/config/application.yml"
+#   docker compose restart
+# 然后打开 http://127.0.0.1:8080/install 完成安装向导。
 #
 # ── 数据持久化说明 ───────────────────────────────────────────
 # 镜像内的 jar 位于 /opt/xiuxian/main.jar；入口脚本每次启动都会把它复制到 /app。

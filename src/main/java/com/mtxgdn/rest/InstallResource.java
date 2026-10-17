@@ -150,7 +150,8 @@ public class InstallResource {
         JsonObject o = new JsonObject();
         o.addProperty("code", 403);
         o.addProperty("success", false);
-        o.addProperty("message", "安装向导仅允许从服务器本机访问。如需远程安装，请设置 install.allow_remote=true（务必确认网络边界安全）。");
+        o.addProperty("message", "安装向导仅允许从服务器本机访问。如需远程安装，请在 config/application.yml 中设置 "
+                + "install.allow_remote=true 后重启（Docker 为 /app/config/application.yml；务必确认网络边界安全）。");
         return Response.status(403).entity(o.toString()).build();
     }
 

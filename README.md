@@ -110,8 +110,16 @@ java -jar target/main-0.1.0.jar
 docker compose up -d
 ```
 
-数据（`config/`、`data/`、`log/`、`plugins/`、`xiuxian.db`）持久化在命名卷里，
-首次启动后访问 **http://127.0.0.1:8080/install** 完成安装向导。
+数据（`config/`、`data/`、`log/`、`plugins/`、`xiuxian.db`）持久化在命名卷里。
+
+⚠️ 容器里完成安装向导需要先打开「远程安装」开关：宿主机浏览器访问映射端口时，容器内看到的来源是 Docker 网关 IP 而不是回环地址，向导默认会返回 403。首次启动后执行：
+
+```bash
+docker compose exec xiuxian sh -c "printf '\ninstall:\n  allow_remote: true\n' >> /app/config/application.yml"
+docker compose restart
+```
+
+然后访问 **http://127.0.0.1:8080/install** 完成安装。装好后 `config/.installed` 会关闭向导接口；如需更稳妥，安装完成后把 `allow_remote` 改回 `false` 再重启。
 
 详见 [Dockerfile](Dockerfile) 与 [docker-compose.yml](docker-compose.yml)。
 
@@ -129,9 +137,32 @@ docker compose up -d
 3. 管理员账号密码
 4. JWT 密钥（留空自动生成，重启后玩家需重新登录）
 
-提交后服务器**自动重启**生效；`/install` 随之卸载。若要重装，清空 `config/application.yml` 中的 `jwt.secret` 后重启。
+提交后服务器**自动重启**生效；安装成功会写入锁文件 `config/.installed`，`/install/configure` 随之永久关闭。若要重装，请调用 `POST /api/install/reset`（需当前管理员密码），或停止服务后手动删除 `config/.installed` 再启动 —— 仅清空 `jwt.secret` 已不再能重开安装向导（V7 起以锁文件为准）。
 
 > ⚠️ 默认监听 `127.0.0.1`；改为公网绑定前请务必修改默认管理员凭据（admin/admin123）与 JWT 密钥。
+
+#### 远程 / 局域网 / Docker 安装
+
+安装向导的三个写操作接口（`/api/install/configure`、`/reset`、`/restart`）**默认只接受本机回环地址**（`127.0.0.1` / `::1` / `localhost`）的请求，其余来源返回 403：
+
+> 安装向导仅允许从服务器本机访问。如需远程安装，请设置 install.allow_remote=true（务必确认网络边界安全）。
+
+这是刻意的安全设计：未完成安装时还没有管理员密码，向导却能改写数据库连接串、管理员账号与 JWT 密钥；只允许本机访问可以彻底消除「服务器已暴露在网络上、但尚未安装」这个高危窗口。注意 `GET /api/install/status` 不受限制，所以「页面能打开、提交才被拦」是正常现象。
+
+需要远程安装时，在 **jar 同目录**的 `config/application.yml` 中加（模板里已预留该段，默认 `false`）：
+
+```yaml
+install:
+  allow_remote: true
+```
+
+重启后生效；安装成功后锁文件 `config/.installed` 会关闭 `/configure`，这个「开放窗口」随之消失。
+
+典型场景：
+
+- **同一台机器、但用局域网 IP 访问**（如 `http://192.168.1.10:8080/install`）：来源是局域网 IP，同样被拦 —— 改用 `127.0.0.1` 即可，不必打开开关；
+- **Docker**：宿主机浏览器访问映射端口时，容器内看到的来源是 Docker 网关 IP 而非回环地址，**必须**打开本开关（见「方式三：Docker」）；
+- **反向代理**：来源会变成代理地址，只有代理与服务器同机（走回环）才免开；代码不读取 `X-Forwarded-For`，跨机反代同样需要打开本开关。
 
 ### 启动参数
 
