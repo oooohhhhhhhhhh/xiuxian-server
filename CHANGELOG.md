@@ -132,6 +132,22 @@
 
 ### 修复
 
+- **安装向导「仅限本机」把本机也拒了（向导全新实例完全不可用）**：
+  `InstallResource.isLocalRequest` 用
+  `ContainerRequestContext.getProperty("org.glassfish.grizzly.http.server.Request")`
+  取来源地址，但在 Jersey + Grizzly 这套容器里该属性**根本不存在**
+  （实测 `ContainerRequest` 的属性表里只有 `TracingLogger`），`instanceof` 永远不成立，
+  于是连 `127.0.0.1` 发来的请求也一律 403 —— 只有手工打开 `install.allow_remote`
+  才能装完。现改为 `@Context` 注入 `org.glassfish.grizzly.http.server.Request`
+  （由 jersey-container-grizzly2-http 的 `GrizzlyBinder` 以 RequestScoped 绑定）
+  取 `getRemoteAddr()`，属性表查询仅作兜底。实测：修前 loopback `configure` 403，
+  修后 200；局域网 IP 调 `/restart` 仍 403（守卫本身没被削弱）。
+- **登录 / 邮箱验证码限流退化成「全服一个桶」**：`Auth.remoteAddress()` 是同一个根因
+  （同样取不到 Grizzly Request），永远回退成 `"global"`，于是 `login_ip:` 与
+  `send_code_ip:` 两个桶实际是全服共享 —— 20 次/60 秒是所有玩家共用的额度，
+  任意一人撞库就能把全站登录打到 429。现改为注入 `Request` 后按 IP 分桶。
+  实测：loopback 连续 21 次登录第 21 次 429，紧接着同一时刻从局域网 IP 登录仍 401。
+
 - **老库升级后服务直接起不来**（`SQLITE_ERROR: no such column: expires_at`）：
   `initTable()` 里的 `CREATE TABLE IF NOT EXISTS` 对老库是**空操作**，真正补列的是随后的
   `executeMigrations()`；但坊市索引的创建却排在迁移**之前**，于是任何"升级上来的库"

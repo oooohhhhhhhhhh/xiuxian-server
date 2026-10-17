@@ -123,27 +123,47 @@ public class InstallResource {
      *
      * <p>可通过 {@code install.allow_remote=true} 显式放行（用于容器化部署等场景，
      * 使用者需自行确认网络边界安全）。</p>
+     *
+     * <p><b>V8 修复</b>：原实现通过
+     * {@code ContainerRequestContext.getProperty("org.glassfish.grizzly.http.server.Request")}
+     * 取来源地址，但在 Jersey + Grizzly 这套容器里该属性根本不存在
+     * （实测 {@code ContainerRequest} 的属性表里只有 TracingLogger），
+     * {@code instanceof} 永远不成立，于是连 {@code 127.0.0.1} 发来的请求也一律 403 ——
+     * 全新实例的安装向导彻底不可用，只能靠手工打开 {@code install.allow_remote} 绕过去。
+     * 现在改为直接注入 {@link org.glassfish.grizzly.http.server.Request}
+     * （由 jersey-container-grizzly2-http 的 {@code GrizzlyBinder} 以 RequestScoped 绑定），
+     * 属性表查询仅作兜底。</p>
      */
-    private static boolean isLocalRequest(jakarta.ws.rs.container.ContainerRequestContext ctx) {
+    private static boolean isLocalRequest(org.glassfish.grizzly.http.server.Request grizzlyReq,
+                                          jakarta.ws.rs.container.ContainerRequestContext ctx) {
         if (AppConfig.getBoolean("install.allow_remote", false)) {
             return true;
         }
-        try {
-            Object grizzlyReq = ctx.getProperty(org.glassfish.grizzly.http.server.Request.class.getName());
-            if (grizzlyReq instanceof org.glassfish.grizzly.http.server.Request req) {
-                String remote = req.getRemoteAddr();
-                if (remote == null) {
-                    return false;
-                }
-                return "127.0.0.1".equals(remote)
-                        || "0:0:0:0:0:0:0:1".equals(remote)
-                        || "::1".equals(remote)
-                        || "localhost".equalsIgnoreCase(remote);
+        String remote = null;
+        if (grizzlyReq != null) {
+            try {
+                remote = grizzlyReq.getRemoteAddr();
+            } catch (Throwable ignored) {
+                // 落到下面的属性表兜底
             }
-        } catch (Throwable ignored) {
-            // 取不到来源地址时保守拒绝
         }
-        return false;
+        if (remote == null && ctx != null) {
+            try {
+                Object o = ctx.getProperty(org.glassfish.grizzly.http.server.Request.class.getName());
+                if (o instanceof org.glassfish.grizzly.http.server.Request r) {
+                    remote = r.getRemoteAddr();
+                }
+            } catch (Throwable ignored) {
+                // 取不到来源地址时保守拒绝
+            }
+        }
+        if (remote == null) {
+            return false;
+        }
+        return "127.0.0.1".equals(remote)
+                || "0:0:0:0:0:0:0:1".equals(remote)
+                || "::1".equals(remote)
+                || "localhost".equalsIgnoreCase(remote);
     }
 
     private static Response remoteDenied() {
@@ -195,11 +215,12 @@ public class InstallResource {
     @Path("/configure")
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
-    public Response configure(String body) {
+    public Response configure(@jakarta.ws.rs.core.Context org.glassfish.grizzly.http.server.Request grizzlyReq,
+                              String body) {
         JsonObject result = new JsonObject();
 
         // V7：安装配置仅允许本机调用
-        if (!isLocalRequest(requestContext)) {
+        if (!isLocalRequest(grizzlyReq, requestContext)) {
             return remoteDenied();
         }
 
@@ -279,11 +300,12 @@ public class InstallResource {
     @Path("/reset")
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
-    public Response reset(String body) {
+    public Response reset(@jakarta.ws.rs.core.Context org.glassfish.grizzly.http.server.Request grizzlyReq,
+                          String body) {
         JsonObject result = new JsonObject();
 
         // V7：重置同样只允许本机调用（重置会清空所有配置，影响面等同重新安装）
-        if (!isLocalRequest(requestContext)) {
+        if (!isLocalRequest(grizzlyReq, requestContext)) {
             return remoteDenied();
         }
 
@@ -349,11 +371,11 @@ public class InstallResource {
     @POST
     @Path("/restart")
     @Produces(MediaType.APPLICATION_JSON)
-    public Response restart() {
+    public Response restart(@jakarta.ws.rs.core.Context org.glassfish.grizzly.http.server.Request grizzlyReq) {
         JsonObject result = new JsonObject();
 
         // V7：重启会中断服务，同样限制为本机调用，避免公网任意触发 DoS
-        if (!isLocalRequest(requestContext)) {
+        if (!isLocalRequest(grizzlyReq, requestContext)) {
             return remoteDenied();
         }
 

@@ -69,7 +69,7 @@ public class Auth {
      * 时才采信 XFF，否则一律使用 TCP 直连地址。反代场景下也应只信任最后一跳，
      * 因此取 XFF 的<b>最后一段</b>而非第一段（第一段由客户端完全可控）。
      */
-    private String clientBucket() {
+    private String clientBucket(org.glassfish.grizzly.http.server.Request grizzlyReq) {
         if (AppConfig.getBoolean("security.trust_proxy_headers", false)) {
             String fwd = requestContext.getHeaderString("X-Forwarded-For");
             if (fwd != null && !fwd.isBlank()) {
@@ -78,23 +78,40 @@ public class Auth {
                 return hops[hops.length - 1].trim();
             }
         }
-        return remoteAddress();
+        return remoteAddress(grizzlyReq);
     }
 
-    /** TCP 直连地址；容器不支持时回退为全局桶（宁可粗粒度限流，也不放行伪造 IP）。 */
-    private String remoteAddress() {
-        try {
-            var addr = requestContext.getProperty("org.glassfish.grizzly.http.server.Request");
-            if (addr instanceof org.glassfish.grizzly.http.server.Request req) {
-                String remote = req.getRemoteAddr();
-                if (remote != null && !remote.isBlank()) {
-                    return remote;
-                }
+    /**
+     * TCP 直连地址；容器不支持时回退为全局桶（宁可粗粒度限流，也不放行伪造 IP）。
+     *
+     * <p><b>V8 修复</b>：原实现只从
+     * {@code ContainerRequestContext.getProperty("org.glassfish.grizzly.http.server.Request")}
+     * 取地址，但在 Jersey + Grizzly 这套容器里该属性并不存在（属性表里只有
+     * TracingLogger），于是永远回退成 {@code "global"} —— 登录限流与邮箱验证码限流
+     * 全部退化成「全服共享一个桶」，20 次/60 秒是所有人共用的额度，而不是按 IP。
+     * 现在改为优先用 {@code @Context} 注入的
+     * {@link org.glassfish.grizzly.http.server.Request}（GrizzlyBinder 以 RequestScoped 绑定）。</p>
+     */
+    private String remoteAddress(org.glassfish.grizzly.http.server.Request grizzlyReq) {
+        String remote = null;
+        if (grizzlyReq != null) {
+            try {
+                remote = grizzlyReq.getRemoteAddr();
+            } catch (Throwable ignored) {
+                // 落到下面的属性表兜底
             }
-        } catch (Throwable ignored) {
-            // 非 Grizzly 容器或属性不可用时走回退
         }
-        return "global";
+        if (remote == null) {
+            try {
+                Object addr = requestContext.getProperty("org.glassfish.grizzly.http.server.Request");
+                if (addr instanceof org.glassfish.grizzly.http.server.Request req) {
+                    remote = req.getRemoteAddr();
+                }
+            } catch (Throwable ignored) {
+                // 非 Grizzly 容器或属性不可用时走回退
+            }
+        }
+        return (remote != null && !remote.isBlank()) ? remote : "global";
     }
 
     /**
@@ -110,8 +127,8 @@ public class Auth {
      *
      * @return 需要拒绝时返回 429 响应；放行时返回 {@code null}
      */
-    private Response checkSendCodeRateLimit() {
-        String bucket = clientBucket();
+    private Response checkSendCodeRateLimit(org.glassfish.grizzly.http.server.Request grizzlyReq) {
+        String bucket = clientBucket(grizzlyReq);
 
         if (!RateLimiter.allow("send_code_ip:" + bucket, 10, 60)) {
             return rateLimitResponse("发送过于频繁，请稍后再试");
@@ -156,7 +173,7 @@ public class Auth {
     @Path("/send-code")
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
-    public Response sendCode(String body) {
+    public Response sendCode(@Context org.glassfish.grizzly.http.server.Request grizzlyReq, String body) {
         System.out.println("[Auth] >>> POST /send-code");
         JsonObject json = com.google.gson.JsonParser.parseString(body).getAsJsonObject();
         String email = json.has("email") ? json.get("email").getAsString() : null;
@@ -177,7 +194,7 @@ public class Auth {
         }
 
         // V2 修复：多层限流（来源 10/分 + 来源 30/时 + 全局 300/时）
-        Response rateLimited = checkSendCodeRateLimit();
+        Response rateLimited = checkSendCodeRateLimit(grizzlyReq);
         if (rateLimited != null) {
             return rateLimited;
         }
@@ -212,7 +229,7 @@ public class Auth {
     @Path("/login")
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
-    public Response login(String body) {
+    public Response login(@Context org.glassfish.grizzly.http.server.Request grizzlyReq, String body) {
         System.out.println("[Auth] >>> POST /login");
         long start = System.currentTimeMillis();
 
@@ -225,7 +242,7 @@ public class Auth {
         // 原实现只按 username 计数（5 次/60s），攻击者可批量注册成千上万个账号
         // 逐个撞库，每个账号都不触发锁定。叠加来源维度后单机撞库速率被压到
         // 20 次/分钟，无论换多少用户名都受限。
-        if (!RateLimiter.allow("login_ip:" + clientBucket(), 20, 60)) {
+        if (!RateLimiter.allow("login_ip:" + clientBucket(grizzlyReq), 20, 60)) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 429);
             err.addProperty("message", "登录尝试过于频繁，请稍后再试");
@@ -286,7 +303,8 @@ public class Auth {
     @Path("/forgot-password/send-code")
     @Consumes(MediaType.APPLICATION_JSON)
     @Produces(MediaType.APPLICATION_JSON)
-    public Response sendForgotPasswordCode(String body) {
+    public Response sendForgotPasswordCode(@Context org.glassfish.grizzly.http.server.Request grizzlyReq,
+                                           String body) {
         JsonObject json = com.google.gson.JsonParser.parseString(body).getAsJsonObject();
         String email = json.has("email") ? json.get("email").getAsString() : null;
 
@@ -306,7 +324,7 @@ public class Auth {
         }
 
         // V2 修复：多层限流（来源 10/分 + 来源 30/时 + 全局 300/时）
-        Response rateLimited = checkSendCodeRateLimit();
+        Response rateLimited = checkSendCodeRateLimit(grizzlyReq);
         if (rateLimited != null) {
             return rateLimited;
         }
