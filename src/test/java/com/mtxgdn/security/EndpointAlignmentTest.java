@@ -111,6 +111,33 @@ class EndpointAlignmentTest {
     }
 
     @Test
+    @DisplayName("对齐: 野外(wilderness)/采集(gather) 必须暴露 HTTP 路由，否则 Web 端进不了野外")
+    void testWildernessRoutesExposed() {
+        Map<String, Map<String, String>> routes = collectHttpRoutes();
+
+        assertMethod(routes, "map/wilderness", "GET");
+        assertMethod(routes, "map/gather", "POST");
+
+        // 与 OneBot 侧的 /野外、/采集 用同一权限码，避免两端可见性不一致
+        assertPermission(routes, "map/wilderness", "GET", "game.player.info");
+        assertPermission(routes, "map/gather", "POST", "game.player.info");
+    }
+
+    @Test
+    @DisplayName("对齐: 野外/采集命令的 module 必须为 map，否则停用地图插件后仍可采集")
+    void testWildernessModuleDeclaredForGate() {
+        Map<String, String> modules = new HashMap<>();
+        for (Command cmd : CommandRegistry.getAllUnique()) {
+            modules.put(cmd.getClass().getSimpleName(), cmd.getModule());
+        }
+        for (String simple : new String[]{"WildernessCommand", "GatherCommand"}) {
+            assertTrue(modules.containsKey(simple), simple + " 未被注册/扫描到");
+            assertEquals("map", modules.get(simple),
+                    simple + " 应声明 module=map，否则停用地图插件后该命令仍然可达");
+        }
+    }
+
+    @Test
     @DisplayName("对齐: 新增路由不得与既有路径冲突（同路径同方法只能注册一次）")
     void testNoRouteCollisions() {
         Map<String, Set<String>> seen = new HashMap<>();
