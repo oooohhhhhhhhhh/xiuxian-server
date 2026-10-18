@@ -1,0 +1,4 @@
+{
+  "error.param_missing_search_name": "请提供搜索名称",
+  "admin.players_search_result": "搜索 \"{0}\" 结果"
+}

@@ -1,0 +1,24 @@
+{
+  "admin.plugin.reloaded": "插件已重载: {0}",
+  "admin.plugin.not_found": "插件不存在: {0}",
+  "admin.plugin.unloaded": "插件已卸载: {0}",
+  "admin.plugin.enabled": "插件已启用: {0}",
+  "admin.plugin.enable_failed": "启用失败: {0}",
+  "admin.plugin.disabled": "插件已停用: {0}",
+  "admin.plugin.disable_failed": "停用失败: {0}",
+  "admin.plugin.loaded": "插件加载成功: {0}",
+  "admin.plugin.load_failed": "插件加载失败: {0}",
+
+  "admin.blacklist.added_by_user_id": "已通过用户ID添加到黑名单",
+  "admin.blacklist.added_by_qq": "已通过QQ号添加到黑名单",
+  "admin.auto_mute.enabled": "已启用自动禁言",
+  "admin.auto_mute.disabled": "已关闭自动禁言",
+
+  "admin.grant.issued": "已发放: {0}",
+  "admin.grant.nothing": "没有可发放的内容",
+
+  "admin.map_link.one_way": "已建立单向连接（注意：玩家去了可能回不来）",
+  "admin.map_link.two_way": "已建立双向连接，地图缓存已热重载",
+
+  "error.i18n.reload_failed_detail": "重载语言包失败: {0}"
+}

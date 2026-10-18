@@ -28,6 +28,6 @@ public class ListItemCommand extends Command {
         try { price = Long.parseLong(parts[2]); }
         catch (NumberFormatException e) { ctx.reply(I18n.t("market.h102b9b7c")); return; }
         Map<String, Object> result = ServiceRegistry.getTradeService().listItem(p.getId(), parts[0], quantity, price);
-        ctx.reply((String) result.getOrDefault("message", "上架失败"));
+        ctx.reply((String) result.getOrDefault("message", I18n.t("market.list_failed")));
     }
 }

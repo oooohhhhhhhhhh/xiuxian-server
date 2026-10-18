@@ -32,8 +32,7 @@ public class SetRootCommand extends Command {
 
         String arg = ctx.getArg();
         if (arg == null || arg.isBlank()) {
-            ctx.reply("用法: /修改灵根 <玩家ID> <灵根名称>\n"
-                    + "可用灵根: /修改灵根 list");
+            ctx.reply(I18n.t("admin.set_root.usage"));
             return;
         }
 
@@ -45,9 +44,7 @@ public class SetRootCommand extends Command {
         }
 
         if (parts.length < 2) {
-            ctx.reply("用法: /修改灵根 <玩家ID> <灵根名称>\n"
-                    + "例如: /修改灵根 1 TAIYI_GOLDEN\n"
-                    + "可用灵根: /修改灵根 list");
+            ctx.reply(I18n.t("admin.set_root.usage_with_example"));
             return;
         }
 

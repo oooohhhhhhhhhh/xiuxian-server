@@ -48,7 +48,8 @@ public class PlayersListCommand extends Command {
                 } catch (NumberFormatException e) {
                     // search by name
                     List<PlayerInfo> players = playerService.searchPlayersByName(parts[0], 20, 0);
-                    ctx.reply(formatPlayersList(players, itemService, "搜索 \"" + parts[0] + "\" 结果"));
+                    ctx.reply(formatPlayersList(players, itemService,
+                            I18n.t("admin.players_search_result", parts[0])));
                     return;
                 }
             } else if (parts.length >= 2) {

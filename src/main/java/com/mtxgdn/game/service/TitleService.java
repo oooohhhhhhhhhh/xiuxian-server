@@ -143,7 +143,8 @@ public class TitleService {
             ps.setLong(2, playerId);
             ps.setBoolean(3, true);
             int rows = ps.executeUpdate();
-            Map<String, Object> result = createResult(true, rows > 0 ? "已卸下称号" : "当前未装备任何称号");
+            Map<String, Object> result = createResult(true,
+                    rows > 0 ? I18n.t("title.unequipped") : I18n.t("title.none_equipped"));
             return result;
         } catch (SQLException e) {
             return createResult(false, I18n.t("title.h3e363884", e.getMessage()));

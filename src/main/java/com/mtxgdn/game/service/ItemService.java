@@ -585,7 +585,9 @@ public class ItemService {
                 innerResult.put("fromGrade", fromGrade);
                 innerResult.put("toAmount", targetAmount);
                 innerResult.put("toGrade", toGrade);
-                innerResult.put("message", String.format("兑换成功！%d %s → %d %s",
+                // 占位符顺序换成"先数量后名字"，让模板只描述一种语序；
+                // 原 %d %s 的顺序在不同语言里可能都要调
+                innerResult.put("message", I18n.t("item.stone_converted",
                         amount, getStoneName(fromGrade), targetAmount, getStoneName(toGrade)));
             } catch (SQLException e) {
                 innerResult.put("success", false);

@@ -51,12 +51,7 @@ public class EnergyAdminCommand extends Command {
 
         String arg = ctx.getArg();
         if (arg == null || arg.isBlank()) {
-            ctx.reply("用法: /能量管理 <玩家ID> <设置|增加|减少|查看> [数值]\n" +
-                    "示例:\n" +
-                    "  /能量管理 1 查看 - 查看玩家能量\n" +
-                    "  /能量管理 1 设置 1000 - 设置为1000\n" +
-                    "  /能量管理 1 增加 500 - 增加500\n" +
-                    "  /能量管理 1 减少 300 - 减少300");
+            ctx.reply(I18n.t("admin.energy_admin.usage"));
             return;
         }
 

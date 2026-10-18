@@ -1,0 +1,15 @@
+{
+  "admin.edit_player.usage": "用法: /编辑玩家 <玩家ID> <属性>=<值> ...\n可用属性: hp maxHp mp maxMp attack defense speed spirit level gold experience realm\n示例: /编辑玩家 1 hp=500 attack=100 level=20",
+  "admin.energy_admin.usage": "用法: /能量管理 <玩家ID> <设置|增加|减少|查看> [数值]\n示例:\n  /能量管理 1 查看 - 查看玩家能量\n  /能量管理 1 设置 1000 - 设置为1000\n  /能量管理 1 增加 500 - 增加500\n  /能量管理 1 减少 300 - 减少300",
+  "admin.set_root.usage": "用法: /修改灵根 <玩家ID> <灵根名称>\n可用灵根: /修改灵根 list",
+  "admin.set_root.usage_with_example": "用法: /修改灵根 <玩家ID> <灵根名称>\n例如: /修改灵根 1 TAIYI_GOLDEN\n可用灵根: /修改灵根 list",
+  "sect.challenge_usage": "用法: /宗门 挑战        挑战者发起 / 宗主查看竞争期\n      /宗门 挑战 接受   宗主应战（三局两胜）",
+  "sect.not_found": "宗门不存在",
+  "debug.no_args": "(无)",
+  "daily.morning_error": "晨修出现异常",
+  "market.buy_failed": "购买失败",
+  "trade.cancel_failed": "撤单失败",
+  "market.list_failed": "上架失败",
+  "market.quote_failed": "查询失败",
+  "player.heal_failed": "疗伤失败"
+}

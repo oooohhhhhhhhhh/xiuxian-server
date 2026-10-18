@@ -833,7 +833,8 @@ public class MapService {
         }
 
         Map<String, Object> result = createResult(true,
-                player.getName() + "离开了" + current.getName() + "，前往「" + target.getName() + "」。" + target.getDescription());
+                I18n.t("map.travel_arrived", player.getName(), current.getName(),
+                        target.getName(), target.getDescription()));
         result.put("from", current.getName());
         result.put("to", target.getName());
         result.put("toRegion", target.getRegion());

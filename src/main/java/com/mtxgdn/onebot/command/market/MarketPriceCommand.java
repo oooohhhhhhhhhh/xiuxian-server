@@ -60,7 +60,7 @@ public class MarketPriceCommand extends Command {
 
         Map<String, Object> quote = ServiceRegistry.getTradeService().getPriceHistory(itemKey, days);
         if (!Boolean.TRUE.equals(quote.get("success"))) {
-            ctx.reply(String.valueOf(quote.getOrDefault("message", "查询失败")));
+            ctx.reply(String.valueOf(quote.getOrDefault("message", I18n.t("market.quote_failed"))));
             return;
         }
 

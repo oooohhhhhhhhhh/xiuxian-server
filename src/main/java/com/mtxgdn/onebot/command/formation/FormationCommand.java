@@ -118,8 +118,7 @@ public class FormationCommand extends Command {
             if (key == null || key.isBlank()) {
                 result.addProperty("code", 400);
                 result.addProperty("success", false);
-                result.addProperty("message", "请提供有效的阵法(formationKey 或 name)，可选: "
-                        + "聚灵阵/护山大阵/迷踪阵/净化阵/时间加速阵");
+                result.addProperty("message", I18n.t("formation.invalid_key"));
                 return result;
             }
 

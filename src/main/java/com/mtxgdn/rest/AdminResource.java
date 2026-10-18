@@ -339,7 +339,7 @@ public class AdminResource {
         boolean ok = com.mtxgdn.plugin.PluginManager.getInstance().reloadPlugin(name);
         JsonObject result = new JsonObject();
         result.addProperty("code", ok ? 200 : 404);
-        result.addProperty("message", ok ? "插件已重载: " + name : "插件不存在: " + name);
+        result.addProperty("message", ok ? I18n.t("admin.plugin.reloaded", name) : I18n.t("admin.plugin.not_found", name));
         return Response.ok(gson.toJson(result)).build();
     }
 
@@ -351,7 +351,7 @@ public class AdminResource {
         boolean ok = com.mtxgdn.plugin.PluginManager.getInstance().unloadPlugin(name);
         JsonObject result = new JsonObject();
         result.addProperty("code", ok ? 200 : 404);
-        result.addProperty("message", ok ? "插件已卸载: " + name : "插件不存在: " + name);
+        result.addProperty("message", ok ? I18n.t("admin.plugin.unloaded", name) : I18n.t("admin.plugin.not_found", name));
         return Response.ok(gson.toJson(result)).build();
     }
 
@@ -363,7 +363,7 @@ public class AdminResource {
         boolean ok = enableDisablePlugin(name, type, true);
         JsonObject result = new JsonObject();
         result.addProperty("code", ok ? 200 : 400);
-        result.addProperty("message", ok ? "插件已启用: " + name : "启用失败: " + name);
+        result.addProperty("message", ok ? I18n.t("admin.plugin.enabled", name) : I18n.t("admin.plugin.enable_failed", name));
         return Response.ok(gson.toJson(result)).build();
     }
 
@@ -375,7 +375,7 @@ public class AdminResource {
         boolean ok = enableDisablePlugin(name, type, false);
         JsonObject result = new JsonObject();
         result.addProperty("code", ok ? 200 : 400);
-        result.addProperty("message", ok ? "插件已停用: " + name : "停用失败: " + name);
+        result.addProperty("message", ok ? I18n.t("admin.plugin.disabled", name) : I18n.t("admin.plugin.disable_failed", name));
         return Response.ok(gson.toJson(result)).build();
     }
 
@@ -443,7 +443,7 @@ public class AdminResource {
         boolean ok = com.mtxgdn.plugin.PluginManager.getInstance().loadPlugin(jarFile);
         JsonObject result = new JsonObject();
         result.addProperty("code", ok ? 200 : 500);
-        result.addProperty("message", ok ? "插件加载成功: " + jarName : "插件加载失败: " + jarName);
+        result.addProperty("message", ok ? I18n.t("admin.plugin.loaded", jarName) : I18n.t("admin.plugin.load_failed", jarName));
         return Response.ok(gson.toJson(result)).build();
     }
 
@@ -1347,7 +1347,7 @@ public class AdminResource {
 
         JsonObject result = new JsonObject();
         result.addProperty("code", 200);
-        result.addProperty("message", sb.length() > 0 ? "已发放: " + sb : "没有可发放的内容");
+        result.addProperty("message", sb.length() > 0 ? I18n.t("admin.grant.issued", sb) : I18n.t("admin.grant.nothing"));
         return Response.ok(gson.toJson(result)).build();
     }
 
@@ -2306,7 +2306,7 @@ public class AdminResource {
             blacklistService.addToBlacklist(qqNumber, userId, reason, null);
             JsonObject result = new JsonObject();
             result.addProperty("code", 200);
-            result.addProperty("message", hasUid ? "已通过用户ID添加到黑名单" : "已通过QQ号添加到黑名单");
+            result.addProperty("message", hasUid ? I18n.t("admin.blacklist.added_by_user_id") : I18n.t("admin.blacklist.added_by_qq"));
             return Response.ok(gson.toJson(result)).build();
         } catch (RuntimeException e) {
             JsonObject err = new JsonObject();
@@ -2398,7 +2398,7 @@ public class AdminResource {
 
         JsonObject result = new JsonObject();
         result.addProperty("code", 200);
-        result.addProperty("message", enabled ? "已启用自动禁言" : "已关闭自动禁言");
+        result.addProperty("message", enabled ? I18n.t("admin.auto_mute.enabled") : I18n.t("admin.auto_mute.disabled"));
         return Response.ok(gson.toJson(result)).build();
     }
 
@@ -3050,7 +3050,7 @@ public class AdminResource {
         } catch (Exception e) {
             return Response.ok(GameMessage.restError(
                     GameErrorCode.INTERNAL_ERROR.getCode(),
-                    "error.i18n.reload_failed", "重载语言包失败: " + e.getMessage()).toString()).build();
+                    "error.i18n.reload_failed", I18n.t("error.i18n.reload_failed_detail", e.getMessage())).toString()).build();
         }
     }
 
@@ -3620,8 +3620,8 @@ public class AdminResource {
             data.addProperty("oneWay", oneWay);
             out.addProperty("code", 200);
             out.addProperty("message", oneWay
-                    ? "已建立单向连接（注意：玩家去了可能回不来）"
-                    : "已建立双向连接，地图缓存已热重载");
+                    ? I18n.t("admin.map_link.one_way")
+                    : I18n.t("admin.map_link.two_way"));
             out.add("data", data);
         } catch (IllegalArgumentException e) {
             out.addProperty("code", 400);

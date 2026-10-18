@@ -494,9 +494,7 @@ public class SectService {
                 try (ResultSet rs = ps.executeQuery()) {
                     if (rs.next() && rs.getInt(1) > 1) {
                         result.put("success", false);
-                        result.put("message", "身为一宗之主，不可随意离开。\n"
-                                + "请先 /宗门 退位 卸任（系统会按贡献自动选出继任宗主），"
-                                + "或 /宗门 解散 结束这个宗门");
+                        result.put("message", I18n.t("sect.leave_leader_blocked"));
                         return result;
                     }
                 }
@@ -528,7 +526,7 @@ public class SectService {
             result.put("message", I18n.t("sect.he5e40358", sect.getName()));
         } else {
             result.put("success", true);
-            result.put("message", playerName + " 已离开宗门【" + sect.getName() + "】");
+            result.put("message", I18n.t("sect.member_left", playerName, sect.getName()));
         }
         return result;
     }
@@ -611,7 +609,8 @@ public class SectService {
 
         if (role.equals(target.getRole())) {
             result.put("success", false);
-            result.put("message", target.getPlayerName() + " 已经是" + SectMember.getRoleDisplayName(role)); return result;
+            result.put("message", I18n.t("sect.role_already",
+                    target.getPlayerName(), SectMember.getRoleDisplayName(role))); return result;
         }
 
         String sql = "UPDATE sect_members SET role = ? WHERE sect_id = ? AND player_id = ?";
@@ -979,8 +978,9 @@ public class SectService {
         });
 
         result.put("success", true);
-        result.put("message", fromMember.getPlayerName() + " 已将宗主之位传于 " + toMember.getPlayerName()
-                + "，消耗灵石 " + Sect.TRANSFER_COST_SPIRIT_STONES + "，从此退居副宗主之位");
+        result.put("message", I18n.t("sect.transfer_done",
+                fromMember.getPlayerName(), toMember.getPlayerName(),
+                Sect.TRANSFER_COST_SPIRIT_STONES));
         return result;
     }
 
@@ -1149,7 +1149,9 @@ public class SectService {
         } catch (SQLException e) { throw new RuntimeException("保存宗门战记录失败", e); }
 
         result.put("success", true);
-        result.put("message", attackerSect.getName() + " 对 " + defenderSect.getName() + " 发起宗门战！\n结果：" + winnerSectName + " 获胜！\n比分：" + attackerWins + ":" + defenderWins);
+        result.put("message", I18n.t("sect.war_result",
+                attackerSect.getName(), defenderSect.getName(), winnerSectName,
+                attackerWins, defenderWins));
         result.put("battleLog", logText);
         result.put("attackerWins", attackerWins);
         result.put("defenderWins", defenderWins);

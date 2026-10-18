@@ -1,0 +1,8 @@
+{
+  "购买失败": "market.buy_failed",
+  "撤单失败": "trade.cancel_failed",
+  "上架失败": "market.list_failed",
+  "查询失败": "market.quote_failed",
+  "疗伤失败": "player.heal_failed",
+  "晨修出现异常": "daily.morning_error"
+}

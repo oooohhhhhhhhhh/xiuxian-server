@@ -40,11 +40,19 @@ for (const file of files) {
   let src = fs.readFileSync(file, 'utf8');
   let count = 0;
 
+  // 两个都要：restOk/restError 的第一参，以及 restError(int, 中文) 的第二参
   src = src.replace(/(restOk|restError)\(\s*"([^"]+)"/g, (whole, fn, text) => {
     const key = MAP[text];
     if (!key) { missing.push(rel + '  ' + text); return whole; }
     count++;
     return whole.replace('"' + text + '"', 'I18n.t("' + key + '")');
+  });
+  // restError(code, "中文") 的第二参（第一种已经在上面覆盖，这里补漏）
+  src = src.replace(/restError\(\s*([^,)]+)\s*,\s*"([^"]+)"/g, (whole, code, text) => {
+    const key = MAP[text];
+    if (!key) { missing.push(rel + '  ' + text); return whole; }
+    count++;
+    return whole.replace(', "' + text + '"', ', I18n.t("' + key + '")');
   });
 
   if (!count) continue;

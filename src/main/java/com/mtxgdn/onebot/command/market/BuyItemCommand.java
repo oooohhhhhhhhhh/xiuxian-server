@@ -18,6 +18,6 @@ public class BuyItemCommand extends Command {
         try { listingId = Long.parseLong(ctx.getArg().trim()); }
         catch (NumberFormatException e) { ctx.reply(I18n.t("market.h321fe128")); return; }
         Map<String, Object> result = ServiceRegistry.getTradeService().buyItem(p.getId(), listingId);
-        ctx.reply((String) result.getOrDefault("message", "购买失败"));
+        ctx.reply((String) result.getOrDefault("message", I18n.t("market.buy_failed")));
     }
 }

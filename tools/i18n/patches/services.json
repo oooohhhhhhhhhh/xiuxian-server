@@ -1,0 +1,25 @@
+{
+  "map.travel_arrived": "{0}离开了{1}，前往「{2}」。{3}",
+
+  "sect.leave_leader_blocked": "身为一宗之主，不可随意离开。\n请先 /宗门 退位 卸任（系统会按贡献自动选出继任宗主），或 /宗门 解散 结束这个宗门",
+  "sect.member_left": "{0} 已离开宗门【{1}】",
+  "sect.role_already": "{0} 已经是{1}",
+  "sect.transfer_done": "{0} 已将宗主之位传于 {1}，消耗灵石 {2}，从此退居副宗主之位",
+  "sect.war_result": "{0} 对 {1} 发起宗门战！\n结果：{2} 获胜！\n比分：{3}:{4}",
+
+  "title.unequipped": "已卸下称号",
+  "title.none_equipped": "当前未装备任何称号",
+
+  "worldboss.combat_not_started": "战斗未能开始",
+
+  "formation.upgraded": "{0}晋升为 {1} 级！消耗 {2} 灵石",
+
+  "economy.purify.short_stone": "{0}不足，提纯一次需要 {1} 块{0}（当前：{2}）",
+  "farm.fertilizer_not_enough": "{0}不足，需要 {1} 个",
+  "item.stone_converted": "兑换成功！{0} {1} → {2} {3}",
+
+  "formation.invalid_key": "请提供有效的阵法(formationKey 或 name)，可选: 聚灵阵/护山大阵/迷踪阵/净化阵/时间加速阵",
+  "install.remote_denied": "安装向导仅允许从服务器本机访问。如需远程安装，请在 config/application.yml 中设置 install.allow_remote=true 后重启（Docker 为 /app/config/application.yml；务必确认网络边界安全）。",
+
+  "game.player_name_too_long": "角色名不能超过 {0} 个字符"
+}

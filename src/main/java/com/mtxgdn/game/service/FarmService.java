@@ -499,7 +499,8 @@ public class FarmService {
 
             long fertilizerCount = itemService.getItemCount(playerId, fertilizerKey);
             if (fertilizerCount < plotsToFertilize.size()) {
-                return createResult(false, getItemName(fertilizerKey) + "不足，需要 " + plotsToFertilize.size() + " 个");
+                return createResult(false, I18n.t("farm.fertilizer_not_enough",
+                        getItemName(fertilizerKey), plotsToFertilize.size()));
             }
 
             itemService.removeItem(conn, playerId, fertilizerKey, plotsToFertilize.size());

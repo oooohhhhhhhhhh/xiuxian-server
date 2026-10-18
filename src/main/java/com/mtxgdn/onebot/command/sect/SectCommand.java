@@ -380,8 +380,7 @@ public class SectCommand extends Command {
         } else if (action.equals("接受") || action.equals("应战") || action.equalsIgnoreCase("accept")) {
             accept = true;
         } else {
-            ctx.reply("用法: /宗门 挑战        挑战者发起 / 宗主查看竞争期\n"
-                    + "      /宗门 挑战 接受   宗主应战（三局两胜）");
+            ctx.reply(I18n.t("sect.challenge_usage"));
             return;
         }
         var result = sectService.challengeLeader(p.getId(), accept);
@@ -440,7 +439,7 @@ public class SectCommand extends Command {
     private JsonObject handleSectInfoHttp(RouteDefinition.RestContext ctx) {
         long sectId = ctx.pathParamLong("sectId");
         Sect sec = sectService.getSectById(sectId);
-        if (sec == null) return GameMessage.restError(400, "宗门不存在");
+        if (sec == null) return GameMessage.restError(400, I18n.t("sect.not_found"));
         return buildSectJson(sec, ctx.playerId());
     }
 

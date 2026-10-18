@@ -216,7 +216,8 @@ public class GameResource {
         }
         if (name.trim().length() > com.mtxgdn.game.service.PlayerService.MAX_PLAYER_NAME_LENGTH) {
             return Response.ok(GameMessage.restError(400,
-                    "角色名不能超过 " + com.mtxgdn.game.service.PlayerService.MAX_PLAYER_NAME_LENGTH + " 个字符").toString()).build();
+                    I18n.t("game.player_name_too_long",
+                            com.mtxgdn.game.service.PlayerService.MAX_PLAYER_NAME_LENGTH)).toString()).build();
         }
 
         PlayerInfo player;
@@ -446,8 +447,11 @@ public class GameResource {
         data.addProperty("locationName", (String) result.get("locationName"));
         data.addProperty("locationMultiplier", ((Number) result.get("locationMultiplier")).doubleValue());
 
-        return Response.ok(GameMessage.restOk(I18n.t("cultivate.start") + result.get("locationName") + "，季节加成 "
-                + Math.round(((Number) result.get("seasonMultiplier")).doubleValue() * 100 - 100) + "%）", data).toString()).build();
+        return Response.ok(GameMessage.restOk(
+                I18n.t("cultivate.start_full",
+                        result.get("locationName"),
+                        Math.round(((Number) result.get("seasonMultiplier")).doubleValue() * 100 - 100)),
+                data).toString()).build();
     }
 
     @POST
@@ -994,7 +998,8 @@ public class GameResource {
             @QueryParam("limit") @DefaultValue("20") int limit,
             @QueryParam("offset") @DefaultValue("0") int offset) {
         if (name.trim().isEmpty()) {
-            return Response.ok(GameMessage.restError(GameErrorCode.PARAM_MISSING.getCode(), "请提供搜索名称").toString()).build();
+            return Response.ok(GameMessage.restError(GameErrorCode.PARAM_MISSING.getCode(),
+                    I18n.t("error.param_missing_search_name")).toString()).build();
         }
 
         List<PlayerInfo> players = playerService.searchPlayersByName(name.trim(), limit, offset);
@@ -1375,7 +1380,7 @@ public class GameResource {
                 Recipe.Category cat = Recipe.Category.valueOf(category.toUpperCase());
                 recipes = craftingService.getRecipesByCategory(cat);
             } catch (IllegalArgumentException e) {
-                return Response.ok(GameMessage.restError(400, "无效的配方分类: " + category).toString()).build();
+                return Response.ok(GameMessage.restError(400, I18n.t("error.invalid_recipe_category") + category).toString()).build();
             }
         } else {
             recipes = craftingService.getAllRecipes();
@@ -1871,7 +1876,7 @@ public class GameResource {
         int playerId = getPlayerIdByUserId(userId);
         SectMember member = sectService.getPlayerMember(playerId);
         if (member == null) {
-            return Response.ok(GameMessage.restError(400, "你还没有加入宗门").toString()).build();
+            return Response.ok(GameMessage.restError(400, I18n.t("sect.not_member")).toString()).build();
         }
         List<SectApplication> apps = sectService.getPendingApplications(member.getSectId());
         JsonArray arr = new JsonArray();
@@ -1975,7 +1980,7 @@ public class GameResource {
         int playerId = getPlayerIdByUserId(userId);
         SectMember member = sectService.getPlayerMember(playerId);
         if (member == null) {
-            return Response.ok(GameMessage.restError(400, "你还没有加入宗门").toString()).build();
+            return Response.ok(GameMessage.restError(400, I18n.t("sect.not_member")).toString()).build();
         }
         List<SectWarehouseItem> items = sectService.getWarehouse(member.getSectId());
         JsonArray arr = new JsonArray();
@@ -2006,7 +2011,7 @@ public class GameResource {
         int playerId = getPlayerIdByUserId(userId);
         SectMember member = sectService.getPlayerMember(playerId);
         if (member == null) {
-            return Response.ok(GameMessage.restError(400, "你还没有加入宗门").toString()).build();
+            return Response.ok(GameMessage.restError(400, I18n.t("sect.not_member")).toString()).build();
         }
         JsonObject json = com.google.gson.JsonParser.parseString(body).getAsJsonObject();
         String itemKey = json.has("itemKey") ? json.get("itemKey").getAsString() : "";
@@ -2028,7 +2033,7 @@ public class GameResource {
         int playerId = getPlayerIdByUserId(userId);
         SectMember member = sectService.getPlayerMember(playerId);
         if (member == null) {
-            return Response.ok(GameMessage.restError(400, "你还没有加入宗门").toString()).build();
+            return Response.ok(GameMessage.restError(400, I18n.t("sect.not_member")).toString()).build();
         }
         JsonObject json = com.google.gson.JsonParser.parseString(body).getAsJsonObject();
         String itemKey = json.has("itemKey") ? json.get("itemKey").getAsString() : "";
@@ -2354,7 +2359,7 @@ public class GameResource {
         TeamService teamService = TeamService.getInstance();
         TeamService.Team team = teamService.createTeam(player.getId());
         if (team == null) {
-            return Response.ok(GameMessage.restError(400, "你已经在一个团队中").toString()).build();
+            return Response.ok(GameMessage.restError(400, I18n.t("team.already_in_team")).toString()).build();
         }
 
         JsonObject data = new JsonObject();
@@ -2400,7 +2405,7 @@ public class GameResource {
         TeamService teamService = TeamService.getInstance();
         boolean success = teamService.invitePlayer(player.getId(), targetId);
         if (!success) {
-            return Response.ok(GameMessage.restError(400, "邀请失败，可能你不是队长或团队已满").toString()).build();
+            return Response.ok(GameMessage.restError(400, I18n.t("team.invite_failed")).toString()).build();
         }
 
         return Response.ok(GameMessage.restOk(I18n.t("team.invite_sent") + target.getName() + "】", null).toString()).build();
@@ -2420,7 +2425,7 @@ public class GameResource {
         TeamService teamService = TeamService.getInstance();
         TeamService.Team team = teamService.acceptInvite(player.getId());
         if (team == null) {
-            return Response.ok(GameMessage.restError(400, "没有待接受的邀请").toString()).build();
+            return Response.ok(GameMessage.restError(400, I18n.t("team.no_pending_invite")).toString()).build();
         }
 
         JsonObject data = new JsonObject();
@@ -2452,7 +2457,7 @@ public class GameResource {
         TeamService teamService = TeamService.getInstance();
         boolean success = teamService.leaveTeam(player.getId());
         if (!success) {
-            return Response.ok(GameMessage.restError(400, "你不在任何团队中").toString()).build();
+            return Response.ok(GameMessage.restError(400, I18n.t("team.not_in_team")).toString()).build();
         }
 
         return Response.ok(GameMessage.restOk(I18n.t("team.left"), null).toString()).build();
@@ -2945,7 +2950,7 @@ public class GameResource {
             return Response.ok(GameMessage.restError(GameErrorCode.PLAYER_NOT_FOUND).toString()).build();
         }
         if (!com.mtxgdn.playerdata.PlayerDataService.isSelfRestoreEnabled()) {
-            return Response.ok(GameMessage.restError(403, "自助数据恢复未开放（player-data.self-restore=false），请联系管理员通过后台还原").toString()).build();
+            return Response.ok(GameMessage.restError(403, I18n.t("player_data.self_restore_disabled")).toString()).build();
         }
         com.mtxgdn.playerdata.PlayerDataService dataService = new com.mtxgdn.playerdata.PlayerDataService();
         Map<String, Object> result = dataService.restorePlayer(player.getId(), body);

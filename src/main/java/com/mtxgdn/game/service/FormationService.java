@@ -165,7 +165,8 @@ public class FormationService {
         });
 
         result.put("success", true);
-        result.put("message", formation.getName() + "晋升为 " + newLevel + " 级！消耗 " + cost + " 灵石");
+        result.put("message", I18n.t("formation.upgraded",
+                formation.getName(), newLevel, cost));
         result.put("newLevel", newLevel);
         return result;
     }

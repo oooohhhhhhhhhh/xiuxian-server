@@ -31,9 +31,7 @@ public class EditPlayerCommand extends Command {
 
         String arg = ctx.getArg();
         if (arg == null || arg.isBlank()) {
-            ctx.reply("用法: /编辑玩家 <玩家ID> <属性>=<值> ...\n"
-                    + "可用属性: hp maxHp mp maxMp attack defense speed spirit level gold experience realm\n"
-                    + "示例: /编辑玩家 1 hp=500 attack=100 level=20");
+            ctx.reply(I18n.t("admin.edit_player.usage"));
             return;
         }
 

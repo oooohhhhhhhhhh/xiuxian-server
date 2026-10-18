@@ -18,6 +18,6 @@ public class CancelListingCommand extends Command {
         try { listingId = Long.parseLong(ctx.getArg().trim()); }
         catch (NumberFormatException e) { ctx.reply(I18n.t("market.h6e25fb8c")); return; }
         Map<String, Object> result = ServiceRegistry.getTradeService().cancelListing(p.getId(), listingId);
-        ctx.reply((String) result.getOrDefault("message", "撤单失败"));
+        ctx.reply((String) result.getOrDefault("message", I18n.t("trade.cancel_failed")));
     }
 }

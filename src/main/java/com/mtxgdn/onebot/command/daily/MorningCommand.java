@@ -4,6 +4,7 @@ import com.mtxgdn.common.command.Command;
 import com.mtxgdn.common.command.CommandContext;
 import com.mtxgdn.game.entity.PlayerInfo;
 import com.mtxgdn.common.service.ServiceRegistry;
+import com.mtxgdn.i18n.I18n;
 
 public class MorningCommand extends Command {
     public MorningCommand() { super(new String[]{"晨修", "morning"}, "每日晨修，获取天象加成", "/晨修", "修炼", "game.player.info"); setModule("cultivation"); }
@@ -14,7 +15,7 @@ public class MorningCommand extends Command {
         PlayerInfo p = ctx.requirePlayer(userId);
         if (p == null) return;
         var result = ServiceRegistry.getDailyService().doMorningCultivation(p.getId());
-        String msg = (String) result.getOrDefault("message", "晨修出现异常");
+        String msg = (String) result.getOrDefault("message", I18n.t("daily.morning_error"));
         if (Boolean.TRUE.equals(result.get("success"))) {
             long exp = ((Number) result.getOrDefault("expGained", 0)).longValue();
             long ss = ((Number) result.getOrDefault("spiritStonesGained", 0)).longValue();

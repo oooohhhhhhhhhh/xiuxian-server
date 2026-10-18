@@ -891,8 +891,8 @@ public class EconomyService {
         String sourceKey = com.mtxgdn.game.item.CurrencyEffect.getStoneKey(grade);
         if (itemService.getItemCount(playerId, sourceKey) < PURIFY_STONE_COST) {
             result.put("success", false);
-            result.put("message", sourceName + "不足，提纯一次需要 " + PURIFY_STONE_COST + " 块" + sourceName
-                    + "（当前：" + itemService.getItemCount(playerId, sourceKey) + "）");
+            result.put("message", I18n.t("economy.purify.short_stone", sourceName,
+                    PURIFY_STONE_COST, itemService.getItemCount(playerId, sourceKey)));
             return result;
         }
 

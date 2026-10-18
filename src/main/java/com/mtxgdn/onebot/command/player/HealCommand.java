@@ -15,6 +15,6 @@ public class HealCommand extends Command {
         PlayerInfo p = ctx.requirePlayer(userId); if (p == null) return;
         if (p.getHp() >= p.getMaxHp()) { ctx.reply(I18n.t("player.hc5d64260")); return; }
         Map<String, Object> result = ServiceRegistry.getPlayerService().healPlayer(p.getId());
-        ctx.reply((String) result.getOrDefault("message", "疗伤失败"));
+        ctx.reply((String) result.getOrDefault("message", I18n.t("player.heal_failed")));
     }
 }

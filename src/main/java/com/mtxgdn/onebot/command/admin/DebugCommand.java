@@ -116,7 +116,8 @@ public class DebugCommand extends Command {
         }
 
         ctx.reply(I18n.t("admin.hf579788c", cmdName));
-        ctx.reply(I18n.t("debug.args", cmdArgs.isEmpty() ? "(无)" : cmdArgs));
+        // "(无)" 是给用户看的空值占位，不是一个键名，所以走 I18n.t("debug.no_args")
+        ctx.reply(I18n.t("debug.args", cmdArgs.isEmpty() ? I18n.t("debug.no_args") : cmdArgs));
         ctx.reply(I18n.t("admin.h3bcc1334"));
 
         try {

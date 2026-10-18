@@ -1,0 +1,10 @@
+{
+  "请提供搜索名称": "error.param_missing",
+  "无效的配方分类: ": "error.invalid_recipe_category",
+  "你还没有加入宗门": "sect.not_member",
+  "你已经在一个团队中": "team.already_in_team",
+  "邀请失败，可能你不是队长或团队已满": "team.invite_failed",
+  "没有待接受的邀请": "team.no_pending_invite",
+  "你不在任何团队中": "team.not_in_team",
+  "自助数据恢复未开放（player-data.self-restore=false），请联系管理员通过后台还原": "player_data.self_restore_disabled"
+}

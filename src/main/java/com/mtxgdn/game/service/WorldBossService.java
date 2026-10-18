@@ -430,7 +430,8 @@ public class WorldBossService {
         PveCombatResult combat = combatService.pveFight(playerId, toMonster(boss));
         if (!combat.isSuccess()) {
             result.put("success", false);
-            result.put("message", combat.getMessage() != null ? combat.getMessage() : "战斗未能开始");
+            result.put("message", combat.getMessage() != null ? combat.getMessage()
+                    : I18n.t("worldboss.combat_not_started"));
             return result;
         }
 
