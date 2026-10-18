@@ -479,9 +479,14 @@ public class ItemService {
     }
 
     /**
-     * 以"下品灵石等值"发放灵石，自动按最优面额存入背包。
-     * 不触发自动合并，灵石保持原始等级。
-     * 同时检查各等级硬上限，溢出部分留在本级不合并。
+     * 以"下品灵石等值"发放灵石：一律先记在下品，再按合并阈值向上压缩。
+     *
+     * <p>灵石的四档是<b>面额</b>而不是稀有度（1 极品 = 10 亿下品），所以高等级灵石
+     * 只应该作为"存量过大的紧凑表示"出现，不该因为"这次奖励发得多"就凭空变成极品。
+     * 旧实现从极品往下填（先塞满 99 个极品，再 9999 个上品…），结果是同样持有 10 亿
+     * 灵石的两个人：领 1000 次小奖励的手里全是下品，领 1 次大奖励的手里是 1 个极品 ——
+     * 极品成了"上次一次性拿了多少"的副产品，与难度、稀有度毫无关系。
+     * 而全库没有任何内容直接发放中品/上品/极品，所以这条路是极品唯一的来源。</p>
      */
     private boolean addSpiritStonesAuto(long playerId, long amount) {
         try (Connection conn = DatabaseManager.getConnection()) {
@@ -494,45 +499,52 @@ public class ItemService {
 
     private boolean addSpiritStonesAuto(Connection conn, long playerId, long amount) throws SQLException {
         if (amount <= 0) return true;
-
-        // 按面额从大到小分配，优先用高等级灵石，受硬上限约束
-        long remaining = amount;
-        for (int grade = 3; grade >= 0; grade--) {
-            long rate = CurrencyEffect.getExchangeRate(grade);
-            long maxHold = CurrencyEffect.MAX_HOLD_PER_GRADE[grade];
-            String key = CurrencyEffect.getStoneKey(grade);
-
-            long current = getItemCount(conn, playerId, key);
-            long canAdd = (maxHold > 0) ? Math.max(0, maxHold - current) : Long.MAX_VALUE;
-            long maxByLimit = canAdd * rate;
-
-            long useFromThis = Math.min(remaining / rate * rate, maxByLimit);
-            long countThis = useFromThis / rate;
-
-            if (countThis > 0) {
-                addItem(conn, playerId, key, countThis);
-                remaining -= countThis * rate;
-            }
-
-            if (remaining < rate) break;
-        }
-
-        // 剩余尾数用下品灵石补齐
-        if (remaining > 0) {
-            addItem(conn, playerId, CurrencyEffect.SPIRIT_STONE_LOW, remaining);
-        }
-
+        // 下品灵石没有持有上限（MAX_HOLD_PER_GRADE[0] == 0），先全量落账最省事也最不会算错，
+        // 再交给 compressSpiritStones 决定要不要折成更高面额。
+        addItem(conn, playerId, CurrencyEffect.SPIRIT_STONE_LOW, amount);
+        compressSpiritStones(conn, playerId);
         return true;
     }
 
     /**
-     * 将玩家背包中所有灵石按合并阈值向上一级压缩：
-     *   - 下品 ≥2000等值 → 合并为中品
-     *   - 中品 ≥2000000等值 → 合并为上品
-     *   - 上品 ≥2000000000等值 → 合并为极品
-     * 合并时受上级硬上限约束。
+     * 按 {@link CurrencyEffect#CONSOLIDATE_THRESHOLD_LOW} 把超额灵石向上一级压缩：
+     * <ul>
+     *   <li>下品等值 ≥ 2000 → 折算为中品</li>
+     *   <li>中品等值 ≥ 200 万 → 折算为上品</li>
+     *   <li>上品等值 ≥ 20 亿 → 折算为极品</li>
+     * </ul>
+     *
+     * <p>规则是<b>每档保留阈值以内的存量，只把超出的部分换成上一档</b>。
+     * 刻意留够阈值以内的量：炼制配方点名要 {@code mtxgdn:spirit_stone_low}
+     * （锻造灵剑要 3 个下品），手里必须常备一些下品，否则会出现
+     * "揣着 1 个极品（=10 亿下品）却买不起一把需要 3 下品的灵剑"。</p>
+     *
+     * <p>压缩只按面额与阈值换算，<b>不受 {@link CurrencyEffect#MAX_HOLD_PER_GRADE} 约束</b>：
+     * 那些上限是"显式发放某一档"时的护栏（见 {@link #addSpiritStones(long, long, int)}）。
+     * 若在压缩里也套上限，中品 999999 的上限会变成整条阶梯的瓶颈 ——
+     * 中品满仓后多余的灵石再也换不成上品，10 亿以上的存量会被永久堵在下品里，
+     * 恰好和"压缩"的目的相反。</p>
      */
+    public void compressSpiritStones(Connection conn, long playerId) throws SQLException {
+        for (int grade = 0; grade <= 2; grade++) {
+            long rate = CurrencyEffect.getExchangeRate(grade);
+            long per = CurrencyEffect.getExchangeRate(grade + 1) / rate;
+            if (per <= 1) continue;
 
+            long threshold = CurrencyEffect.CONSOLIDATE_THRESHOLD_LOW[grade];
+            if (threshold <= 0) continue;
+
+            long count = getItemCount(conn, playerId, CurrencyEffect.getStoneKey(grade));
+            if (count * rate <= threshold) continue;
+
+            long keepCount = threshold / rate;
+            long mergeUnits = (count - keepCount) / per;
+            if (mergeUnits <= 0) continue;
+
+            removeItem(conn, playerId, CurrencyEffect.getStoneKey(grade), mergeUnits * per);
+            addItem(conn, playerId, CurrencyEffect.getStoneKey(grade + 1), mergeUnits);
+        }
+    }
     public Map<String, Object> exchangeSpiritStones(long playerId, int fromGrade, int toGrade, long amount) {
         Map<String, Object> result = new LinkedHashMap<>();
         if (fromGrade < 0 || fromGrade > 3 || toGrade < 0 || toGrade > 3) {

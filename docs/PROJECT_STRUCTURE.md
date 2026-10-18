@@ -4,7 +4,7 @@
 >
 > - 项目版本：`0.1.0`（唯一来源为 `pom.xml` 的 `<version>`；运行时由 `com.mtxgdn.util.BuildInfo` 读取，见 `build-info.properties`）
 > - 构建：Maven（JDK 23）；产物 `target/main-0.1.0.jar`
-> - 统计口径：`src/main/java` 486 个 `.java`（另有 1 个 `data/mtxgdn/lang/zh_cn.json` 语言包）、`src/test/java` 37 个 `.java`，主源码约 7.04 万行（70422 非空白行）；`src` 下共 561 个文件
+> - 统计口径：`src/main/java` 486 个 `.java`（另有 1 个 `data/mtxgdn/lang/zh_cn.json` 语言包）、`src/test/java` 38 个 `.java`，主源码约 7.04 万行（70440 非空白行）；`src` 下共 562 个文件
 > - 文中「行数」为该文件的物理行数，用于判断文件体量
 
 ---
@@ -321,7 +321,7 @@
 | `SectService.java` | 1142 | 宗门：创建/申请/审批/任命/捐献/仓库/踢人/解散/升级/转让/宗门战/排行 |
 | `WorldBossService.java` | 796 | 世界 Boss：全服共享血量（落库，无内存态无定时器）、惰性整池重建、伤害分红、超发熔断、挑战冷却 |
 | `EconomyService.java` | 906 | 经济：竞拍行（限时竞价）、灵庄（活期/定期+利息）、商店、签到、灵石提纯、回收 |
-| `ItemService.java` | 829 | 背包与物品：upsert 式添加、使用、装备/卸下、灵石流转、容量 |
+| `ItemService.java` | 949 | 背包与物品：upsert 式添加、使用、装备/卸下、灵石流转（含面额压缩）、容量 |
 | `FarmService.java` | 882 | 农场：4–12 块地、8 种作物、浇水/施肥/病虫害、一键操作，受季节影响。**生长改为惰性结算**：无后台线程，玩家访问农田时按 `now - settled_time` 一次性推进（水分按时间差衰减、病虫害按区间累计概率 `1-(1-p)^n`、成熟即掷定品质并落库） |
 | `MapService.java` | 1719 | 地图：地点与路线、移动耗时与并发 CAS、安全区与危险度判定、缓存热重载、**野外分片世界**（`getLocation()` 对野外 id 现算节点、`getNeighbors()` 现算邻接、首达写入分片文件并固化、原地补货与回收未探索分片）。**野外不进数据库**：`map_locations` 只装已知世界 |
 | `TradeService.java` | 602 | 坊市：挂单（默认 72 小时）、成交（5% 手续费）、到期回收、成交价格历史与清理任务 |
@@ -892,6 +892,7 @@ public class HealingPill extends Item {
 | `game/service/TradeListingExpiryTest.java` | 552 | 坊市挂单时限 + 成交价格历史回归 |
 | `game/service/WorldBossTest.java` | 475 | 世界 Boss 回归：池子生命周期（生成数量 / TTL 内稳定 / 到期换批 / 刷新换批）、**血量全服共享**（A 打完落库、B 从剩余血量起算）、**伤害分红精确性**（`灵石 == 预算 × 伤害 / 最大血量` 逐位相等）、**超发熔断**（阈值内原样、超阈值折算到 `阈值/10..阈值/5`）、**挑战冷却**（期内被拒 / 期后可再战）、击杀归属与三种拒绝（已死 / 境界差距 / 闭关）**均不扣血**，外加战报灵石数与实际入账一致性校验 |
 | `game/service/BreakthroughPityTest.java` | 427 | 突破改造回归：**连败增益**（失败 +1 次且境界不动 / 逐次累加 / 成功清零 / 小境界必成也清零 / 按次数进入成功率 / 次数有上限且最终率 ≤ 95%）、**凝实**（小境界与修为未满均拒绝 / 一层 +8% 基础属性 / 第 4 层被拒 / 每层乘算打折成功率 / 3 层时失败损失 1.9 倍 / 成功后清零）、**预览不改状态且与实际渡劫共用同一份公式**。渡劫用 `setRandomForTest` 注入固定掷骰的 `Random`，避免"失败路径"靠重试撞出来 |
+| `game/service/SpiritStoneGradeTest.java` | 194 | 灵石面额压缩回归：小额发放保持下品、10 亿压成上品但不出极品、超 20 亿才出现极品、任意数额压缩前后**价值逐位守恒**、存量超阈值时下次发放会把旧灵石一起压缩、压缩后的分档灵石仍能按面额汇总一次性扣干净 |
 | `game/service/FarmLazySettlementTest.java` | 262 | 农田惰性结算回归：无后台线程也能成熟、水分按时间差衰减、离线枯萎取精确穿零点、重复访问幂等、收获前先结算、只结算被访问玩家，以及"不得再引入后台调度器"的防回归锁 |
 | `game/service/BuffLazyExpiryTest.java` | 184 | Buff 惰性过期回归：读取即回退属性、重复访问只回退一次、刷新时长的增益不被误删、离线玩家由低频兜底回收、回收间隔不得回到秒级 |
 | `game/service/TradeServiceConcurrencyTest.java` | 286 | 坊市并发回归 |
