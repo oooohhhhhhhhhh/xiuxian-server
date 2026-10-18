@@ -110,12 +110,15 @@ public final class I18nManager {
             if (incoming == null || incoming.isEmpty()) {
                 return;
             }
-            Map<String, String> current = bundles.computeIfAbsent(
-                    lang.code(), k -> new ConcurrentHashMap<>());
-            current.putAll(incoming);
-            bundles.put(lang.code(), Collections.unmodifiableMap(new LinkedHashMap<>(current)));
+            // 注意：bundle(lang) 返回的是 load() 里包了 unmodifiableMap 的只读视图，
+            // 直接 putAll 会抛 UnsupportedOperationException，被下面的 catch 吞掉，
+            // 表现为"插件词条一条都没进去，只有一条告警"。所以必须先拷成可变副本，
+            // 改完再整体 put 回 bundles —— 这样已发布的只读视图也不会被就地修改。
+            Map<String, String> merged = new LinkedHashMap<>(bundle(lang));
+            merged.putAll(incoming);
+            bundles.put(lang.code(), Collections.unmodifiableMap(merged));
         } catch (Exception e) {
-            log.warn("[i18n] 合并语言包失败: lang=" + lang.code() + " - " + e.getMessage());
+            log.warn("[i18n] 合并语言包失败: lang=" + lang.code() + " - " + e);
         }
     }
 

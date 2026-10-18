@@ -69,8 +69,14 @@ public class LanguageRequestFilter implements ContainerRequestFilter {
         String accept = ctx.getHeaderString(HttpHeaders.ACCEPT_LANGUAGE);
         if (accept != null && !accept.isBlank()) {
             for (String part : accept.split(",")) {
-                // 形如 "en-US;q=0.9"，取分号前的语言标签
-                String tag = part.split(";")[0].trim();
+                // 形如 "en-US;q=0.9"，取分号前的语言标签。
+                // 这里刻意不用 part.split(";")[0]：Java 的 "".split(";") 返回
+                // 长度 0 的数组，遇到 ";;,," 这种畸形头就会抛 AIOOBE。
+                int semi = part.indexOf(';');
+                String tag = (semi >= 0 ? part.substring(0, semi) : part).trim();
+                if (tag.isEmpty()) {
+                    continue;
+                }
                 lang = GameLanguage.parse(tag);
                 if (lang != null) {
                     return lang;
