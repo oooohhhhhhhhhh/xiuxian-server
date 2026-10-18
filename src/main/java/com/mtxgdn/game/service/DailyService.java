@@ -5,6 +5,7 @@ import com.mtxgdn.entity.Player;
 import com.mtxgdn.game.entity.CelestialPhenomenon;
 import com.mtxgdn.game.entity.Season;
 import com.mtxgdn.game.entity.SpiritualRoot;
+import com.mtxgdn.i18n.I18n;
 import com.mtxgdn.common.service.ServiceRegistry;
 import com.mtxgdn.util.GameLogger;
 
@@ -135,8 +136,13 @@ public class DailyService {
         checkSpiritualRootResonance(playerId, player);
 
         result.put("success", true);
-        result.put("message", "晨曦初现，紫气东来！你盘膝而坐，运转功法，获得 " + totalExp + " 经验和 " + totalSpiritStones + " 灵石"
-                + (seasonBonusExp > 0 ? "（" + currentSeason.getDisplayName() + "加成 +" + seasonBonusExp + "）" : ""));
+        // 季节加成整段作为一个占位符 {2}：它在中文里是括号括起来的尾巴，
+        // 英文里大概率要换一种说法（可能前置成分、可能换行），
+        // 把"整个尾巴"交出去比拆成"（{2}加成 +{3}）"更容易让翻译重排语序。
+        result.put("message", I18n.t("daily.cultivate.success", totalExp, totalSpiritStones,
+                seasonBonusExp > 0
+                        ? "（" + currentSeason.getDisplayName() + "加成 +" + seasonBonusExp + "）"
+                        : ""));
         result.put("expGained", totalExp);
         result.put("spiritStonesGained", totalSpiritStones);
         result.put("consecutiveDays", consecutive);

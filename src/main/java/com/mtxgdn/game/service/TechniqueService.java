@@ -296,7 +296,7 @@ public class TechniqueService {
         }
 
         result.put("success", true);
-        result.put("message", "功法【" + tech.getName() + "】升至 Lv." + (tech.getLevel() + 1));
+        result.put("message", I18n.t("technique.level_up", tech.getName(), tech.getLevel() + 1));
         return result;
     }
 

@@ -1,0 +1,6 @@
+{
+  "install.config_saved_restarting": "配置已保存{0}，正在重启服务器…",
+  "oauth.config_updated": "OAuth2 配置已更新{0}",
+  "oauth.accessing_protected_resource": "你正在使用 OAuth 2.0 访问受保护资源（scope: {0}）",
+  "oauth.server_status_protected": "服务器状态（OAuth 受保护资源）"
+}

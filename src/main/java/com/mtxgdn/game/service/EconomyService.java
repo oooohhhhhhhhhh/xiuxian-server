@@ -198,7 +198,8 @@ public class EconomyService {
         result.put("success", true);
         result.put("item", item != null ? item.getName() : itemKey);
         result.put("cost", price);
-        result.put("message", "花费 " + price + " 下品灵石，购得【" + (item != null ? item.getName() : itemKey) + "】");
+        result.put("message", I18n.t("economy.market.buy", price,
+                item != null ? item.getName() : itemKey));
         return result;
     }
 
@@ -383,7 +384,8 @@ public class EconomyService {
 
         result.put("success", true);
         if ("current".equals(type)) {
-            result.put("message", "已将 " + amount + " 下品灵石存入灵庄（活期，日利 " + String.format("%.1f", rate * 100) + "%）。随时可取，利息按日结算。\n编号: #" + depositId);
+            result.put("message", I18n.t("economy.bank.deposit", amount,
+                    String.format("%.1f", rate * 100), depositId));
         } else {
             long expectedInterest = (long)(amount * rate);
             result.put("message", I18n.t("economy.h36cdeb17", amount, typeName, days, expectedInterest, depositId));
@@ -448,7 +450,9 @@ public class EconomyService {
         result.put("principal", dep.principal);
         result.put("interest", interest);
         result.put("total", dep.principal + interest);
-        result.put("message", "灵庄取款成功！本金 " + dep.principal + "+ 利息 " + interest + " = 共 " + (dep.principal + interest) + " 下品灵石" + note);
+        // note 是一个可空尾巴（提前支取时会带扣息说明），整体交给 {3}
+        result.put("message", I18n.t("economy.bank.withdraw", dep.principal, interest,
+                dep.principal + interest, note));
         return result;
     }
 

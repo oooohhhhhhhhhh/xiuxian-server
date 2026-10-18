@@ -428,12 +428,12 @@ public class SectCommand extends Command {
         }
         JsonObject data = new JsonObject();
         data.add("sects", arr);
-        return GameMessage.restOk("获取成功", data);
+        return GameMessage.restOk(I18n.t("common.rest.ok"), data);
     }
 
     private JsonObject handleMySectHttp(RouteDefinition.RestContext ctx) {
         Sect sec = sectService.getPlayerSect(ctx.playerId());
-        if (sec == null) return GameMessage.restOk("尚未加入宗门", null);
+        if (sec == null) return GameMessage.restOk(I18n.t("sect.not_member"), null);
         return buildSectJson(sec, ctx.playerId());
     }
 
@@ -551,7 +551,7 @@ public class SectCommand extends Command {
             data.addProperty("myRoleDisplay", SectMember.getRoleDisplayName(me.getRole()));
             data.addProperty("myContribution", me.getContribution());
         }
-        return GameMessage.restOk("获取成功", data);
+        return GameMessage.restOk(I18n.t("common.rest.ok"), data);
     }
 
     /**

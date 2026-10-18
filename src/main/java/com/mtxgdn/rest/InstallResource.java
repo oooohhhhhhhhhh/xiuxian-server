@@ -286,7 +286,11 @@ public class InstallResource {
 
         result.addProperty("code", 200);
         result.addProperty("success", true);
-        result.addProperty("message", "配置已保存" + (persistMsg != null ? "（" + persistMsg + "）" : "") + "，正在重启服务器…");
+        // persistMsg 是"配置是否落盘成功"的可空尾巴，整体交给 {0}：
+        // 中文里它是全角括号包的一段，英文里可能想换成 " (saved to disk)"
+        // 或干脆前置成一个句子，拆开成半句模板就没法重排了。
+        result.addProperty("message", I18n.t("install.config_saved_restarting",
+                persistMsg != null ? "（" + persistMsg + "）" : ""));
         result.addProperty("restartRequired", true);
         return Response.ok(result.toString()).build();
     }

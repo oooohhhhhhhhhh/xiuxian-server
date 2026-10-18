@@ -828,7 +828,10 @@ public class SectService {
             });
         } catch (Exception e) {
             result.put("success", false);
-            result.put("message", "取出失败：" + (e.getMessage() != null ? e.getMessage() : "未知错误"));
+            // "未知错误" 保留在代码里当兜底，不走词条：
+            // 它只在异常消息为空时出现，属于"连系统都说不清"的例外情况
+            result.put("message", I18n.t("sect.withdraw.failed",
+                    e.getMessage() != null ? e.getMessage() : "未知错误"));
             return result;
         }
 

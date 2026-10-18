@@ -42,7 +42,10 @@ public class LearnSkillCommand extends Command {
             String skillName = skill != null ? skill.getName() : "技能ID:" + skillId;
             ctx.reply(I18n.t("combat.h81af9623", skillName));
         } else {
-            ctx.reply("学习失败: " + (String) learnResult.getOrDefault("message", ""));
+            // 服务端已经给出了本地化的失败原因，这里只套一个前后缀；
+            // 服务端消息本身也走 I18n，所以整句仍是当前语言
+            ctx.reply(I18n.t("skill.learn.failed",
+                    String.valueOf(learnResult.getOrDefault("message", ""))));
         }
     }
 }

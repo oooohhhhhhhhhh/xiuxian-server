@@ -11,6 +11,7 @@ import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.Date;
+import com.mtxgdn.i18n.I18n;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
@@ -119,7 +120,8 @@ public class OAuthService {
 
         String persistMsg = persistConfig();
         result.put("success", true);
-        result.put("message", "OAuth2 配置已更新" + (persistMsg != null ? "（" + persistMsg + "）" : ""));
+        result.put("message", I18n.t("oauth.config_updated",
+                persistMsg != null ? "（" + persistMsg + "）" : ""));
         result.putAll(getConfig(false));
         return result;
     }

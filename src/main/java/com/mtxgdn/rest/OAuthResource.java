@@ -124,8 +124,9 @@ public class OAuthResource {
         }
         JsonObject data = serverInfo();
         data.addProperty("client_id", claims.get("client_id", String.class));
-        data.addProperty("message", "你正在使用 OAuth 2.0 访问受保护资源（scope: " + claims.get("scope", String.class) + "）");
-        return ok("服务器状态（OAuth 受保护资源）", data);
+        data.addProperty("message", I18n.t("oauth.accessing_protected_resource",
+                claims.get("scope", String.class)));
+        return ok(I18n.t("oauth.server_status_protected"), data);
     }
 
     /** 受保护资源示例：回显（需 write scope） */

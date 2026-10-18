@@ -134,7 +134,7 @@ public class GameResource {
         PlayerInfo player = playerService.getPlayerByUserId(userId);
 
         if (player == null) {
-            JsonObject result = GameMessage.restOk("尚未创建角色", null);
+            JsonObject result = GameMessage.restOk(I18n.t("game.no_character"), null);
             return Response.ok(result.toString()).build();
         }
 
@@ -190,7 +190,7 @@ public class GameResource {
             data.add("offlineReward", offlineJson);
         }
 
-        return Response.ok(GameMessage.restOk("获取成功", data).toString()).build();
+        return Response.ok(GameMessage.restOk(I18n.t("common.rest.ok"), data).toString()).build();
     }
 
     @POST
@@ -237,7 +237,7 @@ public class GameResource {
         tutorialSteps.add("进入秘境: POST /api/game/secret_realm/enter");
         tutorialSteps.add("境界突破: POST /api/game/realm/breakthrough");
         data.add("tutorial", tutorialSteps);
-        return Response.ok(GameMessage.restOk("角色创建成功", data).toString()).build();
+        return Response.ok(GameMessage.restOk(I18n.t("game.character_created"), data).toString()).build();
     }
 
     @POST
@@ -289,7 +289,7 @@ public class GameResource {
     @RequirePermission("game.realm.config")
     public Response getRealmConfig() {
         JsonObject data = gson.toJsonTree(GameConfigLoader.getRealmConfigs()).getAsJsonObject();
-        return Response.ok(GameMessage.restOk("获取成功", data).toString()).build();
+        return Response.ok(GameMessage.restOk(I18n.t("common.rest.ok"), data).toString()).build();
     }
 
     // ==================== 多语言（i18n） ====================
@@ -319,7 +319,7 @@ public class GameResource {
         // 回退链上还缺多少 key：给客户端一个"翻译完整度"的信号，
         // 便于它在 UI 上提示"部分内容尚未翻译"
         data.addProperty("missingCount", I18nManager.missingKeys(lang).size());
-        return Response.ok(GameMessage.restOk("获取成功", data).toString()).build();
+        return Response.ok(GameMessage.restOk(I18n.t("common.rest.ok"), data).toString()).build();
     }
 
     /** 服务端支持的语言列表（含各语言词条数与完整度），供语言选择器使用。免鉴权。 */
@@ -334,7 +334,7 @@ public class GameResource {
         JsonObject data = new JsonObject();
         data.add("languages", arr);
         data.addProperty("default", I18nManager.serverDefault().code());
-        return Response.ok(GameMessage.restOk("获取成功", data).toString()).build();
+        return Response.ok(GameMessage.restOk(I18n.t("common.rest.ok"), data).toString()).build();
     }
 
     /**
@@ -358,7 +358,7 @@ public class GameResource {
         data.addProperty("lang", player.getLanguage());
         data.addProperty("resolved", resolved.code());
         data.addProperty("isDefault", resolved.equals(I18nManager.serverDefault()));
-        return Response.ok(GameMessage.restOk("获取成功", data).toString()).build();
+        return Response.ok(GameMessage.restOk(I18n.t("common.rest.ok"), data).toString()).build();
     }
 
     /**
@@ -414,7 +414,7 @@ public class GameResource {
         JsonObject data = new JsonObject();
         data.addProperty("lang", stored);
         data.addProperty("resolved", LanguageResolver.fromCode(stored).code());
-        return Response.ok(GameMessage.restOk("设置成功", data).toString()).build();
+        return Response.ok(GameMessage.restOk(I18n.t("common.saved"), data).toString()).build();
     }
 
     @POST
@@ -446,7 +446,7 @@ public class GameResource {
         data.addProperty("locationName", (String) result.get("locationName"));
         data.addProperty("locationMultiplier", ((Number) result.get("locationMultiplier")).doubleValue());
 
-        return Response.ok(GameMessage.restOk("开始闭关修炼（" + result.get("locationName") + "，季节加成 "
+        return Response.ok(GameMessage.restOk(I18n.t("cultivate.start") + result.get("locationName") + "，季节加成 "
                 + Math.round(((Number) result.get("seasonMultiplier")).doubleValue() * 100 - 100) + "%）", data).toString()).build();
     }
 
@@ -520,7 +520,7 @@ public class GameResource {
         if (areas.isEmpty()) {
             JsonObject data = new JsonObject();
             data.addProperty("message", I18n.t("game.hde5e9ffe"));
-            return Response.ok(GameMessage.restOk("获取成功", data).toString()).build();
+            return Response.ok(GameMessage.restOk(I18n.t("common.rest.ok"), data).toString()).build();
         }
 
         JsonArray areasArray = new JsonArray();
@@ -537,7 +537,7 @@ public class GameResource {
         data.add("areas", areasArray);
         data.addProperty("count", areasArray.size());
 
-        return Response.ok(GameMessage.restOk("获取成功", data).toString()).build();
+        return Response.ok(GameMessage.restOk(I18n.t("common.rest.ok"), data).toString()).build();
     }
 
     @POST
@@ -620,7 +620,7 @@ public class GameResource {
         data.add("items", items);
         data.addProperty("count", items.size());
 
-        return Response.ok(GameMessage.restOk("获取成功", data).toString()).build();
+        return Response.ok(GameMessage.restOk(I18n.t("common.rest.ok"), data).toString()).build();
     }
 
     @GET
@@ -644,7 +644,7 @@ public class GameResource {
         data.add("items", items);
         data.addProperty("count", items.size());
 
-        return Response.ok(GameMessage.restOk("获取成功", data).toString()).build();
+        return Response.ok(GameMessage.restOk(I18n.t("common.rest.ok"), data).toString()).build();
     }
 
     @POST
@@ -699,7 +699,7 @@ public class GameResource {
         data.addProperty("added", ok);
 
         if (ok) {
-            return Response.ok(GameMessage.restOk("获得物品成功", data).toString()).build();
+            return Response.ok(GameMessage.restOk(I18n.t("item.gain_ok"), data).toString()).build();
         } else {
             return Response.ok(GameMessage.restError(GameErrorCode.ITEM_NOT_FOUND).toString()).build();
         }
@@ -735,7 +735,7 @@ public class GameResource {
         }
         data.add("slots", slots);
 
-        return Response.ok(GameMessage.restOk("获取成功", data).toString()).build();
+        return Response.ok(GameMessage.restOk(I18n.t("common.rest.ok"), data).toString()).build();
     }
 
     @POST
@@ -820,7 +820,7 @@ public class GameResource {
         data.add("skills", skillsArray);
         data.addProperty("count", skillsArray.size());
 
-        return Response.ok(GameMessage.restOk("获取成功", data).toString()).build();
+        return Response.ok(GameMessage.restOk(I18n.t("common.rest.ok"), data).toString()).build();
     }
 
     @GET
@@ -843,7 +843,7 @@ public class GameResource {
         data.add("skills", skillsArray);
         data.addProperty("count", skillsArray.size());
 
-        return Response.ok(GameMessage.restOk("获取成功", data).toString()).build();
+        return Response.ok(GameMessage.restOk(I18n.t("common.rest.ok"), data).toString()).build();
     }
 
     @POST
@@ -951,7 +951,7 @@ public class GameResource {
         data.addProperty("usedMemoryMB", usedMemory);
         data.addProperty("maxMemoryMB", maxMemory);
 
-        return Response.ok(GameMessage.restOk("服务器运行正常", data).toString()).build();
+        return Response.ok(GameMessage.restOk(I18n.t("admin.status.healthy"), data).toString()).build();
     }
 
     @GET
@@ -983,7 +983,7 @@ public class GameResource {
         data.addProperty("limit", limit);
         data.addProperty("offset", offset);
 
-        return Response.ok(GameMessage.restOk("获取成功", data).toString()).build();
+        return Response.ok(GameMessage.restOk(I18n.t("common.rest.ok"), data).toString()).build();
     }
 
     @GET
@@ -1016,7 +1016,7 @@ public class GameResource {
         data.addProperty("count", playersArray.size());
         data.addProperty("keyword", name.trim());
 
-        return Response.ok(GameMessage.restOk("搜索成功", data).toString()).build();
+        return Response.ok(GameMessage.restOk(I18n.t("common.search_ok"), data).toString()).build();
     }
 
     @GET
@@ -1043,7 +1043,7 @@ public class GameResource {
         }
         JsonObject rootData = new JsonObject();
         rootData.add("roots", arr);
-        return Response.ok(GameMessage.restOk("获取灵根列表成功", rootData).toString()).build();
+        return Response.ok(GameMessage.restOk(I18n.t("root.list_ok"), rootData).toString()).build();
     }
 
     @POST
@@ -1065,7 +1065,7 @@ public class GameResource {
         Long userId = getCurrentUserId();
         int playerId = getPlayerIdByUserId(userId);
         var result = dailyService.getDailyInfo(playerId);
-        return Response.ok(GameMessage.restOk("获取成功", gson.toJsonTree(result).getAsJsonObject()).toString()).build();
+        return Response.ok(GameMessage.restOk(I18n.t("common.rest.ok"), gson.toJsonTree(result).getAsJsonObject()).toString()).build();
     }
 
     @GET
@@ -1102,7 +1102,7 @@ public class GameResource {
         data.addProperty("count", arr.size());
         data.addProperty("tradeFeeRate", "5%");
         data.addProperty("listingDurationHours", TradeService.getListingDurationHours());
-        return Response.ok(GameMessage.restOk("坊市列表", data).toString()).build();
+        return Response.ok(GameMessage.restOk(I18n.t("market.list_title"), data).toString()).build();
     }
 
     @GET
@@ -1214,7 +1214,7 @@ public class GameResource {
         }
         JsonObject data = new JsonObject();
         data.add("listings", arr);
-        return Response.ok(GameMessage.restOk("获取成功", data).toString()).build();
+        return Response.ok(GameMessage.restOk(I18n.t("common.rest.ok"), data).toString()).build();
     }
 
     @GET
@@ -1250,7 +1250,7 @@ public class GameResource {
         }
         JsonObject data = new JsonObject();
         data.add("techniques", arr);
-        return Response.ok(GameMessage.restOk("获取成功", data).toString()).build();
+        return Response.ok(GameMessage.restOk(I18n.t("common.rest.ok"), data).toString()).build();
     }
 
     @GET
@@ -1281,7 +1281,7 @@ public class GameResource {
         }
         JsonObject data = new JsonObject();
         data.add("techniques", arr);
-        return Response.ok(GameMessage.restOk("获取成功", data).toString()).build();
+        return Response.ok(GameMessage.restOk(I18n.t("common.rest.ok"), data).toString()).build();
     }
 
     @POST
@@ -1403,7 +1403,7 @@ public class GameResource {
         }
         JsonObject data = new JsonObject();
         data.add("recipes", arr);
-        return Response.ok(GameMessage.restOk("获取成功", data).toString()).build();
+        return Response.ok(GameMessage.restOk(I18n.t("common.rest.ok"), data).toString()).build();
     }
 
     @POST
@@ -1452,7 +1452,7 @@ public class GameResource {
         }
         JsonObject data = new JsonObject();
         data.add("messages", arr);
-        return Response.ok(GameMessage.restOk("获取成功", data).toString()).build();
+        return Response.ok(GameMessage.restOk(I18n.t("common.rest.ok"), data).toString()).build();
     }
 
     @GET
@@ -1483,7 +1483,7 @@ public class GameResource {
         }
         JsonObject data = new JsonObject();
         data.add("messages", arr);
-        return Response.ok(GameMessage.restOk("获取成功", data).toString()).build();
+        return Response.ok(GameMessage.restOk(I18n.t("common.rest.ok"), data).toString()).build();
     }
 
     @POST
@@ -1508,7 +1508,7 @@ public class GameResource {
             return Response.ok(GameMessage.restError(GameErrorCode.PARAM_INVALID).toString()).build();
         }
         JsonObject data = gson.toJsonTree(msg).getAsJsonObject();
-        return Response.ok(GameMessage.restOk("发送成功", data).toString()).build();
+        return Response.ok(GameMessage.restOk(I18n.t("common.sent"), data).toString()).build();
     }
 
     @POST
@@ -1542,7 +1542,7 @@ public class GameResource {
         actionLog.logChat(userId, player.getName(), "[私聊→" + target.getName() + "] " + content);
 
         JsonObject data = gson.toJsonTree(msg).getAsJsonObject();
-        return Response.ok(GameMessage.restOk("发送成功", data).toString()).build();
+        return Response.ok(GameMessage.restOk(I18n.t("common.sent"), data).toString()).build();
     }
 
     @GET
@@ -1587,7 +1587,7 @@ public class GameResource {
         data.add("ranking", arr);
         data.addProperty("type", type);
 
-        return Response.ok(GameMessage.restOk("获取成功", data).toString()).build();
+        return Response.ok(GameMessage.restOk(I18n.t("common.rest.ok"), data).toString()).build();
     }
 
     @GET
@@ -1614,7 +1614,7 @@ public class GameResource {
         }
         JsonObject data = new JsonObject();
         data.add("friends", arr);
-        return Response.ok(GameMessage.restOk("获取成功", data).toString()).build();
+        return Response.ok(GameMessage.restOk(I18n.t("common.rest.ok"), data).toString()).build();
     }
 
     @GET
@@ -1641,7 +1641,7 @@ public class GameResource {
         }
         JsonObject data = new JsonObject();
         data.add("requests", arr);
-        return Response.ok(GameMessage.restOk("获取成功", data).toString()).build();
+        return Response.ok(GameMessage.restOk(I18n.t("common.rest.ok"), data).toString()).build();
     }
 
     @POST
@@ -1679,7 +1679,7 @@ public class GameResource {
         }
 
         JsonObject data = gson.toJsonTree(result).getAsJsonObject();
-        return Response.ok(GameMessage.restOk("好友申请已发送", data).toString()).build();
+        return Response.ok(GameMessage.restOk(I18n.t("friend.request_sent"), data).toString()).build();
     }
 
     @POST
@@ -1704,7 +1704,7 @@ public class GameResource {
         if (!success) {
             return Response.ok(GameMessage.restError(GameErrorCode.FRIEND_REQUEST_NOT_FOUND).toString()).build();
         }
-        return Response.ok(GameMessage.restOk("已添加好友", null).toString()).build();
+        return Response.ok(GameMessage.restOk(I18n.t("friend.added"), null).toString()).build();
     }
 
     @POST
@@ -1729,7 +1729,7 @@ public class GameResource {
         if (!success) {
             return Response.ok(GameMessage.restError(GameErrorCode.FRIEND_REQUEST_NOT_FOUND).toString()).build();
         }
-        return Response.ok(GameMessage.restOk("已拒绝该好友申请", null).toString()).build();
+        return Response.ok(GameMessage.restOk(I18n.t("friend.rejected"), null).toString()).build();
     }
 
     @POST
@@ -1791,7 +1791,7 @@ public class GameResource {
         if (!success) {
             return Response.ok(GameMessage.restError(GameErrorCode.FRIEND_NOT_FOUND).toString()).build();
         }
-        return Response.ok(GameMessage.restOk("已删除好友", null).toString()).build();
+        return Response.ok(GameMessage.restOk(I18n.t("friend.removed"), null).toString()).build();
     }
 
 
@@ -1804,7 +1804,7 @@ public class GameResource {
         int playerId = getPlayerIdByUserId(userId);
         Sect sect = sectService.getPlayerSect(playerId);
         if (sect == null) {
-            return Response.ok(GameMessage.restOk("尚未加入宗门", null).toString()).build();
+            return Response.ok(GameMessage.restOk(I18n.t("sect.not_member"), null).toString()).build();
         }
         List<SectMember> members = sectService.getSectMembers(sect.getId());
         JsonArray arr = new JsonArray();
@@ -1823,7 +1823,7 @@ public class GameResource {
         JsonObject data = new JsonObject();
         data.add("members", arr);
         data.addProperty("sectName", sect.getName());
-        return Response.ok(GameMessage.restOk("获取成功", data).toString()).build();
+        return Response.ok(GameMessage.restOk(I18n.t("common.rest.ok"), data).toString()).build();
     }
 
     @POST
@@ -1886,7 +1886,7 @@ public class GameResource {
         }
         JsonObject data = new JsonObject();
         data.add("applications", arr);
-        return Response.ok(GameMessage.restOk("获取成功", data).toString()).build();
+        return Response.ok(GameMessage.restOk(I18n.t("common.rest.ok"), data).toString()).build();
     }
 
     @POST
@@ -1993,7 +1993,7 @@ public class GameResource {
         }
         JsonObject data = new JsonObject();
         data.add("warehouse", arr);
-        return Response.ok(GameMessage.restOk("获取成功", data).toString()).build();
+        return Response.ok(GameMessage.restOk(I18n.t("common.rest.ok"), data).toString()).build();
     }
 
     @POST
@@ -2121,7 +2121,7 @@ public class GameResource {
         }
         JsonObject data = new JsonObject();
         data.add("top", arr);
-        return Response.ok(GameMessage.restOk("获取成功", data).toString()).build();
+        return Response.ok(GameMessage.restOk(I18n.t("common.rest.ok"), data).toString()).build();
     }
 
     @GET
@@ -2132,7 +2132,7 @@ public class GameResource {
         Long userId = getCurrentUserId();
         int playerId = getPlayerIdByUserId(userId);
         Map<String, Object> result = mapService.getPlayerSurroundings(playerId);
-        return Response.ok(GameMessage.restOk("获取成功", gson.toJsonTree(result).getAsJsonObject()).toString()).build();
+        return Response.ok(GameMessage.restOk(I18n.t("common.rest.ok"), gson.toJsonTree(result).getAsJsonObject()).toString()).build();
     }
 
     @POST
@@ -2171,7 +2171,7 @@ public class GameResource {
         }
         JsonObject data = new JsonObject();
         data.add("locations", arr);
-        return Response.ok(GameMessage.restOk("获取成功", data).toString()).build();
+        return Response.ok(GameMessage.restOk(I18n.t("common.rest.ok"), data).toString()).build();
     }
 
     @SuppressWarnings("unused")
@@ -2184,7 +2184,7 @@ public class GameResource {
             data.addProperty("myRoleDisplay", SectMember.getRoleDisplayName(me.getRole()));
             data.addProperty("myContribution", me.getContribution());
         }
-        return Response.ok(GameMessage.restOk("获取成功", data).toString()).build();
+        return Response.ok(GameMessage.restOk(I18n.t("common.rest.ok"), data).toString()).build();
     }
 
     private String getRealmName(int realmId) {
@@ -2235,7 +2235,7 @@ public class GameResource {
         }
         JsonObject data = new JsonObject();
         data.add("titles", arr);
-        return Response.ok(GameMessage.restOk("获取成功", data).toString()).build();
+        return Response.ok(GameMessage.restOk(I18n.t("common.rest.ok"), data).toString()).build();
     }
 
     @GET
@@ -2262,7 +2262,7 @@ public class GameResource {
         }
         JsonObject data = new JsonObject();
         data.add("titles", arr);
-        return Response.ok(GameMessage.restOk("获取成功", data).toString()).build();
+        return Response.ok(GameMessage.restOk(I18n.t("common.rest.ok"), data).toString()).build();
     }
 
     @GET
@@ -2281,7 +2281,7 @@ public class GameResource {
             data.add("title", toTitleJson(title));
         }
         data.addProperty("hasTitle", title != null);
-        return Response.ok(GameMessage.restOk("获取成功", data).toString()).build();
+        return Response.ok(GameMessage.restOk(I18n.t("common.rest.ok"), data).toString()).build();
     }
 
     @POST
@@ -2370,7 +2370,7 @@ public class GameResource {
             members.add(o);
         }
         data.add("members", members);
-        return Response.ok(GameMessage.restOk("团队创建成功", data).toString()).build();
+        return Response.ok(GameMessage.restOk(I18n.t("team.created"), data).toString()).build();
     }
 
     @POST
@@ -2403,7 +2403,7 @@ public class GameResource {
             return Response.ok(GameMessage.restError(400, "邀请失败，可能你不是队长或团队已满").toString()).build();
         }
 
-        return Response.ok(GameMessage.restOk("邀请已发送给【" + target.getName() + "】", null).toString()).build();
+        return Response.ok(GameMessage.restOk(I18n.t("team.invite_sent") + target.getName() + "】", null).toString()).build();
     }
 
     @POST
@@ -2435,7 +2435,7 @@ public class GameResource {
             members.add(o);
         }
         data.add("members", members);
-        return Response.ok(GameMessage.restOk("成功加入团队", data).toString()).build();
+        return Response.ok(GameMessage.restOk(I18n.t("team.joined"), data).toString()).build();
     }
 
     @POST
@@ -2455,7 +2455,7 @@ public class GameResource {
             return Response.ok(GameMessage.restError(400, "你不在任何团队中").toString()).build();
         }
 
-        return Response.ok(GameMessage.restOk("已离开团队", null).toString()).build();
+        return Response.ok(GameMessage.restOk(I18n.t("team.left"), null).toString()).build();
     }
 
     @GET
@@ -2472,7 +2472,7 @@ public class GameResource {
         TeamService teamService = TeamService.getInstance();
         TeamService.Team team = teamService.getTeam(player.getId());
         if (team == null) {
-            return Response.ok(GameMessage.restOk("你不在任何团队中", null).toString()).build();
+            return Response.ok(GameMessage.restOk(I18n.t("team.not_in_team"), null).toString()).build();
         }
 
         JsonObject data = new JsonObject();
@@ -2490,7 +2490,7 @@ public class GameResource {
             members.add(o);
         }
         data.add("members", members);
-        return Response.ok(GameMessage.restOk("获取成功", data).toString()).build();
+        return Response.ok(GameMessage.restOk(I18n.t("common.rest.ok"), data).toString()).build();
     }
 
     // ==================== 副本系统 ====================
@@ -2520,7 +2520,7 @@ public class GameResource {
         }
         JsonObject data = new JsonObject();
         data.add("realms", arr);
-        return Response.ok(GameMessage.restOk("获取成功", data).toString()).build();
+        return Response.ok(GameMessage.restOk(I18n.t("common.rest.ok"), data).toString()).build();
     }
 
     @POST
@@ -2612,7 +2612,7 @@ public class GameResource {
         data.addProperty("totalSpeedBonus", totalSpd);
         data.addProperty("totalSpiritBonus", totalSpi);
 
-        return Response.ok(GameMessage.restOk("获取成功", data).toString()).build();
+        return Response.ok(GameMessage.restOk(I18n.t("common.rest.ok"), data).toString()).build();
     }
 
     // ==================== 种田系统 ====================
@@ -2661,7 +2661,7 @@ public class GameResource {
         data.addProperty("seasonEffect", com.mtxgdn.game.service.SeasonService.getSeasonEffectDescription());
         data.addProperty("seasonRemainingMs", com.mtxgdn.game.service.SeasonService.getSeasonRemainingMs());
 
-        return Response.ok(GameMessage.restOk("获取成功", data).toString()).build();
+        return Response.ok(GameMessage.restOk(I18n.t("common.rest.ok"), data).toString()).build();
     }
 
     @POST
@@ -2905,7 +2905,7 @@ public class GameResource {
         data.addProperty("seasonStartMs", com.mtxgdn.game.service.SeasonService.getSeasonStartMs());
         data.addProperty("seasonEndMs", com.mtxgdn.game.service.SeasonService.getSeasonEndMs());
         data.addProperty("remainingMs", com.mtxgdn.game.service.SeasonService.getSeasonRemainingMs());
-        return Response.ok(GameMessage.restOk("获取成功", data).toString()).build();
+        return Response.ok(GameMessage.restOk(I18n.t("common.rest.ok"), data).toString()).build();
     }
 
     // ==================== 玩家数据文件（一用户一个文件）====================

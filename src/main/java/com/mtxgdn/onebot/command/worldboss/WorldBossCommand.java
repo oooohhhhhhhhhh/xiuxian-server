@@ -247,7 +247,7 @@ public class WorldBossCommand extends Command {
         data.addProperty("scope", WorldBossService.scope());
         data.addProperty("serverTime", now);
         data.addProperty("cooldownSeconds", WorldBossService.challengeCooldownMs() / 1000);
-        return GameMessage.restOk("获取成功", data);
+        return GameMessage.restOk(I18n.t("common.rest.ok"), data);
     }
 
     private JsonObject handleChallengeHttp(RouteDefinition.RestContext ctx) {
@@ -302,7 +302,7 @@ public class WorldBossCommand extends Command {
         data.add("bosses", arr);
         data.addProperty("scope", WorldBossService.scope());
         data.addProperty("serverTime", now);
-        return GameMessage.restOk("获取成功", data);
+        return GameMessage.restOk(I18n.t("common.rest.ok"), data);
     }
 
     private JsonObject handleAdminRefreshHttp(RouteDefinition.RestContext ctx) {
@@ -313,7 +313,7 @@ public class WorldBossCommand extends Command {
             arr.add(toJson(boss, 0));
         }
         data.add("bosses", arr);
-        return GameMessage.restOk("已重建世界Boss池", data);
+        return GameMessage.restOk(I18n.t("worldboss.pool_rebuilt"), data);
     }
 
     private JsonObject toJson(WorldBoss boss, long viewerPlayerId) {

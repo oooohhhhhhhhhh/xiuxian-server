@@ -95,7 +95,10 @@ public class TitleService {
             int rows = ps.executeUpdate();
             if (rows > 0) {
                 Title title = TitleRegistry.get(titleKey);
-                return createResult(true, "已撤销称号: " + (title != null ? title.getName() : titleKey));
+                // 查不到称号时退回原 key 而不是编一个名字——
+                // 这里的 key 是装备/称号的内部标识，玩家认得出
+                return createResult(true, I18n.t("title.revoked",
+                        title != null ? title.getName() : titleKey));
             } else {
                 return createResult(false, I18n.t("title.h4f740e50"));
             }

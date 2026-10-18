@@ -1493,10 +1493,10 @@ public class AdminResource {
         } catch (IllegalArgumentException e) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 400);
-            err.addProperty("message", "无效的灵根名称: " + rootName + "，可用灵根: " +
+            err.addProperty("message", I18n.t("admin.invalid_root_name", rootName,
                     java.util.Arrays.stream(com.mtxgdn.game.entity.SpiritualRoot.values())
                             .map(r -> r.name())
-                            .reduce((a, b) -> a + ", " + b).orElse(""));
+                            .reduce((a, b) -> a + ", " + b).orElse("")));
             return Response.ok(gson.toJson(err)).build();
         }
     }
@@ -2983,7 +2983,7 @@ public class AdminResource {
         data.addProperty("default", com.mtxgdn.i18n.I18nManager.serverDefault().code());
         // 回退次数已经按语言放在 languages 各项的 fallbackCount 里，
         // 它是"有多少次取值靠 zh_cn 顶上了"，也就是翻译缺口最直观的指标。
-        return Response.ok(GameMessage.restOk("获取成功", data).toString()).build();
+        return Response.ok(GameMessage.restOk(I18n.t("common.rest.ok"), data).toString()).build();
     }
 
     /**
@@ -3023,7 +3023,7 @@ public class AdminResource {
         data.addProperty("count", com.mtxgdn.i18n.I18nManager.bundle(lang).size());
         // 直接给 JSON 文本而不是嵌套对象：运维要的是能原样存盘的文件内容
         data.addProperty("content", com.mtxgdn.i18n.I18nManager.exportJson(lang));
-        return Response.ok(GameMessage.restOk("导出成功", data).toString()).build();
+        return Response.ok(GameMessage.restOk(I18n.t("common.rest.export_ok"), data).toString()).build();
     }
 
     /**
@@ -3046,7 +3046,7 @@ public class AdminResource {
                 arr.add(gson.toJsonTree(e.getValue()).getAsJsonObject());
             }
             data.add("languages", arr);
-            return Response.ok(GameMessage.restOk("语言包已重载", data).toString()).build();
+            return Response.ok(GameMessage.restOk(I18n.t("admin.i18n.reload_ok"), data).toString()).build();
         } catch (Exception e) {
             return Response.ok(GameMessage.restError(
                     GameErrorCode.INTERNAL_ERROR.getCode(),
@@ -3078,7 +3078,8 @@ public class AdminResource {
         Map<String, Object> result = dataService.exportAllPlayers();
         JsonObject out = new JsonObject();
         out.addProperty("code", 200);
-        out.addProperty("message", "已导出 " + result.get("exported") + " 名玩家数据，失败 " + result.get("failed") + " 个");
+        out.addProperty("message",
+                I18n.t("admin.player_data.exported", result.get("exported"), result.get("failed")));
         out.addProperty("dir", (String) result.get("dir"));
         return Response.ok(gson.toJson(out)).build();
     }

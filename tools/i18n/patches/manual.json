@@ -1,0 +1,22 @@
+{
+  "common.rest.ok": "获取成功",
+  "common.rest.export_ok": "导出成功",
+
+  "admin.i18n.reload_ok": "语言包已重载",
+  "admin.invalid_root_name": "无效的灵根名称: {0}，可用灵根: {1}",
+  "admin.player_data.exported": "已导出 {0} 名玩家数据，失败 {1} 个",
+
+  "daily.cultivate.success": "晨曦初现，紫气东来！你盘膝而坐，运转功法，获得 {0} 经验和 {1} 灵石{2}",
+  "economy.market.buy": "花费 {0} 下品灵石，购得【{1}】",
+  "economy.bank.deposit": "已将 {0} 下品灵石存入灵庄（活期，日利 {1}%）。随时可取，利息按日结算。\\n编号: #{2}",
+  "economy.bank.withdraw": "灵庄取款成功！本金 {0}+ 利息 {1} = 共 {2} 下品灵石{3}",
+  "enhance.success": "强化成功！{0} 提升至 +{1}",
+  "enhance.break": "强化失败！{0} 降级至 +{1}",
+  "formation.use.success": "使用阵图布置【{0}】成功！(消耗阵图 1 张，无需灵石)\\n持续时间: {1} 分钟\\n效果: 灵气汇聚 +{2}%，修炼加成 +{3}%{4}{5}",
+  "map.travel.no_direct": "无法直接前往「{0}」，你只能从{1}前往：{2}",
+  "sect.withdraw.failed": "取出失败：{0}",
+  "technique.level_up": "功法【{0}】升至 Lv.{1}",
+  "title.revoked": "已撤销称号: {0}",
+  "debug.args": "参数: {0}",
+  "skill.learn.failed": "学习失败: {0}"
+}

@@ -108,7 +108,7 @@ public class UserService {
         data.addProperty("username", user.getUsername());
         data.addProperty("token", token);
 
-        return Response.ok(GameMessage.restOk("注册成功", data).toString()).build();
+        return Response.ok(GameMessage.restOk(I18n.t("auth.register_success"), data).toString()).build();
     }
 
     private boolean isValidEmail(String email) {
@@ -184,7 +184,7 @@ public class UserService {
         data.addProperty("username", user.getUsername());
         data.addProperty("token", token);
 
-        return Response.ok(GameMessage.restOk("登录成功", data).toString()).build();
+        return Response.ok(GameMessage.restOk(I18n.t("auth.login_success"), data).toString()).build();
     }
 
     public User authenticate(String username, String rawPassword) {
@@ -402,7 +402,7 @@ public class UserService {
 
             JsonObject data = new JsonObject();
             data.addProperty("message", I18n.t("user.hd0c6ad88"));
-            return Response.ok(GameMessage.restOk("密码修改成功", data).toString()).build();
+            return Response.ok(GameMessage.restOk(I18n.t("auth.password_changed"), data).toString()).build();
         } catch (SQLException e) {
             throw new RuntimeException("修改密码失败", e);
         }
@@ -450,7 +450,7 @@ public class UserService {
             }
             JsonObject data = new JsonObject();
             data.addProperty("message", I18n.t("user.h723a7388"));
-            return Response.ok(GameMessage.restOk("账户注销成功", data).toString()).build();
+            return Response.ok(GameMessage.restOk(I18n.t("auth.account_deleted"), data).toString()).build();
         } catch (SQLException e) {
             throw new RuntimeException("注销账户失败", e);
         }
@@ -479,7 +479,7 @@ public class UserService {
                 JsonObject data = new JsonObject();
                 data.addProperty("message", I18n.t("user.h536a6d04"));
                 data.addProperty("username", username);
-                return Response.ok(GameMessage.restOk("密码重置成功", data).toString()).build();
+                return Response.ok(GameMessage.restOk(I18n.t("auth.password_reset"), data).toString()).build();
             }
         } catch (SQLException e) {
             throw new RuntimeException("重置密码失败", e);

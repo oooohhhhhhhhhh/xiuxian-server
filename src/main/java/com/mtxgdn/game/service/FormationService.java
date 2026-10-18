@@ -316,11 +316,20 @@ public class FormationService {
         }
         Formation formation = getActiveFormation(playerId);
         result.put("success", true);
-        result.put("message", "使用阵图布置【" + formation.getName() + "】成功！(消耗阵图 1 张，无需灵石)\n" +
-                "持续时间: " + formation.getDurationMinutes() + " 分钟\n" +
-                "效果: 灵气汇聚 +" + formation.getSpiritEnergyBoost() + "%，修炼加成 +" + formation.getCultivationBonus() + "%" +
-                (formation.getDefenseBonus() > 0 ? "，防御加成 +" + formation.getDefenseBonus() + "%" : "") +
-                (formation.getHeartDemonResist() > 0 ? "，心魔抵抗 +" + formation.getHeartDemonResist() : ""));
+        // 防御/心魔两段都是"有才显示"的尾巴，整体各占一个占位符（{4} / {5}），
+        // 没有该属性时传空串。拆成「，防御加成 +{5}%」那种半句模板，
+        // 会让英文翻译很难摆对逗号和换行位置。
+        result.put("message", I18n.t("formation.use.success",
+                formation.getName(),
+                formation.getDurationMinutes(),
+                formation.getSpiritEnergyBoost(),
+                formation.getCultivationBonus(),
+                formation.getDefenseBonus() > 0
+                        ? "，防御加成 +" + formation.getDefenseBonus() + "%"
+                        : "",
+                formation.getHeartDemonResist() > 0
+                        ? "，心魔抵抗 +" + formation.getHeartDemonResist()
+                        : ""));
         result.put("formation", formation);
         return result;
     }

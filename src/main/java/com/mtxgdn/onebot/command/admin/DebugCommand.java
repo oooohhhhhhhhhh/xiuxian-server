@@ -116,7 +116,7 @@ public class DebugCommand extends Command {
         }
 
         ctx.reply(I18n.t("admin.hf579788c", cmdName));
-        ctx.reply("参数: " + (cmdArgs.isEmpty() ? "(无)" : cmdArgs));
+        ctx.reply(I18n.t("debug.args", cmdArgs.isEmpty() ? "(无)" : cmdArgs));
         ctx.reply(I18n.t("admin.h3bcc1334"));
 
         try {

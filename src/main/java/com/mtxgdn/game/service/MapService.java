@@ -811,8 +811,8 @@ public class MapService {
 
         if (!isConnected(current, targetLocationId)) {
             List<String> neighborNames = current.getConnections().stream().map(MapLocation::getName).toList();
-            return createResult(false, "无法直接前往「" + target.getName() + "」，你只能从"
-                    + current.getName() + "前往：" + String.join("、", neighborNames));
+            return createResult(false, I18n.t("map.travel.no_direct",
+                    target.getName(), current.getName(), String.join("、", neighborNames)));
         }
 
         int travelSeconds = getTravelTimeSeconds(currentLocId, targetLocationId);

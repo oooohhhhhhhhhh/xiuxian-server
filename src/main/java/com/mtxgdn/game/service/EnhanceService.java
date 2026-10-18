@@ -220,7 +220,7 @@ public class EnhanceService {
                 result.put("success", true);
                 result.put("enhanceSuccess", true);
                 result.put("newLevel", currentLevel + 1);
-                result.put("message", "强化成功！" + itemName + " 提升至 +" + (currentLevel + 1));
+                result.put("message", I18n.t("enhance.success", itemName, currentLevel + 1));
             }
             case "break" -> {
                 result.put("success", false);
@@ -240,7 +240,7 @@ public class EnhanceService {
                 result.put("enhanceSuccess", false);
                 result.put("degraded", true);
                 result.put("newLevel", currentLevel - 1);
-                result.put("message", "强化失败！" + itemName + " 降级至 +" + (currentLevel - 1));
+                result.put("message", I18n.t("enhance.break", itemName, currentLevel - 1));
             }
             default -> {
                 result.put("success", false);
