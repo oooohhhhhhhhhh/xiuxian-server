@@ -132,6 +132,9 @@ public class DatabaseSchema {
            .append("consolidation INT DEFAULT 0, ")
            .append("current_location_id BIGINT DEFAULT 1, ")
            .append("last_gather_time BIGINT DEFAULT 0, ")
+           // 界面语言代码（zh_cn / en_us）。空串 = 未设置，读取方回落到
+           // i18n.default-language。账号级偏好：QQ/REST/WS/MC 三端共用。
+           .append("lang VARCHAR(16) DEFAULT '', ")
            .append("created_at ").append(tsDefault).append(", ")
            .append("updated_at ").append(tsUpdate);
         if (dialect.supportsForeignKeysInCreateTable()) {

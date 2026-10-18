@@ -10,6 +10,9 @@ import com.mtxgdn.minecraft.adapter.MinecraftPlayerBindingService;
 import com.mtxgdn.onebot.QqBinding;
 import com.mtxgdn.onebot.QqBindingService;
 import com.mtxgdn.common.service.ServiceRegistry;
+import com.mtxgdn.i18n.GameLanguage;
+import com.mtxgdn.i18n.I18n;
+import com.mtxgdn.i18n.I18nManager;
 import com.mtxgdn.permission.PermissionService;
 
 public abstract class CommandContext {
@@ -85,14 +88,16 @@ public abstract class CommandContext {
         if (userId != null) {
             return userId;
         }
-        reply("请先注册或绑定账号。\n注册: /register <用户名> <密码>\n绑定: /bind");
+        // 按发送者语言回复：未绑定账号时只能拿到通道默认语言（服务端默认），
+        // 这已是无偏好可用时的最优解。
+        reply(I18n.t("game.bind_required", lang()));
         return null;
     }
 
     public PlayerInfo requirePlayer(Long userId) {
         PlayerInfo player = ServiceRegistry.getPlayerService().getPlayerByUserId(userId);
         if (player == null) {
-            reply("你还没有创建修仙角色。\n请使用 /register <角色名> 注册角色");
+            reply(I18n.t("game.no_player", lang()));
             return null;
         }
         return player;
@@ -131,6 +136,19 @@ public abstract class CommandContext {
         return null;
     }
 
+    /**
+     * 本条指令回复时应使用的语言。
+     *
+     * <p>基类默认回落到服务端默认语言；子类（各平台适配器）应按发送者覆写，
+     * 让已绑定玩家用自己设的语言、未绑定访客用服务端默认。</p>
+     *
+     * <p>指令代码应通过 {@code I18n.t(key, ctx.lang())} 显式传语言，
+     * 而不是依赖 {@link I18nContext} 的 ThreadLocal——聊天平台的线程模型
+     * 与 Jersey 不同，隐式绑定容易在异步回复时丢失。</p>
+     */
+    public GameLanguage lang() {
+        return I18nManager.serverDefault();
+    }
     public static String formatPlayerStatus(PlayerInfo p) {
         var root = p.getSpiritualRoot();
         String rootStr = root != null

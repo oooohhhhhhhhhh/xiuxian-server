@@ -44,6 +44,21 @@ public class OneBotCommandContext extends CommandContext {
         return accountFlow;
     }
 
+    /**
+     * OneBot 通道的语言：已绑定玩家看自己设的，未绑定访客回落服务端默认。
+     *
+     * <p>刻意<b>不缓存</b>：玩家可能刚在 Web 端改过语言，缓存会让 QQ 侧的回复
+     * 滞后一次。多一次按 QQ 号查绑定的代价相对一次网络回复可以忽略。</p>
+     */
+    @Override
+    public com.mtxgdn.i18n.GameLanguage lang() {
+        Long userId = resolveBoundUserId();
+        if (userId == null) {
+            return com.mtxgdn.i18n.I18nManager.serverDefault();
+        }
+        return com.mtxgdn.i18n.LanguageResolver.forUser(userId);
+    }
+
     @Override
     public boolean isGroup() {
         return groupId != null;

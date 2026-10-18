@@ -177,6 +177,11 @@ public class Main {
         CommandScanner.ScanResult cmdScanResult = CommandScanner.scanAndRegister("com.mtxgdn.onebot.command");
         LOG.info(cmdScanResult.toString());
 
+        LOG.info("正在加载语言包...");
+        // 必须早于插件系统：PluginContext.loadLang() 会把插件自带的语言包合并进来，
+        // 顺序反了会让内置基线覆盖插件词条（I18nManager 的 putAll 是后来者胜）。
+        com.mtxgdn.i18n.I18nManager.load();
+
         LOG.info("正在初始化插件系统...");
         PluginManager pm = PluginManager.getInstance();
         pm.init(new File("plugins"));

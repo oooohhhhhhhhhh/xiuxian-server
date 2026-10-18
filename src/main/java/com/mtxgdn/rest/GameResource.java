@@ -40,6 +40,10 @@ import com.mtxgdn.game.entity.Season;
 import com.mtxgdn.game.entity.Friend;
 import com.mtxgdn.game.entity.ChatMessage;
 import com.mtxgdn.common.service.ServiceRegistry;
+import com.mtxgdn.i18n.GameLanguage;
+import com.mtxgdn.i18n.I18nContext;
+import com.mtxgdn.i18n.I18nManager;
+import com.mtxgdn.i18n.LanguageResolver;
 import com.mtxgdn.util.RateLimiter;
 import com.mtxgdn.game.secretrealm.SecretRealm;
 import com.mtxgdn.game.service.SectService;
@@ -285,6 +289,131 @@ public class GameResource {
     public Response getRealmConfig() {
         JsonObject data = gson.toJsonTree(GameConfigLoader.getRealmConfigs()).getAsJsonObject();
         return Response.ok(GameMessage.restOk("获取成功", data).toString()).build();
+    }
+
+    // ==================== 多语言（i18n） ====================
+
+    /**
+     * 下载当前请求语言下的词条包。
+     *
+     * <p>客户端应在登录后取一次并缓存，之后用 {@code I18n.t(key)} 本地化时
+     * 直接查缓存；缓存 miss 时再调本接口补一次。</p>
+     *
+     * <p>语言按 {@link LanguageRequestFilter} 的协商顺序决定：
+     * {@code ?lang=} &gt; {@code X-Lang} &gt; {@code Accept-Language} &gt; 服务端默认。
+     * 本接口<b>刻意不需要鉴权</b>——登录页的"忘记密码"等错误提示也要本地化，
+     * 而此时还没有 token。</p>
+     */
+    @GET
+    @Path("/i18n/bundle")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response getI18nBundle() {
+        GameLanguage lang = I18nContext.current();
+        JsonObject data = new JsonObject();
+        data.addProperty("language", lang.code());
+        data.addProperty("displayName", lang.displayName());
+        // 词条表直接塞进 data.messages，客户端无需二次解析
+        data.add("messages", gson.toJsonTree(I18nManager.bundle(lang)).getAsJsonObject());
+        data.addProperty("count", I18nManager.bundle(lang).size());
+        // 回退链上还缺多少 key：给客户端一个"翻译完整度"的信号，
+        // 便于它在 UI 上提示"部分内容尚未翻译"
+        data.addProperty("missingCount", I18nManager.missingKeys(lang).size());
+        return Response.ok(GameMessage.restOk("获取成功", data).toString()).build();
+    }
+
+    /** 服务端支持的语言列表（含各语言词条数与完整度），供语言选择器使用。免鉴权。 */
+    @GET
+    @Path("/i18n/languages")
+    @Produces(MediaType.APPLICATION_JSON)
+    public Response getI18nLanguages() {
+        JsonArray arr = new JsonArray();
+        for (Map.Entry<String, Object> e : I18nManager.status().entrySet()) {
+            arr.add(gson.toJsonTree(e.getValue()).getAsJsonObject());
+        }
+        JsonObject data = new JsonObject();
+        data.add("languages", arr);
+        data.addProperty("default", I18nManager.serverDefault().code());
+        return Response.ok(GameMessage.restOk("获取成功", data).toString()).build();
+    }
+
+    /**
+     * 读取当前玩家的界面语言偏好。
+     *
+     * <p>返回空串表示"未设置"——此时客户端应显示默认语言而不是空白。</p>
+     */
+    @GET
+    @Path("/i18n/lang")
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("game.i18n")
+    public Response getPlayerLanguage() {
+        Long userId = getCurrentUserId();
+        PlayerInfo player = playerService.getPlayerByUserId(userId);
+        if (player == null) {
+            return Response.ok(GameMessage.restError(GameErrorCode.PLAYER_NOT_FOUND).toString()).build();
+        }
+        // 解析后的语言（含回落）与原始值都返回：客户端需要区分"没设过"与"设了个服务端不认识的"
+        GameLanguage resolved = LanguageResolver.fromCode(player.getLanguage());
+        JsonObject data = new JsonObject();
+        data.addProperty("lang", player.getLanguage());
+        data.addProperty("resolved", resolved.code());
+        data.addProperty("isDefault", resolved.equals(I18nManager.serverDefault()));
+        return Response.ok(GameMessage.restOk("获取成功", data).toString()).build();
+    }
+
+    /**
+     * 设置当前玩家的界面语言偏好（持久化）。
+     *
+     * <p>这是<b>唯一</b>会落库的语言入口。请求头的 {@code X-Lang} / {@code ?lang=}
+     * 只影响当次请求——否则一个带旧参数的老客户端就能把用户偏好永久改掉。</p>
+     *
+     * <p>传入空串表示"恢复默认"（清除偏好）。</p>
+     */
+    @POST
+    @Path("/i18n/lang")
+    @Consumes(MediaType.APPLICATION_JSON)
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("game.i18n")
+    public Response setPlayerLanguage(String body) {
+        Long userId = getCurrentUserId();
+        PlayerInfo player = playerService.getPlayerByUserId(userId);
+        if (player == null) {
+            return Response.ok(GameMessage.restError(GameErrorCode.PLAYER_NOT_FOUND).toString()).build();
+        }
+
+        String requested = null;
+        try {
+            JsonObject json = com.google.gson.JsonParser.parseString(body).getAsJsonObject();
+            if (json.has("lang") && !json.get("lang").isJsonNull()) {
+                requested = json.get("lang").getAsString();
+            }
+        } catch (Exception ignored) {
+            // 请求体缺失或不是 JSON：按"恢复默认"处理，不报错
+        }
+
+        String stored;
+        if (requested == null || requested.isBlank()) {
+            stored = "";  // 空串 = 清除偏好
+        } else {
+            GameLanguage parsed = GameLanguage.parse(requested);
+            if (parsed == null) {
+                // 明确报错：与"请求头协商失败静默回落"不同，这里用户是显式选择的
+                JsonObject data = new JsonObject();
+                data.add("supported", gson.toJsonTree(
+                        java.util.Arrays.stream(GameLanguage.values())
+                                .map(GameLanguage::code)
+                                .toArray(String[]::new)).getAsJsonArray());
+                return Response.ok(GameMessage.restError(
+                        GameErrorCode.PARAM_INVALID.getCode(),
+                        "error.i18n.unsupported_language", "不支持的语言").toString()).build();
+            }
+            stored = parsed.code();
+        }
+
+        playerService.setLanguage(player.getId(), stored);
+        JsonObject data = new JsonObject();
+        data.addProperty("lang", stored);
+        data.addProperty("resolved", LanguageResolver.fromCode(stored).code());
+        return Response.ok(GameMessage.restOk("设置成功", data).toString()).build();
     }
 
     @POST

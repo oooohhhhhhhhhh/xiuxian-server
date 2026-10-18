@@ -77,21 +77,25 @@ public final class PluginContext {
     }
 
     /**
-     * 自动加载插件 jar 包中的翻译文件到全局 {@link LangManager}。
+     * 自动加载插件 jar 包中的翻译文件到全局 {@link com.mtxgdn.i18n.I18nManager}。
      * 扫描 jar 根目录下 lang/ 目录中的 .json 文件，按文件名推导语言代码。
      * 由 PluginManager 在插件加载后自动调用，插件开发者无需手动调用。
+     *
+     * <p>文件格式与内置语言包一致：扁平 {@code key → 译文}。
+     * 插件提供的 key 会覆盖同名内置 key，但<b>无法移除</b>内置 key（只增不删）——
+     * 因此插件停用后它的词条仍留在内存里，这是既有语义，本次 i18n 改造保留未改。</p>
      */
     public void loadLang() {
         // 按约定：插件翻译文件位于 jar 内 lang/ 目录，如 lang/zh_cn.json
-        String currentLang = LangManager.getLanguage();
-        tryLoadLangFile(currentLang);
+        tryLoadLangFile(com.mtxgdn.i18n.GameLanguage.ZH_CN);
+        tryLoadLangFile(com.mtxgdn.i18n.GameLanguage.EN_US);
     }
 
-    private void tryLoadLangFile(String lang) {
-        String path = "lang/" + lang + ".json";
+    private void tryLoadLangFile(com.mtxgdn.i18n.GameLanguage lang) {
+        String path = "lang/" + lang.code() + ".json";
         try (InputStream is = getResource(path)) {
             if (is != null) {
-                LangManager.merge(lang, is);
+                com.mtxgdn.i18n.I18nManager.mergeFromStream(lang, is);
                 log.debug("已加载插件翻译文件: " + path);
             }
         } catch (Exception e) {

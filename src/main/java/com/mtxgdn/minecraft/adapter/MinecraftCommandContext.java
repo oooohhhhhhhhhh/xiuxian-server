@@ -68,9 +68,28 @@ public class MinecraftCommandContext extends CommandContext {
     public PlayerInfo requirePlayer(Long userId) {
         PlayerInfo player = ServiceRegistry.getPlayerService().getPlayerByUserId(userId);
         if (player == null) {
-            reply("你还没有创建修仙角色。\n请使用 " + cmdPrefix + "register <角色名> 注册角色");
+            reply(com.mtxgdn.i18n.I18n.t("game.no_player").replace(
+                    "/register", cmdPrefix + "register"));
             return null;
         }
         return player;
+    }
+
+    /**
+     * Minecraft 通道的语言：按 MC UUID 找绑定用户，取其账号语言；
+     * 未绑定的玩家回落服务端默认。
+     *
+     * <p>覆写 {@link #requireBinding()} 的提示也走同一语言——
+     * 但这里<b>不</b>覆写它本身（缺省实现里已经用了 {@code I18n.t}）。
+     * 换个说法：绑定提示已经在基类里本地化了，这里只保证语言选择正确。</p>
+     */
+    @Override
+    public com.mtxgdn.i18n.GameLanguage lang() {
+        MinecraftPlayerBinding mcB =
+                ServiceRegistry.getMcBindingService().findByMcUuid(mcUuid);
+        if (mcB == null) {
+            return com.mtxgdn.i18n.I18nManager.serverDefault();
+        }
+        return com.mtxgdn.i18n.LanguageResolver.forUser(mcB.getUserId());
     }
 }

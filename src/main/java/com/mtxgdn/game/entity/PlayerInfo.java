@@ -34,6 +34,14 @@ public class PlayerInfo {
     private int breakthroughPity;
     /** 凝实（极境）层数，0..3。 */
     private int consolidation;
+    /**
+     * 界面语言代码（如 {@code zh_cn} / {@code en_us}）。
+     *
+     * <p>空串或 NULL 表示"未设置"，此时各通道回落到服务端默认语言
+     * {@code i18n.default-language}。同一账号在 QQ / MC / Web 三端共用一份偏好——
+     * 语言是账号属性而不是设备属性，玩家不该每换一个客户端就重新选一次。</p>
+     */
+    private String language;
     private String createdAt;
     private String updatedAt;
 
@@ -241,6 +249,16 @@ public class PlayerInfo {
 
     public int getConsolidation() { return consolidation; }
     public void setConsolidation(int consolidation) { this.consolidation = consolidation; }
+
+    /**
+     * 界面语言代码。空串 / null 均表示"未设置"。
+     *
+     * <p>读取方不应直接信任返回值：老库迁移后该列为空串，
+     * 必须经 {@code GameLanguage.parse(...)} 解析并按需回落默认语言。</p>
+     */
+    public String getLanguage() { return language == null ? "" : language; }
+
+    public void setLanguage(String language) { this.language = language; }
 
     public String getCreatedAt() {
         return createdAt;

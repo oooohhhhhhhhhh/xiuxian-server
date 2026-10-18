@@ -41,6 +41,23 @@ public class DatabaseMigration {
             addPlayersLastActiveColumn(stmt);
             addSectSuccessionColumns(stmt);
             addBreakthroughPityColumns(stmt);
+            addPlayersLanguageColumn(stmt);
+        }
+    }
+
+    /**
+     * 界面语言列：老库的 players 补 {@code lang}。
+     *
+     * <p>刻意<b>回填空串而不是 {@code zh_cn}</b>：空串表示"未设置"，读取方会回落到
+     * {@code i18n.default-language}。如果这里硬写 zh_cn，将来运维把默认语言改成 en_us 时，
+     * 所有老玩家会停留在中文——他们的"未选择"状态被错误地固化了。
+     * 另外空串也是 {@code GameLanguage.parse(null)} 的安全输入，不会抛异常。</p>
+     */
+    private void addPlayersLanguageColumn(Statement stmt) {
+        try {
+            stmt.execute("ALTER TABLE players ADD COLUMN lang VARCHAR(16) DEFAULT ''");
+        } catch (SQLException ignored) {
+            // 列已存在（新库由 CREATE TABLE 直接建出）
         }
     }
 

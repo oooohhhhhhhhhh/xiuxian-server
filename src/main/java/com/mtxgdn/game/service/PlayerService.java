@@ -78,6 +78,55 @@ public class PlayerService {
     }
 
     /**
+     * 按角色 ID 取 {@link PlayerInfo}（而非 {@link Player}）。
+     *
+     * <p>{@link #getPlayerById(long)} 返回的是另一个映射（Player），
+     * 而语言解析只需要 PlayerInfo 上那一个字段，为它单独查一遍库不划算。
+     * 与 {@link #getPlayerByUserId(long)} 同样会在读取时顺手刷新活跃时间。</p>
+     */
+    public PlayerInfo getPlayerInfoById(long playerId) {
+        String sql = "SELECT * FROM players WHERE id = ?";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setLong(1, playerId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    PlayerInfo info = mapPlayerInfo(rs);
+                    touchActive(info.getId(), info.getLastActiveTime());
+                    return info;
+                }
+            }
+        } catch (SQLException e) {
+            throw new RuntimeException("获取玩家信息失败", e);
+        }
+        return null;
+    }
+
+    /**
+     * 设置界面语言。
+     *
+     * <p>不做合法性校验——调用方（REST 层）负责把字符串交给 {@code GameLanguage.parse}
+     * 判定。这里刻意接受任意非空字符串落库，理由：将来新增语言时老客户端可能还不知道，
+     * 而"客户端不认识的语言"应表现为回落到默认语言，而不是拒绝写入。</p>
+     *
+     * @return 是否更新成功（角色不存在时返回 false）
+     */
+    public boolean setLanguage(long playerId, String language) {
+        if (language == null) {
+            language = "";
+        }
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(
+                     "UPDATE players SET lang = ? WHERE id = ?")) {
+            ps.setString(1, language);
+            ps.setLong(2, playerId);
+            return ps.executeUpdate() > 0;
+        } catch (SQLException e) {
+            throw new RuntimeException("更新界面语言失败", e);
+        }
+    }
+
+    /**
      * 「最近活跃时间」的节流写入间隔（毫秒）。
      * <p>同一玩家每小时最多写一次 —— 它只服务于"是否弃坑"这种天级的判定，
      * 没必要每条指令都写一次库。</p>
@@ -947,22 +996,6 @@ public class PlayerService {
         return players;
     }
 
-    public PlayerInfo getPlayerInfoById(long playerId) {
-        String sql = "SELECT * FROM players WHERE id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    return mapPlayerInfo(rs);
-                }
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("获取玩家信息失败", e);
-        }
-        return null;
-    }
-
     private List<PlayerInfo> queryPlayerInfoList(String sql, int limit) {
         List<PlayerInfo> players = new ArrayList<>();
         try (Connection conn = DatabaseManager.getConnection();
@@ -1009,6 +1042,8 @@ public class PlayerService {
         try { pi.setLastActiveTime(rs.getLong("last_active_time")); } catch (Exception ignored) {}
         try { pi.setBreakthroughPity(rs.getInt("breakthrough_pity")); } catch (Exception ignored) {}
         try { pi.setConsolidation(rs.getInt("consolidation")); } catch (Exception ignored) {}
+        // 老库迁移后该列是空串：getString 返回 "" 而不是 null，与"未设置"等价。
+        try { pi.setLanguage(rs.getString("lang")); } catch (Exception ignored) {}
         pi.setCreatedAt(rs.getString("created_at"));
         pi.setUpdatedAt(rs.getString("updated_at"));
 

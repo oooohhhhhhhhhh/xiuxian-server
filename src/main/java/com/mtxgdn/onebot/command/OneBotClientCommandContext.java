@@ -64,6 +64,22 @@ public class OneBotClientCommandContext extends CommandContext {
         return groupId != null;
     }
 
+    /**
+     * QQ 官方 / WS 客户端通道的语言。
+     *
+     * <p>与 {@link OneBotCommandContext#lang()} 同一套逻辑：已绑定取账号语言，
+     * 未绑定回落服务端默认。QQ 官方的 openid 与 OneBot 的 QQ 号分属两张表，
+     * 由基类构造时注入的 {@code qqBindingLookup} 负责区分，这里无需关心。</p>
+     */
+    @Override
+    public com.mtxgdn.i18n.GameLanguage lang() {
+        Long userId = resolveBoundUserId();
+        if (userId == null) {
+            return com.mtxgdn.i18n.I18nManager.serverDefault();
+        }
+        return com.mtxgdn.i18n.LanguageResolver.forUser(userId);
+    }
+
     @Override
     public void reply(String message) {
         sender.replyToSource(session, selfId, getSenderId(), groupId, message);
