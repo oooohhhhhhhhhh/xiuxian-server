@@ -519,7 +519,7 @@ public class GameResource {
 
         if (areas.isEmpty()) {
             JsonObject data = new JsonObject();
-            data.addProperty("message", "请先创建角色");
+            data.addProperty("message", I18n.t("game.hde5e9ffe"));
             return Response.ok(GameMessage.restOk("获取成功", data).toString()).build();
         }
 

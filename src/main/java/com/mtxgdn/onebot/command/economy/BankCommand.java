@@ -10,6 +10,7 @@ import com.mtxgdn.common.service.ServiceRegistry;
 
 import java.util.List;
 import java.util.Map;
+import com.mtxgdn.i18n.I18n;
 
 /**
  * 灵庄系统 — 灵石存取、定期/活期、利息结算。
@@ -191,7 +192,7 @@ public class BankCommand extends Command {
             long amount = req.has("amount") ? req.get("amount").getAsLong() : 0;
             if (type.isBlank() || amount <= 0) {
                 result.addProperty("code", 400);
-                result.addProperty("message", "请提供存款类型(type: current/fixed_7/fixed_30/fixed_90)和金额(amount)");
+                result.addProperty("message", I18n.t("economy.h84ddfb30"));
                 return result;
             }
             var eco = ServiceRegistry.getEconomyService();
@@ -213,7 +214,7 @@ public class BankCommand extends Command {
             long depositId = req.has("depositId") ? req.get("depositId").getAsLong() : 0;
             if (depositId <= 0) {
                 result.addProperty("code", 400);
-                result.addProperty("message", "请提供有效的存款编号(depositId)");
+                result.addProperty("message", I18n.t("economy.h9498536c"));
                 return result;
             }
             var eco = ServiceRegistry.getEconomyService();

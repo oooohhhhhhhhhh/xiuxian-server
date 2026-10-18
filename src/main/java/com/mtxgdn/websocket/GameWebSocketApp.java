@@ -46,6 +46,7 @@ import org.glassfish.grizzly.websockets.*;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import com.mtxgdn.i18n.I18n;
 
 public class GameWebSocketApp extends WebSocketApplication {
 
@@ -210,7 +211,7 @@ public class GameWebSocketApp extends WebSocketApplication {
                 }
                 welcomeData.add("offlineReward", offlineJson);
             }
-            welcomeData.addProperty("message", "连接成功，欢迎进入修仙世界！");
+            welcomeData.addProperty("message", I18n.t("websocket.h39800675"));
 
             GameMessage welcome = GameMessage.ok(0, "welcome", welcomeData);
             socket.send(welcome.toJson());

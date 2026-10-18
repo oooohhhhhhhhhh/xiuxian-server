@@ -17,6 +17,7 @@ import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.HttpHeaders;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import com.mtxgdn.i18n.I18n;
 
 /**
  * OAuth 2.0 REST 接口。
@@ -199,7 +200,7 @@ public class OAuthResource {
                               @QueryParam("scope") String scope) {
         JsonObject data = new JsonObject();
         data.addProperty("code", 501);
-        data.addProperty("message", "授权码（authorization code）流程未实现 —— 本 OAuth 2.0 支持仅提供 client_credentials 令牌端点与受保护资源端点");
+        data.addProperty("message", I18n.t("oauth.h6419f8f8"));
         data.addProperty("note", "用法：POST /api/auth/oauth/token 拿 token → 携带 Authorization: Bearer <token> 访问 /api/auth/oauth/me 或 /api/auth/oauth/protected/*");
         data.addProperty("received", (responseType == null ? "" : responseType) + "|" +
                 (clientId == null ? "" : clientId) + "|" +

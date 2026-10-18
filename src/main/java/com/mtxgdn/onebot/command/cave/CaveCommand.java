@@ -7,6 +7,7 @@ import com.mtxgdn.common.command.RouteDefinition;
 import com.mtxgdn.game.entity.Cave;
 import com.mtxgdn.game.entity.PlayerInfo;
 import com.mtxgdn.game.service.CaveService;
+import com.mtxgdn.i18n.I18n;
 
 public class CaveCommand extends Command {
     private static final CaveService caveService = new CaveService();
@@ -42,7 +43,7 @@ public class CaveCommand extends Command {
             if (cave == null) {
                 result.addProperty("code", 404);
                 result.addProperty("success", false);
-                result.addProperty("message", "你还没有洞府，请先开辟洞府（需要金丹期 + 300 灵石）");
+                result.addProperty("message", I18n.t("cave.h632647d8"));
                 result.addProperty("hasCave", false);
                 return result;
             }

@@ -20,6 +20,7 @@ import java.sql.Timestamp;
 import java.util.Arrays;
 import java.util.List;
 import java.util.regex.Pattern;
+import com.mtxgdn.i18n.I18n;
 
 public class UserService {
 
@@ -400,7 +401,7 @@ public class UserService {
             }
 
             JsonObject data = new JsonObject();
-            data.addProperty("message", "密码修改成功");
+            data.addProperty("message", I18n.t("user.hd0c6ad88"));
             return Response.ok(GameMessage.restOk("密码修改成功", data).toString()).build();
         } catch (SQLException e) {
             throw new RuntimeException("修改密码失败", e);
@@ -448,7 +449,7 @@ public class UserService {
                 return buildError(404, "用户不存在");
             }
             JsonObject data = new JsonObject();
-            data.addProperty("message", "账户注销成功");
+            data.addProperty("message", I18n.t("user.h723a7388"));
             return Response.ok(GameMessage.restOk("账户注销成功", data).toString()).build();
         } catch (SQLException e) {
             throw new RuntimeException("注销账户失败", e);
@@ -476,7 +477,7 @@ public class UserService {
                 }
 
                 JsonObject data = new JsonObject();
-                data.addProperty("message", "密码重置成功，请使用新密码登录");
+                data.addProperty("message", I18n.t("user.h536a6d04"));
                 data.addProperty("username", username);
                 return Response.ok(GameMessage.restOk("密码重置成功", data).toString()).build();
             }

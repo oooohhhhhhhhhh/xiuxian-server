@@ -15,6 +15,7 @@ import jakarta.ws.rs.container.ContainerRequestContext;
 import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
+import com.mtxgdn.i18n.I18n;
 
 @Path("/auth")
 public class Auth {
@@ -181,7 +182,7 @@ public class Auth {
         if (email == null || email.trim().isEmpty()) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 400);
-            err.addProperty("message", "邮箱不能为空");
+            err.addProperty("message", I18n.t("auth.h45338de2"));
             return Response.status(400).entity(err.toString()).build();
         }
 
@@ -189,7 +190,7 @@ public class Auth {
         if (!isValidEmail(trimmedEmail)) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 400);
-            err.addProperty("message", "邮箱格式不正确");
+            err.addProperty("message", I18n.t("auth.h21c46d78"));
             return Response.status(400).entity(err.toString()).build();
         }
 
@@ -204,13 +205,13 @@ public class Auth {
             EmailService.sendVerificationCode(trimmedEmail, verificationCode);
 
             JsonObject data = new JsonObject();
-            data.addProperty("message", "验证码已发送，请查收邮件");
+            data.addProperty("message", I18n.t("auth.h70c7a34a"));
             return Response.ok(data.toString()).build();
         } catch (MessagingException e) {
             System.err.println("[Auth] 发送邮件失败: " + e.getMessage());
             JsonObject err = new JsonObject();
             err.addProperty("code", 500);
-            err.addProperty("message", "发送验证码失败，请稍后重试");
+            err.addProperty("message", I18n.t("auth.hd2e81c54"));
             return Response.status(500).entity(err.toString()).build();
         } catch (RuntimeException e) {
             System.err.println("[Auth] 验证码服务异常: " + e.getMessage());
@@ -245,7 +246,7 @@ public class Auth {
         if (!RateLimiter.allow("login_ip:" + clientBucket(grizzlyReq), 20, 60)) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 429);
-            err.addProperty("message", "登录尝试过于频繁，请稍后再试");
+            err.addProperty("message", I18n.t("auth.h9c54f628"));
             return Response.status(429).entity(err.toString()).build();
         }
 
@@ -254,7 +255,7 @@ public class Auth {
             if (!RateLimiter.allow(rateLimitKey, 5, 60)) {
                 JsonObject err = new JsonObject();
                 err.addProperty("code", 429);
-                err.addProperty("message", "登录尝试过于频繁，请稍后再试");
+                err.addProperty("message", I18n.t("auth.h9c54f628"));
                 return Response.status(429).entity(err.toString()).build();
             }
         }
@@ -273,7 +274,7 @@ public class Auth {
         if (userId == null) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 401);
-            err.addProperty("message", "请先登录");
+            err.addProperty("message", I18n.t("auth.he5c24b00"));
             return Response.status(401).entity(err.toString()).build();
         }
 
@@ -295,7 +296,7 @@ public class Auth {
         }
 
         JsonObject data = new JsonObject();
-        data.addProperty("message", "已安全登出");
+        data.addProperty("message", I18n.t("auth.hb273bcee"));
         return Response.ok(data.toString()).build();
     }
 
@@ -311,7 +312,7 @@ public class Auth {
         if (email == null || email.trim().isEmpty()) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 400);
-            err.addProperty("message", "邮箱不能为空");
+            err.addProperty("message", I18n.t("auth.h45338de2"));
             return Response.status(400).entity(err.toString()).build();
         }
 
@@ -319,7 +320,7 @@ public class Auth {
         if (!isValidEmail(trimmedEmail)) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 400);
-            err.addProperty("message", "邮箱格式不正确");
+            err.addProperty("message", I18n.t("auth.h21c46d78"));
             return Response.status(400).entity(err.toString()).build();
         }
 
@@ -334,13 +335,13 @@ public class Auth {
             EmailService.sendVerificationCode(trimmedEmail, verificationCode);
 
             JsonObject data = new JsonObject();
-            data.addProperty("message", "验证码已发送，请查收邮件");
+            data.addProperty("message", I18n.t("auth.h70c7a34a"));
             return Response.ok(data.toString()).build();
         } catch (MessagingException e) {
             System.err.println("[Auth] 发送邮件失败: " + e.getMessage());
             JsonObject err = new JsonObject();
             err.addProperty("code", 500);
-            err.addProperty("message", "发送验证码失败，请稍后重试");
+            err.addProperty("message", I18n.t("auth.hd2e81c54"));
             return Response.status(500).entity(err.toString()).build();
         } catch (RuntimeException e) {
             System.err.println("[Auth] 验证码服务异常: " + e.getMessage());
@@ -364,21 +365,21 @@ public class Auth {
         if (email == null || email.trim().isEmpty()) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 400);
-            err.addProperty("message", "邮箱不能为空");
+            err.addProperty("message", I18n.t("auth.h45338de2"));
             return Response.status(400).entity(err.toString()).build();
         }
 
         if (code == null || code.trim().isEmpty()) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 400);
-            err.addProperty("message", "验证码不能为空");
+            err.addProperty("message", I18n.t("auth.hd8155b98"));
             return Response.status(400).entity(err.toString()).build();
         }
 
         if (newPassword == null || newPassword.length() < 6) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 400);
-            err.addProperty("message", "新密码长度不能少于6位");
+            err.addProperty("message", I18n.t("auth.hfbe8536f"));
             return Response.status(400).entity(err.toString()).build();
         }
 
@@ -386,13 +387,13 @@ public class Auth {
         if (verificationCodeService.isVerifyLocked(trimmedEmail)) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 429);
-            err.addProperty("message", "验证码错误次数过多，已锁定，请 5 分钟后再试");
+            err.addProperty("message", I18n.t("auth.ha9aa782f"));
             return Response.status(429).entity(err.toString()).build();
         }
         if (!verificationCodeService.verifyCode(trimmedEmail, code.trim())) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 400);
-            err.addProperty("message", "验证码错误或已过期（连续错误 3 次将锁定）");
+            err.addProperty("message", I18n.t("auth.h88dedbd9"));
             return Response.status(400).entity(err.toString()).build();
         }
 
@@ -409,7 +410,7 @@ public class Auth {
         if (userId == null) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 401);
-            err.addProperty("message", "请先登录");
+            err.addProperty("message", I18n.t("auth.he5c24b00"));
             return Response.status(401).entity(err.toString()).build();
         }
 
@@ -431,14 +432,14 @@ public class Auth {
         if (password == null || password.isEmpty()) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 400);
-            err.addProperty("message", "注销账号不可恢复，请输入当前密码以确认");
+            err.addProperty("message", I18n.t("auth.hb543df00"));
             return Response.status(400).entity(err.toString()).build();
         }
 
         if (!userService.verifyPassword(userId, password)) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 403);
-            err.addProperty("message", "密码错误，注销被拒绝");
+            err.addProperty("message", I18n.t("auth.hdb26d337"));
             return Response.status(403).entity(err.toString()).build();
         }
 

@@ -9,6 +9,7 @@ import com.mtxgdn.game.item.ItemRegistry;
 import com.mtxgdn.common.service.ServiceRegistry;
 
 import java.util.Map;
+import com.mtxgdn.i18n.I18n;
 
 public class RecycleCommand extends Command {
     public RecycleCommand() {
@@ -60,12 +61,12 @@ public class RecycleCommand extends Command {
 
             if (itemKey.isBlank()) {
                 result.addProperty("code", 400);
-                result.addProperty("message", "请提供物品键(itemKey)");
+                result.addProperty("message", I18n.t("economy.he3b69f3c"));
                 return result;
             }
             if (quantity <= 0) {
                 result.addProperty("code", 400);
-                result.addProperty("message", "数量必须大于 0");
+                result.addProperty("message", I18n.t("economy.h893a9a8c"));
                 return result;
             }
 

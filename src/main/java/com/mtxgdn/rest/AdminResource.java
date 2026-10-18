@@ -66,6 +66,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import com.mtxgdn.i18n.I18n;
 
 @Path("/admin")
 public class AdminResource {
@@ -109,7 +110,7 @@ public class AdminResource {
         if (!RateLimiter.allow("admin_login_global", 20, 60)) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 429);
-            err.addProperty("message", "登录尝试过于频繁，请稍后再试");
+            err.addProperty("message", I18n.t("admin.h9c54f628"));
             return Response.status(429).entity(gson.toJson(err)).build();
         }
         JsonObject req = com.google.gson.JsonParser.parseString(body).getAsJsonObject();
@@ -120,7 +121,7 @@ public class AdminResource {
         if (username.isBlank() || password.isBlank()) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 401);
-            err.addProperty("message", "用户名和密码不能为空");
+            err.addProperty("message", I18n.t("admin.h34f00dc0"));
             return Response.status(401).entity(gson.toJson(err)).build();
         }
 
@@ -128,7 +129,7 @@ public class AdminResource {
         if (!RateLimiter.allow("admin_login:" + username, 5, 60)) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 429);
-            err.addProperty("message", "该账号登录尝试过于频繁，请稍后再试");
+            err.addProperty("message", I18n.t("admin.h90e20fd8"));
             return Response.status(429).entity(gson.toJson(err)).build();
         }
 
@@ -174,14 +175,14 @@ public class AdminResource {
         if (user == null) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 401);
-            err.addProperty("message", "用户名或密码错误");
+            err.addProperty("message", I18n.t("admin.hda558f5c"));
             return Response.status(401).entity(gson.toJson(err)).build();
         }
 
         if (!PermissionService.hasPermission(user.getId(), PermissionCode.ADMIN_LOGIN.getCode())) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 403);
-            err.addProperty("message", "无管理后台权限，请联系超级管理员分配角色");
+            err.addProperty("message", I18n.t("admin.h00567a14"));
             return Response.status(403).entity(gson.toJson(err)).build();
         }
 
@@ -211,7 +212,7 @@ public class AdminResource {
         if (user == null) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 401);
-            err.addProperty("message", "用户名或密码错误");
+            err.addProperty("message", I18n.t("admin.hda558f5c"));
             return Response.status(401).entity(gson.toJson(err)).build();
         }
 
@@ -406,14 +407,14 @@ public class AdminResource {
         if (jarName == null || jarName.isBlank()) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 400);
-            err.addProperty("message", "jarName 不能为空");
+            err.addProperty("message", I18n.t("admin.h460e03c8"));
             return Response.ok(gson.toJson(err)).build();
         }
         if (jarName.contains("..") || jarName.contains("/") || jarName.contains("\\")
                 || jarName.contains("\0") || !jarName.toLowerCase().endsWith(".jar")) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 400);
-            err.addProperty("message", "非法的插件文件名（仅允许 plugins/ 目录下的 .jar 文件，禁止路径穿越）");
+            err.addProperty("message", I18n.t("admin.hf651e4d3"));
             return Response.ok(gson.toJson(err)).build();
         }
         File pluginsDir = new File("plugins").getAbsoluteFile();
@@ -424,13 +425,13 @@ public class AdminResource {
                     && !jarFile.getCanonicalPath().equals(pluginsDir.getCanonicalPath())) {
                 JsonObject err = new JsonObject();
                 err.addProperty("code", 400);
-                err.addProperty("message", "非法的插件路径");
+                err.addProperty("message", I18n.t("admin.hf05cf8ec"));
                 return Response.ok(gson.toJson(err)).build();
             }
         } catch (Exception e) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 400);
-            err.addProperty("message", "路径解析失败");
+            err.addProperty("message", I18n.t("admin.hbe2acdf0"));
             return Response.ok(gson.toJson(err)).build();
         }
         if (!jarFile.exists()) {
@@ -454,7 +455,7 @@ public class AdminResource {
         com.mtxgdn.plugin.PluginManager.getInstance().startFileWatcher();
         JsonObject result = new JsonObject();
         result.addProperty("code", 200);
-        result.addProperty("message", "文件监听已启动");
+        result.addProperty("message", I18n.t("admin.h1237ba08"));
         return Response.ok(gson.toJson(result)).build();
     }
 
@@ -466,7 +467,7 @@ public class AdminResource {
         com.mtxgdn.plugin.PluginManager.getInstance().stopFileWatcher();
         JsonObject result = new JsonObject();
         result.addProperty("code", 200);
-        result.addProperty("message", "文件监听已停止");
+        result.addProperty("message", I18n.t("admin.hc44dbf28"));
         return Response.ok(gson.toJson(result)).build();
     }
 
@@ -516,7 +517,7 @@ public class AdminResource {
         shutdownThread.start();
 
         JsonObject result = new JsonObject();
-        result.addProperty("message", "服务器正在关闭...");
+        result.addProperty("message", I18n.t("admin.h8cce6bb4"));
         return Response.ok(gson.toJson(result)).build();
     }
 
@@ -651,7 +652,7 @@ public class AdminResource {
         if (name == null || name.isBlank()) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 400);
-            err.addProperty("message", "权限组名称不能为空");
+            err.addProperty("message", I18n.t("admin.hbd4d9090"));
             return Response.status(400).entity(gson.toJson(err)).build();
         }
 
@@ -659,7 +660,7 @@ public class AdminResource {
             PermissionService.createGroup(name, displayName, level);
             JsonObject result = new JsonObject();
             result.addProperty("code", 200);
-            result.addProperty("message", "权限组创建成功");
+            result.addProperty("message", I18n.t("admin.h0d43f684"));
             return Response.ok(gson.toJson(result)).build();
         } catch (Exception e) {
             JsonObject err = new JsonObject();
@@ -688,7 +689,7 @@ public class AdminResource {
             PermissionService.updateGroup(groupName, displayName, level);
             JsonObject result = new JsonObject();
             result.addProperty("code", 200);
-            result.addProperty("message", "权限组更新成功");
+            result.addProperty("message", I18n.t("admin.h2df30215"));
             return Response.ok(gson.toJson(result)).build();
         } catch (Exception e) {
             JsonObject err = new JsonObject();
@@ -707,7 +708,7 @@ public class AdminResource {
             PermissionService.deleteGroup(groupName);
             JsonObject result = new JsonObject();
             result.addProperty("code", 200);
-            result.addProperty("message", "权限组已删除");
+            result.addProperty("message", I18n.t("admin.h04a3a43c"));
             return Response.ok(gson.toJson(result)).build();
         } catch (Exception e) {
             JsonObject err = new JsonObject();
@@ -729,7 +730,7 @@ public class AdminResource {
         if (permissionCode == null || permissionCode.isBlank()) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 400);
-            err.addProperty("message", "权限码不能为空");
+            err.addProperty("message", I18n.t("admin.h49c7b7c8"));
             return Response.status(400).entity(gson.toJson(err)).build();
         }
 
@@ -737,7 +738,7 @@ public class AdminResource {
             PermissionService.addGroupPermission(groupName, permissionCode);
             JsonObject result = new JsonObject();
             result.addProperty("code", 200);
-            result.addProperty("message", "权限已添加到权限组");
+            result.addProperty("message", I18n.t("admin.h0ba3ecc8"));
             return Response.ok(gson.toJson(result)).build();
         } catch (Exception e) {
             JsonObject err = new JsonObject();
@@ -758,7 +759,7 @@ public class AdminResource {
             PermissionService.removeGroupPermission(groupName, permissionCode);
             JsonObject result = new JsonObject();
             result.addProperty("code", 200);
-            result.addProperty("message", "权限已从权限组移除");
+            result.addProperty("message", I18n.t("admin.h6a8f4654"));
             return Response.ok(gson.toJson(result)).build();
         } catch (Exception e) {
             JsonObject err = new JsonObject();
@@ -786,7 +787,7 @@ public class AdminResource {
             PermissionService.setGroupPermissions(groupName, permissionCodes);
             JsonObject result = new JsonObject();
             result.addProperty("code", 200);
-            result.addProperty("message", "权限组权限已更新");
+            result.addProperty("message", I18n.t("admin.he27be784"));
             return Response.ok(gson.toJson(result)).build();
         } catch (Exception e) {
             JsonObject err = new JsonObject();
@@ -854,7 +855,7 @@ public class AdminResource {
         if (roleName == null || !PermissionService.getRoleNames().contains(roleName)) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 400);
-            err.addProperty("message", "无效的角色名");
+            err.addProperty("message", I18n.t("admin.h0eba6300"));
             return Response.status(400).entity(gson.toJson(err)).build();
         }
 
@@ -862,7 +863,7 @@ public class AdminResource {
 
         JsonObject result = new JsonObject();
         result.addProperty("code", 200);
-        result.addProperty("message", "角色分配成功");
+        result.addProperty("message", I18n.t("admin.h514bf7e1"));
         return Response.ok(gson.toJson(result)).build();
     }
 
@@ -874,7 +875,7 @@ public class AdminResource {
         if (!PermissionService.getRoleNames().contains(roleName)) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 400);
-            err.addProperty("message", "无效的角色名");
+            err.addProperty("message", I18n.t("admin.h0eba6300"));
             return Response.status(400).entity(gson.toJson(err)).build();
         }
 
@@ -886,7 +887,7 @@ public class AdminResource {
 
         JsonObject result = new JsonObject();
         result.addProperty("code", 200);
-        result.addProperty("message", "角色移除成功");
+        result.addProperty("message", I18n.t("admin.h89776548"));
         return Response.ok(gson.toJson(result)).build();
     }
 
@@ -904,19 +905,19 @@ public class AdminResource {
         if (username.isBlank()) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 400);
-            err.addProperty("message", "用户名不能为空");
+            err.addProperty("message", I18n.t("admin.h564bba40"));
             return Response.status(400).entity(gson.toJson(err)).build();
         }
         if (password.length() < 6) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 400);
-            err.addProperty("message", "密码长度不能少于6位");
+            err.addProperty("message", I18n.t("admin.h5df85b3d"));
             return Response.status(400).entity(gson.toJson(err)).build();
         }
         if (!PermissionService.getRoleNames().contains(role)) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 400);
-            err.addProperty("message", "无效的角色名");
+            err.addProperty("message", I18n.t("admin.h0eba6300"));
             return Response.status(400).entity(gson.toJson(err)).build();
         }
 
@@ -928,7 +929,7 @@ public class AdminResource {
                 if (rs.next()) {
                     JsonObject err = new JsonObject();
                     err.addProperty("code", 409);
-                    err.addProperty("message", "用户名已存在");
+                    err.addProperty("message", I18n.t("admin.hdd8fbc40"));
                     return Response.status(409).entity(gson.toJson(err)).build();
                 }
             }
@@ -947,7 +948,7 @@ public class AdminResource {
 
                         JsonObject result = new JsonObject();
                         result.addProperty("code", 200);
-                        result.addProperty("message", "管理员账号创建成功");
+                        result.addProperty("message", I18n.t("admin.h58665cac"));
                         result.addProperty("userId", userId);
                         result.addProperty("username", username);
                         result.addProperty("role", role);
@@ -964,7 +965,7 @@ public class AdminResource {
 
         JsonObject err = new JsonObject();
         err.addProperty("code", 500);
-        err.addProperty("message", "创建失败");
+        err.addProperty("message", I18n.t("admin.h9b99bb43"));
         return Response.status(500).entity(gson.toJson(err)).build();
     }
 
@@ -980,7 +981,7 @@ public class AdminResource {
         if (newPassword.length() < 6) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 400);
-            err.addProperty("message", "密码长度不能少于6位");
+            err.addProperty("message", I18n.t("admin.h5df85b3d"));
             return Response.status(400).entity(gson.toJson(err)).build();
         }
 
@@ -994,13 +995,13 @@ public class AdminResource {
             if (affected == 0) {
                 JsonObject err = new JsonObject();
                 err.addProperty("code", 404);
-                err.addProperty("message", "用户不存在");
+                err.addProperty("message", I18n.t("admin.hab63e3d4"));
                 return Response.status(404).entity(gson.toJson(err)).build();
             }
 
             JsonObject result = new JsonObject();
             result.addProperty("code", 200);
-            result.addProperty("message", "密码修改成功");
+            result.addProperty("message", I18n.t("admin.hd0c6ad88"));
             return Response.ok(gson.toJson(result)).build();
         } catch (SQLException e) {
             JsonObject err = new JsonObject();
@@ -1034,7 +1035,7 @@ public class AdminResource {
                         conn.rollback();
                         JsonObject err = new JsonObject();
                         err.addProperty("code", 404);
-                        err.addProperty("message", "用户不存在");
+                        err.addProperty("message", I18n.t("admin.hab63e3d4"));
                         return Response.status(404).entity(gson.toJson(err)).build();
                     }
                 }
@@ -1042,7 +1043,7 @@ public class AdminResource {
 
                 JsonObject result = new JsonObject();
                 result.addProperty("code", 200);
-                result.addProperty("message", "用户删除成功");
+                result.addProperty("message", I18n.t("admin.h5f4782cc"));
                 return Response.ok(gson.toJson(result)).build();
             } catch (Exception e) {
                 conn.rollback();
@@ -1097,7 +1098,7 @@ public class AdminResource {
         if (permissionCode == null || permissionCode.isBlank()) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 400);
-            err.addProperty("message", "权限码不能为空");
+            err.addProperty("message", I18n.t("admin.h49c7b7c8"));
             return Response.status(400).entity(gson.toJson(err)).build();
         }
 
@@ -1112,7 +1113,7 @@ public class AdminResource {
             PermissionService.assignPermission(userId, permissionCode);
             JsonObject result = new JsonObject();
             result.addProperty("code", 200);
-            result.addProperty("message", "权限分配成功");
+            result.addProperty("message", I18n.t("admin.h9d7e3c90"));
             return Response.ok(gson.toJson(result)).build();
         } catch (Exception e) {
             JsonObject err = new JsonObject();
@@ -1131,7 +1132,7 @@ public class AdminResource {
             PermissionService.removePermission(userId, permissionCode);
             JsonObject result = new JsonObject();
             result.addProperty("code", 200);
-            result.addProperty("message", "权限移除成功");
+            result.addProperty("message", I18n.t("admin.he43121b0"));
             return Response.ok(gson.toJson(result)).build();
         } catch (Exception e) {
             JsonObject err = new JsonObject();
@@ -1153,7 +1154,7 @@ public class AdminResource {
 
         JsonObject result = new JsonObject();
         result.addProperty("code", 200);
-        result.addProperty("message", "玩家数据已清除");
+        result.addProperty("message", I18n.t("admin.hd6ef4b84"));
         result.addProperty("totalDeleted", total);
 
         JsonObject detail = new JsonObject();
@@ -1181,7 +1182,7 @@ public class AdminResource {
 
         JsonObject result = new JsonObject();
         result.addProperty("code", 200);
-        result.addProperty("message", "全部数据已重置，默认数据已重新初始化");
+        result.addProperty("message", I18n.t("admin.he0c1aa7c"));
         result.addProperty("totalDeleted", total);
 
         JsonObject detail = new JsonObject();
@@ -1255,7 +1256,7 @@ public class AdminResource {
         if (p == null) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 404);
-            err.addProperty("message", "玩家不存在");
+            err.addProperty("message", I18n.t("admin.h796f4b70"));
             return Response.ok(gson.toJson(err)).build();
         }
 
@@ -1311,7 +1312,7 @@ public class AdminResource {
         if (p == null) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 404);
-            err.addProperty("message", "玩家不存在");
+            err.addProperty("message", I18n.t("admin.h796f4b70"));
             return Response.ok(gson.toJson(err)).build();
         }
 
@@ -1360,7 +1361,7 @@ public class AdminResource {
         if (p == null) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 404);
-            err.addProperty("message", "玩家不存在");
+            err.addProperty("message", I18n.t("admin.h796f4b70"));
             return Response.ok(gson.toJson(err)).build();
         }
 
@@ -1384,7 +1385,7 @@ public class AdminResource {
 
         JsonObject result = new JsonObject();
         result.addProperty("code", 200);
-        result.addProperty("message", "编辑成功");
+        result.addProperty("message", I18n.t("admin.h09fd94fc"));
         return Response.ok(gson.toJson(result)).build();
     }
 
@@ -1397,7 +1398,7 @@ public class AdminResource {
         if (p == null) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 404);
-            err.addProperty("message", "玩家不存在");
+            err.addProperty("message", I18n.t("admin.h796f4b70"));
             return Response.ok(gson.toJson(err)).build();
         }
 
@@ -1405,12 +1406,12 @@ public class AdminResource {
         if (success) {
             JsonObject result = new JsonObject();
             result.addProperty("code", 200);
-            result.addProperty("message", "删除成功");
+            result.addProperty("message", I18n.t("admin.h7e7ba6b0"));
             return Response.ok(gson.toJson(result)).build();
         } else {
             JsonObject err = new JsonObject();
             err.addProperty("code", 500);
-            err.addProperty("message", "删除失败");
+            err.addProperty("message", I18n.t("admin.h1a6a52b8"));
             return Response.ok(gson.toJson(err)).build();
         }
     }
@@ -1425,7 +1426,7 @@ public class AdminResource {
         if (p == null) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 404);
-            err.addProperty("message", "玩家不存在");
+            err.addProperty("message", I18n.t("admin.h796f4b70"));
             return Response.ok(gson.toJson(err)).build();
         }
 
@@ -1435,7 +1436,7 @@ public class AdminResource {
         if (newName == null || newName.trim().isEmpty()) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 400);
-            err.addProperty("message", "名称不能为空");
+            err.addProperty("message", I18n.t("admin.hbb03c877"));
             return Response.ok(gson.toJson(err)).build();
         }
 
@@ -1445,14 +1446,14 @@ public class AdminResource {
         if (success) {
             JsonObject result = new JsonObject();
             result.addProperty("code", 200);
-            result.addProperty("message", "名称修改成功");
+            result.addProperty("message", I18n.t("admin.h3cc04960"));
             result.addProperty("oldName", oldName);
             result.addProperty("newName", newName);
             return Response.ok(gson.toJson(result)).build();
         } else {
             JsonObject err = new JsonObject();
             err.addProperty("code", 500);
-            err.addProperty("message", "修改失败");
+            err.addProperty("message", I18n.t("admin.h8768d477"));
             return Response.ok(gson.toJson(err)).build();
         }
     }
@@ -1467,7 +1468,7 @@ public class AdminResource {
         if (p == null) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 404);
-            err.addProperty("message", "玩家不存在");
+            err.addProperty("message", I18n.t("admin.h796f4b70"));
             return Response.ok(gson.toJson(err)).build();
         }
 
@@ -1476,7 +1477,7 @@ public class AdminResource {
         if (rootName == null || rootName.isBlank()) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 400);
-            err.addProperty("message", "请提供灵根名称");
+            err.addProperty("message", I18n.t("admin.h1a5ea364"));
             return Response.ok(gson.toJson(err)).build();
         }
 
@@ -1615,7 +1616,7 @@ public class AdminResource {
         if (p == null) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 404);
-            err.addProperty("message", "玩家不存在");
+            err.addProperty("message", I18n.t("admin.h796f4b70"));
             return Response.ok(gson.toJson(err)).build();
         }
 
@@ -1649,7 +1650,7 @@ public class AdminResource {
         if (p == null) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 404);
-            err.addProperty("message", "玩家不存在");
+            err.addProperty("message", I18n.t("admin.h796f4b70"));
             return Response.ok(gson.toJson(err)).build();
         }
 
@@ -1659,7 +1660,7 @@ public class AdminResource {
         if (titleKey == null || titleKey.isBlank()) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 400);
-            err.addProperty("message", "称号key不能为空");
+            err.addProperty("message", I18n.t("admin.he8f4ef00"));
             return Response.ok(gson.toJson(err)).build();
         }
 
@@ -1828,7 +1829,7 @@ public class AdminResource {
             if (row == null) {
                 JsonObject err = new JsonObject();
                 err.addProperty("code", 404);
-                err.addProperty("message", "记录不存在");
+                err.addProperty("message", I18n.t("admin.h2d6880bc"));
                 return Response.ok(gson.toJson(err)).build();
             }
 
@@ -1892,7 +1893,7 @@ public class AdminResource {
 
             JsonObject result = new JsonObject();
             result.addProperty("code", 200);
-            result.addProperty("message", "新增成功");
+            result.addProperty("message", I18n.t("admin.h34edd3d4"));
             result.addProperty("id", newId);
             return Response.ok(gson.toJson(result)).build();
         } catch (IllegalArgumentException e) {
@@ -1941,10 +1942,10 @@ public class AdminResource {
             JsonObject result = new JsonObject();
             if (updated > 0) {
                 result.addProperty("code", 200);
-                result.addProperty("message", "更新成功");
+                result.addProperty("message", I18n.t("admin.h49113c80"));
             } else {
                 result.addProperty("code", 404);
-                result.addProperty("message", "记录不存在或未变更");
+                result.addProperty("message", I18n.t("admin.hd2524528"));
             }
             return Response.ok(gson.toJson(result)).build();
         } catch (IllegalArgumentException e) {
@@ -1976,10 +1977,10 @@ public class AdminResource {
             JsonObject result = new JsonObject();
             if (deleted > 0) {
                 result.addProperty("code", 200);
-                result.addProperty("message", "删除成功");
+                result.addProperty("message", I18n.t("admin.h7e7ba6b0"));
             } else {
                 result.addProperty("code", 404);
-                result.addProperty("message", "记录不存在");
+                result.addProperty("message", I18n.t("admin.h2d6880bc"));
             }
             return Response.ok(gson.toJson(result)).build();
         } catch (IllegalArgumentException e) {
@@ -2032,7 +2033,7 @@ public class AdminResource {
 
             JsonObject result = new JsonObject();
             result.addProperty("code", 200);
-            result.addProperty("message", "数据导入成功");
+            result.addProperty("message", I18n.t("admin.h7503790c"));
 
             int total = 0;
             JsonObject detail = new JsonObject();
@@ -2096,7 +2097,7 @@ public class AdminResource {
             if (code.isBlank()) {
                 JsonObject err = new JsonObject();
                 err.addProperty("code", 400);
-                err.addProperty("message", "兑换码不能为空");
+                err.addProperty("message", I18n.t("admin.h6c0eef00"));
                 return Response.ok(gson.toJson(err)).build();
             }
 
@@ -2113,7 +2114,7 @@ public class AdminResource {
 
             JsonObject result = new JsonObject();
             result.addProperty("code", 200);
-            result.addProperty("message", "兑换码创建成功");
+            result.addProperty("message", I18n.t("admin.h46172edd"));
             result.add("codeInfo", toRedeemCodeJson(rc));
             return Response.ok(gson.toJson(result)).build();
         } catch (Exception e) {
@@ -2136,7 +2137,7 @@ public class AdminResource {
             if (existing != null && (existing.isRedeemed() || existing.isExpired())) {
                 JsonObject err = new JsonObject();
                 err.addProperty("code", 400);
-                err.addProperty("message", "已兑换或已过期的兑换码不允许编辑，只能删除");
+                err.addProperty("message", I18n.t("admin.hd589e27c"));
                 return Response.ok(gson.toJson(err)).build();
             }
 
@@ -2161,7 +2162,7 @@ public class AdminResource {
 
             JsonObject result = new JsonObject();
             result.addProperty("code", 200);
-            result.addProperty("message", "兑换码更新成功");
+            result.addProperty("message", I18n.t("admin.h4d604ddc"));
             return Response.ok(gson.toJson(result)).build();
         } catch (Exception e) {
             JsonObject err = new JsonObject();
@@ -2180,7 +2181,7 @@ public class AdminResource {
             redeemCodeService.deleteCode(id);
             JsonObject result = new JsonObject();
             result.addProperty("code", 200);
-            result.addProperty("message", "兑换码已删除");
+            result.addProperty("message", I18n.t("admin.h2bff2074"));
             return Response.ok(gson.toJson(result)).build();
         } catch (Exception e) {
             JsonObject err = new JsonObject();
@@ -2289,13 +2290,13 @@ public class AdminResource {
         if (!hasQq && !hasUid) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 400);
-            err.addProperty("message", "qqNumber 和 userId 必须填写其中一个");
+            err.addProperty("message", I18n.t("admin.h7443b43e"));
             return Response.status(400).entity(gson.toJson(err)).build();
         }
         if (hasQq && hasUid) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 400);
-            err.addProperty("message", "qqNumber 和 userId 只能二选一");
+            err.addProperty("message", I18n.t("admin.hacbe32d4"));
             return Response.status(400).entity(gson.toJson(err)).build();
         }
 
@@ -2325,7 +2326,7 @@ public class AdminResource {
             blacklistService.removeFromBlacklist(qqNumber);
             JsonObject result = new JsonObject();
             result.addProperty("code", 200);
-            result.addProperty("message", "已从黑名单移除");
+            result.addProperty("message", I18n.t("admin.h0ae42a94"));
             return Response.ok(gson.toJson(result)).build();
         } catch (RuntimeException e) {
             JsonObject err = new JsonObject();
@@ -2345,7 +2346,7 @@ public class AdminResource {
             blacklistService.removeFromBlacklistByUserId(userId);
             JsonObject result = new JsonObject();
             result.addProperty("code", 200);
-            result.addProperty("message", "已从黑名单移除");
+            result.addProperty("message", I18n.t("admin.h0ae42a94"));
             return Response.ok(gson.toJson(result)).build();
         } catch (RuntimeException e) {
             JsonObject err = new JsonObject();
@@ -2413,7 +2414,7 @@ public class AdminResource {
         if (days < 1 || days > 30) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 400);
-            err.addProperty("message", "禁言天数必须在1-30之间");
+            err.addProperty("message", I18n.t("admin.hc5532e10"));
             return Response.status(400).entity(gson.toJson(err)).build();
         }
 
@@ -2436,7 +2437,7 @@ public class AdminResource {
             configService.deleteConfig(groupId);
             JsonObject result = new JsonObject();
             result.addProperty("code", 200);
-            result.addProperty("message", "群组配置已删除");
+            result.addProperty("message", I18n.t("admin.hd952c78c"));
             return Response.ok(gson.toJson(result)).build();
         } catch (RuntimeException e) {
             JsonObject err = new JsonObject();
@@ -2459,7 +2460,7 @@ public class AdminResource {
         if (titleKey.isBlank()) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 400);
-            err.addProperty("message", "请提供称号键(titleKey)");
+            err.addProperty("message", I18n.t("admin.hd7921d08"));
             return Response.ok(gson.toJson(err)).build();
         }
         var ts = ServiceRegistry.getTitleService();
@@ -2593,7 +2594,7 @@ public class AdminResource {
 
             JsonObject result = new JsonObject();
             result.addProperty("code", 200);
-            result.addProperty("message", "新人奖励配置已保存");
+            result.addProperty("message", I18n.t("admin.ha9c62e68"));
             return Response.ok(gson.toJson(result)).build();
         } catch (Exception e) {
             JsonObject err = new JsonObject();
@@ -2650,7 +2651,7 @@ public class AdminResource {
             String authHeader = authHeaders != null && !authHeaders.isEmpty() ? authHeaders.get(0) : null;
             if (authHeader == null || !authHeader.startsWith("Bearer ")) {
                 result.addProperty("code", 401);
-                result.addProperty("message", "未登录");
+                result.addProperty("message", I18n.t("admin.hbaa88444"));
                 return Response.ok(gson.toJson(result)).build();
             }
             String token = authHeader.substring("Bearer ".length()).trim();
@@ -2693,12 +2694,12 @@ public class AdminResource {
             }
         } catch (Exception e) {
             result.addProperty("code", 500);
-            result.addProperty("message", "获取用户信息失败");
+            result.addProperty("message", I18n.t("admin.h6e816fc4"));
             return Response.ok(gson.toJson(result)).build();
         }
         
         result.addProperty("code", 401);
-        result.addProperty("message", "未登录");
+        result.addProperty("message", I18n.t("admin.hbaa88444"));
         return Response.ok(gson.toJson(result)).build();
     }
 
@@ -2712,7 +2713,7 @@ public class AdminResource {
             String authHeader = authHeaders != null && !authHeaders.isEmpty() ? authHeaders.get(0) : null;
             if (authHeader == null || !authHeader.startsWith("Bearer ")) {
                 result.addProperty("code", 401);
-                result.addProperty("message", "未登录");
+                result.addProperty("message", I18n.t("admin.hbaa88444"));
                 return Response.ok(gson.toJson(result)).build();
             }
             String token = authHeader.substring("Bearer ".length()).trim();
@@ -2736,14 +2737,14 @@ public class AdminResource {
 
             if (userId == null) {
                 result.addProperty("code", 401);
-                result.addProperty("message", "未登录");
+                result.addProperty("message", I18n.t("admin.hbaa88444"));
                 return Response.ok(gson.toJson(result)).build();
             }
             
             var player = playerService.getPlayerByUserId(userId);
             if (player == null) {
                 result.addProperty("code", 404);
-                result.addProperty("message", "玩家角色不存在");
+                result.addProperty("message", I18n.t("admin.hb05a7090"));
                 return Response.ok(gson.toJson(result)).build();
             }
             
@@ -2804,7 +2805,7 @@ public class AdminResource {
         if (text.isBlank()) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 400);
-            err.addProperty("message", "公告内容不能为空");
+            err.addProperty("message", I18n.t("admin.h3ab62198"));
             return Response.ok(gson.toJson(err)).build();
         }
         
@@ -2816,7 +2817,7 @@ public class AdminResource {
         
         JsonObject result = new JsonObject();
         result.addProperty("code", 200);
-        result.addProperty("message", "公告已发送");
+        result.addProperty("message", I18n.t("admin.h5f4d6aa0"));
         return Response.ok(gson.toJson(result)).build();
     }
 
@@ -2833,7 +2834,7 @@ public class AdminResource {
         if (userIdStr.isBlank() || level.isBlank()) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 400);
-            err.addProperty("message", "QQ号和权限等级不能为空");
+            err.addProperty("message", I18n.t("admin.h7c8dde64"));
             return Response.ok(gson.toJson(err)).build();
         }
         
@@ -2843,7 +2844,7 @@ public class AdminResource {
         } catch (NumberFormatException e) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 400);
-            err.addProperty("message", "无效的QQ号");
+            err.addProperty("message", I18n.t("admin.ha80419fc"));
             return Response.ok(gson.toJson(err)).build();
         }
         
@@ -2851,7 +2852,7 @@ public class AdminResource {
             PermissionService.assignRole(userId, level);
             JsonObject result = new JsonObject();
             result.addProperty("code", 200);
-            result.addProperty("message", "权限设置成功");
+            result.addProperty("message", I18n.t("admin.h7d2e5a9c"));
             return Response.ok(gson.toJson(result)).build();
         } catch (Exception e) {
             JsonObject err = new JsonObject();
@@ -2920,7 +2921,7 @@ public class AdminResource {
             if (newConfig == null || newConfig.getAdapters() == null) {
                 JsonObject err = new JsonObject();
                 err.addProperty("code", 400);
-                err.addProperty("message", "无效的适配器配置");
+                err.addProperty("message", I18n.t("admin.h0865fea7"));
                 return Response.ok(gson.toJson(err)).build();
             }
 
@@ -2931,7 +2932,7 @@ public class AdminResource {
 
             JsonObject result = new JsonObject();
             result.addProperty("code", 200);
-            result.addProperty("message", "适配器配置已更新并重载");
+            result.addProperty("message", I18n.t("admin.hed9893a3"));
             return Response.ok(gson.toJson(result)).build();
         } catch (Exception e) {
             JsonObject err = new JsonObject();
@@ -2950,7 +2951,7 @@ public class AdminResource {
             AdapterManager.reloadAll();
             JsonObject result = new JsonObject();
             result.addProperty("code", 200);
-            result.addProperty("message", "适配器配置已重载");
+            result.addProperty("message", I18n.t("admin.hf7bba770"));
             return Response.ok(gson.toJson(result)).build();
         } catch (Exception e) {
             JsonObject err = new JsonObject();
@@ -3369,7 +3370,7 @@ public class AdminResource {
             JsonObject data = new JsonObject();
             data.addProperty("updated", affected);
             out.addProperty("code", 200);
-            out.addProperty("message", "已更新，地图缓存已热重载");
+            out.addProperty("message", I18n.t("admin.h8889c2a8"));
             out.add("data", data);
         } catch (IllegalArgumentException e) {
             out.addProperty("code", 400);
@@ -3564,7 +3565,7 @@ public class AdminResource {
             JsonObject data = new JsonObject();
             data.addProperty("deleted", affected);
             out.addProperty("code", 200);
-            out.addProperty("message", "已删除地点及其连接/偏置，地图缓存已热重载");
+            out.addProperty("message", I18n.t("admin.hbd2c7468"));
             out.add("data", data);
         } catch (IllegalArgumentException e) {
             out.addProperty("code", 400);
@@ -3728,7 +3729,7 @@ public class AdminResource {
             data.addProperty("eventKey", eventKey);
             data.addProperty("multiplier", multiplier);
             out.addProperty("code", 200);
-            out.addProperty("message", "已保存事件偏置，地图缓存已热重载");
+            out.addProperty("message", I18n.t("admin.h77706204"));
             out.add("data", data);
         } catch (IllegalArgumentException e) {
             out.addProperty("code", 400);
@@ -3762,7 +3763,7 @@ public class AdminResource {
             }
             if (affected == 0) {
                 out.addProperty("code", 404);
-                out.addProperty("message", "该地点没有这条事件偏置");
+                out.addProperty("message", I18n.t("admin.hfc3d7aa4"));
                 return Response.ok(gson.toJson(out)).build();
             }
 
@@ -3771,7 +3772,7 @@ public class AdminResource {
             JsonObject data = new JsonObject();
             data.addProperty("deleted", affected);
             out.addProperty("code", 200);
-            out.addProperty("message", "已删除事件偏置，地图缓存已热重载");
+            out.addProperty("message", I18n.t("admin.h05227a8c"));
             out.add("data", data);
         } catch (IllegalArgumentException e) {
             out.addProperty("code", 400);
@@ -4074,7 +4075,7 @@ public class AdminResource {
         String key = (itemKey != null && !itemKey.isBlank()) ? itemKey : item;
         if (key == null || key.isBlank()) {
             out.addProperty("code", 400);
-            out.addProperty("message", "请提供 itemKey 查询参数");
+            out.addProperty("message", I18n.t("admin.h4011186c"));
             return Response.ok(gson.toJson(out)).build();
         }
         int days = 0;

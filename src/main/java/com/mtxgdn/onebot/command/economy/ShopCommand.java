@@ -7,6 +7,7 @@ import com.mtxgdn.common.command.CommandContext;
 import com.mtxgdn.common.command.RouteDefinition;
 import com.mtxgdn.game.entity.PlayerInfo;
 import com.mtxgdn.common.service.ServiceRegistry;
+import com.mtxgdn.i18n.I18n;
 
 /**
  * 灵石商店：/商店 浏览商品，/商店 <编号> 购买。
@@ -90,7 +91,7 @@ public class ShopCommand extends Command {
             if (!body.has("id")) {
                 result.addProperty("code", 400);
                 result.addProperty("success", false);
-                result.addProperty("message", "缺少商品编号 id");
+                result.addProperty("message", I18n.t("economy.hb69140ac"));
                 return result;
             }
             int index = body.get("id").getAsInt();
@@ -102,7 +103,7 @@ public class ShopCommand extends Command {
         } catch (Exception e) {
             result.addProperty("code", 500);
             result.addProperty("success", false);
-            result.addProperty("message", "购买失败，请稍后重试");
+            result.addProperty("message", I18n.t("economy.h429191c6"));
         }
         return result;
     }

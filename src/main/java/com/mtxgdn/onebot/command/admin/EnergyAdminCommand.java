@@ -11,6 +11,7 @@ import com.mtxgdn.game.service.PlayerService;
 import com.mtxgdn.permission.PermissionService;
 import com.mtxgdn.onebot.QqBinding;
 import com.mtxgdn.onebot.QqBindingService;
+import com.mtxgdn.i18n.I18n;
 
 public class EnergyAdminCommand extends Command {
 
@@ -187,7 +188,7 @@ public class EnergyAdminCommand extends Command {
         JsonObject result = new JsonObject();
         if (!BuiltInPluginRegistry.isModuleEnabled(ENERGY_EXCHANGE_PLUGIN)) {
             result.addProperty("code", 403);
-            result.addProperty("message", "能量转化系统暂未开放");
+            result.addProperty("message", I18n.t("admin.h4aa0a0f2"));
         }
         return result;
     }
@@ -239,7 +240,7 @@ public class EnergyAdminCommand extends Command {
 
             if (energy < 0) {
                 result.addProperty("code", 400);
-                result.addProperty("message", "能量值不能为负数");
+                result.addProperty("message", I18n.t("admin.h35fbfdd4"));
                 return result;
             }
 
@@ -255,7 +256,7 @@ public class EnergyAdminCommand extends Command {
             energyService.setEnergy(playerId, energy);
 
             result.addProperty("code", 200);
-            result.addProperty("message", "设置成功");
+            result.addProperty("message", I18n.t("admin.h34ac6234"));
             result.addProperty("playerId", playerId);
             result.addProperty("playerName", p.getName());
             result.addProperty("energy", energy);
@@ -281,7 +282,7 @@ public class EnergyAdminCommand extends Command {
 
             if (amount <= 0) {
                 result.addProperty("code", 400);
-                result.addProperty("message", "增加量必须大于0");
+                result.addProperty("message", I18n.t("admin.hab204d78"));
                 return result;
             }
 
@@ -297,7 +298,7 @@ public class EnergyAdminCommand extends Command {
             energyService.addEnergy(playerId, amount);
 
             result.addProperty("code", 200);
-            result.addProperty("message", "增加成功");
+            result.addProperty("message", I18n.t("admin.h308c401c"));
             result.addProperty("playerId", playerId);
             result.addProperty("playerName", p.getName());
             result.addProperty("added", amount);
@@ -324,7 +325,7 @@ public class EnergyAdminCommand extends Command {
 
             if (amount <= 0) {
                 result.addProperty("code", 400);
-                result.addProperty("message", "减少量必须大于0");
+                result.addProperty("message", I18n.t("admin.h53593588"));
                 return result;
             }
 
@@ -347,7 +348,7 @@ public class EnergyAdminCommand extends Command {
             energyService.removeEnergy(playerId, amount);
 
             result.addProperty("code", 200);
-            result.addProperty("message", "减少成功");
+            result.addProperty("message", I18n.t("admin.h6e950058"));
             result.addProperty("playerId", playerId);
             result.addProperty("playerName", p.getName());
             result.addProperty("removed", amount);

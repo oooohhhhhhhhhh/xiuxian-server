@@ -9,6 +9,7 @@ import com.mtxgdn.game.entity.PlayerInfo;
 import com.mtxgdn.game.service.EconomyService;
 
 import java.util.Map;
+import com.mtxgdn.i18n.I18n;
 
 /**
  * /提纯 — 提纯灵石，将低级灵石升为高级灵石。
@@ -74,7 +75,7 @@ public class PurifyCommand extends Command {
             int grade = req.has("grade") ? req.get("grade").getAsInt() : -1;
             if (grade < 0 || grade > 2) {
                 result.addProperty("code", 400);
-                result.addProperty("message", "请提供有效的 grade（0=下品→中品，1=中品→上品，2=上品→极品）");
+                result.addProperty("message", I18n.t("economy.h41e94abc"));
                 return result;
             }
             Map<String, Object> data = ServiceRegistry.getEconomyService().purifySpiritStone(ctx.playerId(), grade);

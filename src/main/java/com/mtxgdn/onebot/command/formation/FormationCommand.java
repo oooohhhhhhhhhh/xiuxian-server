@@ -7,6 +7,7 @@ import com.mtxgdn.common.command.RouteDefinition;
 import com.mtxgdn.game.entity.Formation;
 import com.mtxgdn.game.entity.PlayerInfo;
 import com.mtxgdn.game.service.FormationService;
+import com.mtxgdn.i18n.I18n;
 
 public class FormationCommand extends Command {
 
@@ -45,7 +46,7 @@ public class FormationCommand extends Command {
             if (f == null) {
                 result.addProperty("code", 404);
                 result.addProperty("success", false);
-                result.addProperty("message", "你还没有布置阵法");
+                result.addProperty("message", I18n.t("formation.hcd888a30"));
                 result.addProperty("hasFormation", false);
                 return result;
             }

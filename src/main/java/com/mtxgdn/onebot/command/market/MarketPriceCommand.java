@@ -8,6 +8,7 @@ import com.mtxgdn.game.entity.PlayerInfo;
 import com.google.gson.JsonObject;
 
 import java.util.Map;
+import com.mtxgdn.i18n.I18n;
 
 /**
  * 坊市行情：展示某物品的近期成交均价/最低/最高，并在没有成交记录时
@@ -96,7 +97,7 @@ public class MarketPriceCommand extends Command {
             if (itemKey == null || itemKey.isBlank()) {
                 result.addProperty("code", 400);
                 result.addProperty("success", false);
-                result.addProperty("message", "请提供 itemKey 查询参数");
+                result.addProperty("message", I18n.t("market.h4011186c"));
                 return result;
             }
             int days = 0;

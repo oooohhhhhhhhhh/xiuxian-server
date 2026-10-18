@@ -306,6 +306,25 @@ class I18nTest {
         }
     }
 
+    @Test
+    @DisplayName("词条卫生: en_us 里不得存在与 zh_cn 一字不差的条目（那是没翻译的占位）")
+    void englishPackHasNoUntranslatedPlaceholders() {
+        I18nManager.load();
+        Map<String, String> zh = I18nManager.bundle(GameLanguage.ZH_CN);
+        Map<String, String> en = I18nManager.bundle(GameLanguage.EN_US);
+
+        java.util.List<String> same = new java.util.ArrayList<>();
+        for (Map.Entry<String, String> e : en.entrySet()) {
+            String zhValue = zh.get(e.getKey());
+            if (zhValue != null && zhValue.equals(e.getValue())) {
+                same.add(e.getKey() + " = " + e.getValue());
+            }
+        }
+        assertTrue(same.isEmpty(),
+                "en_us 里有 " + same.size() + " 条与 zh_cn 完全相同，说明是占位没翻译"
+                        + "（真的无需翻译的词条请删掉，让它走 zh_cn 回退链）: " + same);
+    }
+
     // ==================== 工具方法 ====================
 
     private static InputStream json(String key, String value) {

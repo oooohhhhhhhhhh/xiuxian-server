@@ -8,6 +8,7 @@ import com.mtxgdn.game.entity.PlayerInfo;
 import com.mtxgdn.common.service.ServiceRegistry;
 
 import java.util.Map;
+import com.mtxgdn.i18n.I18n;
 
 public class CultivateBoostCommand extends Command {
     public CultivateBoostCommand() {
@@ -58,7 +59,7 @@ public class CultivateBoostCommand extends Command {
             int stonesToBurn = req.has("stones") ? req.get("stones").getAsInt() : 0;
             if (stonesToBurn <= 0) {
                 result.addProperty("code", 400);
-                result.addProperty("message", "请提供有效的灵石数量(stones)");
+                result.addProperty("message", I18n.t("economy.h648cf5ac"));
                 return result;
             }
             var eco = ServiceRegistry.getEconomyService();

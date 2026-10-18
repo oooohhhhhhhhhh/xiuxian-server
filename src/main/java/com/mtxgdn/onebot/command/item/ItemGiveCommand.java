@@ -10,6 +10,7 @@ import com.mtxgdn.game.item.ItemRegistry;
 import com.mtxgdn.common.service.ServiceRegistry;
 
 import java.util.List;
+import com.mtxgdn.i18n.I18n;
 
 public class ItemGiveCommand extends Command {
 
@@ -94,12 +95,12 @@ public class ItemGiveCommand extends Command {
 
             if (targetName.isBlank() || itemKey.isBlank()) {
                 result.addProperty("code", 400);
-                result.addProperty("message", "请提供玩家名(playerName)和物品键(itemKey)");
+                result.addProperty("message", I18n.t("item_give.hb22bfab6"));
                 return result;
             }
             if (quantity <= 0) {
                 result.addProperty("code", 400);
-                result.addProperty("message", "数量必须大于0");
+                result.addProperty("message", I18n.t("item_give.hc0d8a9c4"));
                 return result;
             }
 

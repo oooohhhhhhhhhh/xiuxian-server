@@ -10,6 +10,7 @@ import com.mtxgdn.common.service.ServiceRegistry;
 
 import java.util.List;
 import java.util.Map;
+import com.mtxgdn.i18n.I18n;
 
 /**
  * 竞拍行 — 限时竞价交易。
@@ -195,7 +196,7 @@ public class AuctionCommand extends Command {
             int hours = req.has("hours") ? req.get("hours").getAsInt() : 24;
             if (itemKey.isBlank()) {
                 result.addProperty("code", 400);
-                result.addProperty("message", "请提供物品键(itemKey)");
+                result.addProperty("message", I18n.t("economy.he3b69f3c"));
                 return result;
             }
             var eco = ServiceRegistry.getEconomyService();
@@ -219,7 +220,7 @@ public class AuctionCommand extends Command {
             long amount = req.has("amount") ? req.get("amount").getAsLong() : 0;
             if (listingId <= 0 || amount <= 0) {
                 result.addProperty("code", 400);
-                result.addProperty("message", "请提供有效的拍卖编号(listingId)和出价金额(amount)");
+                result.addProperty("message", I18n.t("economy.h3c5e72d8"));
                 return result;
             }
             var eco = ServiceRegistry.getEconomyService();

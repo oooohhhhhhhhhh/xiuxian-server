@@ -128,24 +128,38 @@ function findSites(src) {
     /(?:^|[^.\w])reply\(\s*"/g,
     /(?:^|[^.\w])replyPrivate\(\s*"/g,
     /(?:^|[^.\w])createResult\(\s*(?:true|false)\s*,\s*"/g,
-    /(?:^|[^.\w])addProperty\(\s*"message"\s*,\s*"/g,
+    // addProperty 几乎总是 obj.addProperty(...)，所以这里必须放行 '.' 前缀。
+    // （早先沿用 put 那套 [^.\w] 守卫，结果一处都匹配不上：'.' 被排除了。）
+    // 不存在以 addProperty 结尾的更长的方法名，所以没有 put 那种误匹配风险。
+    /(?:^|\.|[^.\w])addProperty\(\s*"message"\s*,\s*"/g,
+    // GameMessage.restOk("文案", data) / restError(code, key, "文案")
+    /(?:^|\.|[^.\w])restOk\(\s*"/g,
     // put("message", ...) 只可能是往 Map/JsonObject 写 message 字段，
     // 正是要迁的形态；允许 result.put / out.put / .put 与裸 put(。
     /(?:^|\.|[^.\w])put\(\s*"message"\s*,\s*"/g,
   ];
 
   const out = [];
-  const lines = src.split('\n');
+  // 必须用 /\r?\n/ 切分：直接 split('\n') 会把行尾的 \r 留在每行末尾，
+  // 后面再 join('\r\n') 就变成 \r\r\n，整份文件换行符被写坏（编译还能过，
+  // 因为 javac 把 \r 也当行终止符，但 git diff 会显示整个文件都改了）。
+  const lines = src.split(/\r?\n/);
   for (let li = 0; li < lines.length; li++) {
     const line = lines[li];
-    // 找所有候选起点
+    // 找所有候选起点。必须遍历全部匹配而不是只看第一个——
+    // 一行里写两个出口（如 a.put("message","…"); b.put("message","…")）很常见，
+    // 只取首个会让第二个永远迁不到。
     const candidates = [];
     for (const re of CALL_STARTS) {
       re.lastIndex = 0;
-      const m = re.exec(line);
-      if (m) candidates.push(m.index + m[0].length);
+      let m;
+      while ((m = re.exec(line)) !== null) {
+        candidates.push(m.index + m[0].length);
+      }
     }
     if (!candidates.length) continue;
+    // 同一行多个候选按位置升序处理，替换时各自独立
+    candidates.sort((a, b) => a - b);
 
     for (const openIdx of candidates) {
       // m[0] 已含左引号，所以 openIdx 指向字符串内容起点
@@ -177,14 +191,15 @@ function findSites(src) {
       const key = null; // 稍后统一生成（需模块名）
       out.push({
         li,
+        openIdx,
         literalRaw: lit,
         text,
-        // 整行替换：从左引号到右引号整体换成 I18n.t("key")。
+        // 把替换应用到"传入的文本"上，而不是闭包捕获的原始 line——
+        // 同一行可能有多个出口，必须让前一次替换的结果作为下一次的输入。
         // 注意 leftQuote 是匹配到的那个引号，不是 openIdx-1——因为
         // 正则里末尾的 " 已被 m[0] 吃掉了，openIdx 指向内容起点。
-        newLineFor: (k) => line.slice(0, openIdx - 1) + 'I18n.t("' + k + '")' + line.slice(j + 1),
+        applyTo: (text, k) => text.slice(0, openIdx - 1) + 'I18n.t("' + k + '")' + text.slice(j + 1),
       });
-      break; // 一行只处理一个（真实代码里一行只有一个调用）
     }
   }
   return out;
@@ -211,21 +226,34 @@ for (const file of files) {
   const rel = path.relative(ROOT, file).replace(/\\/g, '/');
   let src = fs.readFileSync(file, 'utf8');
   const eol = src.includes('\r\n') ? '\r\n' : '\n';
-  const lines = src.split('\n');
+  // 同 findSites：按 /\r?\n/ 切分，否则行尾 \r 会在 join 时被重复一遍。
+  const lines = src.split(/\r?\n/);
   const sites = findSites(src);
   if (!sites.some(s => !s.skipReason)) continue;
 
   const mod = moduleFor(file);
   let changed = 0;
-  // 从后往前替换，避免行号错位
-  sites.filter(s => !s.skipReason).reverse().forEach(s => {
-    const key = mod + '.h' + hash8(s.text);
-    if (!keyMap.has(key)) keyMap.set(key, { mod, text: s.text, files: new Set() });
-    keyMap.get(key).files.add(rel + ':' + (s.li + 1));
-    lines[s.li] = s.newLineFor(key);
-    changed++;
-    migrated++;
-  });
+
+  // 按行分组，行号从后往前、行内偏移从右往左——这样每次替换都不会
+  // 让还没处理的位置发生偏移。一行里写多个出口的写法是存在的，
+  // 早先"一行只有一个调用"的假设会让第二个出口被静默丢掉。
+  const byLine = new Map();
+  for (const s of sites.filter(x => !x.skipReason)) {
+    if (!byLine.has(s.li)) byLine.set(s.li, []);
+    byLine.get(s.li).push(s);
+  }
+  const lineNos = [...byLine.keys()].sort((a, b) => b - a);
+  for (const li of lineNos) {
+    const group = byLine.get(li).sort((a, b) => b.openIdx - a.openIdx);
+    for (const s of group) {
+      const key = mod + '.h' + hash8(s.text);
+      if (!keyMap.has(key)) keyMap.set(key, { mod, text: s.text, files: new Set() });
+      keyMap.get(key).files.add(rel + ':' + (li + 1));
+      lines[li] = s.applyTo(lines[li], key);
+      changed++;
+      migrated++;
+    }
+  }
   for (const s of sites.filter(x => x.skipReason)) {
     if (x_uninteresting(s.skipReason)) continue;
     skippedList.push(rel + ':' + (s.li + 1) + '  [' + s.skipReason + ']  ' + (s.literalRaw || ''));

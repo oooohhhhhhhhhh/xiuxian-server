@@ -13,6 +13,7 @@ import com.mtxgdn.common.service.ServiceRegistry;
 
 import java.util.List;
 import java.util.Map;
+import com.mtxgdn.i18n.I18n;
 
 public class CraftCommand extends Command {
     public CraftCommand() {
@@ -220,7 +221,7 @@ public class CraftCommand extends Command {
             long recipeId = req.has("recipeId") ? req.get("recipeId").getAsLong() : 0;
             if (recipeId <= 0) {
                 result.addProperty("code", 400);
-                result.addProperty("message", "请提供有效的配方ID(recipeId)");
+                result.addProperty("message", I18n.t("crafting.ha0a6b46c"));
                 return result;
             }
             var service = ServiceRegistry.getCraftingService();

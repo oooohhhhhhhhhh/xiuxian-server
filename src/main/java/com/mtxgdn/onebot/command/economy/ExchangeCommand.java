@@ -12,6 +12,7 @@ import com.mtxgdn.game.item.Item;
 import com.mtxgdn.game.item.ItemRegistry;
 import com.mtxgdn.game.service.EnergyService;
 import com.mtxgdn.game.service.ItemService;
+import com.mtxgdn.i18n.I18n;
 
 public class ExchangeCommand extends Command {
 
@@ -234,7 +235,7 @@ public class ExchangeCommand extends Command {
         try {
             if (!BuiltInPluginRegistry.isModuleEnabled(ENERGY_EXCHANGE_PLUGIN)) {
                 result.addProperty("code", 403);
-                result.addProperty("message", "能量转化系统暂未开放");
+                result.addProperty("message", I18n.t("economy.h4aa0a0f2"));
                 return result;
             }
 
@@ -244,12 +245,12 @@ public class ExchangeCommand extends Command {
 
             if (itemKey.isBlank()) {
                 result.addProperty("code", 400);
-                result.addProperty("message", "请提供物品键(itemKey)");
+                result.addProperty("message", I18n.t("economy.he3b69f3c"));
                 return result;
             }
             if (quantity <= 0) {
                 result.addProperty("code", 400);
-                result.addProperty("message", "数量必须大于0");
+                result.addProperty("message", I18n.t("economy.hc0d8a9c4"));
                 return result;
             }
 
@@ -275,7 +276,7 @@ public class ExchangeCommand extends Command {
             long energyPerItem = EnergyService.resolveConvertGain(fullKey);
             if (energyPerItem <= 0) {
                 result.addProperty("code", 400);
-                result.addProperty("message", "该物品没有转化价值");
+                result.addProperty("message", I18n.t("economy.h3a017ec4"));
                 return result;
             }
 
@@ -284,7 +285,7 @@ public class ExchangeCommand extends Command {
             energyService.addEnergy(playerId, totalEnergy);
 
             result.addProperty("code", 200);
-            result.addProperty("message", "转化成功");
+            result.addProperty("message", I18n.t("economy.h863a8dc5"));
             result.addProperty("itemName", item.getName());
             result.addProperty("itemKey", fullKey);
             result.addProperty("quantity", quantity);
@@ -306,7 +307,7 @@ public class ExchangeCommand extends Command {
         try {
             if (!BuiltInPluginRegistry.isModuleEnabled(ENERGY_EXCHANGE_PLUGIN)) {
                 result.addProperty("code", 403);
-                result.addProperty("message", "能量转化系统暂未开放");
+                result.addProperty("message", I18n.t("economy.h4aa0a0f2"));
                 return result;
             }
 
@@ -316,12 +317,12 @@ public class ExchangeCommand extends Command {
 
             if (itemKey.isBlank()) {
                 result.addProperty("code", 400);
-                result.addProperty("message", "请提供物品键(itemKey)");
+                result.addProperty("message", I18n.t("economy.he3b69f3c"));
                 return result;
             }
             if (quantity <= 0) {
                 result.addProperty("code", 400);
-                result.addProperty("message", "数量必须大于0");
+                result.addProperty("message", I18n.t("economy.hc0d8a9c4"));
                 return result;
             }
 
@@ -339,7 +340,7 @@ public class ExchangeCommand extends Command {
             long energyPerItem = EnergyService.resolveEnergyValue(item.getFullKey());
             if (energyPerItem <= 0) {
                 result.addProperty("code", 400);
-                result.addProperty("message", "该物品没有转化价值，无法兑换");
+                result.addProperty("message", I18n.t("economy.h99e42a98"));
                 return result;
             }
 
@@ -354,14 +355,14 @@ public class ExchangeCommand extends Command {
 
             if (!energyService.removeEnergy(playerId, totalCost)) {
                 result.addProperty("code", 500);
-                result.addProperty("message", "能量扣除失败");
+                result.addProperty("message", I18n.t("economy.h66110c74"));
                 return result;
             }
 
             itemService.addItem(playerId, item.getFullKey(), quantity);
 
             result.addProperty("code", 200);
-            result.addProperty("message", "兑换成功");
+            result.addProperty("message", I18n.t("economy.h88ec9794"));
             result.addProperty("itemName", item.getName());
             result.addProperty("itemKey", item.getFullKey());
             result.addProperty("quantity", quantity);
@@ -383,7 +384,7 @@ public class ExchangeCommand extends Command {
         try {
             if (!BuiltInPluginRegistry.isModuleEnabled(ENERGY_EXCHANGE_PLUGIN)) {
                 result.addProperty("code", 403);
-                result.addProperty("message", "能量转化系统暂未开放");
+                result.addProperty("message", I18n.t("economy.h4aa0a0f2"));
                 return result;
             }
 
@@ -417,7 +418,7 @@ public class ExchangeCommand extends Command {
         try {
             if (!BuiltInPluginRegistry.isModuleEnabled(ENERGY_EXCHANGE_PLUGIN)) {
                 result.addProperty("code", 403);
-                result.addProperty("message", "能量转化系统暂未开放");
+                result.addProperty("message", I18n.t("economy.h4aa0a0f2"));
                 return result;
             }
 

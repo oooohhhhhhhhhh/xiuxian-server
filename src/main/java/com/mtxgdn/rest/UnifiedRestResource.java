@@ -18,6 +18,7 @@ import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.core.UriInfo;
 
 import java.util.*;
+import com.mtxgdn.i18n.I18n;
 
 /**
  * 指令统一 REST 分发器。
@@ -158,7 +159,7 @@ public class UnifiedRestResource {
                 System.err.println("[UnifiedRest] 处理路由异常 " + httpMethod + " " + path + ": " + e);
                 JsonObject err = new JsonObject();
                 err.addProperty("code", 500);
-                err.addProperty("message", "服务器内部错误，请稍后重试");
+                err.addProperty("message", I18n.t("unified_rest.h2177df77"));
                 return Response.status(500).entity(gson.toJson(err)).build();
             }
         }

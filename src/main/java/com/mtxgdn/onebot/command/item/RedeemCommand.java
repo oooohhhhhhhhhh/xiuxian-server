@@ -10,6 +10,7 @@ import com.mtxgdn.permission.PermissionService;
 import com.mtxgdn.common.service.ServiceRegistry;
 import com.mtxgdn.onebot.QqBinding;
 import com.mtxgdn.onebot.QqBindingService;
+import com.mtxgdn.i18n.I18n;
 
 public class RedeemCommand extends Command {
 
@@ -87,7 +88,7 @@ public class RedeemCommand extends Command {
             String body = ctx.body();
             if (body == null || body.isBlank()) {
                 result.addProperty("code", 400);
-                result.addProperty("message", "请求体不能为空");
+                result.addProperty("message", I18n.t("redeem.h3a7bedb4"));
                 return result;
             }
             JsonObject req = ctx.bodyJson();
@@ -95,21 +96,21 @@ public class RedeemCommand extends Command {
 
             if (code.isBlank()) {
                 result.addProperty("code", 400);
-                result.addProperty("message", "请提供兑换码");
+                result.addProperty("message", I18n.t("redeem.h4616a2ab"));
                 return result;
             }
 
             int playerId = ctx.playerId();
             if (playerId <= 0) {
                 result.addProperty("code", 400);
-                result.addProperty("message", "请先进入游戏");
+                result.addProperty("message", I18n.t("redeem.h9e82cff4"));
                 return result;
             }
 
             String redeemResult = redeemCodeService.doRedeem(code.trim(), playerId);
             if (redeemResult == null) {
                 result.addProperty("code", 200);
-                result.addProperty("message", "兑换成功！");
+                result.addProperty("message", I18n.t("redeem.h2128a290"));
             } else if (redeemResult.startsWith("SUCCESS:")) {
                 String rewards = redeemResult.substring("SUCCESS:".length());
                 result.addProperty("code", 200);

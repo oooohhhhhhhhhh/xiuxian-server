@@ -12,6 +12,7 @@ import com.mtxgdn.onebot.QqBinding;
 import com.mtxgdn.onebot.QqBindingService;
 
 import java.util.List;
+import com.mtxgdn.i18n.I18n;
 
 public class DebugCommand extends Command {
 
@@ -240,7 +241,7 @@ public class DebugCommand extends Command {
 
             if (cmdName == null || cmdName.isBlank()) {
                 result.addProperty("code", 400);
-                result.addProperty("message", "command 参数不能为空");
+                result.addProperty("message", I18n.t("admin.hcb640ff0"));
                 return result;
             }
 
@@ -258,14 +259,14 @@ public class DebugCommand extends Command {
             long userId = ctx.userId();
             if (userId == 0) {
                 result.addProperty("code", 400);
-                result.addProperty("message", "需要登录用户才能测试指令");
+                result.addProperty("message", I18n.t("admin.h5af66540"));
                 return result;
             }
 
             PlayerInfo player = com.mtxgdn.common.service.ServiceRegistry.getPlayerService().getPlayerByUserId(userId);
             if (player == null) {
                 result.addProperty("code", 400);
-                result.addProperty("message", "未找到玩家角色");
+                result.addProperty("message", I18n.t("admin.h963c8950"));
                 return result;
             }
 
@@ -276,7 +277,7 @@ public class DebugCommand extends Command {
             targetCmd.execute(debugCtx);
 
             result.addProperty("code", 200);
-            result.addProperty("message", "指令测试完成");
+            result.addProperty("message", I18n.t("admin.h3284ab10"));
             result.addProperty("command", cmdName);
             result.addProperty("args", cmdArgs);
             result.addProperty("output", output.toString().trim());

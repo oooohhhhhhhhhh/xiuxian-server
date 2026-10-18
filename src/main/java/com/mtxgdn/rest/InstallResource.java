@@ -18,6 +18,7 @@ import java.nio.file.Files;
 import java.security.SecureRandom;
 import java.util.Base64;
 import java.util.Map;
+import com.mtxgdn.i18n.I18n;
 
 /**
  * 安装向导 API（/api/install/*）。
@@ -227,7 +228,7 @@ public class InstallResource {
         if (isInstalled()) {
             result.addProperty("code", 403);
             result.addProperty("success", false);
-            result.addProperty("message", "服务器已完成安装。如需重置，请使用 /api/install/reset 接口。");
+            result.addProperty("message", I18n.t("install.h034956c0"));
             return Response.status(403).entity(result.toString()).build();
         }
 
@@ -351,7 +352,7 @@ public class InstallResource {
             }
             result.addProperty("code", 200);
             result.addProperty("success", true);
-            result.addProperty("message", "配置已清除，服务器即将重启，请重新运行安装向导…");
+            result.addProperty("message", I18n.t("install.hddbe5808"));
             result.addProperty("restartRequired", true);
 
             // 异步重启
@@ -381,7 +382,7 @@ public class InstallResource {
 
         result.addProperty("code", 200);
         result.addProperty("success", true);
-        result.addProperty("message", "服务器即将重启，请稍候…（页面将自动刷新）");
+        result.addProperty("message", I18n.t("install.ha8545a2c"));
         com.mtxgdn.Main.restartServer();
         return Response.ok(result.toString()).build();
     }

@@ -14,6 +14,7 @@ import com.mtxgdn.game.service.MapService;
 
 import java.util.List;
 import java.util.Map;
+import com.mtxgdn.i18n.I18n;
 
 /**
  * {@code /野外} —— 查看你当前所在的野外分片。
@@ -192,7 +193,7 @@ public class WildernessCommand extends Command {
             out.addProperty("code", 403);
             out.addProperty("success", false);
             out.addProperty("enabled", false);
-            out.addProperty("message", "野外地图当前已关闭（可在 config/game/wilderness_map.json 里把 enabled 改为 true）");
+            out.addProperty("message", I18n.t("map.h9a54ad7b"));
             return out;
         }
 
@@ -200,7 +201,7 @@ public class WildernessCommand extends Command {
         if (player == null) {
             out.addProperty("code", 404);
             out.addProperty("success", false);
-            out.addProperty("message", "角色不存在");
+            out.addProperty("message", I18n.t("map.h59a76b2c"));
             return out;
         }
 
@@ -236,7 +237,7 @@ public class WildernessCommand extends Command {
                 gateways.add(g);
             }
             out.add("gateways", gateways);
-            out.addProperty("message", "你正站在已知世界，可从 gateways 里的出境口踏入荒域");
+            out.addProperty("message", I18n.t("map.hd682f747"));
             return out;
         }
 
@@ -244,7 +245,7 @@ public class WildernessCommand extends Command {
         if (nodes.isEmpty()) {
             out.addProperty("code", 404);
             out.addProperty("success", false);
-            out.addProperty("message", "你所在的位置已不在世界边界之内，请联系管理员");
+            out.addProperty("message", I18n.t("map.hbef067da"));
             return out;
         }
 
@@ -306,7 +307,7 @@ public class WildernessCommand extends Command {
             nodesJson.add(n);
         }
         out.add("nodes", nodesJson);
-        out.addProperty("message", "用 POST /api/game/map/travel/{locationId} 移动，POST /api/game/map/gather 采集");
+        out.addProperty("message", I18n.t("map.h4ee257a2"));
         return out;
     }
 }
