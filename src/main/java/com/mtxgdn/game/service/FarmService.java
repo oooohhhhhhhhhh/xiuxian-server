@@ -153,7 +153,7 @@ public class FarmService {
             // 先结算：地块可能在这段时间里已经枯萎，必须先落到最新状态再校验
             settlePlayerPlots(conn, playerId, System.currentTimeMillis());
             if (itemService.getItemCount(conn, playerId, seedKey) < 1) {
-                return createResult(false, "种子不足：需要 " + getItemName(seedKey));
+                return createResult(false, I18n.t("farm.h41355438", getItemName(seedKey)));
             }
 
             FarmPlot plot = getPlotForUpdate(conn, playerId, plotIndex);
@@ -215,7 +215,7 @@ public class FarmService {
             int newWater = Math.min(WATER_MAX, plot.getWaterLevel() + 30);
             updateWaterLevel(conn, playerId, plotIndex, newWater);
 
-            return createResult(true, "浇水成功！水分: " + newWater + "%");
+            return createResult(true, I18n.t("farm.haf577243", newWater));
         });
     }
 
@@ -250,7 +250,7 @@ public class FarmService {
         }
 
         if (itemService.getItemCount(playerId, fertilizerKey) < 1) {
-            return createResult(false, "肥料不足：需要 " + getItemName(fertilizerKey));
+            return createResult(false, I18n.t("farm.hbf7381d4", getItemName(fertilizerKey)));
         }
 
         return DatabaseManager.runTransaction(conn -> {
@@ -273,7 +273,7 @@ public class FarmService {
             int newFertilizer = Math.min(FERTILIZER_MAX, plot.getFertilizerLevel() + bonusAmount);
             updateFertilizerLevel(conn, playerId, plotIndex, newFertilizer);
 
-            return createResult(true, "施肥成功！使用 " + getItemName(fertilizerKey) + "，肥力: " + newFertilizer + "%");
+            return createResult(true, I18n.t("farm.h86b7984d", getItemName(fertilizerKey), newFertilizer));
         });
     }
 
@@ -398,7 +398,7 @@ public class FarmService {
         long cost = calculateExpandCost(currentCount);
         com.mtxgdn.entity.Player player = playerService.getPlayerById(playerId);
         if (player == null || player.getGold() < cost) {
-            return createResult(false, "金币不足，需要 " + cost + " 金币");
+            return createResult(false, I18n.t("farm.ha28ab727", cost));
         }
 
         final int plotIndex = currentCount;
@@ -407,7 +407,7 @@ public class FarmService {
         return DatabaseManager.runTransaction(conn -> {
             playerService.addGold(conn, playerId, -finalCost);
             createNewPlot(conn, playerId, plotIndex);
-            return createResult(true, "扩建成功！新地块已开启，花费 " + finalCost + " 金币");
+            return createResult(true, I18n.t("farm.hac3f3c60", finalCost));
         });
     }
 
@@ -522,7 +522,7 @@ public class FarmService {
                 return createResult(false, I18n.t("farm.h121b7308"));
             }
 
-            return createResult(true, "已为 " + fertilizedCount + " 块地块施肥，消耗 " + getItemName(fertilizerKey) + " x" + fertilizedCount);
+            return createResult(true, I18n.t("farm.h0ff61159", fertilizedCount, getItemName(fertilizerKey), fertilizedCount));
         });
     }
 

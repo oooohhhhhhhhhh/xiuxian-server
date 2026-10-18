@@ -803,7 +803,7 @@ public class MapService {
         long lastTravel = position.lastTravelTime();
 
         if (currentLocId == targetLocationId) {
-            return createResult(false, "你已经在" + target.getName() + "了");
+            return createResult(false, I18n.t("map.he9a170b8", target.getName()));
         }
 
         MapLocation current = getLocation(currentLocId);
@@ -822,14 +822,14 @@ public class MapService {
         long now = System.currentTimeMillis() / 1000;
         if ((now - lastTravel) < cooldownSeconds) {
             long remaining = cooldownSeconds - (now - lastTravel);
-            return createResult(false, "你刚赶完一段路，还需 " + Math.max(0, remaining) + " 秒才能再次动身");
+            return createResult(false, I18n.t("map.h25e197d4", Math.max(0, remaining)));
         }
 
         int updated = compareAndSetTravel(playerId, position, targetLocationId, now);
         if (updated == 0) {
             // 并发竞争：校验期间位置或冷却已被另一个请求改写，本次移动作废
             if (getPlayerLocationId(playerId) == targetLocationId) {
-                return createResult(false, "你已经在" + target.getName() + "了");
+                return createResult(false, I18n.t("map.he9a170b8", target.getName()));
             }
             return createResult(false, I18n.t("map.heb20a82a"));
         }
@@ -929,7 +929,7 @@ public class MapService {
         executeTravel(playerId, targetLocationId);
         String firstVisit = recordFirstVisit(playerId, targetLocationId);
         Map<String, Object> result = createResult(true,
-                "符箓化作流光冲天而起，你已传送至「" + target.getName() + "」！");
+                I18n.t("map.h6967c9a8", target.getName()));
         if (firstVisit != null) {
             result.put("message", result.get("message") + "\n" + firstVisit);
             result.put("firstVisit", true);
@@ -1354,19 +1354,19 @@ public class MapService {
                     + getRealmName(player.getRealm()) + "）");
         }
         if (!isExplored(playerId, targetLocationId)) {
-            return createResult(false, "你还没到过「" + target.getName() + "」，无法直传 —— 传送点需亲自抵达后解锁");
+            return createResult(false, I18n.t("map.ha50dacf8", target.getName()));
         }
 
         RawPosition position = readRawPosition(playerId);
         long currentLocId = resolveLocationId(position.rawLocationId(), position.locationNull(), playerId);
         if (currentLocId == targetLocationId) {
-            return createResult(false, "你已经在" + target.getName() + "了");
+            return createResult(false, I18n.t("map.he9a170b8", target.getName()));
         }
 
         long cost = getTeleportCost(currentLocId, targetLocationId);
         long balance = ServiceRegistry.getItemService().getSpiritStoneCount(playerId);
         if (balance < cost) {
-            return createResult(false, "传送需要 " + cost + " 灵石，你只有 " + balance + " 灵石");
+            return createResult(false, I18n.t("map.hce4606f4", cost, balance));
         }
 
         // 先扣费再落库位置：扣费失败直接返回，避免"免费传送"
@@ -1380,13 +1380,13 @@ public class MapService {
             // 位置在扣费与写回之间被改动：把灵石退回去，不能既收钱又不办事
             ServiceRegistry.getItemService().addSpiritStones(playerId, cost);
             if (getPlayerLocationId(playerId) == targetLocationId) {
-                return createResult(false, "你已经在" + target.getName() + "了");
+                return createResult(false, I18n.t("map.he9a170b8", target.getName()));
             }
             return createResult(false, I18n.t("map.he04326c4"));
         }
 
         Map<String, Object> result = createResult(true,
-                "✨ 传送至「" + target.getName() + "」，消耗 " + cost + " 灵石。" + target.getDescription());
+                I18n.t("map.h654a09b8", target.getName(), cost, target.getDescription()));
         result.put("to", target.getName());
         result.put("toRegion", target.getRegion());
         result.put("cost", cost);
@@ -1769,7 +1769,7 @@ public class MapService {
         long lastGather = readLastGatherTime(playerId);
         if (cooldown > 0 && (now - lastGather) < cooldown) {
             long remaining = cooldown - (now - lastGather);
-            return createResult(false, "你刚采集过，还需 " + Math.max(0, remaining) + " 秒才能再采");
+            return createResult(false, I18n.t("map.hdf5bd533", Math.max(0, remaining)));
         }
 
         int chunkX = WildernessTerrain.chunkXOfNode(locationId);
@@ -1811,14 +1811,13 @@ public class MapService {
             chunk.refund(slot, itemKey, taken);
             chunkStore.save(chunk);
             LOG.error("采集失败 player=" + playerId, e);
-            return createResult(false, "采集失败: " + e.getMessage());
+            return createResult(false, I18n.t("map.h6b113628", e.getMessage()));
         }
 
         int left = chunk.remainingOf(slot).getOrDefault(itemKey, 0);
         String itemName = resolveItemName(itemKey);
         Map<String, Object> result = createResult(true,
-                "⛏ 在「" + loc.getName() + "」采集到 " + itemName + " ×" + taken
-                        + "（此地剩余 " + left + "）");
+                I18n.t("map.h444e9d6e", loc.getName(), itemName, taken, left));
         result.put("itemKey", itemKey);
         result.put("itemName", itemName);
         result.put("quantity", taken);

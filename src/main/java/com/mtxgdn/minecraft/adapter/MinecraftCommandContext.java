@@ -3,6 +3,7 @@ package com.mtxgdn.minecraft.adapter;
 import com.mtxgdn.common.command.CommandContext;
 import com.mtxgdn.game.entity.PlayerInfo;
 import com.mtxgdn.common.service.ServiceRegistry;
+import com.mtxgdn.i18n.I18n;
 
 /**
  * Minecraft 指令上下文。
@@ -60,7 +61,7 @@ public class MinecraftCommandContext extends CommandContext {
         if (mcB != null) {
             return mcB.getUserId();
         }
-        reply("请先注册或绑定账号。\n注册: " + cmdPrefix + "register <角色名>\n绑定: " + cmdPrefix + "bind");
+        reply(I18n.t("minecraft.h9c8a05b2", cmdPrefix, cmdPrefix));
         return null;
     }
 

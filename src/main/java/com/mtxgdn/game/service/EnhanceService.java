@@ -113,7 +113,7 @@ public class EnhanceService {
 
         int currentLevel = getEnhanceLevel(playerId, slot);
         if (currentLevel >= MAX_ENHANCE_LEVEL) {
-            return createResult(false, "装备已达最高强化等级 +" + MAX_ENHANCE_LEVEL);
+            return createResult(false, I18n.t("enhance.hf074b7a0", MAX_ENHANCE_LEVEL));
         }
 
         int goldCost = ENHANCE_GOLD_COST[currentLevel];
@@ -125,11 +125,11 @@ public class EnhanceService {
         }
 
         if (!checkGold(player, goldCost)) {
-            return createResult(false, "金币不足，需要 " + goldCost + " 金币（当前: " + player.getGold() + "）");
+            return createResult(false, I18n.t("enhance.h2ce55323", goldCost, player.getGold()));
         }
 
         if (!itemService.hasItem(playerId, "mtxgdn:enhance_stone", stoneCost)) {
-            return createResult(false, "强化石不足，需要 " + stoneCost + " 个强化石");
+            return createResult(false, I18n.t("enhance.h34c30e0c", stoneCost));
         }
 
         int successRate = ENHANCE_SUCCESS_RATE[currentLevel];

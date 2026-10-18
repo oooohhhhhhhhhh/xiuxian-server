@@ -20,7 +20,7 @@ public class TitleService {
     public Map<String, Object> grantTitle(long playerId, String titleKey) {
         Title title = TitleRegistry.get(titleKey);
         if (title == null) {
-            return createResult(false, "称号不存在: " + titleKey);
+            return createResult(false, I18n.t("title.h59382207", titleKey));
         }
 
         if (hasTitle(playerId, titleKey)) {
@@ -34,12 +34,12 @@ public class TitleService {
             ps.setString(2, titleKey);
             ps.setBoolean(3, false);
             ps.executeUpdate();
-            Map<String, Object> result = createResult(true, "成功授予称号: " + title.getName());
+            Map<String, Object> result = createResult(true, I18n.t("title.hc147083f", title.getName()));
             result.put("titleKey", titleKey);
             result.put("titleName", title.getName());
             return result;
         } catch (SQLException e) {
-            return createResult(false, "授予称号失败: " + e.getMessage());
+            return createResult(false, I18n.t("title.h1b0b95d4", e.getMessage()));
         }
     }
 
@@ -100,7 +100,7 @@ public class TitleService {
                 return createResult(false, I18n.t("title.h4f740e50"));
             }
         } catch (SQLException e) {
-            return createResult(false, "撤销称号失败: " + e.getMessage());
+            return createResult(false, I18n.t("title.h9856ec28", e.getMessage()));
         }
     }
 
@@ -108,7 +108,7 @@ public class TitleService {
     public Map<String, Object> equipTitle(long playerId, String titleKey) {
         Title title = TitleRegistry.get(titleKey);
         if (title == null) {
-            return createResult(false, "称号不存在: " + titleKey);
+            return createResult(false, I18n.t("title.h59382207", titleKey));
         }
 
         if (!hasTitle(playerId, titleKey)) {
@@ -122,12 +122,12 @@ public class TitleService {
                 return null;
             });
 
-            Map<String, Object> result = createResult(true, "已装备称号: " + title.getName());
+            Map<String, Object> result = createResult(true, I18n.t("title.h564f1978", title.getName()));
             result.put("titleKey", titleKey);
             result.put("titleName", title.getName());
             return result;
         } catch (Exception e) {
-            return createResult(false, "装备称号失败: " + e.getMessage());
+            return createResult(false, I18n.t("title.h0b6bcf28", e.getMessage()));
         }
     }
 
@@ -143,7 +143,7 @@ public class TitleService {
             Map<String, Object> result = createResult(true, rows > 0 ? "已卸下称号" : "当前未装备任何称号");
             return result;
         } catch (SQLException e) {
-            return createResult(false, "卸下称号失败: " + e.getMessage());
+            return createResult(false, I18n.t("title.h3e363884", e.getMessage()));
         }
     }
 
