@@ -3,6 +3,7 @@ package com.mtxgdn.game.config;
 import com.google.gson.Gson;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import com.mtxgdn.i18n.I18n;
 import com.mtxgdn.util.AppConfig;
 import com.mtxgdn.util.GameLogger;
 
@@ -112,8 +113,32 @@ public class WildernessMapConfig {
         private List<String> nameSuffixes = new ArrayList<>();
         private List<String> descriptions = new ArrayList<>();
 
+        /**
+         * 地形名与描述的词条 key。
+         *
+         * <p>{@code nameKey} 指向地形名（如 {@code wilderness.biome.plain.name}）；
+         * {@code descKeys} 与 {@code descriptions} 逐位对应，第 i 条描述的 key
+         * 放在第 i 位——某一位为空或查不到时回落到同位置的 {@code descriptions}。</p>
+         *
+         * <p>前缀/后缀（{@code namePrefixes}/{@code nameSuffixes}）不参与 i18n：
+         * 它们是程序化地名的构词材料，混着不同语言的词根拼出来的地名会很难看。
+         * 要换语言的地名风格，应当整份换掉这个地形定义。</p>
+         */
+        private String nameKey;
+        private List<String> descKeys = new ArrayList<>();
+
         public String getKey() { return key; }
-        public String getName() { return name; }
+
+        /** 本地化后的地形名；无 key 或查不到时回落到 {@code name} 字面量。 */
+        public String getName() {
+            return nameKey == null || nameKey.isBlank() ? name : I18n.tOr(nameKey, name);
+        }
+
+        /** 原始中文地形名，不经过本地化。 */
+        public String getRawName() { return name; }
+
+        public String getNameKey() { return nameKey; }
+        public List<String> getDescKeys() { return descKeys; }
         public int getDanger() { return danger; }
         public double getElevationMin() { return elevationMin; }
         public double getElevationMax() { return elevationMax; }
@@ -122,7 +147,29 @@ public class WildernessMapConfig {
         public String getResourcePool() { return resourcePool; }
         public List<String> getNamePrefixes() { return namePrefixes; }
         public List<String> getNameSuffixes() { return nameSuffixes; }
-        public List<String> getDescriptions() { return descriptions; }
+
+        /**
+         * 本地化后的描述模板列表，逐位回落到 {@code descriptions}。
+         *
+         * <p>模板里的 {@code {biome}} 占位符由调用方替换成地形名——
+         * 注意这里用花括号而不是 {@code {0}}：它不是 {@code I18n.format}
+         * 的位置参数，而是地名生成器自己的占位符，两者不能混用。</p>
+         */
+        public List<String> getDescriptions() {
+            if (descKeys == null || descKeys.isEmpty()) {
+                return descriptions;
+            }
+            List<String> resolved = new ArrayList<>(descriptions.size());
+            for (int i = 0; i < descriptions.size(); i++) {
+                String literal = descriptions.get(i);
+                String k = i < descKeys.size() ? descKeys.get(i) : null;
+                resolved.add(k == null || k.isBlank() ? literal : I18n.tOr(k, literal));
+            }
+            return resolved;
+        }
+
+        /** 原始中文描述，不经过本地化。 */
+        public List<String> getRawDescriptions() { return descriptions; }
 
         /** 该地形是否覆盖给定的高程/湿度。 */
         public boolean covers(double elevation, double moisture) {

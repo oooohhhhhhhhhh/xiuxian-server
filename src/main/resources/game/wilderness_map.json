@@ -48,12 +48,14 @@
     {
       "key": "marsh",
       "name": "幽冥沼泽",
+      "nameKey": "wilderness.biome.marsh.name",
       "danger": 3,
       "elevationMin": -1.0, "elevationMax": -0.25,
       "moistureMin": 0.1, "moistureMax": 1.0,
       "resourcePool": "marsh",
       "namePrefixes": ["幽", "沼", "阴", "腐", "沉", "瘴"],
       "nameSuffixes": ["泽", "沼", "洼", "汀", "淖", "浦"],
+      "descKeys": ["wilderness.biome.marsh.desc.0", "wilderness.biome.marsh.desc.1", "wilderness.biome.marsh.desc.2"],
       "descriptions": [
         "{biome}的瘴气贴着地面翻涌，脚下的泥沼冒着气泡。",
         "{biome}里连鸟叫都没有，只有水泡破裂的声音。",
@@ -63,12 +65,14 @@
     {
       "key": "snow",
       "name": "寒霜雪原",
+      "nameKey": "wilderness.biome.snow.name",
       "danger": 3,
       "elevationMin": 0.35, "elevationMax": 1.0,
       "moistureMin": -1.0, "moistureMax": 1.0,
       "resourcePool": "snow",
       "namePrefixes": ["寒", "霜", "冰", "雪", "凛", "素"],
       "nameSuffixes": ["原", "岭", "川", "崖", "坡", "坳"],
+      "descKeys": ["wilderness.biome.snow.desc.0", "wilderness.biome.snow.desc.1", "wilderness.biome.snow.desc.2"],
       "descriptions": [
         "{biome}上终年不化的积雪把日光反射得刺眼，风里带着冰碴。",
         "{biome}的雪面平整得像没有尽头，只有你留下的那串脚印。",
@@ -78,12 +82,14 @@
     {
       "key": "volcano",
       "name": "赤炎火山",
+      "nameKey": "wilderness.biome.volcano.name",
       "danger": 4,
       "elevationMin": 0.1, "elevationMax": 0.35,
       "moistureMin": -1.0, "moistureMax": -0.25,
       "resourcePool": "volcano",
       "namePrefixes": ["赤", "炎", "熔", "焦", "炽", "燔"],
       "nameSuffixes": ["岭", "谷", "窟", "壑", "峪", "坪"],
+      "descKeys": ["wilderness.biome.volcano.desc.0", "wilderness.biome.volcano.desc.1", "wilderness.biome.volcano.desc.2"],
       "descriptions": [
         "{biome}的岩缝里透出暗红的光，空气被烤得扭曲。",
         "脚下是{biome}冷却又裂开的熔岩壳，每一步都发出脆响。",
@@ -93,11 +99,13 @@
     {
       "key": "desert",
       "name": "流沙荒漠",
+      "nameKey": "wilderness.biome.desert.name",
       "danger": 2,
       "elevationMin": -1.0, "elevationMax": 0.35,
       "moistureMin": -1.0, "moistureMax": -0.25,
       "namePrefixes": ["流", "黄", "枯", "旱", "砾", "茫"],
       "nameSuffixes": ["漠", "丘", "碛", "滩", "垠", "塬"],
+      "descKeys": ["wilderness.biome.desert.desc.0", "wilderness.biome.desert.desc.1", "wilderness.biome.desert.desc.2"],
       "descriptions": [
         "{biome}的沙丘一直铺到天边，风过处只留下移动的沙脊。",
         "{biome}的日光把石头晒得发白，灵气稀薄而干燥。",
@@ -107,11 +115,13 @@
     {
       "key": "forest",
       "name": "幽暗密林",
+      "nameKey": "wilderness.biome.forest.name",
       "danger": 2,
       "elevationMin": -0.25, "elevationMax": 0.35,
       "moistureMin": 0.1, "moistureMax": 1.0,
       "namePrefixes": ["幽", "苍", "古", "青", "蔽", "翳"],
       "nameSuffixes": ["林", "森", "涧", "麓", "樾", "丛"],
+      "descKeys": ["wilderness.biome.forest.desc.0", "wilderness.biome.forest.desc.1", "wilderness.biome.forest.desc.2"],
       "descriptions": [
         "{biome}的树冠遮住了天光，只有零星的绿光在枝叶间游走。",
         "{biome}里树根盘结成路，走错一步就会绕回原地。",
@@ -121,11 +131,13 @@
     {
       "key": "plain",
       "name": "灵田平原",
+      "nameKey": "wilderness.biome.plain.name",
       "danger": 1,
       "elevationMin": -1.0, "elevationMax": 1.0,
       "moistureMin": -1.0, "moistureMax": 1.0,
       "namePrefixes": ["青", "平", "丰", "沃", "广", "舒"],
       "nameSuffixes": ["原", "野", "田", "畴", "甸", "陂"],
+      "descKeys": ["wilderness.biome.plain.desc.0", "wilderness.biome.plain.desc.1", "wilderness.biome.plain.desc.2"],
       "descriptions": [
         "{biome}在脚下铺开，成片的灵草随着地势起伏。",
         "{biome}的灵气温和而均匀，是赶路时少有的舒服地段。",

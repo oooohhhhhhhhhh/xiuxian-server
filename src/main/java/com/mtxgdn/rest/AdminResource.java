@@ -4,6 +4,8 @@ import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.mtxgdn.Main;
+import com.mtxgdn.common.GameErrorCode;
+import com.mtxgdn.common.GameMessage;
 import com.mtxgdn.adapter.AdapterConfig;
 import com.mtxgdn.adapter.AdapterConfigManager;
 import com.mtxgdn.adapter.AdapterManager;
@@ -2955,6 +2957,99 @@ public class AdminResource {
             err.addProperty("code", 500);
             err.addProperty("message", "重载失败: " + e.getMessage());
             return Response.ok(gson.toJson(err)).build();
+        }
+    }
+
+    // ==================== 多语言（i18n）词条管理 ====================
+
+    /**
+     * 各语言的词条数与缺失数，用于管理后台的"翻译完整度"面板。
+     *
+     * <p>{@code missingCount} 的口径是"zh_cn 有、该语言没有"——zh_cn 是唯一
+     * 保证完整的基线语言，其它语言的缺失都以它为参照。</p>
+     */
+    @GET
+    @Path("/i18n/status")
+    @Produces("application/json;charset=UTF-8")
+    @RequirePermission("admin.i18n.manage")
+    public Response i18nStatus() {
+        JsonObject data = new JsonObject();
+        JsonArray arr = new JsonArray();
+        for (Map.Entry<String, Object> e : com.mtxgdn.i18n.I18nManager.status().entrySet()) {
+            arr.add(gson.toJsonTree(e.getValue()).getAsJsonObject());
+        }
+        data.add("languages", arr);
+        data.addProperty("default", com.mtxgdn.i18n.I18nManager.serverDefault().code());
+        // 回退次数已经按语言放在 languages 各项的 fallbackCount 里，
+        // 它是"有多少次取值靠 zh_cn 顶上了"，也就是翻译缺口最直观的指标。
+        return Response.ok(GameMessage.restOk("获取成功", data).toString()).build();
+    }
+
+    /**
+     * 导出某语言当前生效的完整词条表（含插件合并与外部覆写的结果）。
+     *
+     * <p>用途：运维把导出的 JSON 落到 {@code config/lang/<code>.json}，
+     * 就形成了一份可持久化的覆写配置——这样在管理后台改的译文不会
+     * 因为重启而丢失。</p>
+     */
+    @POST
+    @Path("/i18n/export")
+    @Produces("application/json;charset=UTF-8")
+    @RequirePermission("admin.i18n.manage")
+    public Response i18nExport(String body) {
+        String requested = null;
+        try {
+            JsonObject json = com.google.gson.JsonParser.parseString(body).getAsJsonObject();
+            if (json.has("lang") && !json.get("lang").isJsonNull()) {
+                requested = json.get("lang").getAsString();
+            }
+        } catch (Exception ignored) {
+            // 没传 body 或不是 JSON：导出服务端默认语言
+        }
+
+        com.mtxgdn.i18n.GameLanguage lang =
+                requested == null || requested.isBlank()
+                        ? com.mtxgdn.i18n.I18nManager.serverDefault()
+                        : com.mtxgdn.i18n.GameLanguage.parse(requested);
+        if (lang == null) {
+            return Response.ok(GameMessage.restError(
+                    GameErrorCode.PARAM_INVALID.getCode(),
+                    "error.i18n.unsupported_language", "不支持的语言").toString()).build();
+        }
+
+        JsonObject data = new JsonObject();
+        data.addProperty("language", lang.code());
+        data.addProperty("count", com.mtxgdn.i18n.I18nManager.bundle(lang).size());
+        // 直接给 JSON 文本而不是嵌套对象：运维要的是能原样存盘的文件内容
+        data.addProperty("content", com.mtxgdn.i18n.I18nManager.exportJson(lang));
+        return Response.ok(GameMessage.restOk("导出成功", data).toString()).build();
+    }
+
+    /**
+     * 重载全部语言包。
+     *
+     * <p>会丢掉运行期通过插件合并进来的词条，重新从 classpath 与
+     * {@code config/lang/} 读——所以改完外部文件后调它即可生效，
+     * 不需要重启服务。插件会在下次加载时重新合并自己的词条。</p>
+     */
+    @POST
+    @Path("/i18n/reload")
+    @Produces("application/json;charset=UTF-8")
+    @RequirePermission("admin.i18n.manage")
+    public Response i18nReload() {
+        try {
+            com.mtxgdn.i18n.I18nManager.reload();
+            JsonObject data = new JsonObject();
+            JsonArray arr = new JsonArray();
+            for (Map.Entry<String, Object> e : com.mtxgdn.i18n.I18nManager.status().entrySet()) {
+                arr.add(gson.toJsonTree(e.getValue()).getAsJsonObject());
+            }
+            data.add("languages", arr);
+            return Response.ok(GameMessage.restOk("语言包已重载", data).toString()).build();
+        } catch (Exception e) {
+            return Response.ok(GameMessage.restError(
+                    GameErrorCode.INTERNAL_ERROR.getCode(),
+                    "error.i18n.reload_failed", "重载语言包失败: " + e.getMessage()).toString()).build();
         }
     }
 

@@ -213,8 +213,15 @@ class MapServiceTest extends TestBase {
         Map<String, Object> immediate = mapService.travel(playerId, QINGYUN_VILLAGE);
         assertFalse((Boolean) immediate.get("success"));
         String message = (String) immediate.get("message");
-        assertTrue(message.contains(String.valueOf(reported)),
-                "提示里的剩余秒数应基于同一口径的路程值 " + reported + "，实际: " + message);
+
+        // 剩余秒数按整秒计（remaining = cooldown - (now - lastTravel)，now 是纪元秒），
+        // 所以两次调用之间只要跨过一个秒边界，提示就会少 1 秒。
+        // 断言"恰好等于"会把这种正常时序当成缺陷——这里允许 1 秒的抖动，
+        // 但仍能抓住"口径不一致"（比如提示按配置值算、冷却按默认值算）这类真问题。
+        boolean matches = message.contains(String.valueOf(reported))
+                || message.contains(String.valueOf(reported - 1));
+        assertTrue(matches,
+                "提示里的剩余秒数应基于同一口径的路程值 " + reported + "（允许跨秒边界少 1），实际: " + message);
     }
 
     @Test

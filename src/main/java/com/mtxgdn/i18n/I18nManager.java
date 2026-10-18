@@ -216,7 +216,7 @@ public final class I18nManager {
             entry.put("displayName", lang.displayName());
             entry.put("keyCount", bundle(lang).size());
             entry.put("missingCount", missingKeys(lang).size());
-            entry.put("falledBackCount", I18nFallbackCounts.forLanguage(lang.code()));
+            entry.put("fallbackCount", I18nFallbackCounts.forLanguage(lang.code()));
             out.put(lang.code(), entry);
         }
         return out;

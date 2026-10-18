@@ -79,6 +79,7 @@ public enum PermissionCode {
     ADMIN_ECONOMY("admin.economy", "管理经济", "管理后台"),
     ADMIN_ITEMS_GIVE("admin.items.give", "发放物品", "管理后台"),
     ADMIN_ANNOUNCE("admin.announce", "发送全服公告", "管理后台"),
+    ADMIN_I18N_MANAGE("admin.i18n.manage", "管理多语言词条", "管理后台"),
     ;
 
     private final String code;
