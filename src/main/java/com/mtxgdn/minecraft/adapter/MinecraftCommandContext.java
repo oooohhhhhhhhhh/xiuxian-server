@@ -79,17 +79,20 @@ public class MinecraftCommandContext extends CommandContext {
      * Minecraft 通道的语言：按 MC UUID 找绑定用户，取其账号语言；
      * 未绑定的玩家回落服务端默认。
      *
-     * <p>覆写 {@link #requireBinding()} 的提示也走同一语言——
-     * 但这里<b>不</b>覆写它本身（缺省实现里已经用了 {@code I18n.t}）。
-     * 换个说法：绑定提示已经在基类里本地化了，这里只保证语言选择正确。</p>
+     * <p>同样吞掉解析异常——MC 玩家掉线时绑定表可能瞬时查不到，
+     * 那时回落中文比报错好。</p>
      */
     @Override
     public com.mtxgdn.i18n.GameLanguage lang() {
-        MinecraftPlayerBinding mcB =
-                ServiceRegistry.getMcBindingService().findByMcUuid(mcUuid);
-        if (mcB == null) {
+        try {
+            MinecraftPlayerBinding mcB =
+                    ServiceRegistry.getMcBindingService().findByMcUuid(mcUuid);
+            if (mcB == null) {
+                return com.mtxgdn.i18n.I18nManager.serverDefault();
+            }
+            return com.mtxgdn.i18n.LanguageResolver.forUser(mcB.getUserId());
+        } catch (Exception ignored) {
             return com.mtxgdn.i18n.I18nManager.serverDefault();
         }
-        return com.mtxgdn.i18n.LanguageResolver.forUser(mcB.getUserId());
     }
 }

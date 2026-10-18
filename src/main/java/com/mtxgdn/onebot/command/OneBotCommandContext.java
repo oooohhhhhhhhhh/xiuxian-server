@@ -49,14 +49,21 @@ public class OneBotCommandContext extends CommandContext {
      *
      * <p>刻意<b>不缓存</b>：玩家可能刚在 Web 端改过语言，缓存会让 QQ 侧的回复
      * 滞后一次。多一次按 QQ 号查绑定的代价相对一次网络回复可以忽略。</p>
+     *
+     * <p>查库失败时吞掉异常回落默认语言：语言偏好丢了我最多回复中文，
+     * 但绝不能让 {@code lang()} 把整条指令搞挂。</p>
      */
     @Override
     public com.mtxgdn.i18n.GameLanguage lang() {
-        Long userId = resolveBoundUserId();
-        if (userId == null) {
+        try {
+            Long userId = resolveBoundUserId();
+            if (userId == null) {
+                return com.mtxgdn.i18n.I18nManager.serverDefault();
+            }
+            return com.mtxgdn.i18n.LanguageResolver.forUser(userId);
+        } catch (Exception ignored) {
             return com.mtxgdn.i18n.I18nManager.serverDefault();
         }
-        return com.mtxgdn.i18n.LanguageResolver.forUser(userId);
     }
 
     @Override

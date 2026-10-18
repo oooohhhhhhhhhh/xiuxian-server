@@ -73,11 +73,15 @@ public class OneBotClientCommandContext extends CommandContext {
      */
     @Override
     public com.mtxgdn.i18n.GameLanguage lang() {
-        Long userId = resolveBoundUserId();
-        if (userId == null) {
+        try {
+            Long userId = resolveBoundUserId();
+            if (userId == null) {
+                return com.mtxgdn.i18n.I18nManager.serverDefault();
+            }
+            return com.mtxgdn.i18n.LanguageResolver.forUser(userId);
+        } catch (Exception ignored) {
             return com.mtxgdn.i18n.I18nManager.serverDefault();
         }
-        return com.mtxgdn.i18n.LanguageResolver.forUser(userId);
     }
 
     @Override

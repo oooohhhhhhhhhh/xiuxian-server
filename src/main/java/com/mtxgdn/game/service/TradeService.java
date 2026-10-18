@@ -6,6 +6,7 @@ import com.mtxgdn.game.entity.SpiritualRoot;
 import com.mtxgdn.game.item.Item;
 import com.mtxgdn.game.item.ItemRegistry;
 import com.mtxgdn.common.service.ServiceRegistry;
+import com.mtxgdn.i18n.I18n;
 import com.mtxgdn.util.AppConfig;
 import com.mtxgdn.util.GameLogger;
 
@@ -117,21 +118,21 @@ public class TradeService {
     public Map<String, Object> listItem(long playerId, String itemKey, int quantity, long priceSpiritStones) {
         // 严格验证输入参数
         if (quantity <= 0) {
-            return createResult(false, "数量必须大于 0");
+            return createResult(false, I18n.t("trade.list.quantity_invalid"));
         }
         if (quantity > 999_999) {
-            return createResult(false, "数量不能超过 999,999");
+            return createResult(false, I18n.t("trade.list.quantity_too_large"));
         }
         if (priceSpiritStones <= 0) {
-            return createResult(false, "价格必须大于 0");
+            return createResult(false, I18n.t("trade.list.price_invalid"));
         }
         if (priceSpiritStones > 999_999_999L) {
-            return createResult(false, "价格不能超过 999,999,999 灵石");
+            return createResult(false, I18n.t("trade.list.price_too_large"));
         }
 
         Item item = ItemRegistry.resolve(itemKey);
         if (item == null) {
-            return createResult(false, "物品不存在，请使用 /物品列表 查看可用物品");
+            return createResult(false, I18n.t("trade.list.item_not_found"));
         }
 
         String fullKey = item.getFullKey();
@@ -148,31 +149,31 @@ public class TradeService {
                     ps.setString(2, fullKey);
                     try (ResultSet rs = ps.executeQuery()) {
                         if (!rs.next()) {
-                            throw new SQLException("背包中没有【" + item.getName() + "】");
+                            throw new SQLException(I18n.t("trade.list.no_item", item.getName()));
                         }
                         long currentQuantity = rs.getLong("quantity");
                         if (currentQuantity < quantity) {
-                            throw new SQLException("背包中没有足够的【" + item.getName() + "】，当前: " + currentQuantity + "，需要: " + quantity);
+                            throw new SQLException(I18n.t("trade.list.not_enough",
+                                    item.getName(), currentQuantity, quantity));
                         }
                     }
                 }
                 
                 if (!itemService.removeItem(conn, playerId, fullKey, quantity)) {
-                    throw new SQLException("物品扣除失败: " + fullKey);
+                    throw new SQLException(I18n.t("trade.list.deduct_failed", fullKey));
                 }
                 createListing(conn, playerId, fullKey, quantity, priceSpiritStones, fee);
                 return null;
             });
 
             Map<String, Object> result = createResult(true,
-                    "已将【" + item.getName() + " (" + fullKey + ")】×" + quantity +
-                    " 挂入坊市，售价 " + priceSpiritStones + " 灵石（坊市抽成 " + fee + " 灵石，" +
-                    LISTING_DURATION_HOURS + " 小时后自动下架）");
+                    I18n.t("trade.list.success", item.getName(), fullKey, quantity,
+                            priceSpiritStones, fee, LISTING_DURATION_HOURS));
             result.put("fee", fee);
             result.put("expiresInHours", LISTING_DURATION_HOURS);
             return result;
         } catch (Exception e) {
-            return createResult(false, "上架失败: " + rootMessage(e));
+            return createResult(false, I18n.t("trade.list.failed", rootMessage(e)));
         }
     }
 
@@ -183,19 +184,20 @@ public class TradeService {
             DatabaseManager.runTransaction(conn -> {
                 TradeListing listing = getListingForUpdate(conn, listingId);
                 if (listing == null) {
-                    throw new SQLException("该挂单不存在或已被购买");
+                    throw new SQLException(I18n.t("trade.buy.listing_gone"));
                 }
                 if (listing.sellerPlayerId == buyerPlayerId) {
-                    throw new SQLException("不能购买自己的物品");
+                    throw new SQLException(I18n.t("trade.buy.self_listing"));
                 }
                 long totalCost = listing.priceSpiritStones;
                 long buyerSpiritStones = itemService.getSpiritStoneCount(conn, buyerPlayerId);
                 if (buyerSpiritStones < totalCost) {
-                    throw new SQLException("灵石不足，需要 " + totalCost + " 灵石，当前仅有 " + buyerSpiritStones + " 灵石");
+                    throw new SQLException(I18n.t("trade.buy.insufficient_stones",
+                            totalCost, buyerSpiritStones));
                 }
                 int removed = markListingAsSold(conn, listingId);
                 if (removed == 0) {
-                    throw new SQLException("挂单已失效");
+                    throw new SQLException(I18n.t("trade.buy.expired"));
                 }
                 executePurchase(conn, buyerPlayerId, listing);
                 purchased[0] = listing;
@@ -205,13 +207,14 @@ public class TradeService {
             TradeListing listing = purchased[0];
             Item item = ItemRegistry.get(listing.itemKey);
             Map<String, Object> result = createResult(true,
-                    "在坊市中购得【" + (item != null ? item.getName() : listing.itemKey) + "】×" + listing.quantity +
-                    "，花费 " + listing.priceSpiritStones + " 灵石（坊主抽成 " + listing.fee + " 灵石）");
+                    I18n.t("trade.buy.success",
+                            item != null ? item.getName() : listing.itemKey,
+                            listing.quantity, listing.priceSpiritStones, listing.fee));
             result.put("cost", listing.priceSpiritStones);
             result.put("fee", listing.fee);
             return result;
         } catch (Exception e) {
-            return createResult(false, "购买失败: " + rootMessage(e));
+            return createResult(false, I18n.t("trade.buy.failed", rootMessage(e)));
         }
     }
 
@@ -261,14 +264,14 @@ public class TradeService {
                 // 事务内读取：拿到的一定是当前有效（未到期、未成交）的挂单
                 TradeListing listing = getListingForUpdate(conn, listingId);
                 if (listing == null) {
-                    throw new SQLException("该挂单不存在或已被购买");
+                    throw new SQLException(I18n.t("trade.cancel.listing_gone"));
                 }
                 if (listing.sellerPlayerId != playerId) {
-                    throw new SQLException("这不是你的挂单");
+                    throw new SQLException(I18n.t("trade.cancel.not_owner"));
                 }
                 int removed = markListingAsSold(conn, listingId);
                 if (removed == 0) {
-                    throw new SQLException("挂单已失效");
+                    throw new SQLException(I18n.t("trade.cancel.expired"));
                 }
                 itemService.addItem(conn, playerId, listing.itemKey, listing.quantity);
                 cancelled[0] = listing;
@@ -278,10 +281,10 @@ public class TradeService {
             TradeListing listing = cancelled[0];
             Item item = ItemRegistry.get(listing.itemKey);
             return createResult(true,
-                    "撤回了坊市挂单【" + (item != null ? item.getName() : listing.itemKey) + "】×" + listing.quantity +
-                    "（坊市抽成不退还）");
+                    I18n.t("trade.cancel.success",
+                            item != null ? item.getName() : listing.itemKey, listing.quantity));
         } catch (Exception e) {
-            return createResult(false, "撤回失败: " + rootMessage(e));
+            return createResult(false, I18n.t("trade.cancel.failed", rootMessage(e)));
         }
     }
 
@@ -433,7 +436,7 @@ public class TradeService {
         Item item = ItemRegistry.resolve(itemKey);
         if (item == null) {
             out.put("success", false);
-            out.put("message", "物品不存在，请使用 /物品列表 查看可用物品");
+            out.put("message", I18n.t("trade.list.item_not_found"));
             return out;
         }
         String fullKey = item.getFullKey();
@@ -474,11 +477,13 @@ public class TradeService {
             out.put("minUnitPrice", min);
             out.put("maxUnitPrice", max);
             out.put("avgUnitPrice", avg);
-            out.put("message", item.getName() + " 近 " + window + " 天成交 " + count + " 笔，"
-                    + "均价 " + avg + " 灵石/个（最低 " + min + "，最高 " + max + "）");
+            out.put("message", I18n.t("trade.price.summary",
+                    item.getName(), window, count, avg, min, max));
         } else {
-            out.put("message", item.getName() + " 近 " + window + " 天没有成交记录，"
-                    + "可参考当前在售最低价定价");
+            // 交易日数为 0 时给一句"没有记录"的提示：它同时承担着
+            // "别以为系统坏了"的安抚作用，所以即使在 en_us 下也要有对应译文。
+            out.put("message", I18n.t("trade.price.no_records",
+                    item.getName(), window));
         }
 
         // 当前在售最低单价，给玩家一个"现在挂多少能卖掉"的锚点
@@ -574,13 +579,13 @@ public class TradeService {
     private void executePurchase(Connection conn, long buyerPlayerId, TradeListing listing) throws SQLException {
         // 坊市购买：跨等级扣除灵石（自动用玩家持有的任意等级灵石支付并找零）
         if (!itemService.removeSpiritStones(conn, buyerPlayerId, listing.priceSpiritStones)) {
-            throw new SQLException("灵石扣除失败");
+            throw new SQLException(I18n.t("trade.pay.stone_deduct_failed"));
         }
         itemService.addItem(conn, buyerPlayerId, listing.itemKey, listing.quantity);
 
         long sellerReceive = listing.priceSpiritStones - listing.fee;
         if (!itemService.addSpiritStones(conn, listing.sellerPlayerId, sellerReceive)) {
-            throw new SQLException("发放灵石失败");
+            throw new SQLException(I18n.t("trade.pay.stone_grant_failed"));
         }
         // 成交后记录价格历史，供玩家查询行情（失败不影响成交本身）
         recordPriceHistory(conn, listing.itemKey, listing.quantity, listing.priceSpiritStones);

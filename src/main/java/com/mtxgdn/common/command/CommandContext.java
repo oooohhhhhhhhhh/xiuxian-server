@@ -139,12 +139,9 @@ public abstract class CommandContext {
     /**
      * 本条指令回复时应使用的语言。
      *
-     * <p>基类默认回落到服务端默认语言；子类（各平台适配器）应按发送者覆写，
-     * 让已绑定玩家用自己设的语言、未绑定访客用服务端默认。</p>
-     *
-     * <p>指令代码应通过 {@code I18n.t(key, ctx.lang())} 显式传语言，
-     * 而不是依赖 {@link I18nContext} 的 ThreadLocal——聊天平台的线程模型
-     * 与 Jersey 不同，隐式绑定容易在异步回复时丢失。</p>
+     * <p>子类按平台覆写：已绑定玩家取其账号语言，未绑定访客回落服务端默认。
+     * 解析过程会查库（绑定表 + players），因此<b>任何异常都只能吞掉</b>并回落默认语言
+     * ——语言偏好丢了顶多是回复变成中文，让指令本身报错是不可接受的。</p>
      */
     public GameLanguage lang() {
         return I18nManager.serverDefault();
