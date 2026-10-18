@@ -20,6 +20,7 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.*;
 import java.util.concurrent.ThreadLocalRandom;
+import com.mtxgdn.i18n.I18n;
 
 /**
  * 游戏地图服务 —— 管理地点、路线和玩家移动。
@@ -783,12 +784,12 @@ public class MapService {
 
         MapLocation target = getLocation(targetLocationId);
         if (target == null) {
-            return createResult(false, "该地点不存在");
+            return createResult(false, I18n.t("map.h88947944"));
         }
 
         Player player = playerService.getPlayerById(playerId);
         if (player == null) {
-            return createResult(false, "玩家不存在");
+            return createResult(false, I18n.t("map.h796f4b70"));
         }
 
         if (!checkRealm(player, target)) {
@@ -807,7 +808,7 @@ public class MapService {
 
         MapLocation current = getLocation(currentLocId);
         if (current == null) {
-            return createResult(false, "当前位置异常，请联系管理员");
+            return createResult(false, I18n.t("map.h41614d08"));
         }
 
         if (!isConnected(current, targetLocationId)) {
@@ -830,7 +831,7 @@ public class MapService {
             if (getPlayerLocationId(playerId) == targetLocationId) {
                 return createResult(false, "你已经在" + target.getName() + "了");
             }
-            return createResult(false, "你的位置刚刚被其它操作改变，请稍候再试");
+            return createResult(false, I18n.t("map.heb20a82a"));
         }
 
         Map<String, Object> result = createResult(true,
@@ -911,12 +912,12 @@ public class MapService {
 
         MapLocation target = getLocation(targetLocationId);
         if (target == null) {
-            return createResult(false, "该地点不存在");
+            return createResult(false, I18n.t("map.h88947944"));
         }
 
         Player player = playerService.getPlayerById(playerId);
         if (player == null) {
-            return createResult(false, "玩家不存在");
+            return createResult(false, I18n.t("map.h796f4b70"));
         }
 
         if (player.getRealm() < target.getMinRealm()) {
@@ -960,7 +961,7 @@ public class MapService {
             locId = DEFAULT_LOCATION_ID;
         }
         if (current == null) {
-            return createResult(false, "地图数据尚未就绪，请稍后再试");
+            return createResult(false, I18n.t("map.hcf096c23"));
         }
 
         Map<String, Object> result = new LinkedHashMap<>();
@@ -1336,16 +1337,16 @@ public class MapService {
         ensureInitialized();
         WildernessMapConfig.Teleport cfg = WildernessMapConfig.get().getTeleport();
         if (!cfg.isEnabled()) {
-            return createResult(false, "传送功能已关闭");
+            return createResult(false, I18n.t("map.h574940a0"));
         }
 
         MapLocation target = getLocation(targetLocationId);
         if (target == null) {
-            return createResult(false, "该地点不存在");
+            return createResult(false, I18n.t("map.h88947944"));
         }
         Player player = playerService.getPlayerById(playerId);
         if (player == null) {
-            return createResult(false, "玩家不存在");
+            return createResult(false, I18n.t("map.h796f4b70"));
         }
         if (!checkRealm(player, target)) {
             return createResult(false, "境界不足，" + target.getName() + "需要"
@@ -1370,7 +1371,7 @@ public class MapService {
 
         // 先扣费再落库位置：扣费失败直接返回，避免"免费传送"
         if (!ServiceRegistry.getItemService().removeSpiritStones(playerId, cost)) {
-            return createResult(false, "扣除灵石失败，传送已取消");
+            return createResult(false, I18n.t("map.he3affb16"));
         }
 
         long now = System.currentTimeMillis() / 1000;
@@ -1381,7 +1382,7 @@ public class MapService {
             if (getPlayerLocationId(playerId) == targetLocationId) {
                 return createResult(false, "你已经在" + target.getName() + "了");
             }
-            return createResult(false, "你的位置刚刚被其它操作改变，灵石已退还，请稍候再试");
+            return createResult(false, I18n.t("map.he04326c4"));
         }
 
         Map<String, Object> result = createResult(true,
@@ -1747,20 +1748,20 @@ public class MapService {
         ensureInitialized();
         WildernessMapConfig config = WildernessMapConfig.get();
         if (!config.isEnabled()) {
-            return createResult(false, "野外功能已关闭");
+            return createResult(false, I18n.t("map.hb37f0c87"));
         }
 
         Player player = playerService.getPlayerById(playerId);
         if (player == null) {
-            return createResult(false, "玩家不存在");
+            return createResult(false, I18n.t("map.h796f4b70"));
         }
         long locationId = getPlayerLocationId(playerId);
         if (!WildernessTerrain.isWildernessId(locationId)) {
-            return createResult(false, "这里不是野外，没有可采集的资源（用 /野外 查看野外）");
+            return createResult(false, I18n.t("map.h7f1cf394"));
         }
         MapLocation loc = getLocation(locationId);
         if (loc == null) {
-            return createResult(false, "当前位置异常，请联系管理员");
+            return createResult(false, I18n.t("map.h41614d08"));
         }
 
         long now = System.currentTimeMillis() / 1000;
@@ -1778,17 +1779,17 @@ public class MapService {
 
         Map<String, Integer> available = chunk.remainingOf(slot);
         if (available.isEmpty()) {
-            return createResult(false, "此地的资源已被采空，等下次补货吧");
+            return createResult(false, I18n.t("map.h775899f0"));
         }
         String itemKey = available.keySet().iterator().next();
         int take = Math.min(config.getGather().getMaxPerGather(), available.get(itemKey));
         if (take < 1) {
-            return createResult(false, "此地的资源已被采空，等下次补货吧");
+            return createResult(false, I18n.t("map.h775899f0"));
         }
 
         int taken = chunk.consume(slot, itemKey, take);
         if (taken <= 0) {
-            return createResult(false, "手慢了，此地的资源刚被采空");
+            return createResult(false, I18n.t("map.h0ce2a85a"));
         }
         chunk.lastActiveAt = now;
         chunkStore.save(chunk);
@@ -1798,7 +1799,7 @@ public class MapService {
             if (!granted) {
                 chunk.refund(slot, itemKey, taken);
                 chunkStore.save(chunk);
-                return createResult(false, "采集失败：物品未能放入背包（背包可能已满）");
+                return createResult(false, I18n.t("map.h9a627ec0"));
             }
             try (PreparedStatement ps = conn.prepareStatement(
                     "UPDATE players SET last_gather_time = ? WHERE id = ?")) {

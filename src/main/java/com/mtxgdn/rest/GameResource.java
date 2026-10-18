@@ -69,6 +69,7 @@ import jakarta.ws.rs.core.Response;
 import java.util.List;
 import java.util.HashMap;
 import java.util.Map;
+import com.mtxgdn.i18n.I18n;
 
 @Path("/game")
 public class GameResource {
@@ -1757,7 +1758,7 @@ public class GameResource {
             default -> {
                 Map<String, Object> err = new HashMap<>();
                 err.put("success", false);
-                err.put("message", "type 只能是 goldToStones 或 stonesToGold");
+                err.put("message", I18n.t("game.ha2b13c10"));
                 result = err;
             }
         }

@@ -20,6 +20,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
+import com.mtxgdn.i18n.I18n;
 
 /**
  * 世界 Boss（B6）：全服共享血量 + 伤害分红 + 超发熔断。
@@ -379,7 +380,7 @@ public class WorldBossService {
         WorldBoss boss = selectBoss(getPool(key, now), query);
         if (boss == null) {
             result.put("success", false);
-            result.put("message", "找不到这只世界Boss。\n使用 /世界boss 查看当前可挑战的列表");
+            result.put("message", I18n.t("world_boss.ha32bc604"));
             return result;
         }
         if (boss.isDead()) {
@@ -392,17 +393,17 @@ public class WorldBossService {
         Player player = playerService.getPlayerById(playerId);
         if (player == null) {
             result.put("success", false);
-            result.put("message", "角色不存在");
+            result.put("message", I18n.t("world_boss.h59a76b2c"));
             return result;
         }
         if (player.getHp() <= 0) {
             result.put("success", false);
-            result.put("message", "你的生命值不足，无法挑战世界Boss");
+            result.put("message", I18n.t("world_boss.h95538220"));
             return result;
         }
         if (player.isCultivating()) {
             result.put("success", false);
-            result.put("message", "闭关中无法挑战世界Boss，请先 /停止 结束打坐");
+            result.put("message", I18n.t("world_boss.hfd4aae38"));
             return result;
         }
 
@@ -423,7 +424,7 @@ public class WorldBossService {
         }
         if (!claimChallengeSlot(boss.getId(), playerId, now, cooldownMs)) {
             result.put("success", false);
-            result.put("message", "挑战冷却中（或有一次挑战正在进行），请稍后再试");
+            result.put("message", I18n.t("world_boss.h0803df94"));
             return result;
         }
 

@@ -28,6 +28,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import com.mtxgdn.i18n.I18n;
 
 /**
  * 玩家数据文件化服务 —— 将玩家数据抽离至单个文件（多文件，一用户一个）。
@@ -121,7 +122,7 @@ public class PlayerDataService {
         Map<String, Object> result = new LinkedHashMap<>();
         if (!ENABLED) {
             result.put("success", false);
-            result.put("message", "玩家数据文件化未启用");
+            result.put("message", I18n.t("playerdata.h9573c3bc"));
             return result;
         }
 
@@ -335,7 +336,7 @@ public class PlayerDataService {
         Map<String, Object> result = new LinkedHashMap<>();
         if (!ENABLED) {
             result.put("success", false);
-            result.put("message", "玩家数据文件化未启用");
+            result.put("message", I18n.t("playerdata.h9573c3bc"));
             return result;
         }
         PlayerData data;
@@ -348,7 +349,7 @@ public class PlayerDataService {
         }
         if (data == null || data.tables == null || data.tables.isEmpty()) {
             result.put("success", false);
-            result.put("message", "玩家数据为空或格式不正确");
+            result.put("message", I18n.t("playerdata.haaee0960"));
             return result;
         }
         if (data.playerId != playerId) {

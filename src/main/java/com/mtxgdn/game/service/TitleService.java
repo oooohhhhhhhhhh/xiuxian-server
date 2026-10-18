@@ -6,6 +6,7 @@ import com.mtxgdn.game.title.TitleRegistry;
 
 import java.sql.*;
 import java.util.*;
+import com.mtxgdn.i18n.I18n;
 
 public class TitleService {
 
@@ -23,7 +24,7 @@ public class TitleService {
         }
 
         if (hasTitle(playerId, titleKey)) {
-            return createResult(false, "已拥有该称号");
+            return createResult(false, I18n.t("title.h56c44c8c"));
         }
 
         String sql = "INSERT INTO player_titles (player_id, title_key, is_equipped) VALUES (?, ?, ?)";
@@ -96,7 +97,7 @@ public class TitleService {
                 Title title = TitleRegistry.get(titleKey);
                 return createResult(true, "已撤销称号: " + (title != null ? title.getName() : titleKey));
             } else {
-                return createResult(false, "玩家未拥有该称号");
+                return createResult(false, I18n.t("title.h4f740e50"));
             }
         } catch (SQLException e) {
             return createResult(false, "撤销称号失败: " + e.getMessage());
@@ -111,7 +112,7 @@ public class TitleService {
         }
 
         if (!hasTitle(playerId, titleKey)) {
-            return createResult(false, "你未拥有该称号");
+            return createResult(false, I18n.t("title.h3a7cd8ac"));
         }
 
         try {

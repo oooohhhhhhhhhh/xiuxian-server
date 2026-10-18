@@ -18,6 +18,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import com.mtxgdn.i18n.I18n;
 
 public class ItemService {
 
@@ -549,24 +550,24 @@ public class ItemService {
         Map<String, Object> result = new LinkedHashMap<>();
         if (fromGrade < 0 || fromGrade > 3 || toGrade < 0 || toGrade > 3) {
             result.put("success", false);
-            result.put("message", "无效的灵石等级");
+            result.put("message", I18n.t("item.ha68b3ef0"));
             return result;
         }
         if (fromGrade <= toGrade) {
             result.put("success", false);
-            result.put("message", "只能将高等级灵石兑换为低等级灵石");
+            result.put("message", I18n.t("item.hc1802354"));
             return result;
         }
         if (amount <= 0) {
             result.put("success", false);
-            result.put("message", "兑换数量必须大于0");
+            result.put("message", I18n.t("item.h855d6fe8"));
             return result;
         }
 
         String fromKey = CurrencyEffect.getStoneKey(fromGrade);
         if (getItemCount(playerId, fromKey) < amount) {
             result.put("success", false);
-            result.put("message", "灵石不足");
+            result.put("message", I18n.t("item.hf663041d"));
             return result;
         }
 
@@ -614,7 +615,7 @@ public class ItemService {
         Item item = ItemRegistry.resolve(itemKey);
         if (item == null) {
             result.put("success", false);
-            result.put("message", "物品不存在，请使用 /物品列表 查看可用物品");
+            result.put("message", I18n.t("item.ha1976553"));
             return result;
         }
         String fullKey = item.getFullKey();
@@ -625,14 +626,14 @@ public class ItemService {
 
                 if (getItemCount(conn, playerId, fullKey) < 1) {
                     innerResult.put("success", false);
-                    innerResult.put("message", "背包中没有该物品");
+                    innerResult.put("message", I18n.t("item.h275bc0df"));
                     return innerResult;
                 }
 
                 String occupied = getEquippedItem(conn, playerId, slot);
                 if (occupied != null && occupied.equals(fullKey)) {
                     innerResult.put("success", false);
-                    innerResult.put("message", "已装备该物品");
+                    innerResult.put("message", I18n.t("item.h058f56b2"));
                     return innerResult;
                 }
 
@@ -730,13 +731,13 @@ public class ItemService {
                 String itemKey = getEquippedItem(conn, playerId, slot);
                 if (itemKey == null) {
                     innerResult.put("success", false);
-                    innerResult.put("message", "该装备栏位为空");
+                    innerResult.put("message", I18n.t("item.h3b242f48"));
                     return innerResult;
                 }
                 Item item = ItemRegistry.get(itemKey);
                 if (item == null) {
                     innerResult.put("success", false);
-                    innerResult.put("message", "物品数据异常");
+                    innerResult.put("message", I18n.t("item.h7132a04c"));
                     return innerResult;
                 }
 
@@ -845,7 +846,7 @@ public class ItemService {
         Item item = ItemRegistry.resolve(itemKey);
         if (item == null) {
             result.put("success", false);
-            result.put("message", "物品不存在");
+            result.put("message", I18n.t("item.hadf213b8"));
             return result;
         }
         String fullKey = item.getFullKey();
@@ -869,7 +870,7 @@ public class ItemService {
                     try (java.sql.ResultSet rs = ps.executeQuery()) {
                         if (!rs.next() || rs.getLong("quantity") < 1) {
                             innerResult.put("success", false);
-                            innerResult.put("message", "背包中没有该物品");
+                            innerResult.put("message", I18n.t("item.h275bc0df"));
                             return innerResult;
                         }
                     }

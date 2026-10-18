@@ -13,6 +13,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import com.mtxgdn.i18n.I18n;
 
 public class TechniqueService {
 
@@ -137,14 +138,14 @@ public class TechniqueService {
         Map<String, Object> result = new LinkedHashMap<>();
         Technique technique = getTechniqueById(techniqueId);
         if (technique == null) {
-            result.put("success", false); result.put("message", "功法不存在"); return result;
+            result.put("success", false); result.put("message", I18n.t("technique.ha59e2658")); return result;
         }
         if (hasTechnique(playerId, techniqueId)) {
             result.put("success", false); result.put("message", "你已经学会了【" + technique.getName() + "】"); return result;
         }
         Player player = playerService.getPlayerById(playerId);
         if (player == null) {
-            result.put("success", false); result.put("message", "角色不存在"); return result;
+            result.put("success", false); result.put("message", I18n.t("technique.h59a76b2c")); return result;
         }
         if (player.getRealm() < technique.getRequiredRealm()) {
             result.put("success", false); result.put("message", "境界不足，学习【" + technique.getName() + "】需更高境界"); return result;
@@ -189,7 +190,7 @@ public class TechniqueService {
     public Map<String, Object> equipTechnique(long playerId, long techniqueId) {
         Map<String, Object> result = new LinkedHashMap<>();
         if (!hasTechnique(playerId, techniqueId)) {
-            result.put("success", false); result.put("message", "你尚未学会此功法"); return result;
+            result.put("success", false); result.put("message", I18n.t("technique.hec1e8dc4")); return result;
         }
         Technique tech = getPlayerTechniqueDetail(playerId, techniqueId);
         if (tech.isEquipped()) {
@@ -219,7 +220,7 @@ public class TechniqueService {
     public Map<String, Object> unequipTechnique(long playerId, long techniqueId) {
         Map<String, Object> result = new LinkedHashMap<>();
         if (!hasTechnique(playerId, techniqueId)) {
-            result.put("success", false); result.put("message", "你尚未学会此功法"); return result;
+            result.put("success", false); result.put("message", I18n.t("technique.hec1e8dc4")); return result;
         }
         Technique tech = getPlayerTechniqueDetail(playerId, techniqueId);
         if (!tech.isEquipped()) {
@@ -246,7 +247,7 @@ public class TechniqueService {
     public Map<String, Object> upgradeTechnique(long playerId, long techniqueId) {
         Map<String, Object> result = new LinkedHashMap<>();
         if (!hasTechnique(playerId, techniqueId)) {
-            result.put("success", false); result.put("message", "你尚未学会此功法"); return result;
+            result.put("success", false); result.put("message", I18n.t("technique.hec1e8dc4")); return result;
         }
         Technique tech = getPlayerTechniqueDetail(playerId, techniqueId);
         if (tech.getLevel() >= tech.getMaxLevel()) {

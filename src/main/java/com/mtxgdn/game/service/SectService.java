@@ -29,6 +29,7 @@ import java.util.Random;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import com.mtxgdn.i18n.I18n;
 
 public class SectService {
 
@@ -182,20 +183,20 @@ public class SectService {
         Map<String, Object> result = new LinkedHashMap<>();
         if (sectName == null || sectName.trim().isEmpty() || sectName.trim().length() < 2 || sectName.trim().length() > 8) {
             result.put("success", false);
-            result.put("message", "宗门名称需要 2-8 个字符");
+            result.put("message", I18n.t("sect.hefebafae"));
             return result;
         }
         final String name = sectName.trim();
         if (description != null && description.length() > 100) {
             result.put("success", false);
-            result.put("message", "宗门描述最多 100 个字符");
+            result.put("message", I18n.t("sect.h490fc096"));
             return result;
         }
 
         Player player = playerService.getPlayerById(playerId);
         if (player == null) {
             result.put("success", false);
-            result.put("message", "角色不存在");
+            result.put("message", I18n.t("sect.h59a76b2c"));
             return result;
         }
 
@@ -209,7 +210,7 @@ public class SectService {
 
         if (getPlayerSect(playerId) != null) {
             result.put("success", false);
-            result.put("message", "你已经有宗门了，需要先退出才能创建新宗门");
+            result.put("message", I18n.t("sect.h616b0664"));
             return result;
         }
 
@@ -275,7 +276,7 @@ public class SectService {
             result.put("sect", sect);
         } else {
             result.put("success", false);
-            result.put("message", "创建宗门失败");
+            result.put("message", I18n.t("sect.h96ac1870"));
         }
         return result;
     }
@@ -333,16 +334,16 @@ public class SectService {
 
         Player player = playerService.getPlayerById(playerId);
         if (player == null) {
-            result.put("success", false); result.put("message", "角色不存在"); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.h59a76b2c")); return result;
         }
 
         Sect sect = getSectById(sectId);
         if (sect == null) {
-            result.put("success", false); result.put("message", "宗门不存在"); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.hbffa2528")); return result;
         }
 
         if (getPlayerSect(playerId) != null) {
-            result.put("success", false); result.put("message", "你已经有了宗门，需要先退出才能加入新宗门"); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.h6052ac88")); return result;
         }
 
         List<SectMember> members = getSectMembers(sectId);
@@ -361,7 +362,7 @@ public class SectService {
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
                     result.put("success", false);
-                    result.put("message", "你已经向该宗门提交过申请，请等待审批");
+                    result.put("message", I18n.t("sect.h0c4f82a8"));
                     return result;
                 }
             }
@@ -400,17 +401,17 @@ public class SectService {
 
         SectApplication app = getApplicationById(applicationId);
         if (app == null || !"pending".equals(app.getStatus())) {
-            result.put("success", false); result.put("message", "申请不存在或已处理"); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.h71d5bb28")); return result;
         }
 
         Sect sect = getSectById(app.getSectId());
         if (sect == null) {
-            result.put("success", false); result.put("message", "宗门不存在"); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.hbffa2528")); return result;
         }
 
         SectMember approver = getMember(sect.getId(), approverPlayerId);
         if (approver == null || !approver.canManage()) {
-            result.put("success", false); result.put("message", "你无权处理宗门申请"); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.h33d54619")); return result;
         }
 
         String status;
@@ -420,7 +421,7 @@ public class SectService {
             int maxMembers = Sect.getMaxMembersForLevel(sect.getLevel());
             if (members.size() >= maxMembers) {
                 result.put("success", false);
-                result.put("message", "宗门成员已满"); return result;
+                result.put("message", I18n.t("sect.h084db6a4")); return result;
             }
             status = "accepted";
             msg = "已通过玩家【" + app.getPlayerName() + "】的加入申请";
@@ -477,12 +478,12 @@ public class SectService {
         Map<String, Object> result = new LinkedHashMap<>();
         SectMember member = getPlayerMember(playerId);
         if (member == null) {
-            result.put("success", false); result.put("message", "你没有加入任何宗门"); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.h6b4e3074")); return result;
         }
 
         Sect sect = getSectById(member.getSectId());
         if (sect == null) {
-            result.put("success", false); result.put("message", "宗门不存在"); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.hbffa2528")); return result;
         }
 
         if (member.isLeader()) {
@@ -536,24 +537,24 @@ public class SectService {
         Map<String, Object> result = new LinkedHashMap<>();
         SectMember kicker = getPlayerMember(kickerPlayerId);
         if (kicker == null) {
-            result.put("success", false); result.put("message", "你没有加入任何宗门"); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.h6b4e3074")); return result;
         }
         if (!kicker.canManage()) {
-            result.put("success", false); result.put("message", "只有宗主、副宗主和长老才能踢人"); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.hcbedcf90")); return result;
         }
 
         SectMember target = getMember(kicker.getSectId(), targetPlayerId);
         if (target == null) {
-            result.put("success", false); result.put("message", "该玩家不在你的宗门中"); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.h32acc4f3")); return result;
         }
         if (target.isLeader()) {
-            result.put("success", false); result.put("message", "不能踢出宗主"); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.h587f8ffc")); return result;
         }
         if (target.isViceLeader() && !kicker.isLeader()) {
-            result.put("success", false); result.put("message", "只有宗主才能踢出副宗主"); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.h30ecd258")); return result;
         }
         if (!kicker.canKickOrAppoint(target)) {
-            result.put("success", false); result.put("message", "不能踢出同级或更高级别的成员"); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.hb01e0fa0")); return result;
         }
 
         deleteMember(kicker.getSectId(), targetPlayerId);
@@ -566,7 +567,7 @@ public class SectService {
         Map<String, Object> result = new LinkedHashMap<>();
         SectMember appointer = getPlayerMember(appointerPlayerId);
         if (appointer == null || !appointer.canManage()) {
-            result.put("success", false); result.put("message", "只有宗主、副宗主和长老才能任命宗门职位"); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.haa4398a4")); return result;
         }
 
         // 先解析目标角色
@@ -578,7 +579,7 @@ public class SectService {
             case "外门", "外门弟子", "outer", "outer_member": role = SectMember.ROLE_OUTER_MEMBER; break;
             default:
                 result.put("success", false);
-                result.put("message", "无效的职位，可用：副宗主/长老/内门弟子/外门弟子");
+                result.put("message", I18n.t("sect.hda58b418"));
                 return result;
         }
 
@@ -586,26 +587,26 @@ public class SectService {
         if (appointer.isElder()) {
             if (!role.equals(SectMember.ROLE_INNER_MEMBER) && !role.equals(SectMember.ROLE_OUTER_MEMBER)) {
                 result.put("success", false);
-                result.put("message", "长老只能任命内门弟子和外门弟子"); return result;
+                result.put("message", I18n.t("sect.h5e1d7370")); return result;
             }
         }
         if (appointer.isViceLeader() && role.equals(SectMember.ROLE_VICE_LEADER)) {
             result.put("success", false);
-            result.put("message", "副宗主不能任命副宗主，只有宗主可以"); return result;
+            result.put("message", I18n.t("sect.hd5b6e8a8")); return result;
         }
 
         SectMember target = getMember(appointer.getSectId(), targetPlayerId);
         if (target == null) {
-            result.put("success", false); result.put("message", "该玩家不在你的宗门中"); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.h32acc4f3")); return result;
         }
         if (target.isLeader()) {
-            result.put("success", false); result.put("message", "不能改变宗主的职位"); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.h53eadc4b")); return result;
         }
         if (target.isViceLeader() && !appointer.isLeader()) {
-            result.put("success", false); result.put("message", "只有宗主才能改变副宗主的职位"); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.h20bb459f")); return result;
         }
         if (target.isElder() && appointer.isElder()) {
-            result.put("success", false); result.put("message", "长老不能操作同级"); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.h8ebfac78")); return result;
         }
 
         if (role.equals(target.getRole())) {
@@ -658,10 +659,10 @@ public class SectService {
                     }
                 }
                 result.put("success", true);
-                result.put("message", "贡献值已更新");
+                result.put("message", I18n.t("sect.h582e9a70"));
             } else {
                 result.put("success", false);
-                result.put("message", "更新失败，该玩家不在宗门中");
+                result.put("message", I18n.t("sect.h5378f0dc"));
             }
         } catch (SQLException e) { throw new RuntimeException("更新贡献值失败", e); }
         return result;
@@ -688,16 +689,16 @@ public class SectService {
         Map<String, Object> result = new LinkedHashMap<>();
         SectMember member = getMember(sectId, playerId);
         if (member == null) {
-            result.put("success", false); result.put("message", "你不是该宗门成员"); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.h9e5d5d34")); return result;
         }
 
         Item item = ItemRegistry.resolve(itemKey);
         if (item == null) {
-            result.put("success", false); result.put("message", "物品不存在"); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.hadf213b8")); return result;
         }
         String fullKey = item.getFullKey();
         if (quantity <= 0) {
-            result.put("success", false); result.put("message", "数量必须大于 0"); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.h893a9a8c")); return result;
         }
         if (!itemService.hasItem(playerId, fullKey, quantity)) {
             result.put("success", false); result.put("message", "背包中【" + item.getName() + "】数量不足"); return result;
@@ -765,15 +766,15 @@ public class SectService {
         Map<String, Object> result = new LinkedHashMap<>();
         SectMember member = getMember(sectId, playerId);
         if (member == null) {
-            result.put("success", false); result.put("message", "你不是该宗门成员"); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.h9e5d5d34")); return result;
         }
         if (quantity <= 0) {
-            result.put("success", false); result.put("message", "数量必须大于 0"); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.h893a9a8c")); return result;
         }
 
         Item item = ItemRegistry.resolve(itemKey);
         if (item == null) {
-            result.put("success", false); result.put("message", "物品不存在"); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.hadf213b8")); return result;
         }
         String fullKey = item.getFullKey();
 
@@ -873,12 +874,12 @@ public class SectService {
         Map<String, Object> result = new LinkedHashMap<>();
         SectMember member = getPlayerMember(playerId);
         if (member == null || !member.isLeader()) {
-            result.put("success", false); result.put("message", "只有宗主才能升级宗门"); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.hf951c000")); return result;
         }
 
         Sect sect = getSectById(member.getSectId());
         if (sect == null) {
-            result.put("success", false); result.put("message", "宗门不存在"); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.hbffa2528")); return result;
         }
         if (sect.getLevel() >= Sect.MAX_LEVEL) {
             result.put("success", false);
@@ -915,25 +916,25 @@ public class SectService {
         Map<String, Object> result = new LinkedHashMap<>();
         SectMember fromMember = getPlayerMember(fromPlayerId);
         if (fromMember == null || !fromMember.isLeader()) {
-            result.put("success", false); result.put("message", "只有宗主才能转让"); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.h72d25ae4")); return result;
         }
 
         Sect sect = getSectById(fromMember.getSectId());
         if (sect == null) {
-            result.put("success", false); result.put("message", "宗门不存在"); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.hbffa2528")); return result;
         }
 
         SectMember toMember = getMember(sect.getId(), toPlayerId);
         if (toMember == null) {
-            result.put("success", false); result.put("message", "对方不在你的宗门中"); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.h6ee9c207")); return result;
         }
         if (toMember.isLeader()) {
-            result.put("success", false); result.put("message", "对方已经是宗主了"); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.hb527d929")); return result;
         }
 
         Player toPlayer = playerService.getPlayerById(toPlayerId);
         if (toPlayer == null) {
-            result.put("success", false); result.put("message", "接收者角色不存在"); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.ha2ad4da4")); return result;
         }
         if (toPlayer.getRealm() < Sect.MIN_LEVEL_CREATE) {
             String realmName = GameConfigLoader.getRealmConfig(toPlayer.getRealm(), 0) != null
@@ -992,30 +993,30 @@ public class SectService {
         // 实验性插件门控：宗门战停用后，REST / WebSocket / 指令三个入口统一拒绝
         if (!com.mtxgdn.plugin.BuiltInPluginRegistry.getInstance().isEnabledOrUnknown(SECT_WAR_PLUGIN)) {
             result.put("success", false);
-            result.put("message", "宗门战为实验性内容，当前未开放（可在 config/plugins.yml 中启用 experimental_sect_war）");
+            result.put("message", I18n.t("sect.hfe4ed1bc"));
             return result;
         }
         SectMember attackerMember = getPlayerMember(attackerPlayerId);
         if (attackerMember == null || !attackerMember.isLeader()) {
-            result.put("success", false); result.put("message", "只有宗主才能发起宗门战"); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.h07a48c10")); return result;
         }
 
         Sect attackerSect = getSectById(attackerMember.getSectId());
         if (attackerSect == null) {
-            result.put("success", false); result.put("message", "你的宗门不存在"); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.ha5ef1b70")); return result;
         }
         if (attackerSect.getId() == defenderSectId) {
-            result.put("success", false); result.put("message", "不能对自己的宗门宣战"); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.h12f51fdc")); return result;
         }
 
         Sect defenderSect = getSectById(defenderSectId);
         if (defenderSect == null) {
-            result.put("success", false); result.put("message", "目标宗门不存在"); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.h091dc05c")); return result;
         }
 
         List<SectMember> defenderMembers = getSectMembers(defenderSectId);
         if (defenderMembers.isEmpty()) {
-            result.put("success", false); result.put("message", "目标宗门没有成员"); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.h50602204")); return result;
         }
 
         // 宗门战冷却：同一防守方 24 小时内只能被宣战一次，防止无休止骚扰
@@ -1318,24 +1319,24 @@ public class SectService {
         SectMember member = getPlayerMember(playerId);
         if (member == null) {
             result.put("success", false);
-            result.put("message", "你没有加入任何宗门");
+            result.put("message", I18n.t("sect.h6b4e3074"));
             return result;
         }
         if (!member.isLeader()) {
             result.put("success", false);
-            result.put("message", "只有宗主才能退位");
+            result.put("message", I18n.t("sect.h0349c594"));
             return result;
         }
 
         Sect sect = getSectById(member.getSectId());
         if (sect == null) {
             result.put("success", false);
-            result.put("message", "宗门不存在");
+            result.put("message", I18n.t("sect.hbffa2528"));
             return result;
         }
         if (sect.getMemberCount() <= 1) {
             result.put("success", false);
-            result.put("message", "你是宗门仅剩的成员，无人可以继任。\n若已无意经营，请使用 /宗门 解散");
+            result.put("message", I18n.t("sect.h2a6b3b5e"));
             return result;
         }
 
@@ -1486,14 +1487,14 @@ public class SectService {
         Sect sect = getPlayerSect(playerId);
         if (sect == null) {
             result.put("success", false);
-            result.put("message", "你没有加入任何宗门");
+            result.put("message", I18n.t("sect.h6b4e3074"));
             return result;
         }
 
         long now = System.currentTimeMillis();
         if (!sect.hasActiveContest(now)) {
             result.put("success", false);
-            result.put("message", "当前没有进行中的宗主竞争期");
+            result.put("message", I18n.t("sect.hd8088058"));
             return result;
         }
 
@@ -1501,14 +1502,14 @@ public class SectService {
         boolean isLeader = playerId == sect.getLeaderPlayerId();
         if (!isChallenger && !isLeader) {
             result.put("success", false);
-            result.put("message", "只有本宗宗主或竞争期挑战者可以操作");
+            result.put("message", I18n.t("sect.he21dc790"));
             return result;
         }
 
         if (isChallenger) {
             if (accept) {
                 result.put("success", false);
-                result.put("message", "你是挑战者，只需发起挑战；应战由宗主操作");
+                result.put("message", I18n.t("sect.h3e4690e4"));
                 return result;
             }
             return requestContest(sect, now);
@@ -1569,7 +1570,7 @@ public class SectService {
         Map<String, Object> result = new LinkedHashMap<>();
         if (sect.isContestRequested()) {
             result.put("success", false);
-            result.put("message", "你已发起挑战，请等待宗主使用 /宗门 挑战 接受 应战");
+            result.put("message", I18n.t("sect.h937adf7c"));
             return result;
         }
         String sql = "UPDATE sects SET contest_requested = 1, updated_at = CURRENT_TIMESTAMP "
@@ -1586,7 +1587,7 @@ public class SectService {
         }
         if (rows == 0) {
             result.put("success", false);
-            result.put("message", "竞争期已结束或状态已变化，挑战未发起");
+            result.put("message", I18n.t("sect.hb77b5854"));
             return result;
         }
         result.put("success", true);
@@ -1606,7 +1607,7 @@ public class SectService {
         Map<String, Object> result = new LinkedHashMap<>();
         if (!sect.isContestRequested()) {
             result.put("success", false);
-            result.put("message", "挑战者尚未发起挑战，暂时无法应战");
+            result.put("message", I18n.t("sect.hb12ade10"));
             return result;
         }
 
@@ -1616,7 +1617,7 @@ public class SectService {
         Player challenger = playerService.getPlayerById(challengerId);
         if (leader == null || challenger == null) {
             result.put("success", false);
-            result.put("message", "对决双方角色不存在，竞争期已作废");
+            result.put("message", I18n.t("sect.h07ebe188"));
             return result;
         }
 
@@ -1680,7 +1681,7 @@ public class SectService {
 
         if (!Boolean.TRUE.equals(applied)) {
             result.put("success", false);
-            result.put("message", "挑战状态已变化（可能已结算或竞争期已结束），本次应战未生效");
+            result.put("message", I18n.t("sect.hfad55360"));
             return result;
         }
 
@@ -1903,12 +1904,12 @@ public class SectService {
         Map<String, Object> result = new LinkedHashMap<>();
         SectMember member = getPlayerMember(playerId);
         if (member == null || !member.isLeader()) {
-            result.put("success", false); result.put("message", "只有宗主才能解散宗门"); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.he343e014")); return result;
         }
 
         Sect sect = getSectById(member.getSectId());
         if (sect == null) {
-            result.put("success", false); result.put("message", "宗门不存在"); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.hbffa2528")); return result;
         }
 
         DatabaseManager.runTransaction(conn -> {

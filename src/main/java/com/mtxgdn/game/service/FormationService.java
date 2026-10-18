@@ -15,6 +15,7 @@ import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import com.mtxgdn.i18n.I18n;
 
 public class FormationService {
 
@@ -61,19 +62,19 @@ public class FormationService {
         Player player = playerService.getPlayerById(playerId);
         if (player == null) {
             result.put("success", false);
-            result.put("message", "角色不存在");
+            result.put("message", I18n.t("formation.h59a76b2c"));
             return result;
         }
 
         if (com.mtxgdn.common.service.ServiceRegistry.getCaveService().getCaveByPlayerId(playerId) == null) {
             result.put("success", false);
-            result.put("message", "你还没有洞府，无法布置阵法");
+            result.put("message", I18n.t("formation.h28e14f54"));
             return result;
         }
 
         if (getActiveFormation(playerId) != null) {
             result.put("success", false);
-            result.put("message", "你已经布置了一个阵法，需先拆除");
+            result.put("message", I18n.t("formation.ha5ec7f40"));
             return result;
         }
 
@@ -127,7 +128,7 @@ public class FormationService {
         Formation formation = getActiveFormation(playerId);
         if (formation == null) {
             result.put("success", false);
-            result.put("message", "你还没有布置阵法");
+            result.put("message", I18n.t("formation.hcd888a30"));
             return result;
         }
 
@@ -178,7 +179,7 @@ public class FormationService {
         Formation formation = getActiveFormation(playerId);
         if (formation == null) {
             result.put("success", false);
-            result.put("message", "你还没有布置阵法");
+            result.put("message", I18n.t("formation.hcd888a30"));
             return result;
         }
 
@@ -260,17 +261,17 @@ public class FormationService {
         String formationKey = treasureKeyToFormationKey(treasureFullKey);
         if (formationKey == null) {
             result.put("success", false);
-            result.put("message", "这不是可布置阵法的阵图");
+            result.put("message", I18n.t("formation.h98b5a0c2"));
             return result;
         }
         if (com.mtxgdn.common.service.ServiceRegistry.getCaveService().getCaveByPlayerId(playerId) == null) {
             result.put("success", false);
-            result.put("message", "你还没有洞府，无法布置阵法");
+            result.put("message", I18n.t("formation.h28e14f54"));
             return result;
         }
         if (getActiveFormation(playerId) != null) {
             result.put("success", false);
-            result.put("message", "你已经布置了一个阵法，需先拆除");
+            result.put("message", I18n.t("formation.ha5ec7f40"));
             return result;
         }
         final int level = 1;

@@ -12,6 +12,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.*;
+import com.mtxgdn.i18n.I18n;
 
 public class CraftingService {
 
@@ -58,15 +59,15 @@ public class CraftingService {
         Map<String, Object> result = new LinkedHashMap<>();
         Recipe recipe = getRecipeById(recipeId);
         if (recipe == null) {
-            result.put("success", false); result.put("message", "配方不存在"); return result;
+            result.put("success", false); result.put("message", I18n.t("crafting.he6cc13cc")); return result;
         }
 
         Player player = playerService.getPlayerById(playerId);
         if (player == null) {
-            result.put("success", false); result.put("message", "角色不存在"); return result;
+            result.put("success", false); result.put("message", I18n.t("crafting.h59a76b2c")); return result;
         }
         if (player.getRealm() < recipe.getRequiredRealm()) {
-            result.put("success", false); result.put("message", "境界不足，需要更高境界才能使用此配方"); return result;
+            result.put("success", false); result.put("message", I18n.t("crafting.h944f430b")); return result;
         }
 
         Map<String, Integer> requiredMaterials = getRequiredMaterials(recipe);

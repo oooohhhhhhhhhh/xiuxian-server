@@ -14,6 +14,7 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import com.mtxgdn.i18n.I18n;
 
 public class SkillService {
 
@@ -127,7 +128,7 @@ public class SkillService {
         Skill skill = getSkillById(skillId);
         if (skill == null) {
             result.put("success", false);
-            result.put("message", "技能不存在");
+            result.put("message", I18n.t("skill.ha5b097e0"));
             result.put("code", 6101);
             return result;
         }
@@ -142,7 +143,7 @@ public class SkillService {
         Player player = playerService.getPlayerRaw(playerId);
         if (player == null) {
             result.put("success", false);
-            result.put("message", "角色不存在");
+            result.put("message", I18n.t("skill.h59a76b2c"));
             result.put("code", 3001);
             return result;
         }
@@ -217,14 +218,14 @@ public class SkillService {
         Skill skill = getSkillById(skillId);
         if (skill == null) {
             result.put("success", false);
-            result.put("message", "秘籍记载的技能已经失传了...");
+            result.put("message", I18n.t("skill.ha299b65a"));
             return result;
         }
 
         Player player = playerService.getPlayerRaw(playerId);
         if (player == null) {
             result.put("success", false);
-            result.put("message", "角色不存在");
+            result.put("message", I18n.t("skill.h59a76b2c"));
             return result;
         }
 

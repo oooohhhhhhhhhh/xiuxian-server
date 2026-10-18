@@ -24,6 +24,7 @@ import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import com.mtxgdn.i18n.I18n;
 
 public class PlayerService {
 
@@ -463,7 +464,7 @@ public class PlayerService {
         Player player = getPlayerById(playerId);
         if (player == null) {
             result.put("success", false);
-            result.put("message", "角色不存在");
+            result.put("message", I18n.t("player.h59a76b2c"));
             return result;
         }
         if (player.isCultivating()) {
@@ -474,14 +475,14 @@ public class PlayerService {
             // 直接以当前时间重新开始，顺带把脏数据自愈掉。
             if (player.getCultivationStartTime() > 0) {
                 result.put("success", false);
-                result.put("message", "你已在闭关中，无需重复打坐（使用停止修炼来结算）");
+                result.put("message", I18n.t("player.h7a0f95e1"));
                 return result;
             }
             LOG.info("检测到无起始时间的闭关脏数据，已按重新闭关自愈: playerId=" + playerId);
         }
         if (player.getHp() <= 0) {
             result.put("success", false);
-            result.put("message", "你已重伤倒地，无法闭关修炼，请先疗伤恢复");
+            result.put("message", I18n.t("player.h05d87a90"));
             return result;
         }
 
@@ -497,7 +498,7 @@ public class PlayerService {
         result.put("locationId", player.getCurrentLocationId());
         result.put("locationName", ServiceRegistry.getMapService().getLocationName(player.getCurrentLocationId()));
         result.put("locationMultiplier", ServiceRegistry.getMapService().getCultivationBonus(player.getCurrentLocationId()));
-        result.put("message", "开始闭关修炼");
+        result.put("message", I18n.t("player.h2a0575e8"));
         return result;
     }
 
@@ -509,12 +510,12 @@ public class PlayerService {
         Player player = getPlayerById(playerId);
         if (player == null) {
             result.put("success", false);
-            result.put("message", "角色不存在");
+            result.put("message", I18n.t("player.h59a76b2c"));
             return result;
         }
         if (!player.isCultivating()) {
             result.put("success", false);
-            result.put("message", "你并未在闭关中，无需停止修炼");
+            result.put("message", I18n.t("player.hafb562c8"));
             return result;
         }
 
@@ -523,7 +524,7 @@ public class PlayerService {
         // 原子认领停止操作：并发多次停止时只有第一次成功，防止经验重复发放
         if (!stopCultivation(playerId)) {
             result.put("success", false);
-            result.put("message", "修炼结算正在处理中，请勿重复操作");
+            result.put("message", I18n.t("player.hf5581950"));
             return result;
         }
 
@@ -541,7 +542,7 @@ public class PlayerService {
         result.put("locationId", player.getCurrentLocationId());
         result.put("locationName", ServiceRegistry.getMapService().getLocationName(player.getCurrentLocationId()));
         result.put("locationMultiplier", locationMultiplier);
-        result.put("message", "结束闭关修炼");
+        result.put("message", I18n.t("player.h00836942"));
         return result;
     }
 
@@ -639,12 +640,12 @@ public class PlayerService {
         Player player = getPlayerById(playerId);
         if (player == null) {
             result.put("success", false);
-            result.put("message", "角色不存在");
+            result.put("message", I18n.t("player.h59a76b2c"));
             return result;
         }
         if (player.getHp() >= player.getMaxHp()) {
             result.put("success", true);
-            result.put("message", "你的生命值已满，无需治疗。");
+            result.put("message", I18n.t("player.hc5d64260"));
             return result;
         }
 
@@ -662,7 +663,7 @@ public class PlayerService {
 
         if (!ServiceRegistry.getItemService().removeSpiritStones(playerId, cost)) {
             result.put("success", false);
-            result.put("message", "扣除灵石失败，请重试。");
+            result.put("message", I18n.t("player.hdb66b7ae"));
             return result;
         }
 

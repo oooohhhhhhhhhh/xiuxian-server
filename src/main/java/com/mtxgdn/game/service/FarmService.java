@@ -14,6 +14,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.*;
+import com.mtxgdn.i18n.I18n;
 
 public class FarmService {
 
@@ -145,7 +146,7 @@ public class FarmService {
         com.mtxgdn.playerdata.PlayerDataService.markDirty(playerId);
         CropConfig config = CropConfig.get(seedKey);
         if (config == null) {
-            return createResult(false, "未知种子");
+            return createResult(false, I18n.t("farm.hb16af8bc"));
         }
 
         return DatabaseManager.runTransaction(conn -> {
@@ -157,10 +158,10 @@ public class FarmService {
 
             FarmPlot plot = getPlotForUpdate(conn, playerId, plotIndex);
             if (plot == null) {
-                return createResult(false, "地块不存在");
+                return createResult(false, I18n.t("farm.hd8a8fe7c"));
             }
             if (plot.getState() != FarmPlot.PlotState.EMPTY) {
-                return createResult(false, "地块已被占用");
+                return createResult(false, I18n.t("farm.h920b6224"));
             }
 
             itemService.removeItem(conn, playerId, seedKey, 1);
@@ -196,11 +197,11 @@ public class FarmService {
             settlePlayerPlots(conn, playerId, System.currentTimeMillis());
             FarmPlot plot = getPlotForUpdate(conn, playerId, plotIndex);
             if (plot == null) {
-                return createResult(false, "地块不存在");
+                return createResult(false, I18n.t("farm.hd8a8fe7c"));
             }
 
             if (plot.getState() == FarmPlot.PlotState.EMPTY) {
-                return createResult(false, "空地无需浇水");
+                return createResult(false, I18n.t("farm.h915aaf14"));
             }
 
             if (plot.getState() == FarmPlot.PlotState.WILTED) {
@@ -208,7 +209,7 @@ public class FarmService {
             }
 
             if (plot.getWaterLevel() >= WATER_MAX) {
-                return createResult(false, "水分已充足");
+                return createResult(false, I18n.t("farm.hbd6a293c"));
             }
 
             int newWater = Math.min(WATER_MAX, plot.getWaterLevel() + 30);
@@ -221,7 +222,7 @@ public class FarmService {
     private Map<String, Object> handleWiltedPlotWatering(Connection conn, FarmPlot plot, int plotIndex) {
         long now = System.currentTimeMillis();
         if (plot.getWiltedTime() > 0 && (now - plot.getWiltedTime()) / 1000 > WILTED_DEAD_SECONDS) {
-            return createResult(false, "作物已枯萎过久，无法恢复，请清理地块重新种植");
+            return createResult(false, I18n.t("farm.h5433c430"));
         }
         String updateSql = "UPDATE farm_plots SET state = ?, water_level = ?, wilted_time = ? WHERE id = ?";
         try (PreparedStatement ps = conn.prepareStatement(updateSql)) {
@@ -231,9 +232,9 @@ public class FarmService {
             ps.setLong(4, plot.getId());
             ps.executeUpdate();
         } catch (SQLException e) {
-            return createResult(false, "恢复作物失败");
+            return createResult(false, I18n.t("farm.h0c3d0718"));
         }
-        return createResult(true, "浇水成功！枯萎作物已恢复，水分: 50%");
+        return createResult(true, I18n.t("farm.h88221924"));
     }
 
     public Map<String, Object> fertilize(long playerId, int plotIndex) {
@@ -245,7 +246,7 @@ public class FarmService {
         com.mtxgdn.playerdata.PlayerDataService.markDirty(playerId);
         int bonusAmount = getFertilizerBonus(fertilizerKey);
         if (bonusAmount == 0) {
-            return createResult(false, "无效的肥料类型");
+            return createResult(false, I18n.t("farm.h634a5aa8"));
         }
 
         if (itemService.getItemCount(playerId, fertilizerKey) < 1) {
@@ -256,15 +257,15 @@ public class FarmService {
             settlePlayerPlots(conn, playerId, System.currentTimeMillis());
             FarmPlot plot = getPlotForUpdate(conn, playerId, plotIndex);
             if (plot == null) {
-                return createResult(false, "地块不存在");
+                return createResult(false, I18n.t("farm.hd8a8fe7c"));
             }
 
             if (plot.getState() == FarmPlot.PlotState.EMPTY) {
-                return createResult(false, "空地无需施肥");
+                return createResult(false, I18n.t("farm.he9f89b8c"));
             }
 
             if (plot.getFertilizerLevel() >= FERTILIZER_MAX) {
-                return createResult(false, "肥力已充足");
+                return createResult(false, I18n.t("farm.hf20b7301"));
             }
 
             itemService.removeItem(conn, playerId, fertilizerKey, 1);
@@ -291,16 +292,16 @@ public class FarmService {
             settlePlayerPlots(conn, playerId, System.currentTimeMillis());
             FarmPlot plot = getPlotForUpdate(conn, playerId, plotIndex);
             if (plot == null) {
-                return createResult(false, "地块不存在");
+                return createResult(false, I18n.t("farm.hd8a8fe7c"));
             }
 
             if (plot.getState() != FarmPlot.PlotState.READY) {
-                return createResult(false, "作物还未成熟");
+                return createResult(false, I18n.t("farm.h10de2898"));
             }
 
             CropConfig config = CropConfig.get(plot.getSeedKey());
             if (config == null) {
-                return createResult(false, "未知作物");
+                return createResult(false, I18n.t("farm.h4b6fa38c"));
             }
 
             int yield = calculateYield(plot, config);
@@ -350,39 +351,39 @@ public class FarmService {
             settlePlayerPlots(conn, playerId, System.currentTimeMillis());
             FarmPlot plot = getPlotForUpdate(conn, playerId, plotIndex);
             if (plot == null) {
-                return createResult(false, "地块不存在");
+                return createResult(false, I18n.t("farm.hd8a8fe7c"));
             }
 
             if (plot.getState() == FarmPlot.PlotState.EMPTY) {
-                return createResult(false, "地块已是空地");
+                return createResult(false, I18n.t("farm.h1cca0008"));
             }
 
             resetPlot(conn, playerId, plotIndex);
-            return createResult(true, "已清理地块");
+            return createResult(true, I18n.t("farm.h21e7e68c"));
         });
     }
 
     public Map<String, Object> usePesticide(long playerId, int plotIndex) {
         com.mtxgdn.playerdata.PlayerDataService.markDirty(playerId);
         if (itemService.getItemCount(playerId, "mtxgdn:pesticide") < 1) {
-            return createResult(false, "杀虫剂不足");
+            return createResult(false, I18n.t("farm.h36b84c89"));
         }
 
         return DatabaseManager.runTransaction(conn -> {
             settlePlayerPlots(conn, playerId, System.currentTimeMillis());
             FarmPlot plot = getPlotForUpdate(conn, playerId, plotIndex);
             if (plot == null) {
-                return createResult(false, "地块不存在");
+                return createResult(false, I18n.t("farm.hd8a8fe7c"));
             }
 
             if (plot.getPestState() == FarmPlot.PestState.CLEAN) {
-                return createResult(false, "地块没有病虫害");
+                return createResult(false, I18n.t("farm.h49d89808"));
             }
 
             itemService.removeItem(conn, playerId, "mtxgdn:pesticide", 1);
             clearPestState(conn, playerId, plotIndex);
 
-            return createResult(true, "已使用杀虫剂，病虫害已清除");
+            return createResult(true, I18n.t("farm.h95625008"));
         });
     }
 
@@ -391,7 +392,7 @@ public class FarmService {
         int currentCount = countPlayerPlots(playerId);
 
         if (currentCount >= MAX_PLOTS) {
-            return createResult(false, "已达到最大地块数");
+            return createResult(false, I18n.t("farm.hf5b0e6f0"));
         }
 
         long cost = calculateExpandCost(currentCount);
@@ -444,7 +445,7 @@ public class FarmService {
                     }
                 }
             } catch (SQLException e) {
-                return createResult(false, "浇水失败");
+                return createResult(false, I18n.t("farm.he10fe06e"));
             }
 
             StringBuilder msg = new StringBuilder();
@@ -457,7 +458,7 @@ public class FarmService {
             if (msg.length() > 0) {
                 return createResult(true, msg.toString());
             } else {
-                return createResult(false, "没有需要浇水的地块");
+                return createResult(false, I18n.t("farm.h9778e920"));
             }
         });
     }
@@ -471,7 +472,7 @@ public class FarmService {
         com.mtxgdn.playerdata.PlayerDataService.markDirty(playerId);
         int bonusAmount = getFertilizerBonus(fertilizerKey);
         if (bonusAmount == 0) {
-            return createResult(false, "无效的肥料类型");
+            return createResult(false, I18n.t("farm.h634a5aa8"));
         }
 
         return DatabaseManager.runTransaction(conn -> {
@@ -489,11 +490,11 @@ public class FarmService {
                     }
                 }
             } catch (SQLException e) {
-                return createResult(false, "查询地块失败");
+                return createResult(false, I18n.t("farm.h47064598"));
             }
 
             if (plotsToFertilize.isEmpty()) {
-                return createResult(false, "没有需要施肥的地块");
+                return createResult(false, I18n.t("farm.h231f62ed"));
             }
 
             long fertilizerCount = itemService.getItemCount(playerId, fertilizerKey);
@@ -518,7 +519,7 @@ public class FarmService {
                     fertilizedCount++;
                 }
             } catch (SQLException e) {
-                return createResult(false, "施肥失败");
+                return createResult(false, I18n.t("farm.h121b7308"));
             }
 
             return createResult(true, "已为 " + fertilizedCount + " 块地块施肥，消耗 " + getItemName(fertilizerKey) + " x" + fertilizedCount);
@@ -550,11 +551,11 @@ public class FarmService {
                     }
                 }
             } catch (SQLException e) {
-                return createResult(false, "收获失败");
+                return createResult(false, I18n.t("farm.h24d616f8"));
             }
 
             if (harvestedCount == 0) {
-                return createResult(false, "没有可收获的作物");
+                return createResult(false, I18n.t("farm.h88a44f1f"));
             }
 
             StringBuilder msg = new StringBuilder("收获成功！获得：");

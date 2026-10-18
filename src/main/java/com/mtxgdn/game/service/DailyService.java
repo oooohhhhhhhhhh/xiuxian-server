@@ -17,6 +17,7 @@ import java.time.LocalTime;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Random;
+import com.mtxgdn.i18n.I18n;
 
 public class DailyService {
 
@@ -48,7 +49,7 @@ public class DailyService {
         Player player = playerService.getPlayerById(playerId);
         if (player == null) {
             result.put("success", false);
-            result.put("message", "角色不存在");
+            result.put("message", I18n.t("daily.h59a76b2c"));
             return result;
         }
 
@@ -65,7 +66,7 @@ public class DailyService {
         PlayerDaily daily = getOrCreateDaily(playerId);
         if (daily.lastMorningCultivation != null && daily.lastMorningCultivation.equals(todayStr)) {
             result.put("success", false);
-            result.put("message", "今日已晨修，紫气已收入体内，明日再来吧");
+            result.put("message", I18n.t("daily.h131eebf4"));
             return result;
         }
 

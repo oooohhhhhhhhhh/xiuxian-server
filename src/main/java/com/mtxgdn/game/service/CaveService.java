@@ -16,6 +16,7 @@ import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import com.mtxgdn.i18n.I18n;
 
 public class CaveService {
 
@@ -55,7 +56,7 @@ public class CaveService {
         Player player = playerService.getPlayerById(playerId);
         if (player == null) {
             result.put("success", false);
-            result.put("message", "角色不存在");
+            result.put("message", I18n.t("cave.h59a76b2c"));
             return result;
         }
 
@@ -69,7 +70,7 @@ public class CaveService {
 
         if (getCaveByPlayerId(playerId) != null) {
             result.put("success", false);
-            result.put("message", "你已经拥有洞府了");
+            result.put("message", I18n.t("cave.hcf358280"));
             return result;
         }
 
@@ -120,7 +121,7 @@ public class CaveService {
             result.put("cave", cave);
         } else {
             result.put("success", false);
-            result.put("message", "开辟洞府失败");
+            result.put("message", I18n.t("cave.h6e2e686c"));
         }
         return result;
     }
@@ -144,7 +145,7 @@ public class CaveService {
         Cave cave = getCaveByPlayerId(playerId);
         if (cave == null) {
             result.put("success", false);
-            result.put("message", "你还没有洞府");
+            result.put("message", I18n.t("cave.h7b28cff2"));
             return result;
         }
 
@@ -198,7 +199,7 @@ public class CaveService {
                 result.put("message", "灵气尚未汇聚，还需等待 " + remaining + " 秒");
             } else {
                 result.put("success", false);
-                result.put("message", "洞府灵气不足，需要等待灵气汇聚");
+                result.put("message", I18n.t("cave.h13067628"));
             }
             return result;
         }
@@ -216,14 +217,14 @@ public class CaveService {
         Cave cave = getCaveByPlayerId(playerId);
         if (cave == null) {
             result.put("success", false);
-            result.put("message", "你还没有洞府，无法在此修炼");
+            result.put("message", I18n.t("cave.h4e9943c4"));
             return result;
         }
 
         Player player = playerService.getPlayerById(playerId);
         if (player == null) {
             result.put("success", false);
-            result.put("message", "角色不存在");
+            result.put("message", I18n.t("cave.h59a76b2c"));
             return result;
         }
 
@@ -278,7 +279,7 @@ public class CaveService {
         Cave cave = getCaveByPlayerId(playerId);
         if (cave == null) {
             result.put("success", false);
-            result.put("message", "你还没有洞府");
+            result.put("message", I18n.t("cave.h7b28cff2"));
             return result;
         }
 

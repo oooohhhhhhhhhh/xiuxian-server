@@ -17,6 +17,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import com.mtxgdn.i18n.I18n;
 
 public class FriendService {
 
@@ -185,19 +186,19 @@ public class FriendService {
         Map<String, Object> result = new java.util.LinkedHashMap<>();
         if (playerId == friendPlayerId) {
             result.put("success", false);
-            result.put("message", "不能拜访自己");
+            result.put("message", I18n.t("friend.hc7efe258"));
             return result;
         }
         if (!areFriends(playerId, friendPlayerId)) {
             result.put("success", false);
-            result.put("message", "你们不是好友，无法拜访");
+            result.put("message", I18n.t("friend.hc0ed9cb8"));
             return result;
         }
         ensureVisitDate();
         java.util.Set<Long> visited = DAILY_VISITS.computeIfAbsent(playerId, k -> java.util.concurrent.ConcurrentHashMap.newKeySet());
         if (!visited.add(friendPlayerId)) {
             result.put("success", false);
-            result.put("message", "今日已拜访过该好友，明日再来吧");
+            result.put("message", I18n.t("friend.hd893e16c"));
             return result;
         }
 
@@ -205,7 +206,7 @@ public class FriendService {
         Player friend = playerService.getPlayerById(friendPlayerId);
         if (me == null || friend == null) {
             result.put("success", false);
-            result.put("message", "玩家数据异常");
+            result.put("message", I18n.t("friend.h5fca123a"));
             return result;
         }
 

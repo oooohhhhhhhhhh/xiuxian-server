@@ -15,6 +15,7 @@ import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
+import com.mtxgdn.i18n.I18n;
 
 public class EnhanceService {
 
@@ -102,12 +103,12 @@ public class EnhanceService {
 
         String itemKey = getEquippedItemKey(playerId, slot);
         if (itemKey == null) {
-            return createResult(false, "该装备栏没有装备");
+            return createResult(false, I18n.t("enhance.h81c08460"));
         }
 
         Item item = ItemRegistry.get(itemKey);
         if (item == null) {
-            return createResult(false, "装备数据异常");
+            return createResult(false, I18n.t("enhance.had7a5178"));
         }
 
         int currentLevel = getEnhanceLevel(playerId, slot);
@@ -120,7 +121,7 @@ public class EnhanceService {
 
         Player player = playerService.getPlayerById(playerId);
         if (player == null) {
-            return createResult(false, "角色不存在");
+            return createResult(false, I18n.t("enhance.h59a76b2c"));
         }
 
         if (!checkGold(player, goldCost)) {
@@ -232,7 +233,7 @@ public class EnhanceService {
                 result.put("success", false);
                 result.put("enhanceSuccess", false);
                 result.put("protected", true);
-                result.put("message", "强化失败！但护身符生效，装备免于碎裂（消耗 1 张护身符）");
+                result.put("message", I18n.t("enhance.h9a90a2a4"));
             }
             case "degrade" -> {
                 result.put("success", false);
@@ -244,7 +245,7 @@ public class EnhanceService {
             default -> {
                 result.put("success", false);
                 result.put("enhanceSuccess", false);
-                result.put("message", "强化失败！材料消耗但装备未受影响");
+                result.put("message", I18n.t("enhance.h0b13308c"));
             }
         }
         return result;

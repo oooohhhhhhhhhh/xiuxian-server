@@ -1,0 +1,5 @@
+{
+  "minecraft.cancelled": "已取消。",
+  "game.no_player_mc": "你还没有创建修仙角色。\n请使用 {0}register <角色名> 注册角色",
+  "game.unknown_command": "未知指令，请输入 /help 查看可用指令"
+}
