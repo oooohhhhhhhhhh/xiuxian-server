@@ -59,7 +59,7 @@ public class DailyService {
         int hour = LocalTime.now().getHour();
         if (hour < 5 || hour >= 11) {
             result.put("success", false);
-            result.put("message", "晨修须在卯时至巳时（5:00~11:00）进行，此时紫气东来，天地灵气最为纯净。现在是" + hour + "时，非晨修之时，待日出再试。");
+            result.put("message", I18n.t("daily.h0e0dc5c8", hour));
             return result;
         }
 

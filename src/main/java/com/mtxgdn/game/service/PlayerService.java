@@ -654,8 +654,7 @@ public class PlayerService {
 
         if (currentStones < cost) {
             result.put("success", false);
-            result.put("message", "灵石不足！疗伤需要 " + cost + " 灵石，你只有 " + currentStones + " 灵石。\n"
-                    + "你可以服用回血丹回复生命，或等待自然恢复。");
+            result.put("message", I18n.t("player.he7f02870", cost, currentStones));
             result.put("cost", cost);
             result.put("currentStones", currentStones);
             return result;

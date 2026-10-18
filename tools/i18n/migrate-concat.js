@@ -163,8 +163,12 @@ const CALL_STARTS = [
   /(?:^|[^.\w])reply\(\s*"/g,
   /(?:^|[^.\w])replyPrivate\(\s*"/g,
   /(?:^|[^.\w])createResult\(\s*(?:true|false)\s*,\s*"/g,
-  /(?:^|[^.\w])addProperty\(\s*"message"\s*,\s*"/g,
-  /(?:^|[^.\w])put\(\s*"message"\s*,\s*"/g,
+  // addProperty 几乎总是 obj.addProperty(...)，必须放行 '.' 前缀。
+  // 沿用 put 那套 [^.\w] 守卫会让一处都匹配不上（migrate-literals.js 里
+  // 踩过同一个坑，那次漏掉了 114 处）。
+  /(?:^|\.|[^.\w])addProperty\(\s*"message"\s*,\s*"/g,
+  /(?:^|\.|[^.\w])put\(\s*"message"\s*,\s*"/g,
+  /(?:^|\.|[^.\w])restOk\(\s*"/g,
 ];
 
 /** 从 ( 开始按括号配平找到 ) 的位置（字符串感知）。 */
@@ -249,7 +253,9 @@ for (const file of files) {
   const rel = path.relative(ROOT, file).replace(/\\/g, '/');
   let src = fs.readFileSync(file, 'utf8');
   const eol = src.includes('\r\n') ? '\r\n' : '\n';
-  const lines = src.split('\n');
+  // 必须用 /\r?\n/ 切分：split('\n') 会把行尾 \r 留在每行末尾，
+  // 后面 join('\r\n') 就成了 \r\r\n，整份文件换行符被写坏。
+  const lines = src.split(/\r?\n/);
   const mod = moduleFor(file);
 
   const edits = new Map(); // 行号 -> 新行内容

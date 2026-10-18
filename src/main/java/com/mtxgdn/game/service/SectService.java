@@ -204,7 +204,7 @@ public class SectService {
             String realmName = GameConfigLoader.getRealmConfig(player.getRealm(), 0) != null
                     ? GameConfigLoader.getRealmConfig(player.getRealm(), 0).getFullName() : "凡人";
             result.put("success", false);
-            result.put("message", "境界不足，需要达到元婴期以上才能创建宗门（当前：" + realmName + "）");
+            result.put("message", I18n.t("sect.hf3a1ea6c", realmName));
             return result;
         }
 
@@ -216,14 +216,14 @@ public class SectService {
 
         if (getSectByName(name) != null) {
             result.put("success", false);
-            result.put("message", "宗门名称【" + name + "】已被使用");
+            result.put("message", I18n.t("sect.hf52ad26c", name));
             return result;
         }
 
         long spiritStones = itemService.getSpiritStoneCount(playerId);
         if (spiritStones < Sect.CREATE_COST_SPIRIT_STONES) {
             result.put("success", false);
-            result.put("message", "灵石不足，创建宗门需要 " + Sect.CREATE_COST_SPIRIT_STONES + " 灵石（你目前有 " + spiritStones + " 灵石）");
+            result.put("message", I18n.t("sect.h97fb485c", Sect.CREATE_COST_SPIRIT_STONES, spiritStones));
             return result;
         }
 
@@ -272,7 +272,7 @@ public class SectService {
             } catch (Exception ignored) {
             }
             result.put("success", true);
-            result.put("message", "恭贺【" + player.getName() + "】开创宗门【" + name + "】！消耗灵石 " + Sect.CREATE_COST_SPIRIT_STONES);
+            result.put("message", I18n.t("sect.ha1d9a2dc", player.getName(), name, Sect.CREATE_COST_SPIRIT_STONES));
             result.put("sect", sect);
         } else {
             result.put("success", false);
@@ -350,7 +350,7 @@ public class SectService {
         int maxMembers = Sect.getMaxMembersForLevel(sect.getLevel());
         if (members.size() >= maxMembers) {
             result.put("success", false);
-            result.put("message", "【" + sect.getName() + "】成员已满（" + members.size() + "/" + maxMembers + "）");
+            result.put("message", I18n.t("sect.h853e85aa", sect.getName(), members.size(), maxMembers));
             return result;
         }
 
@@ -378,7 +378,7 @@ public class SectService {
         } catch (SQLException e) { throw new RuntimeException("提交申请失败", e); }
 
         result.put("success", true);
-        result.put("message", "已向【" + sect.getName() + "】提交加入申请，请等待宗主或长老审批");
+        result.put("message", I18n.t("sect.h7189800c", sect.getName()));
         return result;
     }
 
@@ -525,7 +525,7 @@ public class SectService {
                 return null;
             });
             result.put("success", true);
-            result.put("message", "你已解散宗门【" + sect.getName() + "】，从此云游天下");
+            result.put("message", I18n.t("sect.he5e40358", sect.getName()));
         } else {
             result.put("success", true);
             result.put("message", playerName + " 已离开宗门【" + sect.getName() + "】");
@@ -559,7 +559,7 @@ public class SectService {
 
         deleteMember(kicker.getSectId(), targetPlayerId);
         result.put("success", true);
-        result.put("message", "已将 " + target.getPlayerName() + " 逐出宗门");
+        result.put("message", I18n.t("sect.h6bc422a4", target.getPlayerName()));
         return result;
     }
 
@@ -701,7 +701,7 @@ public class SectService {
             result.put("success", false); result.put("message", I18n.t("sect.h893a9a8c")); return result;
         }
         if (!itemService.hasItem(playerId, fullKey, quantity)) {
-            result.put("success", false); result.put("message", "背包中【" + item.getName() + "】数量不足"); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.h125ccfd8", item.getName())); return result;
         }
 
         // 修复刷贡献 bug：管理职位（宗主/副宗主/长老）可以免费从仓库取出物品，
@@ -753,10 +753,9 @@ public class SectService {
 
         result.put("success", true);
         if (isManager) {
-            result.put("message", "已向宗门仓库捐献【" + item.getName() + "】×" + quantity
-                    + "（管理职位可免费取物，捐献不再获得贡献值，以防刷取）");
+            result.put("message", I18n.t("sect.h69936cdc", item.getName(), quantity));
         } else {
-            result.put("message", "已向宗门仓库捐献【" + item.getName() + "】×" + quantity + "，获得 " + contributionGain + " 贡献值");
+            result.put("message", I18n.t("sect.he11c0848", item.getName(), quantity, contributionGain));
         }
         result.put("contributionGain", contributionGain);
         return result;
@@ -781,7 +780,7 @@ public class SectService {
         int available = getWarehouseItemCount(sectId, fullKey);
         if (available < quantity) {
             result.put("success", false);
-            result.put("message", "宗门仓库中【" + item.getName() + "】数量不足（当前：" + available + "）"); return result;
+            result.put("message", I18n.t("sect.hfb15b644", item.getName(), available)); return result;
         }
 
         boolean isManager = member.canManage();
@@ -790,8 +789,7 @@ public class SectService {
             long totalCost = costPerItem * quantity;
             if (member.getContribution() < totalCost) {
                 result.put("success", false);
-                result.put("message", "贡献值不足，取出【" + item.getName() + "】×" + quantity
-                        + " 需要 " + totalCost + " 贡献值（当前：" + member.getContribution() + "）");
+                result.put("message", I18n.t("sect.h5c16ae54", item.getName(), quantity, totalCost, member.getContribution()));
                 return result;
             }
         }
@@ -883,13 +881,13 @@ public class SectService {
         }
         if (sect.getLevel() >= Sect.MAX_LEVEL) {
             result.put("success", false);
-            result.put("message", "宗门已达到最高等级 " + Sect.MAX_LEVEL + " 级"); return result;
+            result.put("message", I18n.t("sect.h3168868c", Sect.MAX_LEVEL)); return result;
         }
 
         long cost = Sect.getLevelUpCost(sect.getLevel());
         if (sect.getPrestige() < cost) {
             result.put("success", false);
-            result.put("message", "声望不足，升级需要 " + cost + " 声望（当前：" + sect.getPrestige() + "）");
+            result.put("message", I18n.t("sect.h21c77ff4", cost, sect.getPrestige()));
             return result;
         }
 
@@ -906,7 +904,7 @@ public class SectService {
         } catch (SQLException e) { throw new RuntimeException("宗门升级失败", e); }
 
         result.put("success", true);
-        result.put("message", "宗门【" + sect.getName() + "】晋升为 " + newLevel + " 级宗门！消耗 " + cost + " 声望，成员上限提升至 " + newMaxMembers + " 人");
+        result.put("message", I18n.t("sect.hc068d71a", sect.getName(), newLevel, cost, newMaxMembers));
         return result;
     }
 
@@ -940,14 +938,14 @@ public class SectService {
             String realmName = GameConfigLoader.getRealmConfig(toPlayer.getRealm(), 0) != null
                     ? GameConfigLoader.getRealmConfig(toPlayer.getRealm(), 0).getFullName() : "凡人";
             result.put("success", false);
-            result.put("message", "接收者境界不足，需要达到元婴期以上才能成为宗主（当前：" + realmName + "）");
+            result.put("message", I18n.t("sect.h062ede40", realmName));
             return result;
         }
 
         long spiritStones = itemService.getSpiritStoneCount(fromPlayerId);
         if (spiritStones < Sect.TRANSFER_COST_SPIRIT_STONES) {
             result.put("success", false);
-            result.put("message", "灵石不足，转让宗主之位需要 " + Sect.TRANSFER_COST_SPIRIT_STONES + " 灵石（你目前有 " + spiritStones + " 灵石）");
+            result.put("message", I18n.t("sect.h6c450565", Sect.TRANSFER_COST_SPIRIT_STONES, spiritStones));
             return result;
         }
         DatabaseManager.runTransaction(conn -> {
@@ -1031,8 +1029,7 @@ public class SectService {
                     long remaining = warCooldownMs - (System.currentTimeMillis() - lastWarTime);
                     if (remaining > 0) {
                         result.put("success", false);
-                        result.put("message", "目标宗门刚经历过宗门战，还需等待 "
-                                + Math.max(1, remaining / 3600000) + " 小时才能再次宣战");
+                        result.put("message", I18n.t("sect.hb6f9926c", Math.max(1, remaining / 3600000)));
                         return result;
                     }
                 }
@@ -1041,14 +1038,14 @@ public class SectService {
 
         if (attackerSect.getPrestige() < Sect.DECLARE_WAR_PRESTIGE_COST) {
             result.put("success", false);
-            result.put("message", "宗门声望不足，宣战需要 " + Sect.DECLARE_WAR_PRESTIGE_COST + " 声望（当前：" + attackerSect.getPrestige() + "）");
+            result.put("message", I18n.t("sect.h72ced260", Sect.DECLARE_WAR_PRESTIGE_COST, attackerSect.getPrestige()));
             return result;
         }
 
         long spiritStones = itemService.getSpiritStoneCount(attackerPlayerId);
         if (spiritStones < Sect.DECLARE_WAR_SPIRIT_STONE_COST) {
             result.put("success", false);
-            result.put("message", "灵石不足，宣战需要 " + Sect.DECLARE_WAR_SPIRIT_STONE_COST + " 灵石（你目前有 " + spiritStones + " 灵石）");
+            result.put("message", I18n.t("sect.h1009eea4", Sect.DECLARE_WAR_SPIRIT_STONE_COST, spiritStones));
             return result;
         }
         // 扣除灵石和声望（事务包裹）
@@ -1067,7 +1064,7 @@ public class SectService {
             });
         } catch (Exception e) {
             result.put("success", false);
-            result.put("message", "宣战失败: " + e.getMessage());
+            result.put("message", I18n.t("sect.hfda59a4f", e.getMessage()));
             return result;
         }
 
@@ -1695,7 +1692,7 @@ public class SectService {
         result.put("winnerId", winnerId);
         result.put("winnerName", winnerName);
         result.put("battleLog", String.join("\n", battleLog));
-        result.put("message", "宗主争夺战结束：" + winnerName + " 继任宗主");
+        result.put("message", I18n.t("sect.he75cb234", winnerName));
         return result;
     }
 
@@ -1929,7 +1926,7 @@ public class SectService {
         });
 
         result.put("success", true);
-        result.put("message", "宗门【" + sect.getName() + "】已解散，从此江湖再无此门");
+        result.put("message", I18n.t("sect.ha42a16cc", sect.getName()));
         return result;
     }
 

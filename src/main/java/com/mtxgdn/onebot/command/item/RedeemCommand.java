@@ -114,14 +114,14 @@ public class RedeemCommand extends Command {
             } else if (redeemResult.startsWith("SUCCESS:")) {
                 String rewards = redeemResult.substring("SUCCESS:".length());
                 result.addProperty("code", 200);
-                result.addProperty("message", "兑换成功！获得: " + rewards);
+                result.addProperty("message", I18n.t("redeem.h660db410", rewards));
             } else {
                 result.addProperty("code", 400);
                 result.addProperty("message", redeemResult);
             }
         } catch (Exception e) {
             result.addProperty("code", 500);
-            result.addProperty("message", "服务器错误: " + e.getMessage());
+            result.addProperty("message", I18n.t("redeem.hf186bd38", e.getMessage()));
         }
         return result;
     }

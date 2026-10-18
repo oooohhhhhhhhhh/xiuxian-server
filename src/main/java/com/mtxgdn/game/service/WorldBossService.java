@@ -410,8 +410,7 @@ public class WorldBossService {
         int stageGap = Math.abs(player.getRealmStage() - boss.getRealm() * 3);
         if (stageGap >= maxStageGap()) {
             result.put("success", false);
-            result.put("message", "境界差距过大，不可挑战（需境界序位差小于 " + maxStageGap()
-                    + "，当前差 " + stageGap + "）");
+            result.put("message", I18n.t("world_boss.h126829d8", maxStageGap(), stageGap));
             return result;
         }
 

@@ -157,7 +157,7 @@ public class AuctionCommand extends Command {
             result.add("items", arr);
         } catch (Exception e) {
             result.addProperty("code", 500);
-            result.addProperty("message", "服务器错误: " + e.getMessage());
+            result.addProperty("message", I18n.t("economy.hf186bd38", e.getMessage()));
         }
         return result;
     }
@@ -181,7 +181,7 @@ public class AuctionCommand extends Command {
             result.add("items", arr);
         } catch (Exception e) {
             result.addProperty("code", 500);
-            result.addProperty("message", "服务器错误: " + e.getMessage());
+            result.addProperty("message", I18n.t("economy.hf186bd38", e.getMessage()));
         }
         return result;
     }
@@ -207,7 +207,7 @@ public class AuctionCommand extends Command {
             if (data.containsKey("listingId")) result.addProperty("listingId", (long) data.get("listingId"));
         } catch (Exception e) {
             result.addProperty("code", 500);
-            result.addProperty("message", "服务器错误: " + e.getMessage());
+            result.addProperty("message", I18n.t("economy.hf186bd38", e.getMessage()));
         }
         return result;
     }
@@ -230,7 +230,7 @@ public class AuctionCommand extends Command {
             result.addProperty("message", (String) data.get("message"));
         } catch (Exception e) {
             result.addProperty("code", 500);
-            result.addProperty("message", "服务器错误: " + e.getMessage());
+            result.addProperty("message", I18n.t("economy.hf186bd38", e.getMessage()));
         }
         return result;
     }

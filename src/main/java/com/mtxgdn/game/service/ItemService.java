@@ -589,7 +589,7 @@ public class ItemService {
                         amount, getStoneName(fromGrade), targetAmount, getStoneName(toGrade)));
             } catch (SQLException e) {
                 innerResult.put("success", false);
-                innerResult.put("message", "兑换失败: " + e.getMessage());
+                innerResult.put("message", I18n.t("item.h35c6c480", e.getMessage()));
             }
             return innerResult;
         });
@@ -713,7 +713,7 @@ public class ItemService {
             });
         } catch (Exception e) {
             result.put("success", false);
-            result.put("message", "装备失败: " + e.getMessage());
+            result.put("message", I18n.t("item.hcb33d7f8", e.getMessage()));
             return result;
         }
     }
@@ -791,7 +791,7 @@ public class ItemService {
             });
         } catch (Exception e) {
             result.put("success", false);
-            result.put("message", "卸下装备失败: " + e.getMessage());
+            result.put("message", I18n.t("item.h45b8f447", e.getMessage()));
             return result;
         }
     }
@@ -923,7 +923,7 @@ public class ItemService {
             });
         } catch (Exception e) {
             result.put("success", false);
-            result.put("message", "使用物品失败: " + e.getMessage());
+            result.put("message", I18n.t("item.h0510fbe7", e.getMessage()));
             return result;
         }
     }

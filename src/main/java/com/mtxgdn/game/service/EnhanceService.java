@@ -187,7 +187,7 @@ public class EnhanceService {
         } catch (Exception e) {
             result.put("success", false);
             result.put("enhanceSuccess", false);
-            result.put("message", "强化失败，系统异常: " + e.getMessage());
+            result.put("message", I18n.t("enhance.h2ec9218b", e.getMessage()));
             return result;
         }
     }
@@ -227,7 +227,7 @@ public class EnhanceService {
                 result.put("enhanceSuccess", false);
                 result.put("broken", true);
                 result.put("brokenItem", itemName);
-                result.put("message", "强化失败！" + itemName + " 承受不住力量，碎裂了...");
+                result.put("message", I18n.t("enhance.h7b917290", itemName));
             }
             case "protected" -> {
                 result.put("success", false);

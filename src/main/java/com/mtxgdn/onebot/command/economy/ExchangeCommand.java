@@ -261,7 +261,7 @@ public class ExchangeCommand extends Command {
             Item item = ItemRegistry.resolve(itemKey);
             if (item == null) {
                 result.addProperty("code", 404);
-                result.addProperty("message", "物品不存在: " + itemKey);
+                result.addProperty("message", I18n.t("economy.h3c2a9282", itemKey));
                 return result;
             }
 
@@ -269,7 +269,7 @@ public class ExchangeCommand extends Command {
             if (!itemService.hasItem(playerId, fullKey, quantity)) {
                 long have = itemService.getItemCount(playerId, fullKey);
                 result.addProperty("code", 400);
-                result.addProperty("message", "物品数量不足，需要 " + quantity + " 个，拥有 " + have + " 个");
+                result.addProperty("message", I18n.t("economy.h366e16c0", quantity, have));
                 return result;
             }
 
@@ -293,7 +293,7 @@ public class ExchangeCommand extends Command {
             result.addProperty("currentEnergy", energyService.getEnergy(playerId));
         } catch (Exception e) {
             result.addProperty("code", 500);
-            result.addProperty("message", "服务器错误: " + e.getMessage());
+            result.addProperty("message", I18n.t("economy.hf186bd38", e.getMessage()));
         }
         return result;
     }
@@ -333,7 +333,7 @@ public class ExchangeCommand extends Command {
             Item item = ItemRegistry.resolve(itemKey);
             if (item == null) {
                 result.addProperty("code", 404);
-                result.addProperty("message", "物品不存在: " + itemKey);
+                result.addProperty("message", I18n.t("economy.h3c2a9282", itemKey));
                 return result;
             }
 
@@ -349,7 +349,7 @@ public class ExchangeCommand extends Command {
 
             if (currentEnergy < totalCost) {
                 result.addProperty("code", 400);
-                result.addProperty("message", "能量不足，需要 " + totalCost + "，当前 " + currentEnergy);
+                result.addProperty("message", I18n.t("economy.h22ad3990", totalCost, currentEnergy));
                 return result;
             }
 
@@ -370,7 +370,7 @@ public class ExchangeCommand extends Command {
             result.addProperty("currentEnergy", energyService.getEnergy(playerId));
         } catch (Exception e) {
             result.addProperty("code", 500);
-            result.addProperty("message", "服务器错误: " + e.getMessage());
+            result.addProperty("message", I18n.t("economy.hf186bd38", e.getMessage()));
         }
         return result;
     }
@@ -404,7 +404,7 @@ public class ExchangeCommand extends Command {
             result.add("items", itemsArr);
         } catch (Exception e) {
             result.addProperty("code", 500);
-            result.addProperty("message", "服务器错误: " + e.getMessage());
+            result.addProperty("message", I18n.t("economy.hf186bd38", e.getMessage()));
         }
         return result;
     }
@@ -431,7 +431,7 @@ public class ExchangeCommand extends Command {
             result.addProperty("energy", energy);
         } catch (Exception e) {
             result.addProperty("code", 500);
-            result.addProperty("message", "服务器错误: " + e.getMessage());
+            result.addProperty("message", I18n.t("economy.hf186bd38", e.getMessage()));
         }
         return result;
     }

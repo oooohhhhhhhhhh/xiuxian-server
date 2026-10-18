@@ -207,7 +207,7 @@ public class EnergyAdminCommand extends Command {
             var p = playerService.getPlayerById(playerId);
             if (p == null) {
                 result.addProperty("code", 404);
-                result.addProperty("message", "玩家不存在: " + playerId);
+                result.addProperty("message", I18n.t("admin.hc014f818", playerId));
                 return result;
             }
 
@@ -220,7 +220,7 @@ public class EnergyAdminCommand extends Command {
             result.addProperty("energy", energy);
         } catch (Exception e) {
             result.addProperty("code", 500);
-            result.addProperty("message", "服务器错误: " + e.getMessage());
+            result.addProperty("message", I18n.t("admin.hf186bd38", e.getMessage()));
         }
         return result;
     }
@@ -248,7 +248,7 @@ public class EnergyAdminCommand extends Command {
             var p = playerService.getPlayerById(playerId);
             if (p == null) {
                 result.addProperty("code", 404);
-                result.addProperty("message", "玩家不存在: " + playerId);
+                result.addProperty("message", I18n.t("admin.hc014f818", playerId));
                 return result;
             }
 
@@ -262,7 +262,7 @@ public class EnergyAdminCommand extends Command {
             result.addProperty("energy", energy);
         } catch (Exception e) {
             result.addProperty("code", 500);
-            result.addProperty("message", "服务器错误: " + e.getMessage());
+            result.addProperty("message", I18n.t("admin.hf186bd38", e.getMessage()));
         }
         return result;
     }
@@ -290,7 +290,7 @@ public class EnergyAdminCommand extends Command {
             var p = playerService.getPlayerById(playerId);
             if (p == null) {
                 result.addProperty("code", 404);
-                result.addProperty("message", "玩家不存在: " + playerId);
+                result.addProperty("message", I18n.t("admin.hc014f818", playerId));
                 return result;
             }
 
@@ -305,7 +305,7 @@ public class EnergyAdminCommand extends Command {
             result.addProperty("currentEnergy", energyService.getEnergy(playerId));
         } catch (Exception e) {
             result.addProperty("code", 500);
-            result.addProperty("message", "服务器错误: " + e.getMessage());
+            result.addProperty("message", I18n.t("admin.hf186bd38", e.getMessage()));
         }
         return result;
     }
@@ -333,7 +333,7 @@ public class EnergyAdminCommand extends Command {
             var p = playerService.getPlayerById(playerId);
             if (p == null) {
                 result.addProperty("code", 404);
-                result.addProperty("message", "玩家不存在: " + playerId);
+                result.addProperty("message", I18n.t("admin.hc014f818", playerId));
                 return result;
             }
 
@@ -341,7 +341,7 @@ public class EnergyAdminCommand extends Command {
             long current = energyService.getEnergy(playerId);
             if (current < amount) {
                 result.addProperty("code", 400);
-                result.addProperty("message", "能量不足，当前 " + current + "，尝试减少 " + amount);
+                result.addProperty("message", I18n.t("admin.h574f89a8", current, amount));
                 return result;
             }
 
@@ -355,7 +355,7 @@ public class EnergyAdminCommand extends Command {
             result.addProperty("currentEnergy", energyService.getEnergy(playerId));
         } catch (Exception e) {
             result.addProperty("code", 500);
-            result.addProperty("message", "服务器错误: " + e.getMessage());
+            result.addProperty("message", I18n.t("admin.hf186bd38", e.getMessage()));
         }
         return result;
     }

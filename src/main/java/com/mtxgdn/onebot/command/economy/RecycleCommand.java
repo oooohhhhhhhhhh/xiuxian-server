@@ -73,7 +73,7 @@ public class RecycleCommand extends Command {
             var item = ItemRegistry.resolve(itemKey);
             if (item == null) {
                 result.addProperty("code", 404);
-                result.addProperty("message", "物品不存在: " + itemKey);
+                result.addProperty("message", I18n.t("economy.h3c2a9282", itemKey));
                 return result;
             }
 
@@ -87,7 +87,7 @@ public class RecycleCommand extends Command {
             if (data.containsKey("recycled")) result.addProperty("recycled", String.valueOf(data.get("recycled")));
         } catch (Exception e) {
             result.addProperty("code", 500);
-            result.addProperty("message", "服务器错误: " + e.getMessage());
+            result.addProperty("message", I18n.t("economy.hf186bd38", e.getMessage()));
         }
         return result;
     }

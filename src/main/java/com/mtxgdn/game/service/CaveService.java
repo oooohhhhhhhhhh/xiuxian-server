@@ -64,7 +64,7 @@ public class CaveService {
             String realmName = GameConfigLoader.getRealmConfig(player.getRealm(), 0) != null
                     ? GameConfigLoader.getRealmConfig(player.getRealm(), 0).getFullName() : "凡人";
             result.put("success", false);
-            result.put("message", "境界不足，需要达到金丹期以上才能开辟洞府（当前：" + realmName + "）");
+            result.put("message", I18n.t("cave.h90f650ef", realmName));
             return result;
         }
 
@@ -77,7 +77,7 @@ public class CaveService {
         long spiritStones = itemService.getSpiritStoneCount(playerId);
         if (spiritStones < Cave.CREATE_COST_SPIRIT_STONES) {
             result.put("success", false);
-            result.put("message", "灵石不足，开辟洞府需要 " + Cave.CREATE_COST_SPIRIT_STONES + " 灵石（你目前有 " + spiritStones + " 灵石）");
+            result.put("message", I18n.t("cave.h76e9d310", Cave.CREATE_COST_SPIRIT_STONES, spiritStones));
             return result;
         }
 
@@ -116,8 +116,7 @@ public class CaveService {
 
         if (cave != null) {
             result.put("success", true);
-            result.put("message", "恭喜【" + player.getName() + "】开辟洞府【" + name + "】！消耗灵石 " + Cave.CREATE_COST_SPIRIT_STONES + "\n" +
-                    "洞府可提供修炼加成和额外存储空间");
+            result.put("message", I18n.t("cave.h57e5697c", player.getName(), name, Cave.CREATE_COST_SPIRIT_STONES));
             result.put("cave", cave);
         } else {
             result.put("success", false);
@@ -196,7 +195,7 @@ public class CaveService {
             if (elapsed < collectInterval) {
                 long remaining = (collectInterval - elapsed) / 1000;
                 result.put("success", false);
-                result.put("message", "灵气尚未汇聚，还需等待 " + remaining + " 秒");
+                result.put("message", I18n.t("cave.h5560681a", remaining));
             } else {
                 result.put("success", false);
                 result.put("message", I18n.t("cave.h13067628"));
@@ -205,7 +204,7 @@ public class CaveService {
         }
 
         result.put("success", true);
-        result.put("message", "收集洞府灵气获得 " + collectedEnergy + " 灵石！");
+        result.put("message", I18n.t("cave.h4ad47298", collectedEnergy));
         result.put("collected", collectedEnergy);
         return result;
     }
@@ -285,7 +284,7 @@ public class CaveService {
 
         if (cave.getLevel() >= Cave.MAX_LEVEL) {
             result.put("success", false);
-            result.put("message", "洞府已达到最高等级 " + Cave.MAX_LEVEL + " 级");
+            result.put("message", I18n.t("cave.h58c56ef8", Cave.MAX_LEVEL));
             return result;
         }
 
@@ -293,7 +292,7 @@ public class CaveService {
         long spiritStones = itemService.getSpiritStoneCount(playerId);
         if (spiritStones < cost) {
             result.put("success", false);
-            result.put("message", "灵石不足，升级需要 " + cost + " 灵石（你目前有 " + spiritStones + " 灵石）");
+            result.put("message", I18n.t("cave.h1c7e44f3", cost, spiritStones));
             return result;
         }
 
@@ -317,10 +316,7 @@ public class CaveService {
 
         int newLevel = cave.getLevel() + 1;
         result.put("success", true);
-        result.put("message", "洞府【" + cave.getName() + "】晋升为 " + newLevel + " 级！\n" +
-                "消耗 " + cost + " 灵石\n" +
-                "修炼加成: +" + Cave.getCultivationBonusForLevel(newLevel) + "%\n" +
-                "存储加成: +" + Cave.getStorageBonusForLevel(newLevel) + " 格");
+        result.put("message", I18n.t("cave.h862af23c", cave.getName(), newLevel, cost, Cave.getCultivationBonusForLevel(newLevel), Cave.getStorageBonusForLevel(newLevel)));
         result.put("newLevel", newLevel);
         return result;
     }

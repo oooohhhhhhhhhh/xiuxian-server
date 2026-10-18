@@ -80,17 +80,17 @@ public class CraftingService {
                 Item item = ItemRegistry.get(key);
                 String itemName = item != null ? item.getName() : key;
                 result.put("success", false);
-                result.put("message", "材料不足：需要 " + itemName + " x" + needed + "，拥有 " + has);
+                result.put("message", I18n.t("crafting.hc29629d8", itemName, needed, has));
                 return result;
             }
         }
 
         if (player.getGold() < recipe.getCostGold()) {
-            result.put("success", false); result.put("message", "金币不足，制造需要 " + recipe.getCostGold() + " 金币"); return result;
+            result.put("success", false); result.put("message", I18n.t("crafting.h3232b74b", recipe.getCostGold())); return result;
         }
         long ssCount = itemService.getSpiritStoneCount(playerId);
         if (ssCount < recipe.getCostSpiritStones()) {
-            result.put("success", false); result.put("message", "灵石不足，制造需要 " + recipe.getCostSpiritStones() + " 灵石"); return result;
+            result.put("success", false); result.put("message", I18n.t("crafting.h3bf6a1b1", recipe.getCostSpiritStones())); return result;
         }
 
         // 合成熟练度加成：由累计制造成功次数（craft_count）派生，每级 +0.5% 成功率（上限 +4.5%）
@@ -168,7 +168,7 @@ public class CraftingService {
                     long pityExp = recipe.getMinExpGain() / 3;
                     playerService.addExperience(conn, playerId, pityExp);
                     txResult.put("success", true);
-                    txResult.put("message", "制造失败...材料已消耗，但参悟中获得了 " + pityExp + " 点经验");
+                    txResult.put("message", I18n.t("crafting.h3acc6868", pityExp));
                     txResult.put("craftSuccess", false);
                     txResult.put("expGained", pityExp);
                 }
@@ -177,7 +177,7 @@ public class CraftingService {
             });
         } catch (Exception e) {
             result.put("success", false);
-            result.put("message", "制造失败: " + e.getMessage());
+            result.put("message", I18n.t("crafting.h178fc9ef", e.getMessage()));
             return result;
         }
 

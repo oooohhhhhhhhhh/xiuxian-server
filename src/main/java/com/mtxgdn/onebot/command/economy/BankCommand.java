@@ -179,7 +179,7 @@ public class BankCommand extends Command {
             result.add("deposits", arr);
         } catch (Exception e) {
             result.addProperty("code", 500);
-            result.addProperty("message", "服务器错误: " + e.getMessage());
+            result.addProperty("message", I18n.t("economy.hf186bd38", e.getMessage()));
         }
         return result;
     }
@@ -202,7 +202,7 @@ public class BankCommand extends Command {
             result.addProperty("message", (String) data.get("message"));
         } catch (Exception e) {
             result.addProperty("code", 500);
-            result.addProperty("message", "服务器错误: " + e.getMessage());
+            result.addProperty("message", I18n.t("economy.hf186bd38", e.getMessage()));
         }
         return result;
     }
@@ -226,7 +226,7 @@ public class BankCommand extends Command {
             if (data.containsKey("principal")) result.addProperty("principal", (long) data.get("principal"));
         } catch (Exception e) {
             result.addProperty("code", 500);
-            result.addProperty("message", "服务器错误: " + e.getMessage());
+            result.addProperty("message", I18n.t("economy.hf186bd38", e.getMessage()));
         }
         return result;
     }

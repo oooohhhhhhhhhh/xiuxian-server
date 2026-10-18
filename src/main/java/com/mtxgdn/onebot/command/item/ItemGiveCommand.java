@@ -109,7 +109,7 @@ public class ItemGiveCommand extends Command {
             List<PlayerInfo> found = playerService.searchPlayersByName(targetName, 1, 0);
             if (found.isEmpty()) {
                 result.addProperty("code", 404);
-                result.addProperty("message", "未找到玩家: " + targetName);
+                result.addProperty("message", I18n.t("item_give.h57d9d167", targetName));
                 return result;
             }
             target = found.get(0);
@@ -117,7 +117,7 @@ public class ItemGiveCommand extends Command {
             Item item = ItemRegistry.resolve(itemKey);
             if (item == null) {
                 result.addProperty("code", 404);
-                result.addProperty("message", "物品不存在: " + itemKey);
+                result.addProperty("message", I18n.t("item_give.h3c2a9282", itemKey));
                 return result;
             }
 
@@ -125,13 +125,13 @@ public class ItemGiveCommand extends Command {
             itemService.addItem(target.getId(), item.getFullKey(), quantity);
 
             result.addProperty("code", 200);
-            result.addProperty("message", "成功向 " + targetName + " 发放 " + item.getName() + " x" + quantity);
+            result.addProperty("message", I18n.t("item_give.hed2fcf9b", targetName, item.getName(), quantity));
             result.addProperty("itemName", item.getName());
             result.addProperty("itemKey", item.getFullKey());
             result.addProperty("quantity", quantity);
         } catch (Exception e) {
             result.addProperty("code", 500);
-            result.addProperty("message", "服务器错误: " + e.getMessage());
+            result.addProperty("message", I18n.t("item_give.hf186bd38", e.getMessage()));
         }
         return result;
     }

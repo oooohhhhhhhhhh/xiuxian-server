@@ -252,7 +252,7 @@ public class DebugCommand extends Command {
             Command targetCmd = CommandRegistry.get(cmdName);
             if (targetCmd == null) {
                 result.addProperty("code", 404);
-                result.addProperty("message", "未找到指令: " + cmdName);
+                result.addProperty("message", I18n.t("admin.hd86857f4", cmdName));
                 return result;
             }
 
@@ -284,7 +284,7 @@ public class DebugCommand extends Command {
 
         } catch (Exception e) {
             result.addProperty("code", 500);
-            result.addProperty("message", "指令测试异常: " + e.getMessage());
+            result.addProperty("message", I18n.t("admin.h2872f774", e.getMessage()));
 
             StringBuilder stackTrace = new StringBuilder();
             for (StackTraceElement ste : e.getStackTrace()) {

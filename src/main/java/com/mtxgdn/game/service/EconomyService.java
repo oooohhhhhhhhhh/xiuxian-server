@@ -90,7 +90,7 @@ public class EconomyService {
                 txResult.put("day", newStreak);
                 txResult.put("streak", newStreak);
                 txResult.put("reward", reward[0]);
-                txResult.put("message", "签到成功！第 " + newStreak + " 天\n获得：" + reward[0]);
+                txResult.put("message", I18n.t("economy.h98e31334", newStreak, reward[0]));
             } catch (SQLException e) {
                 txResult.put("success", false);
                 txResult.put("message", "签到失败: " + e.getMessage());
@@ -124,7 +124,7 @@ public class EconomyService {
 
         long owned = itemService.getItemCount(playerId, fullKey);
         if (owned < quantity) {
-            result.put("success", false); result.put("message", "背包中只有 " + owned + " 个【" + item.getName() + "】"); return result;
+            result.put("success", false); result.put("message", I18n.t("economy.h7e6004f8", owned, item.getName())); return result;
         }
 
         int basePrice = item.getPrice();
@@ -141,7 +141,7 @@ public class EconomyService {
         result.put("success", true);
         result.put("recycled", item.getName() + " x" + quantity);
         result.put("stonesGained", recycleValue);
-        result.put("message", "回收了【" + item.getName() + "】x" + quantity + "，获得 " + recycleValue + " 下品灵石");
+        result.put("message", I18n.t("economy.h81793984", item.getName(), quantity, recycleValue));
         return result;
     }
 
@@ -174,7 +174,7 @@ public class EconomyService {
         com.mtxgdn.playerdata.PlayerDataService.markDirty(playerId);
         Map<String, Object> result = new LinkedHashMap<>();
         if (shopIndex < 1 || shopIndex > SHOP_ITEMS.length) {
-            result.put("success", false); result.put("message", "商品不存在（1~" + SHOP_ITEMS.length + "）"); return result;
+            result.put("success", false); result.put("message", I18n.t("economy.h27ff9b16", SHOP_ITEMS.length)); return result;
         }
 
         String[] entry = SHOP_ITEMS[shopIndex - 1];
@@ -185,7 +185,7 @@ public class EconomyService {
         long stones = itemService.getSpiritStoneCount(playerId);
         if (stones < price) {
             result.put("success", false);
-            result.put("message", "灵石不足，需要 " + price + " 下品灵石（当前: " + stones + "）");
+            result.put("message", I18n.t("economy.h6afbd278", price, stones));
             return result;
         }
 
@@ -219,12 +219,12 @@ public class EconomyService {
             result.put("success", false); result.put("message", I18n.t("economy.haf3ab8d8")); return result;
         }
         if (stonesToBurn < STONES_PER_BOOST) {
-            result.put("success", false); result.put("message", "至少需要 " + STONES_PER_BOOST + " 下品灵石才能加速修炼"); return result;
+            result.put("success", false); result.put("message", I18n.t("economy.h48de4f00", STONES_PER_BOOST)); return result;
         }
 
         long currentStones = itemService.getSpiritStoneCount(playerId);
         if (currentStones < stonesToBurn) {
-            result.put("success", false); result.put("message", "灵石不足，需要 " + stonesToBurn + "，当前仅有 " + currentStones); return result;
+            result.put("success", false); result.put("message", I18n.t("economy.h7728e214", stonesToBurn, currentStones)); return result;
         }
 
         int boostHours = stonesToBurn / STONES_PER_BOOST;
@@ -248,7 +248,7 @@ public class EconomyService {
         result.put("stonesSpent", stonesToBurn);
         result.put("boostHours", boostHours);
         result.put("bonusExp", bonusExp);
-        result.put("message", "你燃烧 " + stonesToBurn + " 下品灵石化作灵气洪流！\n修炼加速 " + boostHours + " 小时（×" + BOOST_MULTIPLIER + "）\n额外获得 " + bonusExp + " 经验");
+        result.put("message", I18n.t("economy.hf228e2c0", stonesToBurn, boostHours, BOOST_MULTIPLIER, bonusExp));
         return result;
     }
 
@@ -263,10 +263,10 @@ public class EconomyService {
         Player player = playerService.getPlayerById(playerId);
         if (player == null) { result.put("success", false); result.put("message", I18n.t("economy.h59a76b2c")); return result; }
         if (goldAmount < GOLD_TO_STONE_RATE) {
-            result.put("success", false); result.put("message", "至少需要 " + GOLD_TO_STONE_RATE + " 金币才能兑换灵石"); return result;
+            result.put("success", false); result.put("message", I18n.t("economy.h4fb619b4", GOLD_TO_STONE_RATE)); return result;
         }
         if (player.getGold() < goldAmount) {
-            result.put("success", false); result.put("message", "金币不足，需要 " + goldAmount + "（当前: " + player.getGold() + "）"); return result;
+            result.put("success", false); result.put("message", I18n.t("economy.h36bd686c", goldAmount, player.getGold())); return result;
         }
 
         long stones = goldAmount / GOLD_TO_STONE_RATE;
@@ -279,7 +279,7 @@ public class EconomyService {
         result.put("success", true);
         result.put("goldSpent", goldAmount);
         result.put("stonesGained", stones);
-        result.put("message", "兑换成功！" + goldAmount + " 金币 → " + stones + " 下品灵石");
+        result.put("message", I18n.t("economy.ha506767c", goldAmount, stones));
         return result;
     }
 
@@ -291,7 +291,7 @@ public class EconomyService {
             result.put("success", false); result.put("message", I18n.t("economy.h1198f420")); return result;
         }
         if (currentStones < stoneAmount) {
-            result.put("success", false); result.put("message", "灵石不足，需要 " + stoneAmount + "（当前: " + currentStones + "）"); return result;
+            result.put("success", false); result.put("message", I18n.t("economy.h32413280", stoneAmount, currentStones)); return result;
         }
 
         long gold = stoneAmount * STONE_TO_GOLD_RATE;
@@ -304,7 +304,7 @@ public class EconomyService {
         result.put("success", true);
         result.put("stonesSpent", stoneAmount);
         result.put("goldGained", gold);
-        result.put("message", "兑换成功！" + stoneAmount + " 下品灵石 → " + gold + " 金币");
+        result.put("message", I18n.t("economy.hc504e1eb", stoneAmount, gold));
         return result;
     }
 
@@ -327,7 +327,7 @@ public class EconomyService {
 
         long currentStones = itemService.getSpiritStoneCount(playerId);
         if (currentStones < amount) {
-            result.put("success", false); result.put("message", "灵石不足，需要 " + amount + "，当前仅有 " + currentStones); return result;
+            result.put("success", false); result.put("message", I18n.t("economy.h7728e214", amount, currentStones)); return result;
         }
         if (amount < 100) { result.put("success", false); result.put("message", I18n.t("economy.h329d76f0")); return result; }
 
@@ -345,7 +345,7 @@ public class EconomyService {
                 case "fixed_7" -> 0; case "fixed_30" -> 1; case "fixed_90" -> 2;
                 default -> -1;
             };
-            if (planIdx < 0) { result.put("success", false); result.put("message", "未知存款类型: " + type + "（可选: current/fixed_7/fixed_30/fixed_90）"); return result; }
+            if (planIdx < 0) { result.put("success", false); result.put("message", I18n.t("economy.he85510f8", type)); return result; }
 
             Object[] plan = FIXED_DEPOSIT_PLANS[planIdx];
             days = (int) plan[0];
@@ -386,7 +386,7 @@ public class EconomyService {
             result.put("message", "已将 " + amount + " 下品灵石存入灵庄（活期，日利 " + String.format("%.1f", rate * 100) + "%）。随时可取，利息按日结算。\n编号: #" + depositId);
         } else {
             long expectedInterest = (long)(amount * rate);
-            result.put("message", "已将 " + amount + " 下品灵石存入灵庄【" + typeName + "】（" + days + "天，到期利息 " + expectedInterest + " 下品灵石）。到期前取出将损失全部利息！\n编号: #" + depositId);
+            result.put("message", I18n.t("economy.h36cdeb17", amount, typeName, days, expectedInterest, depositId));
         }
         result.put("principal", amount);
         result.put("depositType", type);
@@ -597,7 +597,7 @@ public class EconomyService {
 
         String fullKey = item.getFullKey();
         if (!itemService.hasItem(playerId, fullKey, quantity)) {
-            result.put("success", false); result.put("message", "背包中没有足够的【" + item.getName() + "】"); return result;
+            result.put("success", false); result.put("message", I18n.t("economy.h1bcd3d44", item.getName())); return result;
         }
 
         int realHours = Math.min(Math.max(hours, 1), 72);
@@ -624,7 +624,7 @@ public class EconomyService {
         }
 
         result.put("success", true);
-        result.put("message", "已将【" + item.getName() + "】×" + quantity + " 上架竞拍行，起拍价 " + startPrice + " 下品灵石，" + realHours + " 小时后截止");
+        result.put("message", I18n.t("economy.h661fca34", item.getName(), quantity, startPrice, realHours));
         return result;
     }
 
@@ -685,12 +685,12 @@ public class EconomyService {
             });
         } catch (Exception e) {
             result.put("success", false);
-            result.put("message", "出价失败: " + rootMessage(e));
+            result.put("message", I18n.t("economy.hc8527800", rootMessage(e)));
             return result;
         }
 
         result.put("success", true);
-        result.put("message", "出价成功！以 " + amount + " 下品灵石竞拍 #" + listingId);
+        result.put("message", I18n.t("economy.h22e5bc62", amount, listingId));
         return result;
     }
 
@@ -879,7 +879,7 @@ public class EconomyService {
             String requiredName = GameConfigLoader.getRealmConfig(PURIFY_REALM[grade], 0) != null
                     ? GameConfigLoader.getRealmConfig(PURIFY_REALM[grade], 0).getFullName() : "未知境界";
             result.put("success", false);
-            result.put("message", "境界不足，提纯" + targetName + "需要" + requiredName + "以上（当前：" + realmName + "）");
+            result.put("message", I18n.t("economy.he64ec888", targetName, requiredName, realmName));
             return result;
         }
 
@@ -903,7 +903,7 @@ public class EconomyService {
         }
         if (cave.getSpiritEnergy() < auraCost) {
             result.put("success", false);
-            result.put("message", "洞府灵气不足，提纯" + targetName + "需要 " + auraCost + " 点灵气（当前：" + cave.getSpiritEnergy() + "）");
+            result.put("message", I18n.t("economy.h7a43ff68", targetName, auraCost, cave.getSpiritEnergy()));
             return result;
         }
 
@@ -948,11 +948,9 @@ public class EconomyService {
         result.put("stoneCost", PURIFY_STONE_COST);
         result.put("successRate", finalRate);
         if (success) {
-            result.put("message", "提纯成功！" + PURIFY_STONE_COST + " 块" + sourceName + " + " + auraCost + " 灵气 → 1 块" + targetName
-                    + "（成功率 " + ratePercent + "%）");
+            result.put("message", I18n.t("economy.h2e5471a8", PURIFY_STONE_COST, sourceName, auraCost, targetName, ratePercent));
         } else {
-            result.put("message", "提纯失败……" + PURIFY_STONE_COST + " 块" + sourceName + "与 " + auraCost
-                    + " 点灵气已消散（成功率 " + ratePercent + "%），请再试一次");
+            result.put("message", I18n.t("economy.h3daf58e3", PURIFY_STONE_COST, sourceName, auraCost, ratePercent));
         }
         return result;
     }

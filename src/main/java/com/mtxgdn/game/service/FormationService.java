@@ -82,7 +82,7 @@ public class FormationService {
         long spiritStones = itemService.getSpiritStoneCount(playerId);
         if (spiritStones < cost) {
             result.put("success", false);
-            result.put("message", "灵石不足，布置阵法需要 " + cost + " 灵石（你目前有 " + spiritStones + " 灵石）");
+            result.put("message", I18n.t("formation.h1d087e70", cost, spiritStones));
             return result;
         }
 
@@ -114,9 +114,7 @@ public class FormationService {
 
         Formation formation = getActiveFormation(playerId);
         result.put("success", true);
-        result.put("message", "成功布置【" + formation.getName() + "】！消耗 " + cost + " 灵石\n" +
-                "持续时间: " + formation.getDurationMinutes() + " 分钟\n" +
-                "效果: 灵气汇聚 +" + formation.getSpiritEnergyBoost() + "%，修炼加成 +" + formation.getCultivationBonus() + "%");
+        result.put("message", I18n.t("formation.h3e37c926", formation.getName(), cost, formation.getDurationMinutes(), formation.getSpiritEnergyBoost(), formation.getCultivationBonus()));
         result.put("formation", formation);
         return result;
     }
@@ -134,7 +132,7 @@ public class FormationService {
 
         if (formation.getLevel() >= Formation.MAX_LEVEL) {
             result.put("success", false);
-            result.put("message", "阵法已达到最高等级 " + Formation.MAX_LEVEL + " 级");
+            result.put("message", I18n.t("formation.ha73f8608", Formation.MAX_LEVEL));
             return result;
         }
 
@@ -143,7 +141,7 @@ public class FormationService {
         long spiritStones = itemService.getSpiritStoneCount(playerId);
         if (spiritStones < cost) {
             result.put("success", false);
-            result.put("message", "灵石不足，升级需要 " + cost + " 灵石（你目前有 " + spiritStones + " 灵石）");
+            result.put("message", I18n.t("formation.h1c7e44f3", cost, spiritStones));
             return result;
         }
 
@@ -193,7 +191,7 @@ public class FormationService {
         });
 
         result.put("success", true);
-        result.put("message", "已拆除【" + formation.getName() + "】");
+        result.put("message", I18n.t("formation.hd0e361b0", formation.getName()));
         return result;
     }
 
@@ -313,7 +311,7 @@ public class FormationService {
             });
         } catch (Exception e) {
             result.put("success", false);
-            result.put("message", "使用阵图失败: " + e.getMessage());
+            result.put("message", I18n.t("formation.hcbb50590", e.getMessage()));
             return result;
         }
         Formation formation = getActiveFormation(playerId);

@@ -135,7 +135,7 @@ public class SkillService {
 
         if (hasSkill(playerId, skillId)) {
             result.put("success", false);
-            result.put("message", "你已经学会了【" + skill.getName() + "】");
+            result.put("message", I18n.t("skill.h013e2d0b", skill.getName()));
             result.put("code", 6102);
             return result;
         }
@@ -150,14 +150,14 @@ public class SkillService {
 
         if (player.getRealm() < skill.getRequiredRealm()) {
             result.put("success", false);
-            result.put("message", "境界不足，学习【" + skill.getName() + "】需要达到更高境界");
+            result.put("message", I18n.t("skill.h72a80ea4", skill.getName()));
             result.put("code", 6103);
             return result;
         }
 
         if (player.getGold() < skill.getLearnCostGold()) {
             result.put("success", false);
-            result.put("message", "金币不足，学习【" + skill.getName() + "】需要 " + skill.getLearnCostGold() + " 金币");
+            result.put("message", I18n.t("skill.h3cc9ba00", skill.getName(), skill.getLearnCostGold()));
             result.put("code", 6104);
             return result;
         }
@@ -166,7 +166,7 @@ public class SkillService {
             long spiritStoneCount = itemService.getSpiritStoneCount(playerId);
             if (spiritStoneCount < skill.getLearnCostSpiritStones()) {
                 result.put("success", false);
-                result.put("message", "灵石不足，学习【" + skill.getName() + "】需要 " + skill.getLearnCostSpiritStones() + " 灵石");
+                result.put("message", I18n.t("skill.h0ca410dc", skill.getName(), skill.getLearnCostSpiritStones()));
                 result.put("code", 6104);
                 return result;
             }
@@ -194,13 +194,13 @@ public class SkillService {
             });
         } catch (Exception e) {
             result.put("success", false);
-            result.put("message", "学习技能失败: " + e.getMessage());
+            result.put("message", I18n.t("skill.h2ac1fb7f", e.getMessage()));
             result.put("code", 6106);
             return result;
         }
 
         result.put("success", true);
-        result.put("message", "成功学会了【" + skill.getName() + "】！");
+        result.put("message", I18n.t("skill.hbccfeb34", skill.getName()));
         result.put("skill", skill);
         new DailyService().onSkillLearn(playerId);
 
@@ -231,7 +231,7 @@ public class SkillService {
 
         if (player.getRealm() < skill.getRequiredRealm()) {
             result.put("success", false);
-            result.put("message", "境界不足，无法参悟【" + skill.getName() + "】，需要达到更高境界");
+            result.put("message", I18n.t("skill.hc12ff78c", skill.getName()));
             return result;
         }
 
@@ -241,7 +241,7 @@ public class SkillService {
             int maxLevel = skill.getMaxLevel();
             if (currentLevel >= maxLevel) {
                 result.put("success", false);
-                result.put("message", "【" + skill.getName() + "】已达满级 " + maxLevel + " 级，这本秘籍对你已无用处");
+                result.put("message", I18n.t("skill.hb792b128", skill.getName(), maxLevel));
                 return result;
             }
             int newLevel = currentLevel + 1;
@@ -256,7 +256,7 @@ public class SkillService {
                 throw new RuntimeException("升级技能失败", e);
             }
             result.put("success", true);
-            result.put("message", "参悟成功！【" + skill.getName() + "】升至 " + newLevel + " 级！");
+            result.put("message", I18n.t("skill.hbce3b1e7", skill.getName(), newLevel));
             result.put("skill", skill);
             result.put("newLevel", newLevel);
             return result;
@@ -273,7 +273,7 @@ public class SkillService {
         }
 
         result.put("success", true);
-        result.put("message", "参悟成功！学会了【" + skill.getName() + "】！");
+        result.put("message", I18n.t("skill.h507af608", skill.getName()));
         result.put("skill", skill);
         return result;
     }

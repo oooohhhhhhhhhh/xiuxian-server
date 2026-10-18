@@ -122,7 +122,7 @@ public class MarketPriceCommand extends Command {
         } catch (Exception e) {
             result.addProperty("code", 500);
             result.addProperty("success", false);
-            result.addProperty("message", "服务器错误: " + e.getMessage());
+            result.addProperty("message", I18n.t("market.hf186bd38", e.getMessage()));
         }
         return result;
     }

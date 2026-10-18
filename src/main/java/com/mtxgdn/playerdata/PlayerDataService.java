@@ -129,7 +129,7 @@ public class PlayerDataService {
         PlayerData data = collectPlayerData(playerId);
         if (data == null) {
             result.put("success", false);
-            result.put("message", "玩家不存在: " + playerId);
+            result.put("message", I18n.t("playerdata.hc014f818", playerId));
             return result;
         }
 
@@ -141,12 +141,12 @@ public class PlayerDataService {
             Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
         } catch (IOException e) {
             result.put("success", false);
-            result.put("message", "写入玩家数据文件失败: " + e.getMessage());
+            result.put("message", I18n.t("playerdata.heb291fb8", e.getMessage()));
             return result;
         }
 
         result.put("success", true);
-        result.put("message", "玩家 " + data.playerName + "（#" + playerId + "）数据已导出至 " + filePath(playerId));
+        result.put("message", I18n.t("playerdata.h31da32fc", data.playerName, playerId, filePath(playerId)));
         result.put("filePath", filePath(playerId));
         result.put("exportedAt", data.exportedAt);
         return result;
@@ -344,7 +344,7 @@ public class PlayerDataService {
             data = GSON.fromJson(jsonData, PlayerData.class);
         } catch (Exception e) {
             result.put("success", false);
-            result.put("message", "玩家数据 JSON 解析失败: " + e.getMessage());
+            result.put("message", I18n.t("playerdata.h16464a5c", e.getMessage()));
             return result;
         }
         if (data == null || data.tables == null || data.tables.isEmpty()) {
@@ -354,7 +354,7 @@ public class PlayerDataService {
         }
         if (data.playerId != playerId) {
             result.put("success", false);
-            result.put("message", "数据文件中的玩家 #" + data.playerId + " 与当前玩家 #" + playerId + " 不一致，拒绝还原");
+            result.put("message", I18n.t("playerdata.ha165961c", data.playerId, playerId));
             return result;
         }
 
@@ -392,17 +392,17 @@ public class PlayerDataService {
             } catch (Exception e) {
                 conn.rollback();
                 result.put("success", false);
-                result.put("message", "还原失败，已回滚: " + e.getMessage());
+                result.put("message", I18n.t("playerdata.h30cace6c", e.getMessage()));
                 return result;
             }
         } catch (SQLException e) {
             result.put("success", false);
-            result.put("message", "还原失败: " + e.getMessage());
+            result.put("message", I18n.t("playerdata.h0a551337", e.getMessage()));
             return result;
         }
 
         result.put("success", true);
-        result.put("message", "玩家 #" + playerId + " 数据还原成功，共恢复 " + restored + " 行数据");
+        result.put("message", I18n.t("playerdata.ha130304a", playerId, restored));
         return result;
     }
 
@@ -412,7 +412,7 @@ public class PlayerDataService {
         Path file = DATA_DIR.resolve(playerId + ".json");
         if (!Files.exists(file)) {
             result.put("success", false);
-            result.put("message", "玩家数据文件不存在: " + file.toAbsolutePath());
+            result.put("message", I18n.t("playerdata.h6fec2084", file.toAbsolutePath()));
             return result;
         }
         try {
@@ -420,7 +420,7 @@ public class PlayerDataService {
             return restorePlayer(playerId, json);
         } catch (IOException e) {
             result.put("success", false);
-            result.put("message", "读取玩家数据文件失败: " + e.getMessage());
+            result.put("message", I18n.t("playerdata.h092cb197", e.getMessage()));
             return result;
         }
     }

@@ -65,7 +65,7 @@ public class FormationCommand extends Command {
         } catch (Exception e) {
             result.addProperty("code", 500);
             result.addProperty("success", false);
-            result.addProperty("message", "服务器错误: " + e.getMessage());
+            result.addProperty("message", I18n.t("formation.hf186bd38", e.getMessage()));
         }
         return result;
     }
@@ -99,7 +99,7 @@ public class FormationCommand extends Command {
         } catch (Exception e) {
             result.addProperty("code", 500);
             result.addProperty("success", false);
-            result.addProperty("message", "服务器错误: " + e.getMessage());
+            result.addProperty("message", I18n.t("formation.hf186bd38", e.getMessage()));
         }
         return result;
     }
@@ -129,7 +129,7 @@ public class FormationCommand extends Command {
                 if (level < 1 || level > Formation.MAX_LEVEL) {
                     result.addProperty("code", 400);
                     result.addProperty("success", false);
-                    result.addProperty("message", "阵法等级必须在 1-" + Formation.MAX_LEVEL + " 之间");
+                    result.addProperty("message", I18n.t("formation.h567eb358", Formation.MAX_LEVEL));
                     return result;
                 }
             }
@@ -142,7 +142,7 @@ public class FormationCommand extends Command {
         } catch (Exception e) {
             result.addProperty("code", 500);
             result.addProperty("success", false);
-            result.addProperty("message", "服务器错误: " + e.getMessage());
+            result.addProperty("message", I18n.t("formation.hf186bd38", e.getMessage()));
         }
         return result;
     }
@@ -160,7 +160,7 @@ public class FormationCommand extends Command {
         } catch (Exception e) {
             result.addProperty("code", 500);
             result.addProperty("success", false);
-            result.addProperty("message", "服务器错误: " + e.getMessage());
+            result.addProperty("message", I18n.t("formation.hf186bd38", e.getMessage()));
         }
         return result;
     }
@@ -176,7 +176,7 @@ public class FormationCommand extends Command {
         } catch (Exception e) {
             result.addProperty("code", 500);
             result.addProperty("success", false);
-            result.addProperty("message", "服务器错误: " + e.getMessage());
+            result.addProperty("message", I18n.t("formation.hf186bd38", e.getMessage()));
         }
         return result;
     }

@@ -42,6 +42,7 @@ import java.net.http.HttpClient;
 import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.time.Duration;
+import com.mtxgdn.i18n.I18n;
 
 public class Main {
 
@@ -243,7 +244,7 @@ public class Main {
                 data.addProperty("season", season.name());
                 data.addProperty("seasonDisplay", season.getDisplayName());
                 data.addProperty("seasonDesc", season.getDescription());
-                data.addProperty("message", "【天道更替】天地灵气流转，" + season.getDisplayName() + "已至！" + season.getDescription());
+                data.addProperty("message", I18n.t("main.h6e8e8544", season.getDisplayName(), season.getDescription()));
                 app.broadcast(com.mtxgdn.common.GameMessage.ok(0, "season_change", data));
             }
         });

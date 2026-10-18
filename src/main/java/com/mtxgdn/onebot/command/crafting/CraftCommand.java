@@ -178,7 +178,7 @@ public class CraftCommand extends Command {
                     recipes = service.getRecipesByCategory(cat);
                 } catch (IllegalArgumentException e) {
                     result.addProperty("code", 400);
-                    result.addProperty("message", "无效的配方分类: " + category);
+                    result.addProperty("message", I18n.t("crafting.h0a94b2ac", category));
                     return result;
                 }
             } else {
@@ -209,7 +209,7 @@ public class CraftCommand extends Command {
             result.add("recipes", arr);
         } catch (Exception e) {
             result.addProperty("code", 500);
-            result.addProperty("message", "服务器错误: " + e.getMessage());
+            result.addProperty("message", I18n.t("crafting.hf186bd38", e.getMessage()));
         }
         return result;
     }
@@ -235,7 +235,7 @@ public class CraftCommand extends Command {
             if (data.containsKey("itemQuantity")) result.addProperty("itemQuantity", ((Number) data.get("itemQuantity")).intValue());
         } catch (Exception e) {
             result.addProperty("code", 500);
-            result.addProperty("message", "服务器错误: " + e.getMessage());
+            result.addProperty("message", I18n.t("crafting.hf186bd38", e.getMessage()));
         }
         return result;
     }

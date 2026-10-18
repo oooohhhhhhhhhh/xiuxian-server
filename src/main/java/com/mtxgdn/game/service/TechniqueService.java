@@ -141,21 +141,21 @@ public class TechniqueService {
             result.put("success", false); result.put("message", I18n.t("technique.ha59e2658")); return result;
         }
         if (hasTechnique(playerId, techniqueId)) {
-            result.put("success", false); result.put("message", "你已经学会了【" + technique.getName() + "】"); return result;
+            result.put("success", false); result.put("message", I18n.t("technique.h013e2d0b", technique.getName())); return result;
         }
         Player player = playerService.getPlayerById(playerId);
         if (player == null) {
             result.put("success", false); result.put("message", I18n.t("technique.h59a76b2c")); return result;
         }
         if (player.getRealm() < technique.getRequiredRealm()) {
-            result.put("success", false); result.put("message", "境界不足，学习【" + technique.getName() + "】需更高境界"); return result;
+            result.put("success", false); result.put("message", I18n.t("technique.h3215dc94", technique.getName())); return result;
         }
         if (player.getGold() < technique.getLearnCostGold()) {
-            result.put("success", false); result.put("message", "金币不足，需要 " + technique.getLearnCostGold() + " 金币"); return result;
+            result.put("success", false); result.put("message", I18n.t("technique.ha28ab727", technique.getLearnCostGold())); return result;
         }
         long ssCount = itemService.getSpiritStoneCount(playerId);
         if (ssCount < technique.getLearnCostSpiritStones()) {
-            result.put("success", false); result.put("message", "灵石不足，需要 " + technique.getLearnCostSpiritStones() + " 灵石"); return result;
+            result.put("success", false); result.put("message", I18n.t("technique.h0aad1a38", technique.getLearnCostSpiritStones())); return result;
         }
 
         try {
@@ -175,14 +175,14 @@ public class TechniqueService {
             });
         } catch (Exception e) {
             result.put("success", false);
-            result.put("message", "学习功法失败: " + e.getMessage());
+            result.put("message", I18n.t("technique.h67eca6dc", e.getMessage()));
             return result;
         }
 
         // 学习不直接加属性；属性只在「装备」时生效（避免重复叠加）
 
         result.put("success", true);
-        result.put("message", "成功学会功法【" + technique.getName() + "】！装备后获得属性加成");
+        result.put("message", I18n.t("technique.h021d2cec", technique.getName()));
         result.put("technique", technique);
         return result;
     }
@@ -194,11 +194,11 @@ public class TechniqueService {
         }
         Technique tech = getPlayerTechniqueDetail(playerId, techniqueId);
         if (tech.isEquipped()) {
-            result.put("success", false); result.put("message", "【" + tech.getName() + "】已在运转中"); return result;
+            result.put("success", false); result.put("message", I18n.t("technique.hb769477b", tech.getName())); return result;
         }
         int equipped = countEquipped(playerId);
         if (equipped >= MAX_EQUIPPED) {
-            result.put("success", false); result.put("message", "最多只能同时运转 " + MAX_EQUIPPED + " 门功法，请先卸下一门"); return result;
+            result.put("success", false); result.put("message", I18n.t("technique.hc6a9b2dc", MAX_EQUIPPED)); return result;
         }
         String sql = "UPDATE players_techniques SET is_equipped = 1 WHERE player_id = ? AND technique_id = ?";
         try (Connection conn = DatabaseManager.getConnection();
@@ -213,7 +213,7 @@ public class TechniqueService {
         playerService.updatePlayer(playerId, player);
 
         result.put("success", true);
-        result.put("message", "开始运转功法【" + tech.getName() + "】");
+        result.put("message", I18n.t("technique.h6dd6706f", tech.getName()));
         return result;
     }
 
@@ -224,7 +224,7 @@ public class TechniqueService {
         }
         Technique tech = getPlayerTechniqueDetail(playerId, techniqueId);
         if (!tech.isEquipped()) {
-            result.put("success", false); result.put("message", "【" + tech.getName() + "】并未在运转中"); return result;
+            result.put("success", false); result.put("message", I18n.t("technique.h98bb7ad4", tech.getName())); return result;
         }
         String sql = "UPDATE players_techniques SET is_equipped = 0 WHERE player_id = ? AND technique_id = ?";
         try (Connection conn = DatabaseManager.getConnection();
@@ -240,7 +240,7 @@ public class TechniqueService {
         playerService.updatePlayer(playerId, player);
 
         result.put("success", true);
-        result.put("message", "停止运转功法【" + tech.getName() + "】");
+        result.put("message", I18n.t("technique.h16bd4a40", tech.getName()));
         return result;
     }
 
@@ -251,7 +251,7 @@ public class TechniqueService {
         }
         Technique tech = getPlayerTechniqueDetail(playerId, techniqueId);
         if (tech.getLevel() >= tech.getMaxLevel()) {
-            result.put("success", false); result.put("message", "【" + tech.getName() + "】已达最高等级"); return result;
+            result.put("success", false); result.put("message", I18n.t("technique.hdf5811f9", tech.getName())); return result;
         }
 
         int costGold = tech.getUpgradeBaseCostGold() * tech.getLevel();
@@ -259,11 +259,11 @@ public class TechniqueService {
 
         Player player = playerService.getPlayerById(playerId);
         if (player.getGold() < costGold) {
-            result.put("success", false); result.put("message", "金币不足，升级需要 " + costGold + " 金币"); return result;
+            result.put("success", false); result.put("message", I18n.t("technique.hbafa0757", costGold)); return result;
         }
         long ssCount = itemService.getSpiritStoneCount(playerId);
         if (ssCount < costSS) {
-            result.put("success", false); result.put("message", "灵石不足，升级需要 " + costSS + " 灵石"); return result;
+            result.put("success", false); result.put("message", I18n.t("technique.h9e908e81", costSS)); return result;
         }
 
         try {
@@ -283,7 +283,7 @@ public class TechniqueService {
             });
         } catch (Exception e) {
             result.put("success", false);
-            result.put("message", "升级功法失败: " + e.getMessage());
+            result.put("message", I18n.t("technique.h771cdb74", e.getMessage()));
             return result;
         }
 

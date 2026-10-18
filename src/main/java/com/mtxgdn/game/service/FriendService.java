@@ -223,9 +223,7 @@ public class FriendService {
         itemService.addSpiritStones(friendPlayerId, friendStones);
 
         result.put("success", true);
-        result.put("message", "你拜访了【" + friend.getName() + "】，论道一番，双方各有所悟！\n"
-                + "你获得 " + myExp + " 经验 + " + myStones + " 灵石\n"
-                + "好友【" + friend.getName() + "】获得 " + friendExp + " 经验 + " + friendStones + " 灵石");
+        result.put("message", I18n.t("friend.hbcde7c40", friend.getName(), myExp, myStones, friend.getName(), friendExp, friendStones));
         return result;
     }
 

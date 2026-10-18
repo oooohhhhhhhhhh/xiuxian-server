@@ -6,6 +6,7 @@ import com.mtxgdn.common.command.CommandContext;
 import com.mtxgdn.common.command.RouteDefinition;
 import com.mtxgdn.game.entity.PlayerInfo;
 import com.mtxgdn.common.service.ServiceRegistry;
+import com.mtxgdn.i18n.I18n;
 
 public class SignInCommand extends Command {
     public SignInCommand() {
@@ -60,7 +61,7 @@ public class SignInCommand extends Command {
             if (data.containsKey("reward")) result.addProperty("reward", (String) data.get("reward"));
         } catch (Exception e) {
             result.addProperty("code", 500);
-            result.addProperty("message", "服务器错误: " + e.getMessage());
+            result.addProperty("message", I18n.t("economy.hf186bd38", e.getMessage()));
         }
         return result;
     }

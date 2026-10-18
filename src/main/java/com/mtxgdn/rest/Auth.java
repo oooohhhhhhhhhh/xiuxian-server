@@ -217,7 +217,7 @@ public class Auth {
             System.err.println("[Auth] 验证码服务异常: " + e.getMessage());
             JsonObject err = new JsonObject();
             err.addProperty("code", 500);
-            err.addProperty("message", "发送验证码失败：" + e.getMessage());
+            err.addProperty("message", I18n.t("auth.hb2935caf", e.getMessage()));
             return Response.status(500).entity(err.toString()).build();
         }
     }
@@ -347,7 +347,7 @@ public class Auth {
             System.err.println("[Auth] 验证码服务异常: " + e.getMessage());
             JsonObject err = new JsonObject();
             err.addProperty("code", 500);
-            err.addProperty("message", "发送验证码失败：" + e.getMessage());
+            err.addProperty("message", I18n.t("auth.hb2935caf", e.getMessage()));
             return Response.status(500).entity(err.toString()).build();
         }
     }

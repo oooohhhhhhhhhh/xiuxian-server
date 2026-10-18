@@ -156,7 +156,7 @@ public class TechniqueCommand extends Command {
             result.add("techniques", arr);
         } catch (Exception e) {
             result.addProperty("code", 500);
-            result.addProperty("message", "服务器错误: " + e.getMessage());
+            result.addProperty("message", I18n.t("technique.hf186bd38", e.getMessage()));
         }
         return result;
     }
@@ -182,7 +182,7 @@ public class TechniqueCommand extends Command {
             result.add("techniques", arr);
         } catch (Exception e) {
             result.addProperty("code", 500);
-            result.addProperty("message", "服务器错误: " + e.getMessage());
+            result.addProperty("message", I18n.t("technique.hf186bd38", e.getMessage()));
         }
         return result;
     }
@@ -204,7 +204,7 @@ public class TechniqueCommand extends Command {
             result.addProperty("message", (String) data.get("message"));
         } catch (Exception e) {
             result.addProperty("code", 500);
-            result.addProperty("message", "服务器错误: " + e.getMessage());
+            result.addProperty("message", I18n.t("technique.hf186bd38", e.getMessage()));
         }
         return result;
     }
@@ -245,7 +245,7 @@ public class TechniqueCommand extends Command {
             }
         } catch (Exception e) {
             result.addProperty("code", 500);
-            result.addProperty("message", "服务器错误: " + e.getMessage());
+            result.addProperty("message", I18n.t("technique.hf186bd38", e.getMessage()));
         }
         return result;
     }
