@@ -44,10 +44,10 @@ public class WildernessCommand extends Command {
         Long userId = ctx.requireBinding();
         if (userId == null) return;
         PlayerInfo p = ctx.requirePlayer(userId);
-        if (p == null) { ctx.reply("请先创建角色"); return; }
+        if (p == null) { ctx.reply(I18n.t("map.hde5e9ffe")); return; }
 
         if (!mapService.isWildernessEnabled()) {
-            ctx.reply("野外地图当前已关闭（可在 config/game/wilderness_map.json 里把 enabled 改为 true）");
+            ctx.reply(I18n.t("map.h9a54ad7b"));
             return;
         }
 
@@ -78,7 +78,7 @@ public class WildernessCommand extends Command {
 
         List<MapLocation> nodes = mapService.getChunkNodes(chunk[0], chunk[1]);
         if (nodes.isEmpty()) {
-            ctx.reply("你所在的位置已不在世界边界之内，请联系管理员");
+            ctx.reply(I18n.t("map.hbef067da"));
             return;
         }
 

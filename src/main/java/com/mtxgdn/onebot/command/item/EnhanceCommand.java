@@ -6,6 +6,7 @@ import com.mtxgdn.game.entity.PlayerInfo;
 import com.mtxgdn.common.service.ServiceRegistry;
 
 import java.util.Map;
+import com.mtxgdn.i18n.I18n;
 
 public class EnhanceCommand extends Command {
     public EnhanceCommand() {
@@ -27,7 +28,7 @@ public class EnhanceCommand extends Command {
 
         String arg = ctx.getArg();
         if (arg == null || arg.trim().isEmpty()) {
-            ctx.reply("用法: /强化 <装备栏位>\n栏位: weapon(武器) | armor(防具) | accessory(饰品)");
+            ctx.reply(I18n.t("enhance.h4c614190"));
             return;
         }
 
@@ -38,7 +39,7 @@ public class EnhanceCommand extends Command {
             if (s.equals(slot)) { valid = true; break; }
         }
         if (!valid) {
-            ctx.reply("无效的装备栏位: " + slot + "\n栏位: weapon(武器) | armor(防具) | accessory(饰品)");
+            ctx.reply(I18n.t("enhance.hb40e94f0", slot));
             return;
         }
 

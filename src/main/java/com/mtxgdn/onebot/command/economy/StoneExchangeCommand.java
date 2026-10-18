@@ -7,6 +7,7 @@ import com.mtxgdn.game.item.CurrencyEffect;
 import com.mtxgdn.game.service.ItemService;
 
 import java.util.Map;
+import com.mtxgdn.i18n.I18n;
 
 public class StoneExchangeCommand extends Command {
 
@@ -26,7 +27,7 @@ public class StoneExchangeCommand extends Command {
         Long userId = ctx.requireBinding();
         if (userId == null) return;
         PlayerInfo p = ctx.requirePlayer(userId);
-        if (p == null) { ctx.reply("请先创建角色"); return; }
+        if (p == null) { ctx.reply(I18n.t("economy.hde5e9ffe")); return; }
 
         String args = ctx.getArg();
         if (args == null || args.trim().isEmpty()) {
@@ -36,7 +37,7 @@ public class StoneExchangeCommand extends Command {
 
         String[] parts = args.trim().split("\\s+");
         if (parts.length < 3) {
-            ctx.reply("用法: /灵石兑换 [数量] <从> <到>\n示例: /灵石兑换 1 极品 下品");
+            ctx.reply(I18n.t("economy.h2380a39c"));
             return;
         }
 
@@ -44,7 +45,7 @@ public class StoneExchangeCommand extends Command {
         try {
             amount = Long.parseLong(parts[0]);
         } catch (NumberFormatException e) {
-            ctx.reply("数量必须是数字");
+            ctx.reply(I18n.t("economy.hd8c78f9c"));
             return;
         }
 
@@ -52,11 +53,11 @@ public class StoneExchangeCommand extends Command {
         int toGrade = parseGrade(parts[2]);
 
         if (fromGrade < 0) {
-            ctx.reply("无效的来源灵石等级: " + parts[1] + "（可选: 下品/中品/上品/极品）");
+            ctx.reply(I18n.t("economy.hf4059260", parts[1]));
             return;
         }
         if (toGrade < 0) {
-            ctx.reply("无效的目标灵石等级: " + parts[2] + "（可选: 下品/中品/上品/极品）");
+            ctx.reply(I18n.t("economy.h1cb52ee3", parts[2]));
             return;
         }
 

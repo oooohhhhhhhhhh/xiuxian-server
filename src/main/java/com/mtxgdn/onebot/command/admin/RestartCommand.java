@@ -6,6 +6,7 @@ import com.mtxgdn.common.command.CommandContext;
 import com.mtxgdn.permission.PermissionService;
 import com.mtxgdn.onebot.QqBinding;
 import com.mtxgdn.util.GameLogger;
+import com.mtxgdn.i18n.I18n;
 
 /**
  * QQ 私聊重启指令。
@@ -30,15 +31,15 @@ public class RestartCommand extends Command {
     public void execute(CommandContext ctx) {
         QqBinding b = ctx.resolveBoundBinding();
         if (b == null) {
-            ctx.reply("请先绑定账号。");
+            ctx.reply(I18n.t("admin.hd852a51e"));
             return;
         }
         String highestRole = PermissionService.getHighestRole(b.getUserId());
         if (!"SUPER_ADMIN".equals(highestRole)) {
-            ctx.reply("权限不足，仅 SUPER_ADMIN 可以执行此操作。");
+            ctx.reply(I18n.t("admin.hea8fd688"));
             return;
         }
-        ctx.reply("服务器正在重启...");
+        ctx.reply(I18n.t("admin.h3059219c"));
         Thread restartThread = new Thread(() -> {
             try {
                 // 留出时间把上面的回复发出去，再走统一的重启流程

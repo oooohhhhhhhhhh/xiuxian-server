@@ -14,6 +14,7 @@ import com.google.gson.JsonObject;
 
 import java.util.List;
 import java.util.Map;
+import com.mtxgdn.i18n.I18n;
 
 /**
  * 世界 Boss（B6）指令。
@@ -78,7 +79,7 @@ public class WorldBossCommand extends Command {
     private void handleChallenge(CommandContext ctx, PlayerInfo p, String[] parts) {
         String query = parts.length > 1 ? parts[1].trim() : "";
         if (query.isEmpty()) {
-            ctx.reply("用法: /世界boss 挑战 <序号|名称>\n先用 /世界boss 查看当前有哪些 Boss");
+            ctx.reply(I18n.t("worldboss.hb2977150"));
             return;
         }
         Map<String, Object> result = worldBossService.challenge(
@@ -103,7 +104,7 @@ public class WorldBossCommand extends Command {
         List<WorldBoss> pool = worldBossService.getPool(WorldBossService.scope(), System.currentTimeMillis());
         WorldBoss boss = pickByIndex(pool, query);
         if (boss == null) {
-            ctx.reply("找不到这只世界Boss，先用 /世界boss 查看列表");
+            ctx.reply(I18n.t("worldboss.h535cf9d3"));
             return;
         }
         ctx.reply(buildLeaderboard(boss));
@@ -114,7 +115,7 @@ public class WorldBossCommand extends Command {
             return;
         }
         List<WorldBoss> pool = worldBossService.refreshPool(WorldBossService.scope(), System.currentTimeMillis());
-        ctx.reply("已重建世界Boss池（共 " + pool.size() + " 只）：\n\n" + describePool(pool, null));
+        ctx.reply(I18n.t("worldboss.h49971702", pool.size(), describePool(pool, null)));
     }
 
     // ==================== 文案 ====================

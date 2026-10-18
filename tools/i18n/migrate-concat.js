@@ -160,9 +160,13 @@ function mergeAdjacent(segs) {
 }
 
 const CALL_STARTS = [
-  /(?:^|[^.\w])reply\(\s*"/g,
-  /(?:^|[^.\w])replyPrivate\(\s*"/g,
-  /(?:^|[^.\w])createResult\(\s*(?:true|false)\s*,\s*"/g,
+  // reply / replyPrivate / createResult 一律放行 '.' 前缀。
+  // 指令类代码里最常见的形态就是 ctx.reply("…")，
+  // 早先沿用 [^.\w] 守卫会把这类全部漏掉（SectCommand 一处都没迁到）。
+  // 不存在以这些名字结尾的更长方法名，所以没有 put 那种误匹配风险。
+  /(?:^|\.|[^.\w])reply\(\s*"/g,
+  /(?:^|\.|[^.\w])replyPrivate\(\s*"/g,
+  /(?:^|\.|[^.\w])createResult\(\s*(?:true|false)\s*,\s*"/g,
   // addProperty 几乎总是 obj.addProperty(...)，必须放行 '.' 前缀。
   // 沿用 put 那套 [^.\w] 守卫会让一处都匹配不上（migrate-literals.js 里
   // 踩过同一个坑，那次漏掉了 114 处）。

@@ -5,6 +5,7 @@ import com.mtxgdn.common.command.CommandContext;
 import com.mtxgdn.game.entity.PlayerInfo;
 import com.mtxgdn.common.service.ServiceRegistry;
 import java.util.Map;
+import com.mtxgdn.i18n.I18n;
 
 public class CancelListingCommand extends Command {
     public CancelListingCommand() { super(new String[]{"撤单", "cancellisting"}, "撤回坊市挂单", "/撤单 <挂单ID>", "坊市", "game.player.info"); setModule("trade"); }
@@ -12,10 +13,10 @@ public class CancelListingCommand extends Command {
     public void execute(CommandContext ctx) {
         Long userId = ctx.requireBinding(); if (userId == null) return;
         PlayerInfo p = ctx.requirePlayer(userId); if (p == null) return;
-        if (ctx.getArg().trim().isEmpty()) { ctx.reply("用法: /撤单 <挂单ID>\n使用 /我的挂单 查看你的挂单"); return; }
+        if (ctx.getArg().trim().isEmpty()) { ctx.reply(I18n.t("market.h0beb331c")); return; }
         long listingId;
         try { listingId = Long.parseLong(ctx.getArg().trim()); }
-        catch (NumberFormatException e) { ctx.reply("挂单ID必须是数字"); return; }
+        catch (NumberFormatException e) { ctx.reply(I18n.t("market.h6e25fb8c")); return; }
         Map<String, Object> result = ServiceRegistry.getTradeService().cancelListing(p.getId(), listingId);
         ctx.reply((String) result.getOrDefault("message", "撤单失败"));
     }

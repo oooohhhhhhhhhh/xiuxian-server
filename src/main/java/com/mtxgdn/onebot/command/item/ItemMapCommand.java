@@ -6,13 +6,14 @@ import com.mtxgdn.game.item.Item;
 import com.mtxgdn.game.item.ItemRegistry;
 import com.mtxgdn.util.LangManager;
 import java.util.*;
+import com.mtxgdn.i18n.I18n;
 
 public class ItemMapCommand extends Command {
     public ItemMapCommand() { super(new String[]{"物品列表", "itemmap"}, "查看物品中文名与key映射表", "/物品列表", "背包", "game.player.info"); setModule("inventory"); }
     @Override
     public void execute(CommandContext ctx) {
         Collection<Item> allItems = ItemRegistry.getAll();
-        if (allItems.isEmpty()) { ctx.reply("物品列表为空。"); return; }
+        if (allItems.isEmpty()) { ctx.reply(I18n.t("item_map.h0e294c36")); return; }
         Map<String, List<Item>> byType = new LinkedHashMap<>();
         for (Item item : allItems) {
             byType.computeIfAbsent(item.getType().getDisplayName(), k -> new ArrayList<>()).add(item);

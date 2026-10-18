@@ -90,7 +90,7 @@ public class BankCommand extends Command {
 
     private void doDeposit(CommandContext ctx, PlayerInfo p, String[] parts) {
         if (parts.length < 3) {
-            ctx.reply("用法: /灵庄 存入 <活期|7天|30天|90天> <数量>\n例: /灵庄 存入 30天 1000");
+            ctx.reply(I18n.t("economy.ha8696148"));
             return;
         }
 
@@ -102,13 +102,13 @@ public class BankCommand extends Command {
             default -> null;
         };
         if (type == null) {
-            ctx.reply("存款类型: 活期 / 7天 / 30天 / 90天\n例: /灵庄 存入 30天 1000");
+            ctx.reply(I18n.t("economy.h35568224"));
             return;
         }
 
         long amount;
         try { amount = Long.parseLong(parts[2]); } catch (NumberFormatException e) {
-            ctx.reply("数量无效"); return;
+            ctx.reply(I18n.t("economy.he44ee76c")); return;
         }
 
         var eco = ServiceRegistry.getEconomyService();
@@ -118,13 +118,13 @@ public class BankCommand extends Command {
 
     private void doWithdraw(CommandContext ctx, PlayerInfo p, String[] parts) {
         if (parts.length < 2) {
-            ctx.reply("用法: /灵庄 取出 <编号>\n先用 /灵庄 查看存款编号");
+            ctx.reply(I18n.t("economy.h14554240"));
             return;
         }
 
         long depositId;
         try { depositId = Long.parseLong(parts[1]); } catch (NumberFormatException e) {
-            ctx.reply("编号无效"); return;
+            ctx.reply(I18n.t("economy.h843c9af0")); return;
         }
 
         var eco = ServiceRegistry.getEconomyService();

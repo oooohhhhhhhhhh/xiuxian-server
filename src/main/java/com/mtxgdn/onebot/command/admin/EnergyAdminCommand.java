@@ -37,15 +37,15 @@ public class EnergyAdminCommand extends Command {
     public void execute(CommandContext ctx) {
         QqBinding b = ctx.resolveBoundBinding();
         if (b == null) {
-            ctx.reply("请先绑定账号。");
+            ctx.reply(I18n.t("admin.hd852a51e"));
             return;
         }
         if (!PermissionService.hasPermission(b.getUserId(), "admin.status")) {
-            ctx.reply("权限不足，你无权使用此功能。");
+            ctx.reply(I18n.t("admin.ha43d576a"));
             return;
         }
         if (!BuiltInPluginRegistry.isModuleEnabled(ENERGY_EXCHANGE_PLUGIN)) {
-            ctx.reply("能量转化系统暂未开放，请在 config/plugins.yml 中将 experimental_energy_exchange 设为 true（或在 WebUI「插件管理」页启用该实验性插件）。");
+            ctx.reply(I18n.t("admin.ha5fc6272"));
             return;
         }
 
@@ -62,7 +62,7 @@ public class EnergyAdminCommand extends Command {
 
         String[] parts = arg.trim().split("\\s+");
         if (parts.length < 2) {
-            ctx.reply("参数不足。用法: /能量管理 <玩家ID> <设置|增加|减少|查看> [数值]");
+            ctx.reply(I18n.t("admin.h16c07754"));
             return;
         }
 
@@ -70,14 +70,14 @@ public class EnergyAdminCommand extends Command {
         try {
             playerId = Long.parseLong(parts[0]);
         } catch (NumberFormatException e) {
-            ctx.reply("玩家ID必须为数字。");
+            ctx.reply(I18n.t("admin.haed2b682"));
             return;
         }
 
         PlayerService playerService = ServiceRegistry.getPlayerService();
         var p = playerService.getPlayerById(playerId);
         if (p == null) {
-            ctx.reply("未找到玩家 ID:" + playerId);
+            ctx.reply(I18n.t("admin.h4b69b8e4", playerId));
             return;
         }
 
@@ -89,7 +89,7 @@ public class EnergyAdminCommand extends Command {
         // MODERATOR 组（默认持有 admin.status）就能任意增删玩家能量。
         if (isWriteAction(action)
                 && !PermissionService.hasPermission(b.getUserId(), "admin.users.manage")) {
-            ctx.reply("权限不足：修改玩家能量需要 admin.users.manage 权限（仅超级管理员）。");
+            ctx.reply(I18n.t("admin.h204cc940"));
             return;
         }
 
@@ -97,79 +97,79 @@ public class EnergyAdminCommand extends Command {
             case "查看":
             case "view":
                 long energy = energyService.getEnergy(playerId);
-                ctx.reply("玩家 " + p.getName() + " (ID:" + playerId + ") 当前能量: " + energy);
+                ctx.reply(I18n.t("admin.h0537abec", p.getName(), playerId, energy));
                 break;
 
             case "设置":
             case "set":
                 if (parts.length < 3) {
-                    ctx.reply("请提供要设置的能量值。用法: /能量管理 " + playerId + " 设置 <数值>");
+                    ctx.reply(I18n.t("admin.h809f86d2", playerId));
                     return;
                 }
                 long setValue;
                 try {
                     setValue = Long.parseLong(parts[2]);
                 } catch (NumberFormatException e) {
-                    ctx.reply("数值必须为整数。");
+                    ctx.reply(I18n.t("admin.h31437f0c"));
                     return;
                 }
                 if (setValue < 0) {
-                    ctx.reply("能量值不能为负数。");
+                    ctx.reply(I18n.t("admin.hd16507e2"));
                     return;
                 }
                 energyService.setEnergy(playerId, setValue);
-                ctx.reply("已将玩家 " + p.getName() + " (ID:" + playerId + ") 的能量设置为 " + setValue);
+                ctx.reply(I18n.t("admin.hbea6f978", p.getName(), playerId, setValue));
                 break;
 
             case "增加":
             case "add":
                 if (parts.length < 3) {
-                    ctx.reply("请提供要增加的能量值。用法: /能量管理 " + playerId + " 增加 <数值>");
+                    ctx.reply(I18n.t("admin.hef432d0a", playerId));
                     return;
                 }
                 long addValue;
                 try {
                     addValue = Long.parseLong(parts[2]);
                 } catch (NumberFormatException e) {
-                    ctx.reply("数值必须为整数。");
+                    ctx.reply(I18n.t("admin.h31437f0c"));
                     return;
                 }
                 if (addValue <= 0) {
-                    ctx.reply("增加量必须大于0。");
+                    ctx.reply(I18n.t("admin.hde258710"));
                     return;
                 }
                 energyService.addEnergy(playerId, addValue);
-                ctx.reply("已为玩家 " + p.getName() + " (ID:" + playerId + ") 增加 " + addValue + " 能量\n当前能量: " + energyService.getEnergy(playerId));
+                ctx.reply(I18n.t("admin.h83709cb4", p.getName(), playerId, addValue, energyService.getEnergy(playerId)));
                 break;
 
             case "减少":
             case "remove":
                 if (parts.length < 3) {
-                    ctx.reply("请提供要减少的能量值。用法: /能量管理 " + playerId + " 减少 <数值>");
+                    ctx.reply(I18n.t("admin.h7ff733a0", playerId));
                     return;
                 }
                 long removeValue;
                 try {
                     removeValue = Long.parseLong(parts[2]);
                 } catch (NumberFormatException e) {
-                    ctx.reply("数值必须为整数。");
+                    ctx.reply(I18n.t("admin.h31437f0c"));
                     return;
                 }
                 if (removeValue <= 0) {
-                    ctx.reply("减少量必须大于0。");
+                    ctx.reply(I18n.t("admin.hbf23b840"));
                     return;
                 }
                 long current = energyService.getEnergy(playerId);
                 if (current < removeValue) {
-                    ctx.reply("能量不足，无法减少。玩家当前能量: " + current + "，尝试减少: " + removeValue);
+                    ctx.reply(I18n.t("admin.hcd0c9fac", current, removeValue));
                     return;
                 }
                 energyService.removeEnergy(playerId, removeValue);
-                ctx.reply("已从玩家 " + p.getName() + " (ID:" + playerId + ") 减少 " + removeValue + " 能量\n当前能量: " + energyService.getEnergy(playerId));
+                ctx.reply(I18n.t("admin.h8bde915f", p.getName(), playerId, removeValue, energyService.getEnergy(playerId)));
                 break;
 
             default:
-                ctx.reply("未知操作: " + action + "\n可用操作: 查看, 设置, 增加, 减少");
+                ctx.reply(I18n.t("admin.h3fc9ac5f", action));
                 break;
         }
     }

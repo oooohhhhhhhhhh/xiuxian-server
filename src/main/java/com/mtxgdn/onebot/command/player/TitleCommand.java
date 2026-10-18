@@ -9,6 +9,7 @@ import com.mtxgdn.common.service.ServiceRegistry;
 
 import java.util.List;
 import java.util.Map;
+import com.mtxgdn.i18n.I18n;
 
 public class TitleCommand extends Command {
 
@@ -103,7 +104,7 @@ public class TitleCommand extends Command {
             name = arg.trim().replaceFirst("^装备\\s*", "").replaceFirst("^equip\\s*", "");
         }
         if (name.isEmpty()) {
-            ctx.reply("用法: /称号 装备 <名称>\n先用 /称号 查看你拥有的称号");
+            ctx.reply(I18n.t("player.h1a736b70"));
             return;
         }
 
@@ -121,7 +122,7 @@ public class TitleCommand extends Command {
         }
 
         if (matchedKey == null) {
-            ctx.reply("未找到称号「" + name + "」，请确认你是否拥有该称号。\n使用 /称号 查看已拥有的称号。");
+            ctx.reply(I18n.t("player.hd1d1f9ec", name));
             return;
         }
 

@@ -29,7 +29,7 @@ public class RecycleCommand extends Command {
 
         String[] parts = ctx.getArg().trim().split("\\s+", 2);
         if (parts[0].isEmpty()) {
-            ctx.reply("用法: /回收 <物品名> [数量]\n提示: 回收价为原价的 30%");
+            ctx.reply(I18n.t("economy.h91157bd0"));
             return;
         }
 
@@ -37,13 +37,13 @@ public class RecycleCommand extends Command {
         int quantity = 1;
         if (parts.length > 1) {
             try { quantity = Integer.parseInt(parts[1]); } catch (NumberFormatException e) {
-                ctx.reply("数量无效"); return;
+                ctx.reply(I18n.t("economy.he44ee76c")); return;
             }
         }
-        if (quantity <= 0) { ctx.reply("数量必须大于 0"); return; }
+        if (quantity <= 0) { ctx.reply(I18n.t("economy.h893a9a8c")); return; }
 
         var item = ItemRegistry.resolve(itemName);
-        if (item == null) { ctx.reply("物品不存在，请使用 /物品列表 查看可回收物品"); return; }
+        if (item == null) { ctx.reply(I18n.t("economy.h3cf7f1c0")); return; }
 
         var eco = ServiceRegistry.getEconomyService();
         var result = eco.recycleItem(p.getId(), itemName, quantity);

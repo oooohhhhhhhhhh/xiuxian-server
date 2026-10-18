@@ -7,6 +7,7 @@ import com.mtxgdn.game.entity.PlayerInfo;
 import com.mtxgdn.util.PlayerActionLogger;
 
 import java.util.List;
+import com.mtxgdn.i18n.I18n;
 
 public class PrivateMessageCommand extends Command {
 
@@ -30,12 +31,12 @@ public class PrivateMessageCommand extends Command {
 
         String arg = ctx.getArg();
         if (arg == null || arg.isBlank()) {
-            ctx.reply("用法: /私聊 <玩家名> <消息内容>");
+            ctx.reply(I18n.t("social.h3eb53952"));
             return;
         }
         String[] parts = arg.split("\\s+", 2);
         if (parts.length < 2 || parts[0].isBlank() || parts[1].isBlank()) {
-            ctx.reply("用法: /私聊 <玩家名> <消息内容>");
+            ctx.reply(I18n.t("social.h3eb53952"));
             return;
         }
 
@@ -45,18 +46,18 @@ public class PrivateMessageCommand extends Command {
         var playerService = ServiceRegistry.getPlayerService();
         List<PlayerInfo> targets = playerService.searchPlayersByName(targetName, 1, 0);
         if (targets.isEmpty()) {
-            ctx.reply("找不到玩家: " + targetName);
+            ctx.reply(I18n.t("social.h7e37bde8", targetName));
             return;
         }
         PlayerInfo target = targets.get(0);
 
         if (target.getId() == p.getId()) {
-            ctx.reply("不能给自己发私聊消息。");
+            ctx.reply(I18n.t("social.hb61ed708"));
             return;
         }
 
         ServiceRegistry.getChatService().sendPrivateMessage(p.getId(), p.getName(), target.getId(), content);
         PlayerActionLogger.getInstance().logChat(userId, p.getName(), "[私聊→" + target.getName() + "] " + content);
-        ctx.reply("私聊消息已发送给 " + target.getName());
+        ctx.reply(I18n.t("social.h5c322cf4", target.getName()));
     }
 }

@@ -14,6 +14,7 @@ import com.mtxgdn.game.service.PlayerService;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import com.mtxgdn.i18n.I18n;
 
 public class PvpCommand extends Command {
 
@@ -59,7 +60,7 @@ public class PvpCommand extends Command {
 
         String arg = ctx.getArg();
         if (arg == null || arg.isBlank()) {
-            ctx.reply("用法：\n" + getUsage());
+            ctx.reply(I18n.t("pvp.h6af3afb0", getUsage()));
             return;
         }
 

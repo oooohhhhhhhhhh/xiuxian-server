@@ -197,14 +197,14 @@ public class FormationCommand extends Command {
 
     private void handlePlace(CommandContext ctx, PlayerInfo p, String[] parts) {
         if (parts.length < 2) {
-            ctx.reply("请指定阵法名，如: /阵法 place 聚灵阵");
+            ctx.reply(I18n.t("formation.h169acfb8"));
             return;
         }
 
         String formationName = parts[1];
         String formationKey = getKeyByName(formationName);
         if (formationKey == null) {
-            ctx.reply("未知阵法: " + formationName + "\n可用阵法: 聚灵阵, 护山大阵, 迷踪阵, 净化阵, 时间加速阵");
+            ctx.reply(I18n.t("formation.hf213bc30", formationName));
             return;
         }
 
@@ -213,11 +213,11 @@ public class FormationCommand extends Command {
             try {
                 level = Integer.parseInt(parts[2]);
                 if (level < 1 || level > Formation.MAX_LEVEL) {
-                    ctx.reply("阵法等级必须在 1-" + Formation.MAX_LEVEL + " 之间");
+                    ctx.reply(I18n.t("formation.h567eb358", Formation.MAX_LEVEL));
                     return;
                 }
             } catch (NumberFormatException e) {
-                ctx.reply("无效的等级");
+                ctx.reply(I18n.t("formation.h5522cfdc"));
                 return;
             }
         }
@@ -229,7 +229,7 @@ public class FormationCommand extends Command {
     private void handleInfo(CommandContext ctx, PlayerInfo p, String[] parts) {
         Formation f = formationService.getActiveFormation(p.getId());
         if (f == null) {
-            ctx.reply("你还没有布置阵法");
+            ctx.reply(I18n.t("formation.hcd888a30"));
             return;
         }
 

@@ -6,6 +6,7 @@ import com.mtxgdn.game.entity.PlayerInfo;
 import com.mtxgdn.game.item.Item;
 import com.mtxgdn.game.item.ItemRegistry;
 import com.mtxgdn.common.service.ServiceRegistry;
+import com.mtxgdn.i18n.I18n;
 public class MarketCommand extends Command {
     public MarketCommand() { super(new String[]{"坊市", "market"}, "查看坊市交易挂单", "/坊市", "坊市", "game.player.info"); setModule("trade"); }
     @Override
@@ -16,7 +17,7 @@ public class MarketCommand extends Command {
         var guideService = ServiceRegistry.getGuideService();
         var listings = tradeService.getActiveListings();
         if (listings.isEmpty()) {
-            ctx.reply("===== 坊市 =====\n坊市上空空荡荡，还没有人挂单。\n使用 /上架 <物品key> <数量> <灵石价格> 来卖东西吧！"); return;
+            ctx.reply(I18n.t("market.h7e9a27ac")); return;
         }
         StringBuilder sb = new StringBuilder(); sb.append("===== 坊市 =====\n");
         int shown = 0;

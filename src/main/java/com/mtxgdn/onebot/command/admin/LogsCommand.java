@@ -9,6 +9,7 @@ import com.mtxgdn.util.GameLogger;
 
 import java.util.ArrayList;
 import java.util.List;
+import com.mtxgdn.i18n.I18n;
 
 public class LogsCommand extends Command {
     public LogsCommand() {
@@ -22,11 +23,11 @@ public class LogsCommand extends Command {
     public void execute(CommandContext ctx) {
         QqBinding b = ctx.resolveBoundBinding();
         if (b == null) {
-            ctx.reply("请先绑定账号。");
+            ctx.reply(I18n.t("admin.hd852a51e"));
             return;
         }
         if (!PermissionService.hasPermission(b.getUserId(), "admin.logs.view")) {
-            ctx.reply("权限不足，你无权使用此功能。");
+            ctx.reply(I18n.t("admin.ha43d576a"));
             return;
         }
 
@@ -48,7 +49,7 @@ public class LogsCommand extends Command {
         }
 
         if (entries.isEmpty()) {
-            ctx.reply("暂无日志。");
+            ctx.reply(I18n.t("admin.hbcdb26c6"));
             return;
         }
 

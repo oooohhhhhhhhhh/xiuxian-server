@@ -93,7 +93,7 @@ public class EconomyService {
                 txResult.put("message", I18n.t("economy.h98e31334", newStreak, reward[0]));
             } catch (SQLException e) {
                 txResult.put("success", false);
-                txResult.put("message", "签到失败: " + e.getMessage());
+                txResult.put("message", I18n.t("economy.h03a352a8", e.getMessage()));
             }
             return txResult;
         });

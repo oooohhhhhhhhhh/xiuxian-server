@@ -7,6 +7,7 @@ import com.mtxgdn.game.secretrealm.SecretRealm;
 import com.mtxgdn.game.service.NewbieGuideService;
 import com.mtxgdn.common.service.ServiceRegistry;
 import java.util.List;
+import com.mtxgdn.i18n.I18n;
 
 public class SecretAreasCommand extends Command {
 
@@ -32,7 +33,7 @@ public class SecretAreasCommand extends Command {
         List<SecretRealm> areas = secretRealmService.getAvailableAreas(userId);
 
         if (areas.isEmpty()) {
-            ctx.reply("当前没有可用的秘境。");
+            ctx.reply(I18n.t("exploration.h06fd7070"));
             return;
         }
 

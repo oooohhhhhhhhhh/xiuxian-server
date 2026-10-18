@@ -680,7 +680,7 @@ public class PlayerService {
         result.put("hpBefore", hpBefore);
         result.put("hpAfter", player.getMaxHp());
         result.put("cost", cost);
-        result.put("message", "消耗 " + cost + " 灵石，伤势痊愈！\n生命值: " + hpBefore + " → " + player.getMaxHp() + "（法力也一并恢复）");
+        result.put("message", I18n.t("player.h07c721cc", cost, hpBefore, player.getMaxHp()));
         return result;
     }
 

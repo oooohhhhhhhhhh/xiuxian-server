@@ -92,13 +92,13 @@ public class CraftCommand extends Command {
     }
 
     private void listRecipesWithCategory(CommandContext ctx, PlayerInfo p, String[] parts) {
-        if (parts.length < 2) { ctx.reply("用法: /合成 配方 <分类>\n分类: PILL(丹药) / EQUIPMENT(装备) / CONSUMABLE(消耗品) / SEED(种子)"); return; }
+        if (parts.length < 2) { ctx.reply(I18n.t("crafting.h573a2304")); return; }
         String cat = parts[1].toUpperCase();
         Recipe.Category category;
         try {
             category = Recipe.Category.valueOf(cat);
         } catch (IllegalArgumentException e) {
-            ctx.reply("无效分类: " + cat + "\n可用: PILL / EQUIPMENT / CONSUMABLE / SEED");
+            ctx.reply(I18n.t("crafting.h8480fd84", cat));
             return;
         }
 
@@ -120,9 +120,9 @@ public class CraftCommand extends Command {
     }
 
     private void doCraft(CommandContext ctx, PlayerInfo p, String[] parts) {
-        if (parts.length < 2) { ctx.reply("用法: /合成 制造 <配方ID>\n先用 /合成 列表 查看配方"); return; }
+        if (parts.length < 2) { ctx.reply(I18n.t("crafting.h706b5630")); return; }
         long recipeId;
-        try { recipeId = Long.parseLong(parts[1]); } catch (NumberFormatException e) { ctx.reply("配方ID无效"); return; }
+        try { recipeId = Long.parseLong(parts[1]); } catch (NumberFormatException e) { ctx.reply(I18n.t("crafting.h033e510c")); return; }
 
         var service = ServiceRegistry.getCraftingService();
         Map<String, Object> result = service.craft(p.getId(), recipeId);

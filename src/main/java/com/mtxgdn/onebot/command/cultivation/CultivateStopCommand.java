@@ -10,6 +10,7 @@ import com.mtxgdn.common.service.ServiceRegistry;
 import com.mtxgdn.util.PlayerActionLogger;
 
 import java.util.Map;
+import com.mtxgdn.i18n.I18n;
 
 public class CultivateStopCommand extends Command {
 
@@ -44,7 +45,7 @@ public class CultivateStopCommand extends Command {
 
         if (expGained <= 0) {
             actionLog.logCultivateStop(userId, p.getName(), 0, elapsedSeconds);
-            ctx.reply("打坐时间太短，未获得灵力。");
+            ctx.reply(I18n.t("cultivation.hf53b1cd0"));
             return;
         }
 

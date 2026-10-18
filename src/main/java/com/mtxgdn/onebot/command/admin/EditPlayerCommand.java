@@ -7,6 +7,7 @@ import com.mtxgdn.game.service.PlayerService;
 import com.mtxgdn.permission.PermissionService;
 import com.mtxgdn.onebot.QqBinding;
 import com.mtxgdn.onebot.QqBindingService;
+import com.mtxgdn.i18n.I18n;
 
 public class EditPlayerCommand extends Command {
     public EditPlayerCommand() {
@@ -20,11 +21,11 @@ public class EditPlayerCommand extends Command {
     public void execute(CommandContext ctx) {
         QqBinding b = ctx.resolveBoundBinding();
         if (b == null) {
-            ctx.reply("请先绑定账号。");
+            ctx.reply(I18n.t("admin.hd852a51e"));
             return;
         }
         if (!PermissionService.hasPermission(b.getUserId(), "admin.users.manage")) {
-            ctx.reply("权限不足，你无权使用此功能。");
+            ctx.reply(I18n.t("admin.ha43d576a"));
             return;
         }
 
@@ -38,7 +39,7 @@ public class EditPlayerCommand extends Command {
 
         String[] parts = arg.trim().split("\\s+");
         if (parts.length < 2) {
-            ctx.reply("参数不足。用法: /编辑玩家 <玩家ID> <属性>=<值> ...");
+            ctx.reply(I18n.t("admin.h41e3bb7c"));
             return;
         }
 
@@ -46,14 +47,14 @@ public class EditPlayerCommand extends Command {
         try {
             playerId = Long.parseLong(parts[0]);
         } catch (NumberFormatException e) {
-            ctx.reply("玩家ID必须为数字。");
+            ctx.reply(I18n.t("admin.haed2b682"));
             return;
         }
 
         PlayerService playerService = ServiceRegistry.getPlayerService();
         var p = playerService.getPlayerById(playerId);
         if (p == null) {
-            ctx.reply("未找到玩家 ID:" + playerId);
+            ctx.reply(I18n.t("admin.h4b69b8e4", playerId));
             return;
         }
 

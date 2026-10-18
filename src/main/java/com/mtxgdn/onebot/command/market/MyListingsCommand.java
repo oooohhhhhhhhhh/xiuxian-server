@@ -6,6 +6,7 @@ import com.mtxgdn.game.entity.PlayerInfo;
 import com.mtxgdn.game.item.Item;
 import com.mtxgdn.game.item.ItemRegistry;
 import com.mtxgdn.common.service.ServiceRegistry;
+import com.mtxgdn.i18n.I18n;
 
 public class MyListingsCommand extends Command {
     public MyListingsCommand() { super(new String[]{"我的挂单", "mylistings"}, "查看我在坊市的挂单", "/我的挂单", "坊市", "game.player.info"); setModule("trade"); }
@@ -14,7 +15,7 @@ public class MyListingsCommand extends Command {
         Long userId = ctx.requireBinding(); if (userId == null) return;
         PlayerInfo p = ctx.requirePlayer(userId); if (p == null) return;
         var listings = ServiceRegistry.getTradeService().getPlayerListings(p.getId());
-        if (listings.isEmpty()) { ctx.reply("===== 我的挂单 =====\n你还没有在坊市挂单。\n使用 /上架 <key> <数量> <灵石> 上架吧！"); return; }
+        if (listings.isEmpty()) { ctx.reply(I18n.t("market.h42513430")); return; }
         StringBuilder sb = new StringBuilder(); sb.append("===== 我的挂单 =====\n");
         for (var l : listings) {
             Item item = ItemRegistry.get(l.itemKey);

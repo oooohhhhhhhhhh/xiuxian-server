@@ -7,6 +7,7 @@ import com.mtxgdn.game.entity.PlayerInfo;
 import com.mtxgdn.common.service.ServiceRegistry;
 import com.mtxgdn.util.PlayerActionLogger;
 import java.util.Map;
+import com.mtxgdn.i18n.I18n;
 
 public class ItemUseCommand extends Command {
     public ItemUseCommand() {
@@ -21,7 +22,7 @@ public class ItemUseCommand extends Command {
         Long userId = p.getUserId();
         String itemKey = ctx.getArg();
         if (CommandUtils.isBlank(itemKey)) {
-            ctx.reply("用法: /使用 <物品名称或key>\n可在 /背包 或 /物品列表 中查看你的物品\n例如: /使用 回血丹");
+            ctx.reply(I18n.t("item_use.he8eb5bf0"));
             return;
         }
         var itemService = ServiceRegistry.getItemService();

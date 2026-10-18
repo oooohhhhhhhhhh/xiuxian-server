@@ -14,6 +14,7 @@ import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
+import com.mtxgdn.i18n.I18n;
 
 public class MapCommand extends Command {
 
@@ -46,11 +47,11 @@ public class MapCommand extends Command {
         Long userId = ctx.requireBinding();
         if (userId == null) return;
         PlayerInfo p = ctx.requirePlayer(userId);
-        if (p == null) { ctx.reply("请先创建角色"); return; }
+        if (p == null) { ctx.reply(I18n.t("map.hde5e9ffe")); return; }
 
         var surround = mapService.getPlayerSurroundings(p.getId());
         if (!(boolean) surround.get("success")) {
-            ctx.reply("获取地图信息失败"); return;
+            ctx.reply(I18n.t("map.ha47c4bc0")); return;
         }
 
         @SuppressWarnings("unchecked")
@@ -159,14 +160,14 @@ public class MapCommand extends Command {
      * 代价是灵石，且必须已经亲自抵达过，所以不会把探索本身的意义抹掉。</p>
      */
     private void handleTeleport(CommandContext ctx, PlayerInfo p, String[] parts) {
-        if (p == null) { ctx.reply("请先创建角色"); return; }
+        if (p == null) { ctx.reply(I18n.t("map.hde5e9ffe")); return; }
         String targetName = parts.length > 1 ? parts[1].trim() : "";
-        if (targetName.isEmpty()) { ctx.reply("用法: /地图 传送 <地名>（需已到过该地）"); return; }
+        if (targetName.isEmpty()) { ctx.reply(I18n.t("map.h763af7b7")); return; }
 
         // 用 token 而不是按名字查：野外节点不在地点表里、名字还是随机的，只能按 id 指定
         MapLocation target = mapService.getLocationByToken(targetName);
         if (target == null) {
-            ctx.reply("找不到地点【" + targetName + "】，试试 /地图 list 查看全图");
+            ctx.reply(I18n.t("map.h8297d3f8", targetName));
             return;
         }
 
@@ -175,12 +176,12 @@ public class MapCommand extends Command {
     }
 
     private void handleGo(CommandContext ctx, PlayerInfo p, String[] parts) {
-        if (p == null) { ctx.reply("请先创建角色"); return; }
+        if (p == null) { ctx.reply(I18n.t("map.hde5e9ffe")); return; }
         String targetName = parts.length > 1 ? parts[1].trim() : "";
-        if (targetName.isEmpty()) { ctx.reply("用法: /地图 go <地名>"); return; }
+        if (targetName.isEmpty()) { ctx.reply(I18n.t("map.ha31577e4")); return; }
 
         MapLocation target = mapService.getLocationByToken(targetName);
-        if (target == null) { ctx.reply("找不到地点【" + targetName + "】，试试 /地图 list 查看全图"); return; }
+        if (target == null) { ctx.reply(I18n.t("map.h8297d3f8", targetName)); return; }
 
         var result = mapService.travel(p.getId(), target.getId());
         ctx.reply((String) result.get("message"));
@@ -193,7 +194,7 @@ public class MapCommand extends Command {
         if (!region.isEmpty()) {
             locations = mapService.getLocationsByRegion(region);
             if (locations.isEmpty()) {
-                ctx.reply("未找到区域【" + region + "】"); return;
+                ctx.reply(I18n.t("map.h1d0de5b6", region)); return;
             }
         } else {
             locations = mapService.getAllLocations();

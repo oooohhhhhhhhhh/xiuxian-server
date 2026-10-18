@@ -7,6 +7,7 @@ import com.mtxgdn.game.entity.SecretRealmResult;
 import com.mtxgdn.game.service.NewbieGuideService;
 import com.mtxgdn.common.service.ServiceRegistry;
 import com.mtxgdn.util.PlayerActionLogger;
+import com.mtxgdn.i18n.I18n;
 
 public class SecretEnterCommand extends Command {
 
@@ -30,7 +31,7 @@ public class SecretEnterCommand extends Command {
 
         String areaName = ctx.getArg().trim();
         if (areaName.isEmpty()) {
-            ctx.reply("用法: /进入秘境 <秘境名称>\n使用 /秘境 查看可用秘境");
+            ctx.reply(I18n.t("exploration.h2b83a10c"));
             return;
         }
 

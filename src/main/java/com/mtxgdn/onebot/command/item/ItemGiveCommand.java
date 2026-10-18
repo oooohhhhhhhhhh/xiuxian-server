@@ -34,13 +34,13 @@ public class ItemGiveCommand extends Command {
 
         String arg = ctx.getArg().trim();
         if (arg.isEmpty()) {
-            ctx.reply("用法: /发放物品 <玩家名> <物品Key> [数量=1]\n例: /发放物品 李白 spirit_stone 100");
+            ctx.reply(I18n.t("item_give.hb795d1ec"));
             return;
         }
 
         String[] parts = arg.split("\\s+", 3);
         if (parts.length < 2) {
-            ctx.reply("参数不足。用法: /发放物品 <玩家名> <物品Key> [数量]");
+            ctx.reply(I18n.t("item_give.he94b4574"));
             return;
         }
 
@@ -51,12 +51,12 @@ public class ItemGiveCommand extends Command {
             try {
                 quantity = Integer.parseInt(parts[2]);
             } catch (NumberFormatException e) {
-                ctx.reply("数量无效");
+                ctx.reply(I18n.t("item_give.he44ee76c"));
                 return;
             }
         }
         if (quantity <= 0) {
-            ctx.reply("数量必须大于 0");
+            ctx.reply(I18n.t("item_give.h893a9a8c"));
             return;
         }
 
@@ -64,7 +64,7 @@ public class ItemGiveCommand extends Command {
         var playerService = ServiceRegistry.getPlayerService();
         List<PlayerInfo> found = playerService.searchPlayersByName(targetName, 1, 0);
         if (found.isEmpty()) {
-            ctx.reply("未找到玩家: " + targetName);
+            ctx.reply(I18n.t("item_give.h57d9d167", targetName));
             return;
         }
         PlayerInfo target = found.get(0);
@@ -72,7 +72,7 @@ public class ItemGiveCommand extends Command {
         // 校验物品
         Item item = ItemRegistry.resolve(itemKey);
         if (item == null) {
-            ctx.reply("物品不存在: " + itemKey + "\n使用 /物品列表 查看可发放的物品");
+            ctx.reply(I18n.t("item_give.h5126e848", itemKey));
             return;
         }
 
@@ -80,7 +80,7 @@ public class ItemGiveCommand extends Command {
         var itemService = ServiceRegistry.getItemService();
         itemService.addItem(target.getId(), item.getFullKey(), quantity);
 
-        ctx.reply("已向 " + target.getName() + " 发放 " + item.getName() + " x" + quantity);
+        ctx.reply(I18n.t("item_give.h32dd771c", target.getName(), item.getName(), quantity));
     }
 
     // ==================== REST API ====================

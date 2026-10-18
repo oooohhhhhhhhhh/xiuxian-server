@@ -6,6 +6,7 @@ import com.mtxgdn.game.entity.PlayerInfo;
 import com.mtxgdn.common.service.ServiceRegistry;
 
 import java.util.Set;
+import com.mtxgdn.i18n.I18n;
 
 public class BattleTacticCommand extends Command {
 
@@ -33,7 +34,7 @@ public class BattleTacticCommand extends Command {
 
         String tactic = resolveTactic(arg);
         if (tactic == null) {
-            ctx.reply("未知策略: " + arg + "\n可用策略: 猛攻 / 均衡 / 防守");
+            ctx.reply(I18n.t("combat.hbcd08f60", arg));
             return;
         }
 
@@ -45,7 +46,7 @@ public class BattleTacticCommand extends Command {
             case "defensive" -> "🛡 防守 — 保留一半法力，稳扎稳打";
             default -> "⚖ 均衡 — 不偏不倚，见招拆招";
         };
-        ctx.reply("战斗策略已变更：\n" + display);
+        ctx.reply(I18n.t("combat.h48e22b10", display));
     }
 
     private void showCurrent(CommandContext ctx, PlayerInfo p) {
@@ -59,7 +60,7 @@ public class BattleTacticCommand extends Command {
             case "defensive" -> "🛡 防守 — 保留一半法力，稳扎稳打";
             default -> "⚖ 均衡 — 不偏不倚，见招拆招";
         };
-        ctx.reply("当前战斗策略：\n" + display + "\n\n修改: /战斗策略 <猛攻|均衡|防守>");
+        ctx.reply(I18n.t("combat.h4e19b0c2", display));
     }
 
     private String resolveTactic(String input) {

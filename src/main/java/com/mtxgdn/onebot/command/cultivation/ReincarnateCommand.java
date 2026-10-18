@@ -11,6 +11,7 @@ import com.mtxgdn.common.service.ServiceRegistry;
 
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
+import com.mtxgdn.i18n.I18n;
 
 /**
  * 转世系统（终局玩法）：金仙满级后自碎道基、转世重修。
@@ -43,12 +44,12 @@ public class ReincarnateCommand extends Command {
         PlayerService playerService = ServiceRegistry.getPlayerService();
         Player player = playerService.getPlayerRaw(userId);
         if (player == null) {
-            ctx.reply("角色不存在");
+            ctx.reply(I18n.t("cultivation.h59a76b2c"));
             return;
         }
 
         if (player.getRealm() < MAX_REALM) {
-            ctx.reply("转世需在【金仙】圆满之后方可进行（当前境界不足）");
+            ctx.reply(I18n.t("cultivation.hcacade64"));
             return;
         }
 
@@ -89,7 +90,7 @@ public class ReincarnateCommand extends Command {
                 return null;
             });
         } catch (Exception e) {
-            ctx.reply("转世失败，请稍后重试");
+            ctx.reply(I18n.t("cultivation.hdba9eaae"));
             return;
         }
 

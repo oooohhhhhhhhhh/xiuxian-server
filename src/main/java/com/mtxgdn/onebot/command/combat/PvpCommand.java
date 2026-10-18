@@ -11,6 +11,7 @@ import com.mtxgdn.onebot.QqBinding;
 import com.mtxgdn.onebot.command.OneBotCommandContext;
 
 import java.util.List;
+import com.mtxgdn.i18n.I18n;
 
 public class PvpCommand extends Command {
 
@@ -32,9 +33,9 @@ public class PvpCommand extends Command {
             var combatService = ServiceRegistry.getCombatService();
             String challengerName = combatService.rejectChallenge(p.getId());
             if (challengerName == null) {
-                ctx.reply("没有待接受的挑战");
+                ctx.reply(I18n.t("combat.h22695b44"));
             } else {
-                ctx.reply("你拒绝了【" + challengerName + "】的切磋挑战");
+                ctx.reply(I18n.t("combat.h6a592ae4", challengerName));
             }
         });
     }
@@ -47,7 +48,7 @@ public class PvpCommand extends Command {
         String arg = ctx.getArg();
         if (CommandUtils.isBlank(arg)) {
             String tactic = getTacticDisplay(p);
-            ctx.reply("用法: /挑战 <角色名>\n" + tactic + "\n💡 也可用 /挑战 接受 或 /挑战 拒绝 回应切磋");
+            ctx.reply(I18n.t("combat.h169d1898", tactic));
             return;
         }
 
@@ -61,9 +62,9 @@ public class PvpCommand extends Command {
         String targetName = arg.trim();
         var playerService = ServiceRegistry.getPlayerService();
         List<PlayerInfo> targets = playerService.searchPlayersByName(targetName, 1, 0);
-        if (targets.isEmpty()) { ctx.reply("找不到玩家: " + targetName); return; }
+        if (targets.isEmpty()) { ctx.reply(I18n.t("combat.h7e37bde8", targetName)); return; }
         PlayerInfo target = targets.get(0);
-        if (target.getId() == p.getId()) { ctx.reply("不能挑战自己。"); return; }
+        if (target.getId() == p.getId()) { ctx.reply(I18n.t("combat.h96cde842")); return; }
 
         var combatService = ServiceRegistry.getCombatService();
         var challengeResult = combatService.createChallenge(p.getId(), target.getId());
@@ -75,7 +76,7 @@ public class PvpCommand extends Command {
 
         // 通知挑战者
         String challengerTactic = getTacticDisplay(p);
-        ctx.reply("⚔ 你向【" + target.getName() + "】发起了切磋挑战！" + challengerTactic + "\n等待对方回应中（30秒）...");
+        ctx.reply(I18n.t("combat.h78015670", target.getName(), challengerTactic));
 
         // 通知被挑战者
         notifyTarget(ctx, target, p.getName());

@@ -9,6 +9,7 @@ import com.mtxgdn.game.service.ItemService;
 import com.mtxgdn.game.service.PlayerService;
 
 import java.util.Map;
+import com.mtxgdn.i18n.I18n;
 
 /**
  * 金币 ↔ 下品灵石 双向兑换（汇率不对称，形成损耗）：
@@ -33,7 +34,7 @@ public class CurrencyExchangeCommand extends Command {
         Long userId = ctx.requireBinding();
         if (userId == null) return;
         PlayerInfo p = ctx.requirePlayer(userId);
-        if (p == null) { ctx.reply("请先创建角色"); return; }
+        if (p == null) { ctx.reply(I18n.t("economy.hde5e9ffe")); return; }
 
         String args = ctx.getArg();
         if (args == null || args.trim().isEmpty()) {
@@ -43,7 +44,7 @@ public class CurrencyExchangeCommand extends Command {
 
         String[] parts = args.trim().split("\\s+");
         if (parts.length < 2) {
-            ctx.reply("用法: /货币兑换 金币 <数量> 或 /货币兑换 灵石 <数量>");
+            ctx.reply(I18n.t("economy.hbe6f07f0"));
             return;
         }
 
@@ -51,11 +52,11 @@ public class CurrencyExchangeCommand extends Command {
         try {
             amount = Long.parseLong(parts[1]);
         } catch (NumberFormatException e) {
-            ctx.reply("数量必须是正整数");
+            ctx.reply(I18n.t("economy.h8c313f70"));
             return;
         }
         if (amount <= 0) {
-            ctx.reply("数量必须大于 0");
+            ctx.reply(I18n.t("economy.h893a9a8c"));
             return;
         }
 
@@ -66,7 +67,7 @@ public class CurrencyExchangeCommand extends Command {
         } else if ("灵石".equals(direction) || "stone".equalsIgnoreCase(direction) || "stones".equalsIgnoreCase(direction)) {
             result = economyService.exchangeStonesToGold(p.getId(), amount);
         } else {
-            ctx.reply("方向只能是: 金币（换灵石）或 灵石（换金币）");
+            ctx.reply(I18n.t("economy.h610cfa8c"));
             return;
         }
 

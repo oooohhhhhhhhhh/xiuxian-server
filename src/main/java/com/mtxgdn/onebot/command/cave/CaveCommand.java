@@ -174,7 +174,7 @@ public class CaveCommand extends Command {
     private void handleInfo(CommandContext ctx, PlayerInfo p, String[] parts) {
         Cave cave = caveService.getCaveByPlayerId(p.getId());
         if (cave == null) {
-            ctx.reply("你还没有洞府。\n使用 /洞府 create [名称] 开辟洞府（需要金丹期+300灵石）");
+            ctx.reply(I18n.t("cave.h8db42343"));
             return;
         }
         StringBuilder sb = new StringBuilder();

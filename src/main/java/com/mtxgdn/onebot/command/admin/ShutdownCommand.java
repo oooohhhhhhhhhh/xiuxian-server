@@ -5,6 +5,7 @@ import com.mtxgdn.common.command.CommandContext;
 import com.mtxgdn.permission.PermissionService;
 import com.mtxgdn.onebot.QqBinding;
 import com.mtxgdn.onebot.QqBindingService;
+import com.mtxgdn.i18n.I18n;
 
 public class ShutdownCommand extends Command {
     public ShutdownCommand() {
@@ -18,15 +19,15 @@ public class ShutdownCommand extends Command {
     public void execute(CommandContext ctx) {
         QqBinding b = ctx.resolveBoundBinding();
         if (b == null) {
-            ctx.reply("请先绑定账号。");
+            ctx.reply(I18n.t("admin.hd852a51e"));
             return;
         }
         String highestRole = PermissionService.getHighestRole(b.getUserId());
         if (!"SUPER_ADMIN".equals(highestRole)) {
-            ctx.reply("权限不足，仅 SUPER_ADMIN 可以执行此操作。");
+            ctx.reply(I18n.t("admin.hea8fd688"));
             return;
         }
-        ctx.reply("服务器正在关闭...");
+        ctx.reply(I18n.t("admin.h8cce6bb4"));
         Thread shutdownThread = new Thread(() -> {
             try {
                 Thread.sleep(500);

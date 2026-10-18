@@ -9,6 +9,7 @@ import com.mtxgdn.qq.QqOfficialAdapter;
 
 import java.util.ArrayList;
 import java.util.List;
+import com.mtxgdn.i18n.I18n;
 
 /**
  * /按钮 — QQ 官方适配器「消息交互」按钮演示/工具指令。
@@ -46,14 +47,14 @@ public class QqButtonCommand extends Command {
         // 先确认当前通道是 QQ 官方适配器，避免其他渠道用户被要求绑卡后才发现不支持
         if (!(ctx instanceof OneBotClientCommandContext)
                 || !(((OneBotClientCommandContext) ctx).getSession() instanceof QqOfficialAdapter)) {
-            ctx.reply("消息交互按钮仅支持 QQ 官方机器人（当前接入方式不可用）");
+            ctx.reply(I18n.t("qq.h3e5241b0"));
             return;
         }
 
         Long userId = ctx.requireBinding();
         if (userId == null) return;
         PlayerInfo p = ctx.requirePlayer(userId);
-        if (p == null) { ctx.reply("请先创建角色"); return; }
+        if (p == null) { ctx.reply(I18n.t("qq.hde5e9ffe")); return; }
 
         // 顶层已确认是 QQ 官方适配器通道
         OneBotClientCommandContext occ = (OneBotClientCommandContext) ctx;

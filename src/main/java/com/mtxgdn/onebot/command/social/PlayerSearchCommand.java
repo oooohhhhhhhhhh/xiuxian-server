@@ -6,6 +6,7 @@ import com.mtxgdn.common.service.ServiceRegistry;
 import com.mtxgdn.game.entity.PlayerInfo;
 
 import java.util.List;
+import com.mtxgdn.i18n.I18n;
 
 public class PlayerSearchCommand extends Command {
 
@@ -31,7 +32,7 @@ public class PlayerSearchCommand extends Command {
 
         String keyword = ctx.getArg().trim();
         if (keyword.isEmpty()) {
-            ctx.reply("用法: /查人 <名称>\n例: /查人 李白");
+            ctx.reply(I18n.t("social.h27f35dd8"));
             return;
         }
 
@@ -39,7 +40,7 @@ public class PlayerSearchCommand extends Command {
         List<PlayerInfo> results = playerService.searchPlayersByName(keyword, MAX_RESULTS, 0);
 
         if (results.isEmpty()) {
-            ctx.reply("未找到名称包含「" + keyword + "」的玩家。");
+            ctx.reply(I18n.t("social.h58d33788", keyword));
             return;
         }
 

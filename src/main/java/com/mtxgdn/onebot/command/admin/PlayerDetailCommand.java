@@ -10,6 +10,7 @@ import com.mtxgdn.game.service.PlayerService;
 import com.mtxgdn.permission.PermissionService;
 import com.mtxgdn.onebot.QqBinding;
 import com.mtxgdn.onebot.QqBindingService;
+import com.mtxgdn.i18n.I18n;
 
 public class PlayerDetailCommand extends Command {
     public PlayerDetailCommand() {
@@ -23,17 +24,17 @@ public class PlayerDetailCommand extends Command {
     public void execute(CommandContext ctx) {
         QqBinding b = ctx.resolveBoundBinding();
         if (b == null) {
-            ctx.reply("请先绑定账号。");
+            ctx.reply(I18n.t("admin.hd852a51e"));
             return;
         }
         if (!PermissionService.hasPermission(b.getUserId(), "admin.status")) {
-            ctx.reply("权限不足，你无权使用此功能。");
+            ctx.reply(I18n.t("admin.ha43d576a"));
             return;
         }
 
         String arg = ctx.getArg();
         if (arg == null || arg.isBlank()) {
-            ctx.reply("用法: /玩家详情 <玩家ID或角色名>");
+            ctx.reply(I18n.t("admin.h7a4c9c12"));
             return;
         }
 
@@ -47,7 +48,7 @@ public class PlayerDetailCommand extends Command {
         } catch (NumberFormatException e) {
             var players = playerService.searchPlayersByName(arg.trim(), 1, 0);
             if (players.isEmpty()) {
-                ctx.reply("未找到玩家: " + arg);
+                ctx.reply(I18n.t("admin.h57d9d167", arg));
                 return;
             }
             PlayerInfo found = players.get(0);
@@ -55,7 +56,7 @@ public class PlayerDetailCommand extends Command {
         }
 
         if (p == null) {
-            ctx.reply("未找到玩家: " + arg);
+            ctx.reply(I18n.t("admin.h57d9d167", arg));
             return;
         }
 

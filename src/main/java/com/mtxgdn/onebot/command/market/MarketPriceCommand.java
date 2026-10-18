@@ -36,7 +36,7 @@ public class MarketPriceCommand extends Command {
 
         String arg = ctx.getArg() == null ? "" : ctx.getArg().trim();
         if (arg.isEmpty()) {
-            ctx.reply("用法: /行情 <物品名或ID> [天数]\n例如: /行情 灵草  或  /行情 灵草 30\n天数默认 7 天，最多 90 天");
+            ctx.reply(I18n.t("market.h5a2a41c0"));
             return;
         }
 
@@ -54,7 +54,7 @@ public class MarketPriceCommand extends Command {
             }
         }
         if (itemKey.isEmpty()) {
-            ctx.reply("请指定物品名或物品ID");
+            ctx.reply(I18n.t("market.h71c082aa"));
             return;
         }
 

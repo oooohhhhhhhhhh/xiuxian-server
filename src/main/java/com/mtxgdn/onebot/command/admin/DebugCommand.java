@@ -30,11 +30,11 @@ public class DebugCommand extends Command {
     public void execute(CommandContext ctx) {
         QqBinding b = ctx.resolveBoundBinding();
         if (b == null) {
-            ctx.reply("请先绑定账号。");
+            ctx.reply(I18n.t("admin.hd852a51e"));
             return;
         }
         if (!PermissionService.hasPermission(b.getUserId(), "admin.debug")) {
-            ctx.reply("权限不足，你无权使用此功能。");
+            ctx.reply(I18n.t("admin.ha43d576a"));
             return;
         }
 
@@ -58,7 +58,7 @@ public class DebugCommand extends Command {
                 showHelp(ctx);
                 break;
             default:
-                ctx.reply("未知子命令: " + sub + "\n使用 /debug help 查看帮助");
+                ctx.reply(I18n.t("admin.hcba4cf7b", sub));
         }
     }
 
@@ -98,7 +98,7 @@ public class DebugCommand extends Command {
 
     private void testCommand(CommandContext ctx, String args) {
         if (args == null || args.isBlank()) {
-            ctx.reply("用法: /debug test <指令名> [参数]\n示例: /debug test status");
+            ctx.reply(I18n.t("admin.ha5a93f5d"));
             return;
         }
 
@@ -111,24 +111,24 @@ public class DebugCommand extends Command {
 
         Command targetCmd = CommandRegistry.get(cmdName);
         if (targetCmd == null) {
-            ctx.reply("未找到指令: " + cmdName + "\n使用 /debug list 查看所有指令");
+            ctx.reply(I18n.t("admin.h1eb8a8fc", cmdName));
             return;
         }
 
-        ctx.reply("正在测试指令: " + cmdName);
+        ctx.reply(I18n.t("admin.hf579788c", cmdName));
         ctx.reply("参数: " + (cmdArgs.isEmpty() ? "(无)" : cmdArgs));
-        ctx.reply("注意: 测试操作不会修改真实数据（事务已回滚）");
+        ctx.reply(I18n.t("admin.h3bcc1334"));
 
         try {
             QqBinding b = ctx.resolveBoundBinding();
             if (b == null) {
-                ctx.reply("测试失败: 未绑定QQ");
+                ctx.reply(I18n.t("admin.h32b669a4"));
                 return;
             }
 
             PlayerInfo player = com.mtxgdn.common.service.ServiceRegistry.getPlayerService().getPlayerByUserId(b.getUserId());
             if (player == null) {
-                ctx.reply("测试失败: 未找到玩家角色");
+                ctx.reply(I18n.t("admin.h61120d94"));
                 return;
             }
 
@@ -143,7 +143,7 @@ public class DebugCommand extends Command {
                 }
             }
 
-            ctx.reply("指令测试完成（事务已回滚）");
+            ctx.reply(I18n.t("admin.hdbaa383c"));
         } catch (Exception e) {
             StringBuilder sb = new StringBuilder();
             sb.append("指令测试异常:\n");

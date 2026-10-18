@@ -9,6 +9,7 @@ import com.mtxgdn.onebot.QqBindingService;
 
 import java.util.List;
 import java.util.Map;
+import com.mtxgdn.i18n.I18n;
 
 public class TraceCommand extends Command {
     public TraceCommand() {
@@ -22,7 +23,7 @@ public class TraceCommand extends Command {
     public void execute(CommandContext ctx) {
         QqBinding b = ctx.resolveBoundBinding();
         if (b == null) {
-            ctx.reply("请先绑定账号。\n私聊使用 /bind");
+            ctx.reply(I18n.t("admin.h3f4f055e"));
             return;
         }
 
@@ -45,7 +46,7 @@ public class TraceCommand extends Command {
             String input = arg.trim();
             if (!isAdmin) {
                 // player组只能查看自己的轨迹
-                ctx.reply("权限不足，你只能查看自己的轨迹。\n使用 /轨迹 查看自己的操作记录。");
+                ctx.reply(I18n.t("admin.h10d4d6b8"));
                 return;
             }
 
@@ -68,7 +69,7 @@ public class TraceCommand extends Command {
             if (targetUserId != null) {
                 String targetRole = PermissionService.getHighestRole(targetUserId);
                 if (!isSuperAdmin && ("ADMIN".equals(targetRole) || "SUPER_ADMIN".equals(targetRole))) {
-                    ctx.reply("权限不足，无法查看该用户的操作轨迹。");
+                    ctx.reply(I18n.t("admin.h85ed1b46"));
                     return;
                 }
             }
@@ -99,7 +100,7 @@ public class TraceCommand extends Command {
         }
 
         if (logs.isEmpty()) {
-            ctx.reply("暂无操作轨迹记录。");
+            ctx.reply(I18n.t("admin.h9149f304"));
             return;
         }
 

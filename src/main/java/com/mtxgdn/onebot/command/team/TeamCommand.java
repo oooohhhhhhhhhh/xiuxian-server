@@ -10,6 +10,7 @@ import com.mtxgdn.game.service.TeamService;
 import com.mtxgdn.common.service.ServiceRegistry;
 
 import java.util.List;
+import com.mtxgdn.i18n.I18n;
 
 /**
  * 组队系统 QQ 指令：创建/邀请/接受/拒绝/退出队伍，并进入团队副本。
@@ -48,57 +49,56 @@ public class TeamCommand extends Command {
             case "创建" -> {
                 TeamService.Team team = teamService.createTeam(p.getId());
                 if (team == null) {
-                    ctx.reply("创建队伍失败：你可能已在队伍中");
+                    ctx.reply(I18n.t("team.h585dd414"));
                 } else {
-                    ctx.reply("✅ 队伍创建成功！队伍ID: " + team.getTeamId()
-                            + "\n邀请队友: /组队 邀请 <玩家名>（2-5人可挑战副本）");
+                    ctx.reply(I18n.t("team.hba409ad4", team.getTeamId()));
                 }
             }
             case "邀请" -> {
                 if (param == null || param.isBlank()) {
-                    ctx.reply("用法: /组队 邀请 <玩家名>");
+                    ctx.reply(I18n.t("team.h65714a14"));
                     return;
                 }
                 PlayerService playerService = ServiceRegistry.getPlayerService();
                 List<PlayerInfo> targets = playerService.searchPlayersByName(param.trim(), 1, 0);
                 if (targets.isEmpty()) {
-                    ctx.reply("玩家【" + param + "】不存在");
+                    ctx.reply(I18n.t("team.h8da85e34", param));
                     return;
                 }
                 PlayerInfo target = targets.get(0);
                 if (target.getId() == p.getId()) {
-                    ctx.reply("不能邀请自己");
+                    ctx.reply(I18n.t("team.hcbccd8bd"));
                     return;
                 }
                 if (teamService.invitePlayer(p.getId(), target.getId())) {
-                    ctx.reply("✅ 已向【" + target.getName() + "】发出组队邀请，等待对方 /组队 接受");
+                    ctx.reply(I18n.t("team.h5f9da01c", target.getName()));
                 } else {
-                    ctx.reply("邀请失败：请确认你是队长、队伍未满员且对方不在其他队伍中");
+                    ctx.reply(I18n.t("team.h08e42790"));
                 }
             }
             case "接受" -> {
                 TeamService.Team team = teamService.acceptInvite(p.getId());
                 if (team == null) {
-                    ctx.reply("没有待处理的组队邀请");
+                    ctx.reply(I18n.t("team.hd4e90c90"));
                 } else {
-                    ctx.reply("✅ 你已加入队伍（队伍ID: " + team.getTeamId() + "），队长可发起副本挑战");
+                    ctx.reply(I18n.t("team.hb51696d8", team.getTeamId()));
                 }
             }
             case "拒绝" -> {
                 teamService.declineInvite(p.getId());
-                ctx.reply("已拒绝组队邀请");
+                ctx.reply(I18n.t("team.hd2c6b3d0"));
             }
             case "退出" -> {
                 if (teamService.leaveTeam(p.getId())) {
-                    ctx.reply("你已退出队伍");
+                    ctx.reply(I18n.t("team.h5ce1c1b0"));
                 } else {
-                    ctx.reply("你不在任何队伍中");
+                    ctx.reply(I18n.t("team.hbe8ba070"));
                 }
             }
             case "信息" -> {
                 TeamService.Team team = teamService.getTeam(p.getId());
                 if (team == null) {
-                    ctx.reply("你不在任何队伍中。\n创建: /组队 创建\n加入: 等队长邀请后 /组队 接受");
+                    ctx.reply(I18n.t("team.ha732136d"));
                     return;
                 }
                 PlayerService playerService = ServiceRegistry.getPlayerService();
@@ -114,7 +114,7 @@ public class TeamCommand extends Command {
             }
             case "副本" -> {
                 if (param == null || param.isBlank()) {
-                    ctx.reply("用法: /组队 副本 <秘境名>（如：/组队 副本 暗黑森林）");
+                    ctx.reply(I18n.t("team.hbd4c6317"));
                     return;
                 }
                 SecretRealmResult result = new SecretRealmService().enterRaid(p.getId(), param.trim());

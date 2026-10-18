@@ -6,6 +6,7 @@ import com.mtxgdn.game.entity.PlayerInfo;
 import com.mtxgdn.game.entity.SpiritualRoot;
 import com.mtxgdn.common.service.ServiceRegistry;
 import com.mtxgdn.util.LangManager;
+import com.mtxgdn.i18n.I18n;
 
 public class SpiritualRootCommand extends Command {
 
@@ -41,7 +42,7 @@ public class SpiritualRootCommand extends Command {
     private void showRoot(CommandContext ctx, PlayerInfo p) {
         SpiritualRoot root = p.getSpiritualRoot();
         if (root == null) {
-            ctx.reply("你尚未觉醒灵根，请先创建角色。");
+            ctx.reply(I18n.t("player.hcf171b6a"));
             return;
         }
 
@@ -75,19 +76,19 @@ public class SpiritualRootCommand extends Command {
     private void doRecast(CommandContext ctx, PlayerInfo p, String[] parts) {
         int realm = p.getRealm();
         if (realm < 3) {
-            ctx.reply("灵根重铸需要达到【金丹期】及以上境界，你当前境界不足以重铸灵根。");
+            ctx.reply(I18n.t("player.h1a5cbaf8"));
             return;
         }
 
         var itemService = ServiceRegistry.getItemService();
         if (!itemService.hasItem(p.getId(), QIANKUN_DAN_KEY, 1)) {
-            ctx.reply("灵根重铸需要消耗道具【乾坤造化丹】x1，你的背包中没有该物品。");
+            ctx.reply(I18n.t("player.haeeb08e0"));
             return;
         }
 
         long spiritStones = itemService.getSpiritStoneCount(p.getId());
         if (spiritStones < RECAST_SPIRIT_STONE_COST) {
-            ctx.reply("灵根重铸需要消耗 " + RECAST_SPIRIT_STONE_COST + " 灵石（等值下品灵石），你当前仅有 " + spiritStones + "。");
+            ctx.reply(I18n.t("player.he2a723ac", RECAST_SPIRIT_STONE_COST, spiritStones));
             return;
         }
 

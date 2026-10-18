@@ -79,7 +79,7 @@ public class AuctionCommand extends Command {
     }
 
     private void createAuction(CommandContext ctx, PlayerInfo p, String[] parts) {
-        if (parts.length < 4) { ctx.reply("用法: /拍卖 出售 <物品名> <数量> <起价> [小时默认24]"); return; }
+        if (parts.length < 4) { ctx.reply(I18n.t("economy.h4bf6cef4")); return; }
 
         String itemName = parts[1];
         int qty;
@@ -87,7 +87,7 @@ public class AuctionCommand extends Command {
         try {
             qty = Integer.parseInt(parts[2]);
             startPrice = Long.parseLong(parts[3]);
-        } catch (NumberFormatException e) { ctx.reply("数量和价格无效"); return; }
+        } catch (NumberFormatException e) { ctx.reply(I18n.t("economy.h1d142008")); return; }
 
         int hours = 24;
         if (parts.length > 4) {
@@ -100,14 +100,14 @@ public class AuctionCommand extends Command {
     }
 
     private void placeBid(CommandContext ctx, PlayerInfo p, String[] parts) {
-        if (parts.length < 3) { ctx.reply("用法: /拍卖 出价 <编号> <价格>"); return; }
+        if (parts.length < 3) { ctx.reply(I18n.t("economy.h4baccbe0")); return; }
 
         long listingId;
         long amount;
         try {
             listingId = Long.parseLong(parts[1]);
             amount = Long.parseLong(parts[2]);
-        } catch (NumberFormatException e) { ctx.reply("编号和价格无效"); return; }
+        } catch (NumberFormatException e) { ctx.reply(I18n.t("economy.he12b3244")); return; }
 
         var eco = ServiceRegistry.getEconomyService();
         var result = eco.placeBid(p.getId(), listingId, amount);

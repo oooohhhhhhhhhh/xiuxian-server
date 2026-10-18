@@ -37,7 +37,7 @@ public class PurifyCommand extends Command {
         Long userId = ctx.requireBinding();
         if (userId == null) return;
         PlayerInfo p = ctx.requirePlayer(userId);
-        if (p == null) { ctx.reply("请先创建角色"); return; }
+        if (p == null) { ctx.reply(I18n.t("economy.hde5e9ffe")); return; }
 
         String args = ctx.getArg();
         if (args == null || args.trim().isEmpty()) {

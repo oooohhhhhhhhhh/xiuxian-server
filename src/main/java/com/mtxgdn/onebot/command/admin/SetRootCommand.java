@@ -8,6 +8,7 @@ import com.mtxgdn.game.service.PlayerService;
 import com.mtxgdn.permission.PermissionService;
 import com.mtxgdn.onebot.QqBinding;
 import com.mtxgdn.onebot.QqBindingService;
+import com.mtxgdn.i18n.I18n;
 
 public class SetRootCommand extends Command {
     public SetRootCommand() {
@@ -21,11 +22,11 @@ public class SetRootCommand extends Command {
     public void execute(CommandContext ctx) {
         QqBinding b = ctx.resolveBoundBinding();
         if (b == null) {
-            ctx.reply("请先绑定账号。");
+            ctx.reply(I18n.t("admin.hd852a51e"));
             return;
         }
         if (!PermissionService.hasPermission(b.getUserId(), "admin.users.manage")) {
-            ctx.reply("权限不足，你无权使用此功能。");
+            ctx.reply(I18n.t("admin.ha43d576a"));
             return;
         }
 
@@ -54,14 +55,14 @@ public class SetRootCommand extends Command {
         try {
             playerId = Long.parseLong(parts[0]);
         } catch (NumberFormatException e) {
-            ctx.reply("玩家ID必须为数字。");
+            ctx.reply(I18n.t("admin.haed2b682"));
             return;
         }
 
         PlayerService playerService = ServiceRegistry.getPlayerService();
         var p = playerService.getPlayerById(playerId);
         if (p == null) {
-            ctx.reply("未找到玩家 ID:" + playerId);
+            ctx.reply(I18n.t("admin.h4b69b8e4", playerId));
             return;
         }
 
@@ -70,7 +71,7 @@ public class SetRootCommand extends Command {
             String rootName = parts[1].trim().toUpperCase();
             newRoot = SpiritualRoot.valueOf(rootName);
         } catch (IllegalArgumentException e) {
-            ctx.reply("无效的灵根名称: " + parts[1] + "\n" + buildRootList());
+            ctx.reply(I18n.t("admin.h36085158", parts[1], buildRootList()));
             return;
         }
 

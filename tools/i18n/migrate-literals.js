@@ -125,9 +125,11 @@ function findSites(src) {
   // 但变量名本身（result / out / err）是以 . 结尾的情况不存在——它们直接 .put，
   // 所以这里只排除".put"的误匹配，放开"result.put"这种合法形态。
   const CALL_STARTS = [
-    /(?:^|[^.\w])reply\(\s*"/g,
-    /(?:^|[^.\w])replyPrivate\(\s*"/g,
-    /(?:^|[^.\w])createResult\(\s*(?:true|false)\s*,\s*"/g,
+    // reply / replyPrivate / createResult 一律放行 '.' 前缀——
+    // 指令类代码里最常见的形态就是 ctx.reply("…")。
+    /(?:^|\.|[^.\w])reply\(\s*"/g,
+    /(?:^|\.|[^.\w])replyPrivate\(\s*"/g,
+    /(?:^|\.|[^.\w])createResult\(\s*(?:true|false)\s*,\s*"/g,
     // addProperty 几乎总是 obj.addProperty(...)，所以这里必须放行 '.' 前缀。
     // （早先沿用 put 那套 [^.\w] 守卫，结果一处都匹配不上：'.' 被排除了。）
     // 不存在以 addProperty 结尾的更长的方法名，所以没有 put 那种误匹配风险。

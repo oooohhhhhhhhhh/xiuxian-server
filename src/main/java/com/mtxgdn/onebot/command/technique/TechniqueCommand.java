@@ -72,9 +72,9 @@ public class TechniqueCommand extends Command {
     }
 
     private void learnTechnique(CommandContext ctx, PlayerInfo p, String[] parts) {
-        if (parts.length < 2) { ctx.reply("用法: /功法 学习 <功法ID>\n先用 /功法 列表 查看功法ID"); return; }
+        if (parts.length < 2) { ctx.reply(I18n.t("technique.h32f7d28c")); return; }
         long techniqueId;
-        try { techniqueId = Long.parseLong(parts[1]); } catch (NumberFormatException e) { ctx.reply("功法ID无效"); return; }
+        try { techniqueId = Long.parseLong(parts[1]); } catch (NumberFormatException e) { ctx.reply(I18n.t("technique.h886e6000")); return; }
 
         var service = ServiceRegistry.getTechniqueService();
         Map<String, Object> result = service.learnTechnique(p.getId(), techniqueId);
@@ -82,9 +82,9 @@ public class TechniqueCommand extends Command {
     }
 
     private void equipTechnique(CommandContext ctx, PlayerInfo p, String[] parts) {
-        if (parts.length < 2) { ctx.reply("用法: /功法 装备 <功法ID>"); return; }
+        if (parts.length < 2) { ctx.reply(I18n.t("technique.h9af56d32")); return; }
         long techniqueId;
-        try { techniqueId = Long.parseLong(parts[1]); } catch (NumberFormatException e) { ctx.reply("功法ID无效"); return; }
+        try { techniqueId = Long.parseLong(parts[1]); } catch (NumberFormatException e) { ctx.reply(I18n.t("technique.h886e6000")); return; }
 
         var service = ServiceRegistry.getTechniqueService();
         Map<String, Object> result = service.equipTechnique(p.getId(), techniqueId);
@@ -92,9 +92,9 @@ public class TechniqueCommand extends Command {
     }
 
     private void unequipTechnique(CommandContext ctx, PlayerInfo p, String[] parts) {
-        if (parts.length < 2) { ctx.reply("用法: /功法 卸下 <功法ID>"); return; }
+        if (parts.length < 2) { ctx.reply(I18n.t("technique.hbd19bbc8")); return; }
         long techniqueId;
-        try { techniqueId = Long.parseLong(parts[1]); } catch (NumberFormatException e) { ctx.reply("功法ID无效"); return; }
+        try { techniqueId = Long.parseLong(parts[1]); } catch (NumberFormatException e) { ctx.reply(I18n.t("technique.h886e6000")); return; }
 
         var service = ServiceRegistry.getTechniqueService();
         Map<String, Object> result = service.unequipTechnique(p.getId(), techniqueId);
@@ -102,9 +102,9 @@ public class TechniqueCommand extends Command {
     }
 
     private void upgradeTechnique(CommandContext ctx, PlayerInfo p, String[] parts) {
-        if (parts.length < 2) { ctx.reply("用法: /功法 升级 <功法ID>"); return; }
+        if (parts.length < 2) { ctx.reply(I18n.t("technique.h5731328a")); return; }
         long techniqueId;
-        try { techniqueId = Long.parseLong(parts[1]); } catch (NumberFormatException e) { ctx.reply("功法ID无效"); return; }
+        try { techniqueId = Long.parseLong(parts[1]); } catch (NumberFormatException e) { ctx.reply(I18n.t("technique.h886e6000")); return; }
 
         var service = ServiceRegistry.getTechniqueService();
         Map<String, Object> result = service.upgradeTechnique(p.getId(), techniqueId);

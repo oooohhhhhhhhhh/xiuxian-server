@@ -7,6 +7,7 @@ import com.mtxgdn.common.command.RouteDefinition;
 import com.mtxgdn.common.service.ServiceRegistry;
 import com.mtxgdn.game.entity.PlayerInfo;
 import com.mtxgdn.game.service.MapService;
+import com.mtxgdn.i18n.I18n;
 
 /**
  * {@code /采集} —— 在当前野外地点采集资源。
@@ -32,7 +33,7 @@ public class GatherCommand extends Command {
         Long userId = ctx.requireBinding();
         if (userId == null) return;
         PlayerInfo p = ctx.requirePlayer(userId);
-        if (p == null) { ctx.reply("请先创建角色"); return; }
+        if (p == null) { ctx.reply(I18n.t("map.hde5e9ffe")); return; }
 
         var result = mapService.gather(p.getId());
         ctx.reply((String) result.get("message"));

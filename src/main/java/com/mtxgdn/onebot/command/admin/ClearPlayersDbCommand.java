@@ -4,6 +4,7 @@ import com.mtxgdn.common.command.Command;
 import com.mtxgdn.common.command.CommandContext;
 import com.mtxgdn.db.DatabaseManager;
 import java.util.Map;
+import com.mtxgdn.i18n.I18n;
 
 public class ClearPlayersDbCommand extends Command {
     public ClearPlayersDbCommand() {
@@ -22,6 +23,6 @@ public class ClearPlayersDbCommand extends Command {
             }
             sb.append("\n玩家数据已全部清除。");
             ctx.reply(sb.toString());
-        } catch (Exception e) { ctx.reply("清除失败: " + e.getMessage()); }
+        } catch (Exception e) { ctx.reply(I18n.t("admin.hccbaacd4", e.getMessage())); }
     }
 }

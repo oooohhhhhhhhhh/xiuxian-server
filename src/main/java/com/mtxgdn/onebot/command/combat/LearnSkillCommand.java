@@ -6,6 +6,7 @@ import com.mtxgdn.game.entity.PlayerInfo;
 import com.mtxgdn.game.entity.Skill;
 import com.mtxgdn.common.service.ServiceRegistry;
 import java.util.Map;
+import com.mtxgdn.i18n.I18n;
 
 public class LearnSkillCommand extends Command {
     public LearnSkillCommand() {
@@ -20,7 +21,7 @@ public class LearnSkillCommand extends Command {
         if (p == null) return;
         if (!ctx.checkPermission("game.skill.learn")) return;
         String arg = ctx.getArg();
-        if (arg == null || arg.trim().isEmpty()) { ctx.reply("用法: /学习 <技能名称或ID>\n先用 /技能 查看可用技能列表。"); return; }
+        if (arg == null || arg.trim().isEmpty()) { ctx.reply(I18n.t("combat.h04cb7f2a")); return; }
         long skillId;
         var skillService = ServiceRegistry.getSkillService();
         try {
@@ -29,7 +30,7 @@ public class LearnSkillCommand extends Command {
         catch (NumberFormatException e) {
             Skill found = skillService.findSkillByName(arg.trim());
             if (found == null) {
-                ctx.reply("找不到技能: " + arg.trim() + "\n请使用 /技能 查看可用技能列表。");
+                ctx.reply(I18n.t("combat.h009389d2", arg.trim()));
                 return;
             }
             skillId = found.getId();
@@ -39,7 +40,7 @@ public class LearnSkillCommand extends Command {
         if (success) {
             Skill skill = (Skill) learnResult.get("skill");
             String skillName = skill != null ? skill.getName() : "技能ID:" + skillId;
-            ctx.reply("学习成功！\n学会了【" + skillName + "】！");
+            ctx.reply(I18n.t("combat.h81af9623", skillName));
         } else {
             ctx.reply("学习失败: " + (String) learnResult.getOrDefault("message", ""));
         }

@@ -11,6 +11,7 @@ import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.SQLException;
 import java.util.List;
+import com.mtxgdn.i18n.I18n;
 
 public class SkillsCommand extends Command {
     public SkillsCommand() {
@@ -26,7 +27,7 @@ public class SkillsCommand extends Command {
         var skillService = ServiceRegistry.getSkillService();
         var guideService = ServiceRegistry.getGuideService();
         List<Skill> allSkills = skillService.getAllSkills();
-        if (allSkills.isEmpty()) { ctx.reply("暂无可用技能。"); return; }
+        if (allSkills.isEmpty()) { ctx.reply(I18n.t("combat.hc0c642ae")); return; }
         StringBuilder sb = new StringBuilder();
         sb.append("===== 技能列表 =====\n");
         for (Skill s : allSkills) {
@@ -42,7 +43,7 @@ public class SkillsCommand extends Command {
 
     private void upgradeSkill(CommandContext ctx, PlayerInfo p, String[] parts) {
         if (parts.length < 2) {
-            ctx.reply("用法: /技能 升级 <技能ID>");
+            ctx.reply(I18n.t("combat.h5ff9c1a2"));
             return;
         }
 
@@ -50,21 +51,21 @@ public class SkillsCommand extends Command {
         try {
             skillId = Long.parseLong(parts[1]);
         } catch (NumberFormatException e) {
-            ctx.reply("技能ID无效，请输入数字");
+            ctx.reply(I18n.t("combat.hc411208c"));
             return;
         }
 
         var skillService = ServiceRegistry.getSkillService();
         Skill skill = skillService.getPlayerSkill(p.getId(), skillId);
         if (skill == null) {
-            ctx.reply("你尚未学习该技能，无法升级");
+            ctx.reply(I18n.t("combat.h940932f1"));
             return;
         }
 
         int currentLevel = skill.getLevel();
         int maxLevel = skill.getMaxLevel();
         if (currentLevel >= maxLevel) {
-            ctx.reply("技能【" + skill.getName() + "】已达满级 " + maxLevel + "，无法继续升级");
+            ctx.reply(I18n.t("combat.h9805e04c", skill.getName(), maxLevel));
             return;
         }
 
@@ -72,9 +73,7 @@ public class SkillsCommand extends Command {
         int currentProficiency = skill.getProficiency();
         if (currentProficiency < proficiencyNeeded) {
             int remaining = proficiencyNeeded - currentProficiency;
-            ctx.reply("熟练度不足！技能【" + skill.getName() + "】当前等级 " + currentLevel +
-                    "，升级需要 " + proficiencyNeeded + " 熟练度，当前拥有 " + currentProficiency +
-                    "，还需 " + remaining + " 熟练度");
+            ctx.reply(I18n.t("combat.he295e0a4", skill.getName(), currentLevel, proficiencyNeeded, currentProficiency, remaining));
             return;
         }
 
@@ -90,11 +89,10 @@ public class SkillsCommand extends Command {
             ps.setLong(4, skillId);
             ps.executeUpdate();
         } catch (SQLException e) {
-            ctx.reply("升级失败: " + e.getMessage());
+            ctx.reply(I18n.t("combat.h585194df", e.getMessage()));
             return;
         }
 
-        ctx.reply("升级成功！技能【" + skill.getName() + "】从 " + currentLevel + " 级升至 " + newLevel +
-                " 级！消耗 " + proficiencyNeeded + " 熟练度，剩余 " + newProficiency + " 熟练度");
+        ctx.reply(I18n.t("combat.ha04c1ada", skill.getName(), currentLevel, newLevel, proficiencyNeeded, newProficiency));
     }
 }

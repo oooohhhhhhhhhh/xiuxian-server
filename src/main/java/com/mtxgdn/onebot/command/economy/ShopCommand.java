@@ -47,7 +47,7 @@ public class ShopCommand extends Command {
             }
             ctx.reply(sb.toString());
         } catch (NumberFormatException e) {
-            ctx.reply("请输入商品编号，如：/商店 1（/商店 查看全部商品）");
+            ctx.reply(I18n.t("economy.h2ce09654"));
         }
     }
 

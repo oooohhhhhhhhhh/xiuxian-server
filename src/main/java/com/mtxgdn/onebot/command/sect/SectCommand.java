@@ -17,6 +17,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 
 import java.util.List;
+import com.mtxgdn.i18n.I18n;
 
 public class SectCommand extends Command {
     private static final SectService sectService = new SectService();
@@ -79,16 +80,16 @@ public class SectCommand extends Command {
     private void handleCreate(CommandContext ctx, PlayerInfo p, String[] parts) {
         String name = parts.length > 1 ? parts[1].trim() : "";
         String desc = parts.length > 2 ? parts[2].trim() : "";
-        if (name.isEmpty()) { ctx.reply("用法: /宗门 create <宗门名> [描述]"); return; }
+        if (name.isEmpty()) { ctx.reply(I18n.t("sect.hcd7ddb74")); return; }
         var result = sectService.createSect(p.getId(), name, desc);
         ctx.reply((String) result.get("message"));
     }
 
     private void handleJoin(CommandContext ctx, PlayerInfo p, String[] parts) {
         String name = parts.length > 1 ? parts[1].trim() : "";
-        if (name.isEmpty()) { ctx.reply("用法: /宗门 join <宗门名>"); return; }
+        if (name.isEmpty()) { ctx.reply(I18n.t("sect.h3fa32bc8")); return; }
         Sect sect = sectService.getSectByName(name);
-        if (sect == null) { ctx.reply("找不到宗门【" + name + "】"); return; }
+        if (sect == null) { ctx.reply(I18n.t("sect.h15ebd920", name)); return; }
         String msg = parts.length > 2 ? parts[2] : "";
         var result = sectService.applyToSect(p.getId(), sect.getId(), msg);
         ctx.reply((String) result.get("message"));
@@ -96,7 +97,7 @@ public class SectCommand extends Command {
 
     private void handleList(CommandContext ctx, PlayerInfo p, String[] parts) {
         List<Sect> sects = sectService.getAllSects();
-        if (sects.isEmpty()) { ctx.reply("天下尚无宗门。\n使用 /宗门 create <名称> 开创一个宗门！"); return; }
+        if (sects.isEmpty()) { ctx.reply(I18n.t("sect.h25643d07")); return; }
         StringBuilder sb = new StringBuilder("===== 宗门列表（共 ").append(sects.size()).append(" 个）=====\n");
         int rank = 1;
         for (Sect s : sects) {
@@ -114,7 +115,7 @@ public class SectCommand extends Command {
         } else {
             sect = sectService.getPlayerSect(p.getId());
         }
-        if (sect == null) { ctx.reply("宗门不存在或你尚未加入宗门。\n使用 /宗门 list 查看所有宗门"); return; }
+        if (sect == null) { ctx.reply(I18n.t("sect.hfb3213ac")); return; }
 
         SectMember me = sectService.getMember(sect.getId(), p.getId());
         StringBuilder sb = new StringBuilder();
@@ -140,7 +141,7 @@ public class SectCommand extends Command {
 
     private void handleMembers(CommandContext ctx, PlayerInfo p, String[] parts) {
         Sect sect = sectService.getPlayerSect(p.getId());
-        if (sect == null) { ctx.reply("你还没有加入宗门"); return; }
+        if (sect == null) { ctx.reply(I18n.t("sect.hd3fd3ad4")); return; }
 
         List<SectMember> members = sectService.getSectMembers(sect.getId());
         StringBuilder sb = new StringBuilder();
@@ -160,20 +161,20 @@ public class SectCommand extends Command {
 
     private void handleApply(CommandContext ctx, PlayerInfo p, String[] parts) {
         String name = parts.length > 1 ? parts[1].trim() : "";
-        if (name.isEmpty()) { ctx.reply("用法: /宗门 apply <宗门名>"); return; }
+        if (name.isEmpty()) { ctx.reply(I18n.t("sect.haf25efcc")); return; }
         Sect sect = sectService.getSectByName(name);
-        if (sect == null) { ctx.reply("找不到宗门【" + name + "】"); return; }
+        if (sect == null) { ctx.reply(I18n.t("sect.h15ebd920", name)); return; }
         var result = sectService.applyToSect(p.getId(), sect.getId(), "");
         ctx.reply((String) result.get("message"));
     }
 
     private void handlePendingList(CommandContext ctx, PlayerInfo p, String[] parts) {
         SectMember member = sectService.getPlayerMember(p.getId());
-        if (member == null) { ctx.reply("你还没有加入宗门"); return; }
-        if (!member.canManage()) { ctx.reply("只有宗主、副宗主和长老才能查看申请列表"); return; }
+        if (member == null) { ctx.reply(I18n.t("sect.hd3fd3ad4")); return; }
+        if (!member.canManage()) { ctx.reply(I18n.t("sect.h000a7f98")); return; }
 
         List<SectApplication> apps = sectService.getPendingApplications(member.getSectId());
-        if (apps.isEmpty()) { ctx.reply("目前没有待处理的入宗申请"); return; }
+        if (apps.isEmpty()) { ctx.reply(I18n.t("sect.h46187c66")); return; }
         StringBuilder sb = new StringBuilder("===== 待处理的入宗申请 =====\n");
         for (int i = 0; i < apps.size(); i++) {
             SectApplication a = apps.get(i);
@@ -186,32 +187,32 @@ public class SectCommand extends Command {
 
     private void handleApprove(CommandContext ctx, PlayerInfo p, String[] parts) {
         String targetName = parts.length > 1 ? parts[1].trim() : "";
-        if (targetName.isEmpty()) { ctx.reply("用法: /宗门 approve <玩家名>"); return; }
+        if (targetName.isEmpty()) { ctx.reply(I18n.t("sect.h25a87ba0")); return; }
         SectMember me = sectService.getPlayerMember(p.getId());
-        if (me == null) { ctx.reply("你还没有加入宗门"); return; }
+        if (me == null) { ctx.reply(I18n.t("sect.hd3fd3ad4")); return; }
 
         List<SectApplication> apps = sectService.getPendingApplications(me.getSectId());
         SectApplication target = null;
         for (SectApplication a : apps) {
             if (a.getPlayerName().equals(targetName)) { target = a; break; }
         }
-        if (target == null) { ctx.reply("找不到玩家【" + targetName + "】的申请，请确认名字无误"); return; }
+        if (target == null) { ctx.reply(I18n.t("sect.h79a8291c", targetName)); return; }
         var result = sectService.approveApplication(p.getId(), target.getId(), true);
         ctx.reply((String) result.get("message"));
     }
 
     private void handleReject(CommandContext ctx, PlayerInfo p, String[] parts) {
         String targetName = parts.length > 1 ? parts[1].trim() : "";
-        if (targetName.isEmpty()) { ctx.reply("用法: /宗门 reject <玩家名>"); return; }
+        if (targetName.isEmpty()) { ctx.reply(I18n.t("sect.h06c1312a")); return; }
         SectMember me = sectService.getPlayerMember(p.getId());
-        if (me == null) { ctx.reply("你还没有加入宗门"); return; }
+        if (me == null) { ctx.reply(I18n.t("sect.hd3fd3ad4")); return; }
 
         List<SectApplication> apps = sectService.getPendingApplications(me.getSectId());
         SectApplication target = null;
         for (SectApplication a : apps) {
             if (a.getPlayerName().equals(targetName)) { target = a; break; }
         }
-        if (target == null) { ctx.reply("找不到玩家【" + targetName + "】的申请"); return; }
+        if (target == null) { ctx.reply(I18n.t("sect.h7330823f", targetName)); return; }
         var result = sectService.approveApplication(p.getId(), target.getId(), false);
         ctx.reply((String) result.get("message"));
     }
@@ -223,36 +224,36 @@ public class SectCommand extends Command {
 
     private void handleKick(CommandContext ctx, PlayerInfo p, String[] parts) {
         String targetName = parts.length > 1 ? parts[1].trim() : "";
-        if (targetName.isEmpty()) { ctx.reply("用法: /宗门 kick <玩家名>"); return; }
+        if (targetName.isEmpty()) { ctx.reply(I18n.t("sect.h712473e0")); return; }
 
         SectMember me = sectService.getPlayerMember(p.getId());
-        if (me == null) { ctx.reply("你还没有加入宗门"); return; }
+        if (me == null) { ctx.reply(I18n.t("sect.hd3fd3ad4")); return; }
 
         List<SectMember> members = sectService.getSectMembers(me.getSectId());
         SectMember target = null;
         for (SectMember m : members) {
             if (m.getPlayerName().equals(targetName)) { target = m; break; }
         }
-        if (target == null) { ctx.reply("找不到玩家【" + targetName + "】"); return; }
+        if (target == null) { ctx.reply(I18n.t("sect.hea987933", targetName)); return; }
 
         var result = sectService.kickMember(p.getId(), target.getPlayerId());
         ctx.reply((String) result.get("message"));
     }
 
     private void handleAppoint(CommandContext ctx, PlayerInfo p, String[] parts) {
-        if (parts.length < 3) { ctx.reply("用法: /宗门 appoint <玩家名> <副宗主|长老|内门弟子|外门弟子>"); return; }
+        if (parts.length < 3) { ctx.reply(I18n.t("sect.h630f6478")); return; }
         String targetName = parts[1].trim();
         String role = parts[2].trim();
 
         SectMember me = sectService.getPlayerMember(p.getId());
-        if (me == null) { ctx.reply("你还没有加入宗门"); return; }
+        if (me == null) { ctx.reply(I18n.t("sect.hd3fd3ad4")); return; }
 
         List<SectMember> members = sectService.getSectMembers(me.getSectId());
         SectMember target = null;
         for (SectMember m : members) {
             if (m.getPlayerName().equals(targetName)) { target = m; break; }
         }
-        if (target == null) { ctx.reply("找不到玩家【" + targetName + "】"); return; }
+        if (target == null) { ctx.reply(I18n.t("sect.hea987933", targetName)); return; }
 
         var result = sectService.appointMember(p.getId(), target.getPlayerId(), role);
         ctx.reply((String) result.get("message"));
@@ -260,13 +261,13 @@ public class SectCommand extends Command {
 
     private void handleDonate(CommandContext ctx, PlayerInfo p, String[] parts) {
         SectMember me = sectService.getPlayerMember(p.getId());
-        if (me == null) { ctx.reply("你还没有加入宗门"); return; }
+        if (me == null) { ctx.reply(I18n.t("sect.hd3fd3ad4")); return; }
 
-        if (parts.length < 3) { ctx.reply("用法: /宗门 donate <物品key> <数量>"); return; }
+        if (parts.length < 3) { ctx.reply(I18n.t("sect.h7dcc0998")); return; }
         String itemKey = parts[1].trim();
         int quantity;
         try { quantity = Integer.parseInt(parts[2].trim()); } catch (NumberFormatException e) {
-            ctx.reply("数量必须是数字"); return;
+            ctx.reply(I18n.t("sect.hd8c78f9c")); return;
         }
 
         var result = sectService.donateToWarehouse(p.getId(), me.getSectId(), itemKey, quantity);
@@ -275,10 +276,10 @@ public class SectCommand extends Command {
 
     private void handleWarehouse(CommandContext ctx, PlayerInfo p, String[] parts) {
         SectMember me = sectService.getPlayerMember(p.getId());
-        if (me == null) { ctx.reply("你还没有加入宗门"); return; }
+        if (me == null) { ctx.reply(I18n.t("sect.hd3fd3ad4")); return; }
 
         List<SectWarehouseItem> items = sectService.getWarehouse(me.getSectId());
-        if (items.isEmpty()) { ctx.reply("宗门仓库空空如也。\n使用 /宗门 donate <物品key> <数量> 捐献物品"); return; }
+        if (items.isEmpty()) { ctx.reply(I18n.t("sect.hc958bfb8")); return; }
         StringBuilder sb = new StringBuilder("===== 宗门仓库 =====\n");
         if (!me.canManage()) {
             sb.append("提示：你取出物品需要消耗贡献值\n\n");
@@ -305,13 +306,13 @@ public class SectCommand extends Command {
 
     private void handleTake(CommandContext ctx, PlayerInfo p, String[] parts) {
         SectMember me = sectService.getPlayerMember(p.getId());
-        if (me == null) { ctx.reply("你还没有加入宗门"); return; }
+        if (me == null) { ctx.reply(I18n.t("sect.hd3fd3ad4")); return; }
 
-        if (parts.length < 3) { ctx.reply("用法: /宗门 take <物品key> <数量>"); return; }
+        if (parts.length < 3) { ctx.reply(I18n.t("sect.h2be532b2")); return; }
         String itemKey = parts[1].trim();
         int quantity;
         try { quantity = Integer.parseInt(parts[2].trim()); } catch (NumberFormatException e) {
-            ctx.reply("数量必须是数字"); return;
+            ctx.reply(I18n.t("sect.hd8c78f9c")); return;
         }
         var result = sectService.withdrawFromWarehouse(p.getId(), me.getSectId(), itemKey, quantity);
         ctx.reply((String) result.get("message"));
@@ -324,7 +325,7 @@ public class SectCommand extends Command {
 
     private void handleTop(CommandContext ctx, PlayerInfo p, String[] parts) {
         List<Sect> sects = sectService.getTopSects(10);
-        if (sects.isEmpty()) { ctx.reply("天下尚无宗门榜单。快去开创第一个宗门！"); return; }
+        if (sects.isEmpty()) { ctx.reply(I18n.t("sect.h61277cc0")); return; }
         StringBuilder sb = new StringBuilder("===== 宗门声望排行 =====\n");
         for (int i = 0; i < sects.size(); i++) {
             Sect s = sects.get(i);
@@ -342,17 +343,17 @@ public class SectCommand extends Command {
 
     private void handleTransfer(CommandContext ctx, PlayerInfo p, String[] parts) {
         String targetName = parts.length > 1 ? parts[1].trim() : "";
-        if (targetName.isEmpty()) { ctx.reply("用法: /宗门 transfer <玩家名>"); return; }
+        if (targetName.isEmpty()) { ctx.reply(I18n.t("sect.h55a1ebe4")); return; }
 
         SectMember me = sectService.getPlayerMember(p.getId());
-        if (me == null) { ctx.reply("你还没有加入宗门"); return; }
+        if (me == null) { ctx.reply(I18n.t("sect.hd3fd3ad4")); return; }
 
         List<SectMember> members = sectService.getSectMembers(me.getSectId());
         SectMember target = null;
         for (SectMember m : members) {
             if (m.getPlayerName().equals(targetName)) { target = m; break; }
         }
-        if (target == null) { ctx.reply("找不到玩家【" + targetName + "】"); return; }
+        if (target == null) { ctx.reply(I18n.t("sect.hea987933", targetName)); return; }
 
         var result = sectService.transferLeader(p.getId(), target.getPlayerId());
         ctx.reply((String) result.get("message"));
@@ -395,9 +396,9 @@ public class SectCommand extends Command {
 
     private void handleWar(CommandContext ctx, PlayerInfo p, String[] parts) {
         String targetName = parts.length > 1 ? parts[1].trim() : "";
-        if (targetName.isEmpty()) { ctx.reply("用法: /宗门 war <宗门名>"); return; }
+        if (targetName.isEmpty()) { ctx.reply(I18n.t("sect.h5a172b5a")); return; }
         Sect targetSect = sectService.getSectByName(targetName);
-        if (targetSect == null) { ctx.reply("找不到宗门【" + targetName + "】"); return; }
+        if (targetSect == null) { ctx.reply(I18n.t("sect.h15ebd920", targetName)); return; }
         var result = sectService.declareWar(p.getId(), targetSect.getId());
         if ((boolean) result.get("success")) {
             ctx.reply((String) result.get("message") + "\n\n" + result.get("battleLog"));

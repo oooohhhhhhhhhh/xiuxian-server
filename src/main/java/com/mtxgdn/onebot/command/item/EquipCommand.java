@@ -5,6 +5,7 @@ import com.mtxgdn.common.command.CommandContext;
 import com.mtxgdn.common.command.CommandUtils;
 import com.mtxgdn.game.entity.PlayerInfo;
 import com.mtxgdn.common.service.ServiceRegistry;
+import com.mtxgdn.i18n.I18n;
 
 public class EquipCommand extends Command {
     public EquipCommand() {
@@ -19,7 +20,7 @@ public class EquipCommand extends Command {
 
         String[] parts = splitArgs(ctx.getArg(), 2);
         if (!CommandUtils.hasEnoughArgs(parts, 2) || CommandUtils.isBlank(parts[0]) || CommandUtils.isBlank(parts[1])) {
-            ctx.reply("用法: /装备 <物品名称或key> <部位>\n部位: weapon(武器) | armor(防具) | accessory(饰品)\n物品名称或key 可在 /背包 或 /物品列表 中查看\n例如: /装备 铁剑 weapon");
+            ctx.reply(I18n.t("equip.h738097b6"));
             return;
         }
 

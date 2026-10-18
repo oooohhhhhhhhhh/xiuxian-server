@@ -41,7 +41,7 @@ public class RedeemCommand extends Command {
         try {
             doExecute(ctx);
         } catch (Exception e) {
-            ctx.reply("兑换系统暂时不可用，请稍后重试。");
+            ctx.reply(I18n.t("redeem.h4943b29e"));
             System.err.println("[RedeemCommand] 执行异常: " + e.getMessage());
             e.printStackTrace();
         }
@@ -50,32 +50,32 @@ public class RedeemCommand extends Command {
     private void doExecute(CommandContext ctx) {
         QqBinding b = ctx.resolveBoundBinding();
         if (b == null) {
-            ctx.reply("请先绑定账号。");
+            ctx.reply(I18n.t("redeem.hd852a51e"));
             return;
         }
         if (!PermissionService.hasPermission(b.getUserId(), "game.redeem.code")) {
-            ctx.reply("权限不足，你无权使用此功能。");
+            ctx.reply(I18n.t("redeem.ha43d576a"));
             return;
         }
 
         var p = playerService.getPlayerByUserId(b.getUserId());
         if (p == null) {
-            ctx.reply("请先创建角色。");
+            ctx.reply(I18n.t("redeem.h0b0f09b4"));
             return;
         }
 
         String arg = ctx.getArg();
         if (arg == null || arg.isBlank()) {
-            ctx.reply("用法: /兑换 <兑换码>\n请输入要使用的兑换码。");
+            ctx.reply(I18n.t("redeem.h5468348e"));
             return;
         }
 
         String result = redeemCodeService.doRedeem(arg.trim(), p.getId());
         if (result == null) {
-            ctx.reply("兑换成功！");
+            ctx.reply(I18n.t("redeem.h2128a290"));
         } else if (result.startsWith("SUCCESS:")) {
             String rewards = result.substring("SUCCESS:".length());
-            ctx.reply("兑换成功！获得: " + rewards);
+            ctx.reply(I18n.t("redeem.h660db410", rewards));
         } else {
             ctx.reply(result);
         }

@@ -28,25 +28,21 @@ public class CultivateBoostCommand extends Command {
         String arg = ctx.getArg().trim();
         if (arg.isEmpty()) {
             long stones = ServiceRegistry.getItemService().getSpiritStoneCount(p.getId());
-            ctx.reply("⚡ 灵石修炼加速\n"
-                    + "每 100 灵石 = 1 小时 ×1.5 倍修炼效率\n"
-                    + "当前灵石: " + stones + "\n"
-                    + "用法: /修炼加速 <灵石数量>\n"
-                    + "注意: 必须先 /修炼 后才能使用");
+            ctx.reply(I18n.t("economy.hc6b261e0", stones));
             return;
         }
 
         try {
             int stonesToBurn = Integer.parseInt(arg);
             if (stonesToBurn <= 0) {
-                ctx.reply("灵石数量必须大于 0");
+                ctx.reply(I18n.t("economy.h8cde9058"));
                 return;
             }
             var eco = ServiceRegistry.getEconomyService();
             var result = eco.boostCultivation(p.getId(), stonesToBurn);
             ctx.reply((String) result.get("message"));
         } catch (NumberFormatException e) {
-            ctx.reply("请输入有效的灵石数量");
+            ctx.reply(I18n.t("economy.h85187339"));
         }
     }
 

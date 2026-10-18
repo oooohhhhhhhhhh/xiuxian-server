@@ -39,7 +39,7 @@ public class ExchangeCommand extends Command {
     @Override
     protected void onDefault(CommandContext ctx, PlayerInfo p) {
         if (!BuiltInPluginRegistry.isModuleEnabled(ENERGY_EXCHANGE_PLUGIN)) {
-            ctx.reply("能量转化系统暂未开放。");
+            ctx.reply(I18n.t("economy.h6ac429d0"));
             return;
         }
         // 默认行为：物品转化为能量
@@ -60,12 +60,12 @@ public class ExchangeCommand extends Command {
             try {
                 quantity = Integer.parseInt(parts[1]);
             } catch (NumberFormatException e) {
-                ctx.reply("数量必须为整数。");
+                ctx.reply(I18n.t("economy.h076e926e"));
                 return;
             }
         }
         if (quantity <= 0) {
-            ctx.reply("数量必须大于0。");
+            ctx.reply(I18n.t("economy.h5afa12b2"));
             return;
         }
 
@@ -78,20 +78,20 @@ public class ExchangeCommand extends Command {
 
         Item item = ItemRegistry.resolve(itemInput);
         if (item == null) {
-            ctx.reply("物品不存在: " + itemInput + "\n使用 /转化 列表 查看可转化的物品");
+            ctx.reply(I18n.t("economy.h2fd99a58", itemInput));
             return;
         }
 
         String fullKey = item.getFullKey();
         if (!itemService.hasItem(p.getId(), fullKey, quantity)) {
             long have = itemService.getItemCount(p.getId(), fullKey);
-            ctx.reply("背包中【" + item.getName() + "】数量不足，需要 " + quantity + " 个，当前拥有 " + have + " 个。");
+            ctx.reply(I18n.t("economy.h9bf61f18", item.getName(), quantity, have));
             return;
         }
 
         long energyPerItem = EnergyService.resolveConvertGain(fullKey);
         if (energyPerItem <= 0) {
-            ctx.reply("【" + item.getName() + "】没有转化价值，无法转化为能量。");
+            ctx.reply(I18n.t("economy.h5837e388", item.getName()));
             return;
         }
 
@@ -109,11 +109,11 @@ public class ExchangeCommand extends Command {
 
     private void doConvertEnergyToItem(CommandContext ctx, PlayerInfo p, String[] parts) {
         if (!BuiltInPluginRegistry.isModuleEnabled(ENERGY_EXCHANGE_PLUGIN)) {
-            ctx.reply("能量转化系统暂未开放。");
+            ctx.reply(I18n.t("economy.h6ac429d0"));
             return;
         }
         if (parts.length < 2) {
-            ctx.reply("用法: /转化 兑换 <物品> [数量]\n示例: /转化 兑换 mtxgdn:spirit_stone 10");
+            ctx.reply(I18n.t("economy.hf8f3e890"));
             return;
         }
 
@@ -123,12 +123,12 @@ public class ExchangeCommand extends Command {
             try {
                 quantity = Integer.parseInt(parts[2]);
             } catch (NumberFormatException e) {
-                ctx.reply("数量必须为整数。");
+                ctx.reply(I18n.t("economy.h076e926e"));
                 return;
             }
         }
         if (quantity <= 0) {
-            ctx.reply("数量必须大于0。");
+            ctx.reply(I18n.t("economy.h5afa12b2"));
             return;
         }
 
@@ -137,13 +137,13 @@ public class ExchangeCommand extends Command {
 
         Item item = ItemRegistry.resolve(itemInput);
         if (item == null) {
-            ctx.reply("物品不存在: " + itemInput + "\n使用 /转化 列表 查看可兑换的物品");
+            ctx.reply(I18n.t("economy.h75ee4eb8", itemInput));
             return;
         }
 
         long energyPerItem = EnergyService.resolveEnergyValue(item.getFullKey());
         if (energyPerItem <= 0) {
-            ctx.reply("【" + item.getName() + "】没有转化价值，无法用能量兑换。");
+            ctx.reply(I18n.t("economy.h8bf2c41e", item.getName()));
             return;
         }
 
@@ -151,12 +151,12 @@ public class ExchangeCommand extends Command {
         long currentEnergy = energyService.getEnergy(p.getId());
 
         if (currentEnergy < totalCost) {
-            ctx.reply("能量不足！需要 " + totalCost + " 能量，当前只有 " + currentEnergy + " 能量。");
+            ctx.reply(I18n.t("economy.hdb421330", totalCost, currentEnergy));
             return;
         }
 
         if (!energyService.removeEnergy(p.getId(), totalCost)) {
-            ctx.reply("能量扣除失败，请稍后重试。");
+            ctx.reply(I18n.t("economy.h64014920"));
             return;
         }
 
@@ -171,12 +171,12 @@ public class ExchangeCommand extends Command {
 
     private void doList(CommandContext ctx, PlayerInfo p, String[] parts) {
         if (!BuiltInPluginRegistry.isModuleEnabled(ENERGY_EXCHANGE_PLUGIN)) {
-            ctx.reply("能量转化系统暂未开放。");
+            ctx.reply(I18n.t("economy.h6ac429d0"));
             return;
         }
         var items = ItemRegistry.getAll();
         if (items.isEmpty()) {
-            ctx.reply("当前没有可转化的物品。");
+            ctx.reply(I18n.t("economy.he88d4f66"));
             return;
         }
 
@@ -197,7 +197,7 @@ public class ExchangeCommand extends Command {
         hasItems = !sb.toString().equals("可转化的物品列表（按价值排序）:\n");
 
         if (!hasItems) {
-            ctx.reply("当前没有可转化的物品。");
+            ctx.reply(I18n.t("economy.he88d4f66"));
             return;
         }
 
@@ -208,20 +208,13 @@ public class ExchangeCommand extends Command {
 
     private void doHelp(CommandContext ctx, PlayerInfo p, String[] parts) {
         if (!BuiltInPluginRegistry.isModuleEnabled(ENERGY_EXCHANGE_PLUGIN)) {
-            ctx.reply("能量转化系统暂未开放。");
+            ctx.reply(I18n.t("economy.h6ac429d0"));
             return;
         }
         EnergyService energyService = ServiceRegistry.getEnergyService();
         long energy = energyService.getEnergy(p.getId());
 
-        ctx.reply("=== 能量转化系统 ===\n" +
-                "当前能量: " + energy + "\n\n" +
-                "用法:\n" +
-                "/转化 <物品> [数量] - 将物品转化为能量\n" +
-                "/转化 兑换 <物品> [数量] - 用能量兑换物品\n" +
-                "/转化 列表 - 查看所有可转化物品\n\n" +
-                "物品转化为能量 = 原价 × 80%（20% 转化损耗）\n" +
-                "能量兑换物品 = 物品原价");
+        ctx.reply(I18n.t("economy.hc9dbf890", energy));
     }
 
     // ==================== REST API 处理器 ====================
