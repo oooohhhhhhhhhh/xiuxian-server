@@ -105,7 +105,7 @@ public class GameResource {
         String key = "rst:" + userId + ":" + action;
         int limit = switch (action) {
             case "chat" -> 10;
-            case "breakthrough", "cultivate" -> 5;
+            case "breakthrough", "cultivate", "consolidate" -> 5;
             case "explore", "secret" -> 6;
             case "heal", "friend" -> 15;
             default -> 30;
@@ -253,6 +253,29 @@ public class GameResource {
         } else {
             return Response.ok(GameMessage.restOk(btResult.getMessage(), data).toString()).build();
         }
+    }
+
+    @GET
+    @Path("/realm/breakthrough/preview")
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("game.realm.breakthrough")
+    public Response previewBreakthrough() {
+        Long userId = getCurrentUserId();
+        RealmBreakthroughResult btResult = realmService.previewBreakthrough(userId);
+        JsonObject data = gson.toJsonTree(btResult).getAsJsonObject();
+        return Response.ok(GameMessage.restOk(btResult.getMessage(), data).toString()).build();
+    }
+
+    @POST
+    @Path("/realm/consolidate")
+    @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("game.realm.breakthrough")
+    public Response consolidate() {
+        checkActionRateLimit("consolidate");
+        Long userId = getCurrentUserId();
+        RealmBreakthroughResult result = realmService.consolidate(userId);
+        JsonObject data = gson.toJsonTree(result).getAsJsonObject();
+        return Response.ok(GameMessage.restOk(result.getMessage(), data).toString()).build();
     }
 
     @GET

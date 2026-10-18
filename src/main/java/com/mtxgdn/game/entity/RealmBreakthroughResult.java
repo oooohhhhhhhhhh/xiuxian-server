@@ -29,6 +29,15 @@ public class RealmBreakthroughResult {
     private long expPenalty;
     private int hpPenalty;
 
+    /** 本次结算前已累计的连续渡劫失败次数。 */
+    private int pityCount;
+    /** 失败增益折算出的成功率加成（百分点）。 */
+    private double pityBonus;
+    /** 当前凝实（极境）层数。 */
+    private int consolidation;
+    /** 凝实层数上限。 */
+    private int consolidationCap = 3;
+
     public RealmBreakthroughResult() {
         this.tribulationLog = new ArrayList<>();
         this.successRateBreakdown = new ArrayList<>();
@@ -98,4 +107,16 @@ public class RealmBreakthroughResult {
 
     public String getTribulationItemUsed() { return tribulationItemUsed; }
     public void setTribulationItemUsed(String item) { this.tribulationItemUsed = item; }
+
+    public int getPityCount() { return pityCount; }
+    public void setPityCount(int pityCount) { this.pityCount = pityCount; }
+
+    public double getPityBonus() { return pityBonus; }
+    public void setPityBonus(double pityBonus) { this.pityBonus = pityBonus; }
+
+    public int getConsolidation() { return consolidation; }
+    public void setConsolidation(int consolidation) { this.consolidation = consolidation; }
+
+    public int getConsolidationCap() { return consolidationCap; }
+    public void setConsolidationCap(int consolidationCap) { this.consolidationCap = consolidationCap; }
 }

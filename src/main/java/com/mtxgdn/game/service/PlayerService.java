@@ -234,7 +234,8 @@ public class PlayerService {
                 speed = ?, spirit = ?, gold = ?,
                 cultivation_progress = ?, is_cultivating = ?, cultivation_start_time = ?,
                 last_secret_realm_time = ?, last_exploration_time = ?, last_offline_time = ?,
-                last_breakthrough_time = ?, last_active_time = ?
+                last_breakthrough_time = ?, last_active_time = ?,
+                breakthrough_pity = ?, consolidation = ?
             WHERE id = ?
             """;
         try (Connection conn = DatabaseManager.getConnection();
@@ -260,7 +261,9 @@ public class PlayerService {
             ps.setLong(19, player.getLastOfflineTime());
             ps.setLong(20, player.getLastBreakthroughTime());
             ps.setLong(21, System.currentTimeMillis()); // last_active_time：落库本身就是一次活跃信号
-            ps.setLong(22, playerId);
+            ps.setInt(22, player.getBreakthroughPity());
+            ps.setInt(23, player.getConsolidation());
+            ps.setLong(24, playerId);
             ps.executeUpdate();
         } catch (SQLException e) {
             throw new RuntimeException("更新玩家失败", e);
@@ -1004,6 +1007,8 @@ public class PlayerService {
         pi.setTutorialTips(rs.getInt("tutorial_tips"));
         pi.setLastOfflineTime(rs.getLong("last_offline_time"));
         try { pi.setLastActiveTime(rs.getLong("last_active_time")); } catch (Exception ignored) {}
+        try { pi.setBreakthroughPity(rs.getInt("breakthrough_pity")); } catch (Exception ignored) {}
+        try { pi.setConsolidation(rs.getInt("consolidation")); } catch (Exception ignored) {}
         pi.setCreatedAt(rs.getString("created_at"));
         pi.setUpdatedAt(rs.getString("updated_at"));
 
@@ -1047,6 +1052,8 @@ public class PlayerService {
         try { p.setCurrentLocationId(rs.getLong("current_location_id")); } catch (Exception ignored) {}
         try { p.setLastTravelTime(rs.getLong("last_travel_time")); } catch (Exception ignored) {}
         try { p.setLastBreakthroughTime(rs.getLong("last_breakthrough_time")); } catch (Exception ignored) {}
+        try { p.setBreakthroughPity(rs.getInt("breakthrough_pity")); } catch (Exception ignored) {}
+        try { p.setConsolidation(rs.getInt("consolidation")); } catch (Exception ignored) {}
         try { p.setSecretRealmCount(rs.getInt("secret_realm_count")); } catch (Exception ignored) {}
         try { p.setPvpWins(rs.getInt("pvp_wins")); } catch (Exception ignored) {}
         try { p.setCraftCount(rs.getInt("craft_count")); } catch (Exception ignored) {}
@@ -1073,31 +1080,50 @@ public class PlayerService {
     }
 
     public int getFinalAttack(Player player) {
-        return applyTitleBonus(player, player.getAttack(), (java.util.function.Function<Title, Integer>) t -> t.getAttackBonus())
+        return applyTitleBonus(player, applyConsolidationBonus(player, player.getAttack()), (java.util.function.Function<Title, Integer>) t -> t.getAttackBonus())
                 + getEnhanceBonus(player.getId())[0];
     }
 
     public int getFinalDefense(Player player) {
-        return applyTitleBonus(player, player.getDefense(), (java.util.function.Function<Title, Integer>) t -> t.getDefenseBonus())
+        return applyTitleBonus(player, applyConsolidationBonus(player, player.getDefense()), (java.util.function.Function<Title, Integer>) t -> t.getDefenseBonus())
                 + getEnhanceBonus(player.getId())[1];
     }
 
     public int getFinalMaxHp(Player player) {
-        return applyTitleBonus(player, player.getMaxHp(), (java.util.function.Function<Title, Integer>) t -> t.getHpBonus());
+        return applyTitleBonus(player, applyConsolidationBonus(player, player.getMaxHp()), (java.util.function.Function<Title, Integer>) t -> t.getHpBonus());
     }
 
     public int getFinalMaxMp(Player player) {
-        return applyTitleBonus(player, player.getMaxMp(), (java.util.function.Function<Title, Integer>) t -> t.getMpBonus());
+        return applyTitleBonus(player, applyConsolidationBonus(player, player.getMaxMp()), (java.util.function.Function<Title, Integer>) t -> t.getMpBonus());
     }
 
     public int getFinalSpeed(Player player) {
-        return applyTitleBonus(player, player.getSpeed(), (java.util.function.Function<Title, Integer>) t -> t.getSpeedBonus())
+        return applyTitleBonus(player, applyConsolidationBonus(player, player.getSpeed()), (java.util.function.Function<Title, Integer>) t -> t.getSpeedBonus())
                 + getEnhanceBonus(player.getId())[2];
     }
 
     public int getFinalSpirit(Player player) {
-        return applyTitleBonus(player, player.getSpirit(), (java.util.function.Function<Title, Integer>) t -> t.getSpiritBonus())
+        return applyTitleBonus(player, applyConsolidationBonus(player, player.getSpirit()), (java.util.function.Function<Title, Integer>) t -> t.getSpiritBonus())
                 + getEnhanceBonus(player.getId())[3];
+    }
+
+    /**
+     * 凝实（极境）属性加成：每层按 {@code breakthrough.consolidate_stat_bonus} 提升基础属性。
+     *
+     * <p>刻意做成<b>读取时乘算</b>而不是突破时写进数据库：这样渡劫成功把层数清零后，
+     * 极境之力自然消散、属性回到境界本身的水准，不需要记账"当初加了多少"，
+     * 也不可能因为重复结算而越叠越高。</p>
+     */
+    private int applyConsolidationBonus(Player player, int baseValue) {
+        if (player == null) {
+            return baseValue;
+        }
+        int layers = player.getConsolidation();
+        if (layers <= 0) {
+            return baseValue;
+        }
+        int perLayer = Math.max(0, com.mtxgdn.util.AppConfig.getInt("breakthrough.consolidate_stat_bonus", 8));
+        return (int) Math.round(baseValue * (1.0 + layers * perLayer / 100.0));
     }
 
     /** 读取三件装备的强化加成（攻击/防御/速度/灵力），强化等级真实生效于战斗属性 */

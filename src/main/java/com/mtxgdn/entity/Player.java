@@ -45,6 +45,20 @@ public class Player {
     private long currentLocationId = 1;
     private long lastTravelTime;
     private long lastBreakthroughTime;
+    /**
+     * 突破失败增益（pity）：连续渡劫失败的累计次数。
+     *
+     * <p>存"次数"而不是"加成值"，这样调整 {@code breakthrough.pity_bonus} 后老数据
+     * 自动跟着变，不需要数据迁移。成功后清零。</p>
+     */
+    private int breakthroughPity;
+    /**
+     * 凝实（极境）层数，0..3。
+     *
+     * <p>修为圆满时可以不去渡劫，改为压制修为淬体：每层提升基础属性，
+     * 但渡劫成功率按层数打折、失败损失也被放大。渡劫成功后清零。</p>
+     */
+    private int consolidation;
     /** 玩法计数（称号获取用） */
     private int secretRealmCount;
     private int pvpWins;
@@ -308,6 +322,12 @@ public class Player {
     public void setLastBreakthroughTime(long lastBreakthroughTime) {
         this.lastBreakthroughTime = lastBreakthroughTime;
     }
+
+    public int getBreakthroughPity() { return breakthroughPity; }
+    public void setBreakthroughPity(int breakthroughPity) { this.breakthroughPity = breakthroughPity; }
+
+    public int getConsolidation() { return consolidation; }
+    public void setConsolidation(int consolidation) { this.consolidation = consolidation; }
 
     public int getSecretRealmCount() { return secretRealmCount; }
     public void setSecretRealmCount(int secretRealmCount) { this.secretRealmCount = secretRealmCount; }

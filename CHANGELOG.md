@@ -225,6 +225,47 @@
     `max_single_reward`、`kill_bonus_ratio`。
   - **新增内置插件模块 `world_boss`**（默认启用，`plugins.yml` 里可单独停用），
     内置模块由 24 个增至 25 个。
+- **突破改造：连败增益（pity）+ 凝实（极境）**：
+  此前的渡劫是纯概率 —— 高境界基础成功率只有 10%，失败还要扣三分之一修为并重伤，
+  **连续被概率劝退**是玩家流失最集中的地方。本次把「卡在瓶颈」从纯运气
+  变成看得见进度的努力：
+  - **连败增益**：新增 `players.breakthrough_pity`，记录连续渡劫失败次数。
+    每失败一次下次成功率 +`breakthrough.pity_bonus`（默认 20）个百分点，
+    成功后清零，堆叠上限 `max_pity_stack`（默认 10）。
+    存"次数"而不是"加成值"，这样调配置后老数据自动跟着变，不需要数据迁移。
+    **刻意不用参照实现的"基础率的 20%"**：本项目高境界基础率只有 10%，
+    那样要失败 40+ 次才见效，等于没做；改成固定百分点后最坏 5 次也能摸到 95% 硬顶。
+  - **凝实（极境淬体）**：新增 `players.consolidation`（0..3）。修为圆满且下一次是
+    **大境界渡劫**时，可以不去赌，改为压制修为淬体：每层提升 8% 基础属性
+    （`breakthrough.consolidate_stat_bonus`），代价是渡劫成功率按层数**乘算打折**
+    （每层 -10%）且失败损失放大（每层 +30%）。渡劫成功后层数清零，
+    极境之力化作突破的踏脚石。
+    属性加成做成**读取时乘算**（`PlayerService.getFinalAttack` 等）而不是写进数据库：
+    层数清零后加成自然消散，不需要记账"当初加了多少"，也不可能因重复结算越叠越高。
+  - **成功率可见化**：渡劫的 `tribulationLog` 与 `successRateBreakdown` 一直在算
+    却**从没显示过** —— 玩家失败一次只看到"随机劝退"。现在 `/突破` 会输出渡劫过程
+    与成功率逐项构成（基础 / 灵力 / 灵根 / 天劫属性 / 丹药 / 连败增益 / 凝实代价）。
+  - **新增指令**：`/突破 预览`（不掷骰，看下次真实成功率，含 0~10% 的天劫类型区间）、
+    `/突破 凝实`（凝实一层）。
+  - **新增 REST**：`GET /realm/breakthrough/preview`、`POST /realm/consolidate`。
+  - **新增配置段** `breakthrough.*`：`pity_bonus`、`max_pity_stack`、
+    `consolidate_rate_penalty`、`consolidate_stat_bonus`、`consolidate_max_layers`、
+    `consolidate_punish_bonus`。
+  - **数据库**：`players` 新增 `breakthrough_pity` / `consolidation`，
+    老库由 `DatabaseMigration.addBreakthroughPityColumns()` 补列（均 DEFAULT 0）。
+  - **顺带修掉两个真 bug**：
+    - `RealmService` 检查与扣除突破灵石时读的是 `mtxgdn:spirit_stone` ——
+      那是 `CurrencyEffect.SPIRIT_STONE_OLD_KEY`，早已废弃的旧版灵石键。
+      结果是**所有需要灵石的突破都恒报"灵石不足"**（筑基以后基本卡死），
+      而就算通过了检查也不会真的扣钱。改为走 `ItemService` 的
+      `getTotalSpiritStonesInLowGrade` / `removeSpiritStones`，按四档灵石汇总与扣除。
+    - `ItemService.removeSpiritStonesFromAllGrades` 在某档灵石为 0 时仍调用
+      `removeItem(…, 0)`，被 `validateRemoveParams` 拒绝而抛异常 ——
+      "手里只有中品灵石"的玩家扣款必炸（灵石发放按面额从大到小分配，下品为 0 很常见）。
+  - **清理**：删掉 `RealmService` 里两段从未被调用的死代码
+    （`executeTribulation` / `applyBreakthroughSuccess`，约 190 行）。
+    它们和真正在跑的 `*WithConn` 版本是同一套逻辑的两份拷贝 ——
+    只给其中一份加 pity 是这类系统最容易埋雷的地方。
 
 ### 修复
 
@@ -674,6 +715,23 @@ Minecraft 26.2 协议修复另加 2 个测试类（17 例），全套 **221 个�
   夹具会把生成出来的 Boss 数值直接改写（境界/血量/预算），
   避免断言依赖随机生成结果；`ItemScanner.scanAndRegister()` 必须在
   `@BeforeAll` 里先跑，否则所有涉及灵石的断言都会以"物品不存在"炸掉。
+
+突破改造另加 1 个测试类（16 例），全套 **297 个测试通过**：
+
+- `game/service/BreakthroughPityTest`（16 例）：钉住四条语义 ——
+  **连败增益**（失败 +1 次且境界不动、修为减少、重伤到 1 点生命；连续失败逐次累加；
+  渡劫成功清零；小境界必成也清零；增益确实按次数进入成功率；加成次数有上限，
+  最终率不超过 95%）、
+  **凝实**（小境界瓶颈拒绝、修为未圆满拒绝、一层成功后基础属性按 8% 提升、
+  第 4 层被拒、每层按比例乘算打折成功率、3 层时失败损失放大到 1.9 倍、
+  渡劫成功后层数清零）、
+  **预览**（连调两次不改任何状态、小境界直接告知必成、修为不足时给出还差多少）、
+  以及**成功率公式与实际渡劫共用同一份实现**（预览说多少，掷骰就按多少）。
+  渡劫本身是随机的，所以测试用 `RealmService.setRandomForTest` 注入一个
+  **固定掷骰**的 `Random` —— 否则"失败路径"只能靠反复重试撞出来，既慢又不稳。
+  夹具还踩到两个坑：大境界突破要扣灵石（必须发够），以及
+  `addSpiritStones` 会自己再取一条连接（必须在 `createPlayer` 的连接关闭之后再调，
+  否则连接池会被持连接嵌套取连接耗死）。
 
 
 ---

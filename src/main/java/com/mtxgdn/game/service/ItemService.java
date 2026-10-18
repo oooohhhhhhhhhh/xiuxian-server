@@ -387,6 +387,13 @@ public class ItemService {
             long count = getItemCount(conn, playerId, key);
             long value = count * rate;
 
+            // 该档位没有存量：跳过。这里必须跳过而不是照常 removeItem(…, 0) ——
+            // validateRemoveParams 会拒绝数量 0，导致"手里只有中品灵石"的玩家
+            // 在下品这一轮直接抛异常（灵石发放按面额从大到小分配，下品为 0 很常见）。
+            if (count <= 0) {
+                continue;
+            }
+
             if (value >= remaining) {
                 // 用本级灵石支付，超出部分按下品灵石找零
                 long toRemove = (remaining + rate - 1) / rate;

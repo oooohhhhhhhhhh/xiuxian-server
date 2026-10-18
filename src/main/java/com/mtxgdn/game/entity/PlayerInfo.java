@@ -30,6 +30,10 @@ public class PlayerInfo {
     private long lastOfflineTime;
     /** 最近活跃时间（毫秒，惰性节流写入），所有通道通用，供宗门宗主弃坑判定使用。 */
     private long lastActiveTime;
+    /** 突破失败增益（pity）：连续渡劫失败次数。 */
+    private int breakthroughPity;
+    /** 凝实（极境）层数，0..3。 */
+    private int consolidation;
     private String createdAt;
     private String updatedAt;
 
@@ -231,6 +235,12 @@ public class PlayerInfo {
 
     public long getLastActiveTime() { return lastActiveTime; }
     public void setLastActiveTime(long lastActiveTime) { this.lastActiveTime = lastActiveTime; }
+
+    public int getBreakthroughPity() { return breakthroughPity; }
+    public void setBreakthroughPity(int breakthroughPity) { this.breakthroughPity = breakthroughPity; }
+
+    public int getConsolidation() { return consolidation; }
+    public void setConsolidation(int consolidation) { this.consolidation = consolidation; }
 
     public String getCreatedAt() {
         return createdAt;

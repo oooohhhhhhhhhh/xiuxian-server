@@ -4,7 +4,7 @@
 >
 > - 项目版本：`0.1.0`（唯一来源为 `pom.xml` 的 `<version>`；运行时由 `com.mtxgdn.util.BuildInfo` 读取，见 `build-info.properties`）
 > - 构建：Maven（JDK 23）；产物 `target/main-0.1.0.jar`
-> - 统计口径：`src/main/java` 486 个 `.java`（另有 1 个 `data/mtxgdn/lang/zh_cn.json` 语言包）、`src/test/java` 36 个 `.java`，主源码约 7.0 万行（70087 非空白行）；`src` 下共 560 个文件
+> - 统计口径：`src/main/java` 486 个 `.java`（另有 1 个 `data/mtxgdn/lang/zh_cn.json` 语言包）、`src/test/java` 37 个 `.java`，主源码约 7.04 万行（70422 非空白行）；`src` 下共 561 个文件
 > - 文中「行数」为该文件的物理行数，用于判断文件体量
 
 ---
@@ -326,7 +326,7 @@
 | `MapService.java` | 1719 | 地图：地点与路线、移动耗时与并发 CAS、安全区与危险度判定、缓存热重载、**野外分片世界**（`getLocation()` 对野外 id 现算节点、`getNeighbors()` 现算邻接、首达写入分片文件并固化、原地补货与回收未探索分片）。**野外不进数据库**：`map_locations` 只装已知世界 |
 | `TradeService.java` | 602 | 坊市：挂单（默认 72 小时）、成交（5% 手续费）、到期回收、成交价格历史与清理任务 |
 | `SecretRealmService.java` | 596 | 秘境探索、Boss 战、组队副本 |
-| `RealmService.java` | 515 | 境界与突破：天劫类型、成功率、失败惩罚、转世 |
+| `RealmService.java` | 752 | 境界与突破：天劫类型、成功率构成（含连败增益 / 凝实代价）、失败惩罚、凝实、预览、转世 |
 | `TechniqueService.java` | 416 | 功法：学习/装备（3 门同时运转）/升级 |
 | `DailyService.java` | 393 | 每日玩法：天象、晨修·紫气东来、今日机缘、灵根共鸣 |
 | `SkillService.java` | 365 | 技能：默认技能初始化、学习、熟练度升级 |
@@ -567,7 +567,7 @@
 |---|---:|---|---|
 | `ReincarnateCommand.java` | 101 | `转世` / `reincarnate` | 金仙满级后自碎道基、转世重修 |
 | `CultivateStopCommand.java` | 69 | `停止` / `stop` | 停止闭关 |
-| `BreakthroughCommand.java` | 48 | `突破` / `breakthrough` | 突破（触发天劫） |
+| `BreakthroughCommand.java` | 143 | `突破` / `breakthrough` | 突破（触发天劫）；子指令 `预览`（不掷骰看下次成功率）、`凝实`（极境淬体） |
 | `CultivateCommand.java` | 47 | `打坐` / `闭关` / `meditate` / `cultivate` | 开始闭关修炼 |
 | `MorningCommand.java` | 24 | `晨修` / `morning` | 晨修·紫气东来 |
 | `DailyCommand.java` | 24 | `天象` / `daily` | 今日天象 |
@@ -891,6 +891,7 @@ public class HealingPill extends Item {
 | `MultiPlayerFullTest.java` | 607 | 全面集成测试（SQLite，模拟 5 名玩家完整交互） |
 | `game/service/TradeListingExpiryTest.java` | 552 | 坊市挂单时限 + 成交价格历史回归 |
 | `game/service/WorldBossTest.java` | 475 | 世界 Boss 回归：池子生命周期（生成数量 / TTL 内稳定 / 到期换批 / 刷新换批）、**血量全服共享**（A 打完落库、B 从剩余血量起算）、**伤害分红精确性**（`灵石 == 预算 × 伤害 / 最大血量` 逐位相等）、**超发熔断**（阈值内原样、超阈值折算到 `阈值/10..阈值/5`）、**挑战冷却**（期内被拒 / 期后可再战）、击杀归属与三种拒绝（已死 / 境界差距 / 闭关）**均不扣血**，外加战报灵石数与实际入账一致性校验 |
+| `game/service/BreakthroughPityTest.java` | 427 | 突破改造回归：**连败增益**（失败 +1 次且境界不动 / 逐次累加 / 成功清零 / 小境界必成也清零 / 按次数进入成功率 / 次数有上限且最终率 ≤ 95%）、**凝实**（小境界与修为未满均拒绝 / 一层 +8% 基础属性 / 第 4 层被拒 / 每层乘算打折成功率 / 3 层时失败损失 1.9 倍 / 成功后清零）、**预览不改状态且与实际渡劫共用同一份公式**。渡劫用 `setRandomForTest` 注入固定掷骰的 `Random`，避免"失败路径"靠重试撞出来 |
 | `game/service/FarmLazySettlementTest.java` | 262 | 农田惰性结算回归：无后台线程也能成熟、水分按时间差衰减、离线枯萎取精确穿零点、重复访问幂等、收获前先结算、只结算被访问玩家，以及"不得再引入后台调度器"的防回归锁 |
 | `game/service/BuffLazyExpiryTest.java` | 184 | Buff 惰性过期回归：读取即回退属性、重复访问只回退一次、刷新时长的增益不被误删、离线玩家由低频兜底回收、回收间隔不得回到秒级 |
 | `game/service/TradeServiceConcurrencyTest.java` | 286 | 坊市并发回归 |
@@ -1059,6 +1060,7 @@ HTTP 侧由 `UnifiedRestResource`（`/game/{path:.*}`）把同一批 `RouteDefin
 | `buff` | `expire_sweep_seconds`（60，过期增益兜底回收间隔；活跃玩家走访问时的惰性过期，最小 10 秒） |
 | `sect` | `leader_absent_days`（14，宗主连续不活跃多少天判定弃坑并自动继位；0 = 关闭）、`contest_days`（7，继位后宗主竞争期时长）、`contest_level_gap`（6，继任者与最强竞争者的境界序位差小于该值才开竞争期）、`succession_sweep_seconds`（600，继位维护扫描间隔，最小 30） |
 | `world_boss` | `scope`（`global`，Boss 池归属键；单世界服务器全服共享同一批）、`boss_count`（3，池内 Boss 数，1–10）、`respawn_hours`（4，整池重建周期；到期走读取时的惰性重建，无定时器）、`hp_multiplier`（12，相对同境界普通 Boss 的血量倍率）、`max_stage_gap`（9，境界序位差达到该值即不可挑战）、`challenge_cooldown_seconds`（300，每人每只 Boss 的挑战冷却；0 = 不限制）、`max_single_reward`（1000000，单次奖励熔断阈值，超过改发 `阈值/(5+rand(6))`）、`kill_bonus_ratio`（0.2，补最后一刀者额外获得的修为比例） |
+| `breakthrough` | `pity_bonus`（20，每次渡劫失败累加的成功率百分点）、`max_pity_stack`（10，连败增益堆叠上限次数）、`consolidate_rate_penalty`（10，每层凝实按乘算打折的成功率百分点）、`consolidate_stat_bonus`（8，每层凝实提升的基础属性百分比，读取时乘算）、`consolidate_max_layers`（3，凝实层数上限）、`consolidate_punish_bonus`（0.3，每层凝实放大失败修为损失的比例） |
 | `performance` | `low_memory`、`grizzly_io_threads`、`grizzly_worker_cores`、`grizzly_worker_max`、`memory_log_entries` |
 | `network` | `connection_timeout_ms`、`read_timeout_ms`、`ws_max_message_size` |
 | `motd` | `port`（25565）、`max_players`、`version_name`、`protocol_version`、`line1/2/3`、`join_message`、`redirect_server`、`redirect_delay_seconds` |

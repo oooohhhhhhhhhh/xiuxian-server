@@ -125,6 +125,11 @@ public class DatabaseSchema {
            // 最近活跃时间（毫秒）。与 last_offline_time 不同，它覆盖所有通道
            // （QQ / REST / WebSocket / MC），是"弃坑判定"的唯一依据，见 SectService 继位逻辑。
            .append("last_active_time BIGINT DEFAULT 0, ")
+           // 突破失败增益（pity）：连续渡劫失败的累计次数，成功率按次数加成，成功后清零。
+           // 存"次数"而不是"加成值"，这样调整 breakthrough.pity_bonus 后老数据自动跟着变。
+           .append("breakthrough_pity INT DEFAULT 0, ")
+           // 凝实（极境）层数：0..3，渡劫成功后清零。
+           .append("consolidation INT DEFAULT 0, ")
            .append("current_location_id BIGINT DEFAULT 1, ")
            .append("last_gather_time BIGINT DEFAULT 0, ")
            .append("created_at ").append(tsDefault).append(", ")

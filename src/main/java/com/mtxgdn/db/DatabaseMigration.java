@@ -40,6 +40,25 @@ public class DatabaseMigration {
             addPlayersLastGatherColumn(stmt);
             addPlayersLastActiveColumn(stmt);
             addSectSuccessionColumns(stmt);
+            addBreakthroughPityColumns(stmt);
+        }
+    }
+
+    /**
+     * 突破失败增益（pity）与凝实层数：老库的 players 补 breakthrough_pity / consolidation。
+     *
+     * <p>两列都带 DEFAULT 0，语义上 0 就是"没失败过、没凝实过"的出厂值，
+     * 老玩家升级后直接落到 0 即可，不需要区分"未播种"与"已设为 0"。</p>
+     */
+    private void addBreakthroughPityColumns(Statement stmt) {
+        try {
+            stmt.execute("ALTER TABLE players ADD COLUMN breakthrough_pity INT DEFAULT 0");
+        } catch (SQLException ignored) {
+            // 列已存在（新库由 CREATE TABLE 直接建出）
+        }
+        try {
+            stmt.execute("ALTER TABLE players ADD COLUMN consolidation INT DEFAULT 0");
+        } catch (SQLException ignored) {
         }
     }
 
