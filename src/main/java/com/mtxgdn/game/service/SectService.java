@@ -624,7 +624,7 @@ public class SectService {
         } catch (SQLException e) { throw new RuntimeException("任命失败", e); }
 
         result.put("success", true);
-        result.put("message", "已将 " + target.getPlayerName() + " 任命为" + SectMember.getRoleDisplayName(role) + "（原为" + SectMember.getRoleDisplayName(target.getRole()) + "）");
+        result.put("message", I18n.t("sect.h1ad74e30", target.getPlayerName(), SectMember.getRoleDisplayName(role), SectMember.getRoleDisplayName(target.getRole())));
         return result;
     }
 
@@ -1588,8 +1588,7 @@ public class SectService {
             return result;
         }
         result.put("success", true);
-        result.put("message", "你已向宗主发起挑战！\n竞争期截止：" + formatTime(sect.getContestUntil())
-                + "\n等待宗主使用 /宗门 挑战 接受 应战（三局两胜）");
+        result.put("message", I18n.t("sect.h63a32578", formatTime(sect.getContestUntil())));
         return result;
     }
 

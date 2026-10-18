@@ -48,7 +48,7 @@ public class PurifyCommand extends Command {
         String gradeName = args.trim().split("\\s+")[0];
         int grade = parseGrade(gradeName);
         if (grade < 0) {
-            ctx.reply("无效的灵石等级: " + gradeName + "（可选: 下品/中品/上品）\n" + economyService().getPurifyHelp(p.getId()));
+            ctx.reply(I18n.t("economy.hdf2641a0", gradeName, economyService().getPurifyHelp(p.getId())));
             return;
         }
 

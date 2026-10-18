@@ -793,9 +793,7 @@ public class MapService {
         }
 
         if (!checkRealm(player, target)) {
-            return createResult(false, "境界不足，" + target.getName() + "需要"
-                    + getRealmName(target.getMinRealm()) + "以上方可进入（当前："
-                    + getRealmName(player.getRealm()) + "）");
+            return createResult(false, I18n.t("map.h636ed554", target.getName(), getRealmName(target.getMinRealm()), getRealmName(player.getRealm())));
         }
 
         RawPosition position = readRawPosition(playerId);
@@ -921,9 +919,7 @@ public class MapService {
         }
 
         if (player.getRealm() < target.getMinRealm()) {
-            return createResult(false, "境界不足，" + target.getName() + "需要"
-                    + getRealmName(target.getMinRealm()) + "以上方可进入（当前："
-                    + getRealmName(player.getRealm()) + "）");
+            return createResult(false, I18n.t("map.h636ed554", target.getName(), getRealmName(target.getMinRealm()), getRealmName(player.getRealm())));
         }
 
         executeTravel(playerId, targetLocationId);
@@ -1349,9 +1345,7 @@ public class MapService {
             return createResult(false, I18n.t("map.h796f4b70"));
         }
         if (!checkRealm(player, target)) {
-            return createResult(false, "境界不足，" + target.getName() + "需要"
-                    + getRealmName(target.getMinRealm()) + "以上方可进入（当前："
-                    + getRealmName(player.getRealm()) + "）");
+            return createResult(false, I18n.t("map.h636ed554", target.getName(), getRealmName(target.getMinRealm()), getRealmName(player.getRealm())));
         }
         if (!isExplored(playerId, targetLocationId)) {
             return createResult(false, I18n.t("map.ha50dacf8", target.getName()));

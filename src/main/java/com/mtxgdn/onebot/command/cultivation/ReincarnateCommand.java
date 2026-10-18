@@ -100,15 +100,6 @@ public class ReincarnateCommand extends Command {
         } catch (Exception ignored) {
         }
 
-        ctx.reply("═══ 轮回转世 ═══\n"
-                + "你自碎道基，神魂投入轮回，再入凡尘...\n"
-                + "前世修为凝为「前世遗泽」：\n"
-                + "攻击 +" + Math.max(1, (int)(attack * KEEP_STAT_RATIO))
-                + "，防御 +" + Math.max(1, (int)(defense * KEEP_STAT_RATIO))
-                + "，速度 +" + Math.max(1, (int)(speed * KEEP_STAT_RATIO))
-                + "，灵力 +" + Math.max(1, (int)(spirit * KEEP_STAT_RATIO)) + "\n"
-                + "背包、功法、技能、称号皆已保留\n"
-                + "获得称号「逆天者」！\n"
-                + "道阻且长，来世再证大道！（再次达到金仙可继续转世，属性层层累积）");
+        ctx.reply(I18n.t("cultivation.hd255f2bc", Math.max(1, (int)(attack * KEEP_STAT_RATIO)), Math.max(1, (int)(defense * KEEP_STAT_RATIO)), Math.max(1, (int)(speed * KEEP_STAT_RATIO)), Math.max(1, (int)(spirit * KEEP_STAT_RATIO))));
     }
 }

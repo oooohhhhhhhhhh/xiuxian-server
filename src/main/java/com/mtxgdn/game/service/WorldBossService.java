@@ -385,8 +385,7 @@ public class WorldBossService {
         }
         if (boss.isDead()) {
             result.put("success", false);
-            result.put("message", "【" + boss.getName() + "】已被击杀。\n"
-                    + "整池将在 " + formatTime(boss.getExpiresAt()) + " 重建");
+            result.put("message", I18n.t("world_boss.ha9ccbcf0", boss.getName(), formatTime(boss.getExpiresAt())));
             return result;
         }
 
@@ -418,7 +417,7 @@ public class WorldBossService {
         WorldBossDamage ledger = getDamage(boss.getId(), playerId);
         if (ledger != null && !ledger.isReady(now, cooldownMs)) {
             result.put("success", false);
-            result.put("message", "挑战冷却中，还需等待 " + formatDuration(ledger.remainingCooldownMs(now, cooldownMs)));
+            result.put("message", I18n.t("world_boss.hcbd9e508", formatDuration(ledger.remainingCooldownMs(now, cooldownMs))));
             return result;
         }
         if (!claimChallengeSlot(boss.getId(), playerId, now, cooldownMs)) {

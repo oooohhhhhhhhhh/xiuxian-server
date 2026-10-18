@@ -100,11 +100,7 @@ public class ExchangeCommand extends Command {
         itemService.removeItem(p.getId(), fullKey, quantity);
         energyService.addEnergy(p.getId(), totalEnergy);
 
-        ctx.reply("转化成功！\n" +
-                "消耗: " + item.getName() + " x" + quantity + "\n" +
-                "获得能量: " + totalEnergy + "\n" +
-                "（每个 " + item.getName() + " = " + energyPerItem + " 能量，含 20% 转化损耗）\n" +
-                "当前能量: " + energyService.getEnergy(p.getId()));
+        ctx.reply(I18n.t("economy.h598550a0", item.getName(), quantity, totalEnergy, item.getName(), energyPerItem, energyService.getEnergy(p.getId())));
     }
 
     private void doConvertEnergyToItem(CommandContext ctx, PlayerInfo p, String[] parts) {
@@ -162,11 +158,7 @@ public class ExchangeCommand extends Command {
 
         itemService.addItem(p.getId(), item.getFullKey(), quantity);
 
-        ctx.reply("兑换成功！\n" +
-                "消耗能量: " + totalCost + "\n" +
-                "获得: " + item.getName() + " x" + quantity + "\n" +
-                "（每个 " + item.getName() + " = " + energyPerItem + " 能量）\n" +
-                "剩余能量: " + energyService.getEnergy(p.getId()));
+        ctx.reply(I18n.t("economy.hbefa0def", totalCost, item.getName(), quantity, item.getName(), energyPerItem, energyService.getEnergy(p.getId())));
     }
 
     private void doList(CommandContext ctx, PlayerInfo p, String[] parts) {

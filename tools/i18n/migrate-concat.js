@@ -89,6 +89,7 @@ function splitTopLevel(arg) {
   let cur = '';
   let inStr = false;
   let strBuf = null;
+  let inLambda = false;
 
   const flushExpr = () => {
     const t = cur.trim();
@@ -121,7 +122,9 @@ function splitTopLevel(arg) {
     }
     if (c === '(' || c === '[' || c === '{') { depth++; cur += c; i++; continue; }
     if (c === ')' || c === ']' || c === '}') { depth--; cur += c; i++; continue; }
-    if (c === '+' && depth === 0) {
+    // lambda：一旦在参数里出现 ->，其后的 + 属于 lambda 体，不能当顶层拼接切
+    if (c === '-' && arg[i + 1] === '>' && !inStr) { inLambda = true; cur += '->'; i += 2; continue; }
+    if (c === '+' && depth === 0 && !inLambda) {
       // 顶层 +，切
       flushExpr();
       i++;
@@ -136,14 +139,66 @@ function splitTopLevel(arg) {
   return segs;
 }
 
-/** 表达式是否是"简单"的（标识符/字段/简单调用），否则不可自动迁移。 */
+/**
+ * 表达式是否是"简单"的（标识符 / 字段访问 / 调用，可任意嵌套），否则不可自动迁移。
+ *
+ * 这里用递归而不是正则：扁平正则要么把 `getRealmName(target.getMinRealm())`
+ * 这种合法的嵌套调用误判为复杂（于是永远留给人工，白干），要么就得引入
+ * 复杂的正则嵌套匹配、同时还得防着括号藏在字符串里。递归解析顺带解决
+ * 字符串里的括号问题——引号内的内容根本不该参与括号平衡。
+ */
 function isSimpleExpr(code) {
   const t = code.trim();
-  // 拒绝含三元、强转、new、throw、lambda 的
-  if (/\?|new\s|throw\s|->/.test(t)) return false;
-  // 允许：ident(...) / ident / a.b(...) / a.b.c(...) / a[0].b(...)
-  // 调用参数里不能再有括号（嵌套调用一律算复杂，交给人工）
-  return /^[A-Za-z_$][\w$]*(\s*\(\s*[^()]*\s*\))?(\s*\.\s*[A-Za-z_$][\w$]*(\s*\(\s*[^()]*\s*\))?)*(\s*\[\s*[^[\]]*\s*\])*$/.test(t);
+  // 控制流/构造/异常/lambda/比较运算一律交人工
+  if (/\?|new\s|throw\s|->|==|!=|<=|>=|&&|\|\||\+\s*[+\-]|[+*\/%&^|]\s*[+*\/%&^|]/.test(t)) return false;
+  let i = 0;
+  const n = t.length;
+
+  const ws = () => { while (i < n && /\s/.test(t[i])) i++; };
+  const ident = () => {
+    ws();
+    if (!/[A-Za-z_$]/.test(t[i] || '')) return false;
+    i++;
+    while (i < n && /[\w$]/.test(t[i])) i++;
+    return true;
+  };
+  // 括号/方括号内的表达式（忽略字符串，字符串里的括号不该计入平衡）
+  const skipBalanced = (open, close) => {
+    let d = 0, inStr = false;
+    for (; i < n; i++) {
+      const c = t[i];
+      if (inStr) { if (c === '\\') i++; else if (c === '"') inStr = false; continue; }
+      if (c === '"') { inStr = true; continue; }
+      if (c === open) d++;
+      else if (c === close) { d--; if (d === 0) { i++; return true; } }
+    }
+    return false;
+  };
+  // 一条后缀链：a.b(x)[0].c(y)…
+  const suffix = () => {
+    for (;;) {
+      ws();
+      if (t[i] === '.') { i++; if (!ident()) return false; continue; }
+      if (t[i] === '(') { if (!skipBalanced('(', ')')) return false; continue; }
+      if (t[i] === '[') { if (!skipBalanced('[', ']')) return false; continue; }
+      return true;
+    }
+  };
+
+  if (!ident()) return false;
+  if (!suffix()) return false;
+  ws();
+  // 结尾不允许再有零散字符（比如 a + b、a ? b : c 的尾巴）
+  if (i !== n) return false;
+  // 整体括号也必须配平（防止 (a + b) 这种被 ident 吃掉左括号后漏判）
+  let d = 0, inStr = false;
+  for (const c of t) {
+    if (inStr) { continue; }
+    if (c === '"') inStr = true;
+    else if (c === '(') d++;
+    else if (c === ')') { d--; if (d < 0) return false; }
+  }
+  return d === 0 && !inStr;
 }
 
 /** 合并相邻 str 段（a + "x" + "y" + b 里的两个常量），返回最终片段序列。 */
