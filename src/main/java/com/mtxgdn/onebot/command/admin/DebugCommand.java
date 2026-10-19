@@ -12,7 +12,10 @@ import com.mtxgdn.onebot.QqBinding;
 import com.mtxgdn.onebot.QqBindingService;
 
 import java.util.List;
+import com.mtxgdn.i18n.GameLanguage;
 import com.mtxgdn.i18n.I18n;
+import com.mtxgdn.i18n.I18nManager;
+import com.mtxgdn.i18n.LanguageResolver;
 
 public class DebugCommand extends Command {
 
@@ -187,6 +190,14 @@ public class DebugCommand extends Command {
         public void replyPrivate(String message) {
             originalCtx.replyPrivate("[DEBUG] " + message);
         }
+
+        // 调试包装器只是转发消息，语言也该沿用被包装的那个上下文。
+        // 不覆写的话会落到 CommandContext.lang() 的服务端默认语言，
+        // 于是同一个玩家正常执行和 /调试执行会得到两种语言。
+        @Override
+        public GameLanguage lang() {
+            return originalCtx.lang();
+        }
     }
 
     private JsonObject httpListCommands(RouteDefinition.RestContext ctx) {
@@ -274,8 +285,16 @@ public class DebugCommand extends Command {
             }
 
             StringBuilder output = new StringBuilder();
+            // 按操作者 userId 解析语言偏好，让调试回显和玩家正常执行时的语言一致。
+            // 解析失败就退回服务端默认，不能让一次调试因为查语言而失败。
+            GameLanguage debugLang;
+            try {
+                debugLang = LanguageResolver.forUser(userId);
+            } catch (RuntimeException e) {
+                debugLang = I18nManager.serverDefault();
+            }
             DebugRestCommandContext debugCtx = new DebugRestCommandContext(
-                    String.valueOf(userId), player.getName(), cmdArgs, output);
+                    String.valueOf(userId), player.getName(), cmdArgs, output, debugLang);
 
             targetCmd.execute(debugCtx);
 
@@ -306,10 +325,14 @@ public class DebugCommand extends Command {
     private static class DebugRestCommandContext extends CommandContext {
 
         private final StringBuilder output;
+        /** 预先解析好的语言：本上下文没有可委托的原上下文，只能按 userId 查偏好。 */
+        private final GameLanguage language;
 
-        DebugRestCommandContext(String senderId, String senderNickname, String arg, StringBuilder output) {
+        DebugRestCommandContext(String senderId, String senderNickname, String arg,
+                                StringBuilder output, GameLanguage language) {
             super(senderId, senderNickname, arg);
             this.output = output;
+            this.language = language;
         }
 
         @Override
@@ -326,6 +349,11 @@ public class DebugCommand extends Command {
         @Override
         public void replyPrivate(String message) {
             reply(message);
+        }
+
+        @Override
+        public GameLanguage lang() {
+            return language != null ? language : super.lang();
         }
     }
 }
