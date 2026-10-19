@@ -17,6 +17,8 @@ public class UsersRolesCommand extends Command {
                 "查看所有用户及其角色（仅私聊）",
                 "/用户列表",
                 "管理", "admin.users.manage", true);
+    
+        setI18nKeys("cmd.users_roles.desc", "cmd.users_roles.usage");
     }
 
     @Override

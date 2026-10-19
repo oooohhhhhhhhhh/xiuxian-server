@@ -14,7 +14,9 @@ import com.mtxgdn.i18n.I18n;
 public class RecycleCommand extends Command {
     public RecycleCommand() {
         super(new String[]{"回收", "recycle"}, "将物品回收为灵石", "/回收 <物品名> [数量]", "经济", null);
-        setModule("economy");
+        
+        setI18nKeys("cmd.recycle.desc", "cmd.recycle.usage");
+    setModule("economy");
 
         // REST API
         addRoute(RouteDefinition.post("economy/recycle", this::handleRecycleHttp));

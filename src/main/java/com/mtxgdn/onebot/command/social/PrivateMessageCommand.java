@@ -19,7 +19,9 @@ public class PrivateMessageCommand extends Command {
                 null,
                 false,
                 true);
-        setModule("chat");
+        
+        setI18nKeys("cmd.private_message.desc", "cmd.private_message.usage");
+    setModule("chat");
     }
 
     @Override

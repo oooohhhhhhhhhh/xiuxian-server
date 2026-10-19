@@ -34,7 +34,9 @@ public class WildernessCommand extends Command {
         super(new String[]{"野外", "wilderness", "wild"}, "查看当前野外分片与资源",
                 "/野外 — 查看所在分片的地形、危险度、资源与邻片",
                 "探索", "game.player.info");
-        setModule("map");
+        
+        setI18nKeys("cmd.wilderness.desc", "cmd.wilderness.usage");
+    setModule("map");
         // HTTP：GET /api/game/map/wilderness（与 OneBot 的 /野外 等价）
         addRoute(RouteDefinition.get("map/wilderness", "game.player.info", this::httpWilderness));
     }

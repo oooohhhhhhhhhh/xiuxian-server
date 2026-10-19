@@ -18,6 +18,8 @@ public class PlayerDetailCommand extends Command {
                 "查看指定玩家详情（仅私聊）",
                 "/玩家详情 <玩家ID或角色名>",
                 "管理", "admin.status", true);
+    
+        setI18nKeys("cmd.player_detail.desc", "cmd.player_detail.usage");
     }
 
     @Override

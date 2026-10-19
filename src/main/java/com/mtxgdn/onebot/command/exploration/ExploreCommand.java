@@ -18,7 +18,9 @@ public class ExploreCommand extends Command {
                 "/游历",
                 "探索",
                 "game.explore");
-        setModule("exploration");
+        
+        setI18nKeys("cmd.explore.desc", "cmd.explore.usage");
+    setModule("exploration");
 
         registerSub(new String[]{"状态", "status"}, this::showStatus);
     }

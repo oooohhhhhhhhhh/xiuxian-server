@@ -20,7 +20,9 @@ public class PlayerSearchCommand extends Command {
                 null,
                 false,
                 true);
-        setModule("search");
+        
+        setI18nKeys("cmd.player_search.desc", "cmd.player_search.usage");
+    setModule("search");
     }
 
     @Override

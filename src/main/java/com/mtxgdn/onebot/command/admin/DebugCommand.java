@@ -22,7 +22,9 @@ public class DebugCommand extends Command {
                 "/debug <指令名> [参数...]\n/debug list - 列出所有指令\n/debug test <指令名> - 测试指令",
                 "管理", "admin.debug", false);
 
-        addRoute(RouteDefinition.get("admin/debug/list", "admin.debug", this::httpListCommands));
+        
+        setI18nKeys("cmd.debug.desc", "cmd.debug.usage");
+    addRoute(RouteDefinition.get("admin/debug/list", "admin.debug", this::httpListCommands));
         addRoute(RouteDefinition.post("admin/debug/test", "admin.debug", this::httpTestCommand));
     }
 

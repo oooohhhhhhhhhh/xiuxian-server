@@ -11,7 +11,9 @@ import java.util.Map;
 public class EquippedCommand extends Command {
     public EquippedCommand() {
         super(new String[]{"已装备", "equipped"}, "查看当前装备", "/已装备", "背包", "game.inventory.view");
-        setModule("inventory");
+        
+        setI18nKeys("cmd.equipped.desc", "cmd.equipped.usage");
+    setModule("inventory");
     }
     @Override
     public void execute(CommandContext ctx) {

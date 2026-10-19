@@ -23,7 +23,9 @@ public class TeamCommand extends Command {
                 "/组队 创建 | /组队 邀请 <玩家名> | /组队 接受 | /组队 拒绝 | /组队 退出 | /组队 信息 | /组队 副本 <秘境名>",
                 "宗门",
                 null);
-        setModule("team");
+        
+        setI18nKeys("cmd.team.desc", "cmd.team.usage");
+    setModule("team");
     }
 
     @Override

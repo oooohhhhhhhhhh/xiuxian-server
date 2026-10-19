@@ -8,7 +8,9 @@ import java.util.Map;
 import com.mtxgdn.i18n.I18n;
 
 public class HealCommand extends Command {
-    public HealCommand() { super(new String[]{"疗伤", "heal"}, "恢复伤势", "/疗伤", "我的角色", "game.player.info"); setModule("player"); }
+    public HealCommand() { super(new String[]{"疗伤", "heal"}, "恢复伤势", "/疗伤", "我的角色", "game.player.info"); 
+        setI18nKeys("cmd.heal.desc", "cmd.heal.usage");
+    setModule("player"); }
     @Override
     public void execute(CommandContext ctx) {
         Long userId = ctx.requireBinding(); if (userId == null) return;

@@ -11,7 +11,9 @@ import com.mtxgdn.i18n.I18n;
 public class SignInCommand extends Command {
     public SignInCommand() {
         super(new String[]{"签到", "signin"}, "每日签到领取灵石奖励", "/签到", "经济", null);
-        setModule("economy");
+        
+        setI18nKeys("cmd.sign_in.desc", "cmd.sign_in.usage");
+    setModule("economy");
 
         addRoute(RouteDefinition.post("economy/signin", this::handleSignInHttp));
     }

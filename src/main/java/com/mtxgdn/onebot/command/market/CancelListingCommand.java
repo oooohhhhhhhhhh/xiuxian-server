@@ -8,7 +8,9 @@ import java.util.Map;
 import com.mtxgdn.i18n.I18n;
 
 public class CancelListingCommand extends Command {
-    public CancelListingCommand() { super(new String[]{"撤单", "cancellisting"}, "撤回坊市挂单", "/撤单 <挂单ID>", "坊市", "game.player.info"); setModule("trade"); }
+    public CancelListingCommand() { super(new String[]{"撤单", "cancellisting"}, "撤回坊市挂单", "/撤单 <挂单ID>", "坊市", "game.player.info"); 
+        setI18nKeys("cmd.cancel_listing.desc", "cmd.cancel_listing.usage");
+    setModule("trade"); }
     @Override
     public void execute(CommandContext ctx) {
         Long userId = ctx.requireBinding(); if (userId == null) return;

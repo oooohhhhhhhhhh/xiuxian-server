@@ -19,6 +19,8 @@ public class GiveCommand extends Command {
                 "给玩家发放金币/灵力/灵石/物品（仅私聊，按玩家ID）",
                 "/发放 <玩家ID> <金币|灵力|灵石>=<数量> [物品key]=<数量> ...",
                 "管理", "admin.items.give", true);
+    
+        setI18nKeys("cmd.give.desc", "cmd.give.usage");
     }
 
     @Override

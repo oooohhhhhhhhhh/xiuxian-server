@@ -19,7 +19,9 @@ public class FormationCommand extends Command {
                 "/阵法 <子命令> [参数]",
                 "阵法",
                 "game.cultivate");
-        setModule("formation");
+        
+        setI18nKeys("cmd.formation.desc", "cmd.formation.usage");
+    setModule("formation");
 
         registerSub(new String[]{"place", "布置"}, this::handlePlace);
         registerSub(new String[]{"info", "信息"}, this::handleInfo);

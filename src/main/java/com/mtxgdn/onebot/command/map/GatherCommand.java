@@ -23,7 +23,9 @@ public class GatherCommand extends Command {
         super(new String[]{"采集", "gather", "collect"}, "在野外采集资源",
                 "/采集 — 采集当前野外地点的资源（需身处野外）",
                 "探索", "game.player.info");
-        setModule("map");
+        
+        setI18nKeys("cmd.gather.desc", "cmd.gather.usage");
+    setModule("map");
         // HTTP：POST /api/game/map/gather（与 OneBot 的 /采集 等价）
         addRoute(RouteDefinition.post("map/gather", "game.player.info", this::httpGather));
     }

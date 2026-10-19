@@ -31,7 +31,9 @@ public class BreakthroughCommand extends Command {
                         + "/突破 凝实 - 修为圆满时压制修为淬体（极境，最多 3 层）",
                 "修炼",
                 "game.realm.breakthrough");
-        setModule("cultivation");
+        
+        setI18nKeys("cmd.breakthrough.desc", "cmd.breakthrough.usage");
+    setModule("cultivation");
 
         registerSub(new String[]{"预览", "preview", "概率", "几率"}, this::handlePreview);
         registerSub(new String[]{"凝实", "consolidate", "极境"}, this::handleConsolidate);

@@ -15,6 +15,8 @@ public class EditPlayerCommand extends Command {
                 "修改玩家属性（仅私聊）",
                 "/编辑玩家 <玩家ID> <属性>=<值> ...",
                 "管理", "admin.users.manage", true);
+    
+        setI18nKeys("cmd.edit_player.desc", "cmd.edit_player.usage");
     }
 
     @Override

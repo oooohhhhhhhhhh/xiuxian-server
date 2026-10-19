@@ -24,7 +24,9 @@ public class EnergyAdminCommand extends Command {
                 "/能量管理 <玩家ID> <设置|增加|减少|查看> [数值]",
                 "管理", "admin.status", true);
 
-        // REST API 路由（管理员专用）
+        
+        setI18nKeys("cmd.energy_admin.desc", "cmd.energy_admin.usage");
+    // REST API 路由（管理员专用）
         // 读（查看能量）沿用 admin.status；写（设置/增加/减少）必须 admin.users.manage。
         // 分开是因为 MODERATOR 组默认持有 admin.status —— 若写路由也用它门控，版主即可任意增删能量。
         addRoute(RouteDefinition.get("admin/energy/{playerId}", "admin.status", this::handleGetEnergyHttp));

@@ -12,6 +12,8 @@ import java.util.Map;
 public class EconomyStatsCommand extends Command {
     public EconomyStatsCommand() {
         super(new String[]{"经济", "economy"}, "查看全服经济数据", "/经济", "管理", "admin.economy");
+    
+        setI18nKeys("cmd.economy_stats.desc", "cmd.economy_stats.usage");
     }
 
     @Override

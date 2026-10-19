@@ -24,7 +24,9 @@ public class ExchangeCommand extends Command {
                 "将物品转化为能量，或将能量兑换为物品",
                 "/转化 <物品> [数量]\n/转化 兑换 <物品> [数量]\n/转化 列表",
                 "实用功能", null);
-        setModule("energy");
+        
+        setI18nKeys("cmd.exchange.desc", "cmd.exchange.usage");
+    setModule("energy");
         registerSub("兑换", this::doConvertEnergyToItem);
         registerSub("列表", this::doList);
         registerSub(new String[]{"help", "帮助"}, this::doHelp);

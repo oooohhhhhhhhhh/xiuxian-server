@@ -46,7 +46,9 @@ public class PvpCommand extends Command {
                 null,
                 false,
                 true);
-        setModule("pvp");
+        
+        setI18nKeys("cmd.pvp.desc", "cmd.pvp.usage");
+    setModule("pvp");
         this.combatService = new CombatService();
         this.playerService = new PlayerService();
     }

@@ -25,7 +25,9 @@ public class RedeemCommand extends Command {
                 "game.redeem.code",
                 false);
 
-        // 注册 HTTP POST 路由
+        
+        setI18nKeys("cmd.redeem.desc", "cmd.redeem.usage");
+    // 注册 HTTP POST 路由
         addRoute(RouteDefinition.post("redeem", "game.redeem.code", this::handleRedeemHttp));
     }
 

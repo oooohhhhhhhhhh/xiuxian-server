@@ -8,7 +8,9 @@ import com.mtxgdn.game.item.ItemRegistry;
 import com.mtxgdn.common.service.ServiceRegistry;
 import com.mtxgdn.i18n.I18n;
 public class MarketCommand extends Command {
-    public MarketCommand() { super(new String[]{"坊市", "market"}, "查看坊市交易挂单", "/坊市", "坊市", "game.player.info"); setModule("trade"); }
+    public MarketCommand() { super(new String[]{"坊市", "market"}, "查看坊市交易挂单", "/坊市", "坊市", "game.player.info"); 
+        setI18nKeys("cmd.market.desc", "cmd.market.usage");
+    setModule("trade"); }
     @Override
     public void execute(CommandContext ctx) {
         PlayerInfo p = requirePlayerInfo(ctx);

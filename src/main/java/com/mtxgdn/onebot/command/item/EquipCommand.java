@@ -10,7 +10,9 @@ import com.mtxgdn.i18n.I18n;
 public class EquipCommand extends Command {
     public EquipCommand() {
         super(new String[]{"装备", "equip"}, "穿戴装备到指定部位", "/装备 <物品key> <部位>", "背包", "game.equipment.equip");
-        setModule("inventory");
+        
+        setI18nKeys("cmd.equip.desc", "cmd.equip.usage");
+    setModule("inventory");
     }
 
     @Override

@@ -13,7 +13,9 @@ import com.mtxgdn.i18n.I18n;
 public class CultivateBoostCommand extends Command {
     public CultivateBoostCommand() {
         super(new String[]{"修炼加速", "boost"}, "燃烧灵石加速修炼", "/修炼加速 <灵石数量> （每100灵石=1小时×1.5倍）", "经济", null);
-        setModule("economy");
+        
+        setI18nKeys("cmd.cultivate_boost.desc", "cmd.cultivate_boost.usage");
+    setModule("economy");
 
         addRoute(RouteDefinition.post("economy/cultivate-boost", this::handleBoostHttp));
     }

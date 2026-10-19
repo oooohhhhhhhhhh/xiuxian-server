@@ -17,6 +17,8 @@ public class BindCommand extends Command {
                 null,
                 true,
                 false);
+    
+        setI18nKeys("cmd.bind.desc", "cmd.bind.usage");
     }
 
     @Override

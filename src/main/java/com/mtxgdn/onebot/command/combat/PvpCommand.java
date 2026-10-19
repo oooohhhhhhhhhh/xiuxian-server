@@ -17,7 +17,9 @@ public class PvpCommand extends Command {
 
     public PvpCommand() {
         super(new String[]{"挑战", "pvp"}, "挑战其他修士", "/挑战 <角色名>\n/挑战 接受 — 接受正在进行的切磋\n/挑战 拒绝 — 拒绝切磋", "战斗", "game.pvp.challenge");
-        setModule("pvp");
+        
+        setI18nKeys("cmd.pvp.desc", "cmd.pvp.usage");
+    setModule("pvp");
 
         registerSub("接受", (ctx, p, parts) -> {
             var combatService = ServiceRegistry.getCombatService();

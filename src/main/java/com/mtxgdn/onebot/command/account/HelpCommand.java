@@ -15,6 +15,8 @@ public class HelpCommand extends Command {
                 null,
                 false,
                 false);
+    
+        setI18nKeys("cmd.help.desc", "cmd.help.usage");
     }
 
     @Override

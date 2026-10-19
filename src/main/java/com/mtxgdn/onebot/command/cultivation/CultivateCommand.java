@@ -18,7 +18,9 @@ public class CultivateCommand extends Command {
                 "/打坐",
                 "修炼",
                 "game.cultivate");
-        setModule("cultivation");
+        
+        setI18nKeys("cmd.cultivate.desc", "cmd.cultivate.usage");
+    setModule("cultivation");
     }
 
     @Override

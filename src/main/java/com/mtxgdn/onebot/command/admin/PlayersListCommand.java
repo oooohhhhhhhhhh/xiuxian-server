@@ -19,6 +19,8 @@ public class PlayersListCommand extends Command {
                 "查看玩家列表（仅私聊，支持分页）",
                 "/玩家列表 [页数=1] [每页=10] 或 /玩家列表 <搜索名>",
                 "管理", "admin.status", true);
+    
+        setI18nKeys("cmd.players_list.desc", "cmd.players_list.usage");
     }
 
     @Override

@@ -31,6 +31,8 @@ public class QqButtonCommand extends Command {
                 "/按钮 [指令串] — 无参数发送演示按钮组，带参数发送单个指令按钮",
                 "实用功能",
                 "game.player.info");
+    
+        setI18nKeys("cmd.qq_button.desc", "cmd.qq_button.usage");
     }
 
     /** 仅在 QQ 官方适配器运行（enabled 且已启动）时于 /帮助 中显示 */

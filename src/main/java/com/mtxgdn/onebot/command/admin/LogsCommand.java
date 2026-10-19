@@ -17,6 +17,8 @@ public class LogsCommand extends Command {
                 "查看服务器最近日志（仅私聊）",
                 "/日志 [条数]",
                 "管理", "admin.logs.view", true);
+    
+        setI18nKeys("cmd.logs.desc", "cmd.logs.usage");
     }
 
     @Override

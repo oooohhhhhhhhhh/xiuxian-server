@@ -40,6 +40,15 @@ public abstract class Command {
     private final boolean requiresLogin;
 
     /**
+     * 描述/用法的 i18n key；为空表示不走语言包，直接用构造时给的中文字面量。
+     *
+     * <p>不是 final——{@link #setI18nKeys} 允许子类在 super(...) 之后补设，
+     * 和 {@link #setModule} 一个路子。</p>
+     */
+    private String descriptionKey;
+    private String usageKey;
+
+    /**
      * 所属内置插件名（对应 config/plugins.yml 的 plugins.*，如 "farm"/"sect"/
      * "experimental_sect_war"）。null 表示不属于任何内置模块，不受模块启停门控。
      */
@@ -93,6 +102,20 @@ public abstract class Command {
      */
     protected void setModule(String module) {
         this.module = module;
+    }
+
+    /**
+     * 给指令描述与用法指定 i18n key。key 缺词条时回落到构造时给的中文字面量，
+     * 所以没有配套语言包的指令行为完全不变。
+     *
+     * <p>为什么不像 {@link #setModule} 那样塞进构造器：指令的 {@code names}
+     * （玩家手打的命令名）永远不翻译，但描述/用法要翻译。把 key 单独拎出来，
+     * 子类就只需在 super(...) 之后补一行 setI18nKeys(...)，
+     * 构造函数那 7 个参数不用跟着变。</p>
+     */
+    protected void setI18nKeys(String descKey, String usageKey) {
+        this.descriptionKey = descKey;
+        this.usageKey = usageKey;
     }
 
     /** 所属内置玩法模块名；null 表示不属于任何内置模块。 */
@@ -231,11 +254,27 @@ public abstract class Command {
     }
 
     public String getDescription() {
-        return description;
+        return I18n.tOr(descriptionKey, description);
     }
 
     public String getUsage() {
-        return usage;
+        return I18n.tOr(usageKey, usage);
+    }
+
+    /**
+     * 描述词条 key；为空表示这条指令还没接语言包。
+     *
+     * <p>暴露出来是为了让回归测试能核对"key 真的存在于语言包里"。
+     * 只查 {@code getDescription()} 是不够的——key 缺失时会静默回落到中文字面量，
+     * 看上去一切正常，实际上那条词条根本没被翻译过。</p>
+     */
+    public String getDescriptionKey() {
+        return descriptionKey;
+    }
+
+    /** 用法词条 key；语义同 {@link #getDescriptionKey()}。 */
+    public String getUsageKey() {
+        return usageKey;
     }
 
     public String getCategory() {

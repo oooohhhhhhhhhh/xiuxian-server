@@ -9,7 +9,9 @@ import java.util.*;
 import com.mtxgdn.i18n.I18n;
 
 public class ItemMapCommand extends Command {
-    public ItemMapCommand() { super(new String[]{"物品列表", "itemmap"}, "查看物品中文名与key映射表", "/物品列表", "背包", "game.player.info"); setModule("inventory"); }
+    public ItemMapCommand() { super(new String[]{"物品列表", "itemmap"}, "查看物品中文名与key映射表", "/物品列表", "背包", "game.player.info"); 
+        setI18nKeys("cmd.item_map.desc", "cmd.item_map.usage");
+    setModule("inventory"); }
     @Override
     public void execute(CommandContext ctx) {
         Collection<Item> allItems = ItemRegistry.getAll();

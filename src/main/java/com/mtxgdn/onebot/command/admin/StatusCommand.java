@@ -14,6 +14,8 @@ public class StatusCommand extends Command {
                 "查看服务器运行状态（仅私聊）",
                 "/服务器状态",
                 "管理", "admin.status", true);
+    
+        setI18nKeys("cmd.status.desc", "cmd.status.usage");
     }
 
     @Override

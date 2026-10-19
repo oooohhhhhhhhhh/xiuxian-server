@@ -17,7 +17,9 @@ public class RankCommand extends Command {
                 null,
                 false,
                 true);
-        setModule("rank");
+        
+        setI18nKeys("cmd.rank.desc", "cmd.rank.usage");
+    setModule("rank");
     }
 
     @Override

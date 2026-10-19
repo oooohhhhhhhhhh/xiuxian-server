@@ -31,7 +31,9 @@ public class ReincarnateCommand extends Command {
                 "/转世",
                 "修炼",
                 "game.player.info");
-        setModule("cultivation");
+        
+        setI18nKeys("cmd.reincarnate.desc", "cmd.reincarnate.usage");
+    setModule("cultivation");
     }
 
     @Override

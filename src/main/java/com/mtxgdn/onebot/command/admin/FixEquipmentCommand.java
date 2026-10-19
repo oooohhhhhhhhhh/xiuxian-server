@@ -11,6 +11,8 @@ import com.mtxgdn.i18n.I18n;
 public class FixEquipmentCommand extends Command {
     public FixEquipmentCommand() {
         super(new String[]{"修复装备", "fixequip"}, "修复装备数据一致性问题", "/修复装备", "管理", "admin.fix.equipment");
+    
+        setI18nKeys("cmd.fix_equipment.desc", "cmd.fix_equipment.usage");
     }
 
     @Override

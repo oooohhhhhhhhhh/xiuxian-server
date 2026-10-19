@@ -22,7 +22,9 @@ public class MarketPriceCommand extends Command {
         super(new String[]{"行情", "price"},
                 "查看坊市成交行情，辅助定价",
                 "/行情 <物品名或ID> [天数]", "坊市", "game.player.info");
-        setModule("trade");
+        
+        setI18nKeys("cmd.market_price.desc", "cmd.market_price.usage");
+    setModule("trade");
 
         addRoute(RouteDefinition.get("market/price", "game.market.view", this::handleHttp));
     }

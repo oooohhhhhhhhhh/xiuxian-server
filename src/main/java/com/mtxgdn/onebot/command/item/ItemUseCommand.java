@@ -12,7 +12,9 @@ import com.mtxgdn.i18n.I18n;
 public class ItemUseCommand extends Command {
     public ItemUseCommand() {
         super(new String[]{"使用", "itemuse"}, "使用背包中的物品", "/使用 <物品名称或key>", "背包", "game.item.use");
-        setModule("inventory");
+        
+        setI18nKeys("cmd.item_use.desc", "cmd.item_use.usage");
+    setModule("inventory");
     }
     @Override
     public void execute(CommandContext ctx) {

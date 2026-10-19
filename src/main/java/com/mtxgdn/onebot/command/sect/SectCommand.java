@@ -26,7 +26,9 @@ public class SectCommand extends Command {
         super(new String[]{"宗门", "sect"},
                 "宗门管理：输入 /宗门 help 查看所有子命令",
                 "/宗门 <子命令> [参数]", "宗门", "game.sect.manage");
-        setModule("sect");
+        
+        setI18nKeys("cmd.sect.desc", "cmd.sect.usage");
+    setModule("sect");
 
         // ======== OneBot 子命令（仅 OneBot）========
         registerSub(new String[]{"create", "创建"}, this::handleCreate);

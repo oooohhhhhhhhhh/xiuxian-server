@@ -21,7 +21,9 @@ public class ItemGiveCommand extends Command {
                 "管理",
                 "admin.items.give");
 
-        addRoute(RouteDefinition.post("admin/items/give", "admin.items.give", this::handleGiveHttp));
+        
+        setI18nKeys("cmd.item_give.desc", "cmd.item_give.usage");
+    addRoute(RouteDefinition.post("admin/items/give", "admin.items.give", this::handleGiveHttp));
     }
 
     @Override

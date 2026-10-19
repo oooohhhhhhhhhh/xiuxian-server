@@ -26,7 +26,9 @@ public class CurrencyExchangeCommand extends Command {
         super(new String[]{"货币兑换", "币兑", "currency_exchange"}, "金币与下品灵石双向兑换",
                 "/货币兑换 金币 <数量> - 金币换灵石（10:1，向下取整）\n/货币兑换 灵石 <数量> - 灵石换金币（1:5）",
                 "经济", "game.player.info");
-        setModule("economy");
+        
+        setI18nKeys("cmd.currency_exchange.desc", "cmd.currency_exchange.usage");
+    setModule("economy");
     }
 
     @Override

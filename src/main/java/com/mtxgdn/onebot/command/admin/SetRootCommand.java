@@ -16,6 +16,8 @@ public class SetRootCommand extends Command {
                 "修改玩家的灵根（仅私聊，需要管理员权限）",
                 "/修改灵根 <玩家ID> <灵根名称> 或 /修改灵根 list",
                 "管理", "admin.users.manage", true);
+    
+        setI18nKeys("cmd.set_root.desc", "cmd.set_root.usage");
     }
 
     @Override

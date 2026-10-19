@@ -41,6 +41,12 @@ public final class I18n {
      * 而本方法返回一个人畜无害的兜底文案。用于"这个文案缺失不该把 key 露出去"的场景。</p>
      */
     public static String tOr(String key, String fallback) {
+        // key 为 null/空表示"这条文案还没接语言包"，直接给兜底。
+        // 不加这个判断的话，任何一处漏调 setI18nKeys 的命令
+        // 都会在 getDescription() 里 NPE——那是个必崩的路径。
+        if (key == null || key.isBlank()) {
+            return fallback;
+        }
         GameLanguage lang = I18nContext.current();
         String value = I18nManager.raw(key, lang);
         return key.equals(value) ? fallback : value;

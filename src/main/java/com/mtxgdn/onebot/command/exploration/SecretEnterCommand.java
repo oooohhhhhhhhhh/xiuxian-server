@@ -17,7 +17,9 @@ public class SecretEnterCommand extends Command {
                 "/进入秘境 <秘境名称>",
                 "探索",
                 "game.secret_realm");
-        setModule("secret_realm");
+        
+        setI18nKeys("cmd.secret_enter.desc", "cmd.secret_enter.usage");
+    setModule("secret_realm");
     }
 
     @Override

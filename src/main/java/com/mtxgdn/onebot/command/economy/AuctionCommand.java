@@ -23,7 +23,9 @@ public class AuctionCommand extends Command {
 
     public AuctionCommand() {
         super(new String[]{"拍卖", "auction"}, "竞拍行 — 限时竞价交易", "/拍卖 [出售|出价|我的]", "经济", null);
-        setModule("economy");
+        
+        setI18nKeys("cmd.auction.desc", "cmd.auction.usage");
+    setModule("economy");
 
         registerSub("出售", (ctx, p, parts) -> createAuction(ctx, p, parts));
         registerSub("出价", (ctx, p, parts) -> placeBid(ctx, p, parts));

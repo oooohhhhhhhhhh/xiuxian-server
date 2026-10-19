@@ -11,7 +11,9 @@ import java.util.List;
 public class BackpackCommand extends Command {
     public BackpackCommand() {
         super(new String[]{"背包", "backpack"}, "查看背包中的物品", "/背包", "背包", "game.inventory.view");
-        setModule("inventory");
+        
+        setI18nKeys("cmd.backpack.desc", "cmd.backpack.usage");
+    setModule("inventory");
     }
 
     @Override

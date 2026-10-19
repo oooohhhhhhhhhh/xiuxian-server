@@ -16,7 +16,9 @@ import com.mtxgdn.i18n.I18n;
 public class SkillsCommand extends Command {
     public SkillsCommand() {
         super(new String[]{"技能", "skills"}, "查看可用技能列表", "/技能", "战斗", "game.player.info");
-        setModule("skill");
+        
+        setI18nKeys("cmd.skills.desc", "cmd.skills.usage");
+    setModule("skill");
 
         registerSub(new String[]{"升级", "upgrade"}, this::upgradeSkill);
     }

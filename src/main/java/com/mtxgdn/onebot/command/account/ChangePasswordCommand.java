@@ -14,6 +14,8 @@ public class ChangePasswordCommand extends Command {
                 "账号",
                 "game.player.info",
                 true);
+    
+        setI18nKeys("cmd.change_password.desc", "cmd.change_password.usage");
     }
 
     @Override

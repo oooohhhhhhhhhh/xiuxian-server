@@ -14,6 +14,8 @@ public class DeleteAccountCommand extends Command {
                 "账号",
                 "game.player.info",
                 true);
+    
+        setI18nKeys("cmd.delete_account.desc", "cmd.delete_account.usage");
     }
 
     @Override

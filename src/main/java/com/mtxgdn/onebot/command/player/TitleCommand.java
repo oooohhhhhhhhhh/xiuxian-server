@@ -19,7 +19,9 @@ public class TitleCommand extends Command {
                 "/称号 [装备|卸下|列表]",
                 "我的角色",
                 null);
-        setModule("title");
+        
+        setI18nKeys("cmd.title.desc", "cmd.title.usage");
+    setModule("title");
 
         registerSub(new String[]{"列表", "list", "all"}, this::listAllTitles);
         registerSub(new String[]{"装备", "equip"}, this::equipTitle);

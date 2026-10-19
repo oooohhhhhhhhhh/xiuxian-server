@@ -17,6 +17,8 @@ public class RegisterCommand extends Command {
                 null,
                 false,
                 false);
+    
+        setI18nKeys("cmd.register.desc", "cmd.register.usage");
     }
 
     @Override

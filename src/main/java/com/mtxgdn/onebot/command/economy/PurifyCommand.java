@@ -27,7 +27,9 @@ public class PurifyCommand extends Command {
                 "/提纯 <下品|中品|上品>",
                 "经济",
                 "game.stone.purify");
-        setModule("economy");
+        
+        setI18nKeys("cmd.purify.desc", "cmd.purify.usage");
+    setModule("economy");
 
         addRoute(RouteDefinition.post("economy/purify", this::handlePurifyHttp));
     }

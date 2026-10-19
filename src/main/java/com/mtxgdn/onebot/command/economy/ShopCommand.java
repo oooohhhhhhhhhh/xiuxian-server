@@ -16,7 +16,9 @@ import com.mtxgdn.i18n.I18n;
 public class ShopCommand extends Command {
     public ShopCommand() {
         super(new String[]{"商店", "shop"}, "浏览灵石商店并购买商品", "/商店 [编号]", "经济", null);
-        setModule("economy");
+        
+        setI18nKeys("cmd.shop.desc", "cmd.shop.usage");
+    setModule("economy");
 
         addRoute(RouteDefinition.get("economy/shop", this::handleShopListHttp));
         addRoute(RouteDefinition.post("economy/shop/buy", this::handleShopBuyHttp));

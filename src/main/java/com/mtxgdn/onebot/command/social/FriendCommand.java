@@ -23,7 +23,9 @@ public class FriendCommand extends Command {
                 "/好友 add <玩家名> - 添加好友\n/好友 accept <玩家名> - 接受申请\n/好友 reject <玩家名> - 拒绝申请\n/好友 remove <玩家名> - 删除好友\n/好友 visit <玩家名> - 拜访好友（每日限一次，双方得灵力）\n/好友 list - 好友列表\n/好友 pending - 待处理申请",
                 "社交",
                 "game.friend.manage");
-        setModule("friend");
+        
+        setI18nKeys("cmd.friend.desc", "cmd.friend.usage");
+    setModule("friend");
     }
 
     @Override

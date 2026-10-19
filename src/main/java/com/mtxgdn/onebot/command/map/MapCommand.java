@@ -25,7 +25,9 @@ public class MapCommand extends Command {
                 "/地图 — 查看当前位置与周围地点\n/地图 前往 <地名> — 前往相邻地点\n"
                         + "/地图 传送 <地名> — 付费直传（需已到过该地）\n/地图 列表 [区域] — 浏览全地图与探索度",
                 "探索", "game.player.info");
-        setModule("map");
+        
+        setI18nKeys("cmd.map.desc", "cmd.map.usage");
+    setModule("map");
 
         registerSub(new String[]{"go", "前往"}, this::handleGo);
         registerSub(new String[]{"list", "列表", "浏览"}, this::handleList);

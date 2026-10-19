@@ -18,6 +18,8 @@ public class ItemsQueryCommand extends Command {
                 "查看所有物品列表（仅私聊，支持分页）",
                 "/全物品列表 [页数=1]",
                 "管理", "admin.status", true);
+    
+        setI18nKeys("cmd.items_query.desc", "cmd.items_query.usage");
     }
 
     @Override

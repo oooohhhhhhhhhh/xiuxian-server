@@ -20,7 +20,9 @@ public class CultivateStopCommand extends Command {
                 "/停止",
                 "修炼",
                 "game.cultivate");
-        setModule("cultivation");
+        
+        setI18nKeys("cmd.cultivate_stop.desc", "cmd.cultivate_stop.usage");
+    setModule("cultivation");
     }
 
     @Override

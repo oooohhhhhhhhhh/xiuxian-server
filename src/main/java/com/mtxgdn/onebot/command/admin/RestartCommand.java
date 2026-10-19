@@ -25,6 +25,8 @@ public class RestartCommand extends Command {
                 "重启游戏服务器（仅私聊，需要 SUPER_ADMIN 权限）",
                 "/重启",
                 "管理", "admin.shutdown", true);
+    
+        setI18nKeys("cmd.restart.desc", "cmd.restart.usage");
     }
 
     @Override

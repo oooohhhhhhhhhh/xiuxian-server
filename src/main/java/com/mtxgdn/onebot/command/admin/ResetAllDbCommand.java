@@ -9,6 +9,8 @@ import com.mtxgdn.i18n.I18n;
 public class ResetAllDbCommand extends Command {
     public ResetAllDbCommand() {
         super(new String[]{"cleardb_all", "重置全部数据"}, "重置全部数据并重新初始化（仅私聊）", "/cleardb_all", "管理", "admin.database.reset_all", true);
+    
+        setI18nKeys("cmd.cleardb_all.desc", null);
     }
     @Override
     public void execute(CommandContext ctx) {

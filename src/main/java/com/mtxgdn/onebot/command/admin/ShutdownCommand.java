@@ -13,6 +13,8 @@ public class ShutdownCommand extends Command {
                 "关闭游戏服务器（仅私聊，需要 SUPER_ADMIN 权限）",
                 "/关闭服务端",
                 "管理", "admin.shutdown", true);
+    
+        setI18nKeys("cmd.shutdown.desc", "cmd.shutdown.usage");
     }
 
     @Override

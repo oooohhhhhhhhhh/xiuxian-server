@@ -17,7 +17,9 @@ public class SecretAreasCommand extends Command {
                 "/秘境",
                 "探索",
                 "game.secret_realm");
-        setModule("secret_realm");
+        
+        setI18nKeys("cmd.secret_areas.desc", "cmd.secret_areas.usage");
+    setModule("secret_realm");
     }
 
     @Override

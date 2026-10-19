@@ -23,7 +23,9 @@ import com.mtxgdn.i18n.I18n;
 public class BankCommand extends Command {
     public BankCommand() {
         super(new String[]{"灵庄", "bank"}, "灵石存取·利息生息", "/灵庄 [存入|取出|利率]", "经济", null);
-        setModule("economy");
+        
+        setI18nKeys("cmd.bank.desc", "cmd.bank.usage");
+    setModule("economy");
 
         registerSub("存入", (ctx, p, parts) -> doDeposit(ctx, p, parts));
         registerSub("取出", (ctx, p, parts) -> doWithdraw(ctx, p, parts));

@@ -16,6 +16,8 @@ public class UnbindCommand extends Command {
                 "账号",
                 "game.player.info",
                 true);
+    
+        setI18nKeys("cmd.unbind.desc", "cmd.unbind.usage");
     }
 
     @Override

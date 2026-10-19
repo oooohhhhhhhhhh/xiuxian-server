@@ -9,7 +9,9 @@ import com.mtxgdn.i18n.I18n;
 public class UnequipCommand extends Command {
     public UnequipCommand() {
         super(new String[]{"卸下", "unequip"}, "卸下指定部位的装备", "/卸下 <部位>", "背包", "game.equipment.equip");
-        setModule("inventory");
+        
+        setI18nKeys("cmd.unequip.desc", "cmd.unequip.usage");
+    setModule("inventory");
     }
     @Override
     public void execute(CommandContext ctx) {

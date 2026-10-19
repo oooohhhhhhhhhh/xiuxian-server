@@ -19,7 +19,9 @@ public class SpiritualRootCommand extends Command {
                 "/灵根 [重铸]",
                 "我的角色",
                 null);
-        setModule("player");
+        
+        setI18nKeys("cmd.spiritual_root.desc", "cmd.spiritual_root.usage");
+    setModule("player");
 
         registerSub(new String[]{"重铸", "recast"}, this::doRecast);
     }

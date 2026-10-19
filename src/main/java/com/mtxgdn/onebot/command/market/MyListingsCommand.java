@@ -9,7 +9,9 @@ import com.mtxgdn.common.service.ServiceRegistry;
 import com.mtxgdn.i18n.I18n;
 
 public class MyListingsCommand extends Command {
-    public MyListingsCommand() { super(new String[]{"我的挂单", "mylistings"}, "查看我在坊市的挂单", "/我的挂单", "坊市", "game.player.info"); setModule("trade"); }
+    public MyListingsCommand() { super(new String[]{"我的挂单", "mylistings"}, "查看我在坊市的挂单", "/我的挂单", "坊市", "game.player.info"); 
+        setI18nKeys("cmd.my_listings.desc", "cmd.my_listings.usage");
+    setModule("trade"); }
     @Override
     public void execute(CommandContext ctx) {
         Long userId = ctx.requireBinding(); if (userId == null) return;

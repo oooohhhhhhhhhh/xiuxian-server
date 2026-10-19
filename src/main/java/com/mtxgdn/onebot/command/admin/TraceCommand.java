@@ -17,6 +17,8 @@ public class TraceCommand extends Command {
                 "查看玩家操作轨迹",
                 "/轨迹 [玩家名/QQ/UID]",
                 "管理", "qq.command.trace", false);
+    
+        setI18nKeys("cmd.trace.desc", "cmd.trace.usage");
     }
 
     @Override

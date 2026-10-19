@@ -7,7 +7,9 @@ import com.mtxgdn.common.service.ServiceRegistry;
 import com.mtxgdn.i18n.I18n;
 
 public class MorningCommand extends Command {
-    public MorningCommand() { super(new String[]{"晨修", "morning"}, "每日晨修，获取天象加成", "/晨修", "修炼", "game.player.info"); setModule("cultivation"); }
+    public MorningCommand() { super(new String[]{"晨修", "morning"}, "每日晨修，获取天象加成", "/晨修", "修炼", "game.player.info"); 
+        setI18nKeys("cmd.morning.desc", "cmd.morning.usage");
+    setModule("cultivation"); }
     @Override
     public void execute(CommandContext ctx) {
         Long userId = ctx.requireBinding();

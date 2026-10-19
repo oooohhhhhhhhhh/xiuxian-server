@@ -16,7 +16,9 @@ public class StatusCommand extends Command {
                 "/状态",
                 "我的角色",
                 "game.player.info");
-        setModule("player");
+        
+        setI18nKeys("cmd.status.desc", "cmd.status.usage");
+    setModule("player");
     }
 
     @Override

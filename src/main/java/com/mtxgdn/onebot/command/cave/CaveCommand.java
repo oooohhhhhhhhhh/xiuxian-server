@@ -16,7 +16,9 @@ public class CaveCommand extends Command {
         super(new String[]{"洞府", "cave"},
                 "洞府管理：修炼、收集灵气、升级洞府",
                 "/洞府 <子命令> [参数]", "洞府", "game.cave.manage");
-        setModule("cave");
+        
+        setI18nKeys("cmd.cave.desc", "cmd.cave.usage");
+    setModule("cave");
 
         registerSub(new String[]{"create", "开辟"}, this::handleCreate);
         registerSub(new String[]{"info", "信息"}, this::handleInfo);

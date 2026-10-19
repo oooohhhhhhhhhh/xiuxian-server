@@ -44,7 +44,9 @@ public class WorldBossCommand extends Command {
                         + "/世界boss 排行 [序号] - 查看伤害贡献榜\n"
                         + "/世界boss 刷新 - 重建整池（管理员）",
                 "战斗");
-        setModule("world_boss");
+        
+        setI18nKeys("cmd.boss.desc", "cmd.boss.usage");
+    setModule("world_boss");
 
         registerSub(new String[]{"挑战", "challenge", "打"}, this::handleChallenge);
         registerSub(new String[]{"排行", "rank", "贡献"}, this::handleRank);

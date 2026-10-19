@@ -9,6 +9,8 @@ import com.mtxgdn.i18n.I18n;
 public class ClearPlayersDbCommand extends Command {
     public ClearPlayersDbCommand() {
         super(new String[]{"cleardb_players", "清除玩家数据"}, "清除所有玩家数据（仅私聊）", "/cleardb_players", "管理", "admin.database.clear_players", true);
+    
+        setI18nKeys("cmd.cleardb_players.desc", null);
     }
     @Override
     public void execute(CommandContext ctx) {
