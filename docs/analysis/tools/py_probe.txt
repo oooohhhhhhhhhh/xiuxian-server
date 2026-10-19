@@ -1,6 +1,0 @@
-3.14.3 (tags/v3.14.3:323c59a, Feb  3 2026, 16:04:56) [MSC v.1944 64 bit (AMD64)]
-randint(neg) -> ValueError empty range in randint(-1, -50)
-round(0.005,2)= 0.01
-round(0.0049,2)= 0.0
-stone after string deduct: 1000
-stone after str-num deduct: 900
