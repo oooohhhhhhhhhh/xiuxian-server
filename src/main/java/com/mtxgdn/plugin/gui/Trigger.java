@@ -10,7 +10,7 @@ import java.util.Map;
  * <p>
  * 包含：
  * <ul>
- *   <li>triggerWhen：触发时机（例如物品的"使用时"/"获得时"）</li>
+ *   <li>triggerWhen：触发时机（物品使用时 / 探索事件触发时 / 指令执行时）</li>
  *   <li>action：动作类型（发送消息/给予物品/执行Java代码等）</li>
  *   <li>actionParam：动作参数</li>
  *   <li>javaCode：自定义 Java 代码</li>
@@ -37,29 +37,31 @@ public final class Trigger {
         Action(String l) { this.label = l; }
     }
 
-    /** 触发时机 —— 不同注册项类型有不同的可选值。 */
+    /**
+     * 触发时机 —— 不同注册项类型有不同的可选值。
+     *
+     * <p>这里只保留服务端<b>真实存在</b>钩子的时机：</p>
+     * <ul>
+     *   <li>{@link #ITEM_ON_USE} —— 物品的 {@code ItemEffect} 被使用物品时执行；</li>
+     *   <li>{@link #EVENT_ON_FIRE} —— 探索事件的 {@code execute(...)} 被游历系统调用；</li>
+     *   <li>{@link #COMMAND_ON_EXECUTE} —— 指令的 {@code execute(CommandContext)} 被玩家触发。</li>
+     * </ul>
+     *
+     * <p>曾经存在的「物品·获得时」「秘境·进入/退出/遭遇」已移除：服务端核心没有对应的事件
+     * （{@code PluginEvent.Type} 里没有「获得物品」「进入秘境」），生成出来只会是调不通的代码。</p>
+     */
     public enum When {
         // ===== 物品相关 =====
-        /** 玩家使用物品（点击/右键使用）时触发 */
+        /** 玩家使用物品（/使用 &lt;key&gt;）时触发 */
         ITEM_ON_USE("物品 · 使用时"),
-        /** 玩家获得物品（背包新增）时触发 */
-        ITEM_ON_OBTAIN("物品 · 获得时"),
 
         // ===== 事件相关 =====
-        /** 自定义事件被 fire 时触发 */
-        EVENT_ON_FIRE("事件 · 触发时"),
+        /** 探索事件被 /游历 抽取并执行时触发 */
+        EVENT_ON_FIRE("探索事件 · 触发时"),
 
         // ===== 指令相关 =====
         /** 玩家执行该指令时触发 */
-        COMMAND_ON_EXECUTE("指令 · 执行时"),
-
-        // ===== 秘境相关 =====
-        /** 玩家进入秘境时触发 */
-        REALM_ON_ENTER("秘境 · 进入时"),
-        /** 玩家退出/完成秘境时触发 */
-        REALM_ON_EXIT("秘境 · 退出/完成时"),
-        /** 玩家在秘境中战斗/事件时触发 */
-        REALM_ON_ENCOUNTER("秘境 · 遭遇事件");
+        COMMAND_ON_EXECUTE("指令 · 执行时");
 
         public final String label;
         When(String l) { this.label = l; }
@@ -95,21 +97,12 @@ public final class Trigger {
         return t;
     }
 
-    public static Trigger forItemObtain() {
-        Trigger t = new Trigger();
-        t.triggerWhen = When.ITEM_ON_OBTAIN;
-        t.action = Action.LOG_ONLY;
-        t.actionParam = "";
-        t.description = "玩家获得物品时记录日志";
-        return t;
-    }
-
     public static Trigger forEventFire() {
         Trigger t = new Trigger();
         t.triggerWhen = When.EVENT_ON_FIRE;
         t.action = Action.LOG_ONLY;
         t.actionParam = "";
-        t.description = "事件触发时记录日志";
+        t.description = "探索事件被抽取时记录日志";
         return t;
     }
 
@@ -117,24 +110,6 @@ public final class Trigger {
         Trigger t = new Trigger();
         t.triggerWhen = When.COMMAND_ON_EXECUTE;
         t.description = "玩家执行指令时回复消息";
-        return t;
-    }
-
-    public static Trigger forRealmEnter() {
-        Trigger t = new Trigger();
-        t.triggerWhen = When.REALM_ON_ENTER;
-        t.action = Action.LOG_ONLY;
-        t.actionParam = "";
-        t.description = "进入秘境时记录日志";
-        return t;
-    }
-
-    public static Trigger forRealmExit() {
-        Trigger t = new Trigger();
-        t.triggerWhen = When.REALM_ON_EXIT;
-        t.action = Action.LOG_ONLY;
-        t.actionParam = "";
-        t.description = "退出/完成秘境时记录日志";
         return t;
     }
 

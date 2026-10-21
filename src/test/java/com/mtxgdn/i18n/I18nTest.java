@@ -93,13 +93,10 @@ class I18nTest {
     @DisplayName("回退链: en_us 缺 key 时应回落 zh_cn 而非把 key 漏给玩家")
     void fallbackToZhCnWhenEnMissing() {
         I18nManager.load();
-        // 找一个 en_us 里还没有译文的 key（error.* 之外的中文文案基本都没翻）
-        String someKey = I18nManager.missingKeys(GameLanguage.EN_US).isEmpty()
-                ? "sect.hefebafae"
-                : I18nManager.missingKeys(GameLanguage.EN_US).get(0);
-        if (someKey == null || someKey.isBlank()) {
-            return; // en_us 已全量翻译时这个断言无从谈起
-        }
+        // en_us 已全量翻译，"真实缺 key"的场景不再天然存在，
+        // 所以造一条只进 zh_cn 的词条来驱动回退链 —— 比依赖某个具体词条有没有翻译更稳。
+        String someKey = "__i18n_test_fallback_only_zh__";
+        mergeInto(GameLanguage.ZH_CN, Map.of(someKey, "只有中文的兜底文案"));
 
         String en = I18nManager.raw(someKey, GameLanguage.EN_US);
         String zh = I18nManager.raw(someKey, GameLanguage.ZH_CN);
@@ -316,13 +313,31 @@ class I18nTest {
         java.util.List<String> same = new java.util.ArrayList<>();
         for (Map.Entry<String, String> e : en.entrySet()) {
             String zhValue = zh.get(e.getKey());
-            if (zhValue != null && zhValue.equals(e.getValue())) {
+            if (zhValue != null && zhValue.equals(e.getValue())
+                    && !isIntentionallyUntranslated(e.getKey())) {
                 same.add(e.getKey() + " = " + e.getValue());
             }
         }
         assertTrue(same.isEmpty(),
                 "en_us 里有 " + same.size() + " 条与 zh_cn 完全相同，说明是占位没翻译"
                         + "（真的无需翻译的词条请删掉，让它走 zh_cn 回退链）: " + same);
+    }
+
+    /**
+     * 那些"本来就不该翻译"的词条。
+     *
+     * <p>{@code cmd.*.usage} 是命令语法行，里面的 {@code /修炼}、{@code /宗门} 是
+     * 指令解析器真正匹配的 token —— 翻成英文反而会让玩家照抄一条打不出来的命令。
+     * {@code error.ok} 的值是 {@code ok}，本身就没有语言之分。</p>
+     *
+     * <p>这条豁免必须收得很紧：一旦放开成"以 cmd. 开头都算"，就再也发现不了
+     * 帮助文案里漏翻的正文了。</p>
+     */
+    private static boolean isIntentionallyUntranslated(String key) {
+        if ("error.ok".equals(key)) {
+            return true;
+        }
+        return key.startsWith("cmd.") && key.endsWith(".usage");
     }
 
     // ==================== 工具方法 ====================

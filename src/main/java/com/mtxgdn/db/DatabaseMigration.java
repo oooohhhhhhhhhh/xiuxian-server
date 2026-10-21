@@ -40,6 +40,7 @@ public class DatabaseMigration {
             addPlayersLastGatherColumn(stmt);
             addPlayersLastActiveColumn(stmt);
             addSectSuccessionColumns(stmt);
+            addSectTreasuryColumns(stmt);
             addBreakthroughPityColumns(stmt);
             addPlayersLanguageColumn(stmt);
         }
@@ -75,6 +76,28 @@ public class DatabaseMigration {
         }
         try {
             stmt.execute("ALTER TABLE players ADD COLUMN consolidation INT DEFAULT 0");
+        } catch (SQLException ignored) {
+        }
+    }
+
+    /**
+     * 宗门金库 / 工资列：老库的 sects 补 treasury / salary_per_member / last_salary_time。
+     *
+     * <p>三列都带 DEFAULT 0，语义上 0 就是"金库空、没设工资、从未发过"的出厂值。
+     * 老宗门升级后不会突然被发一笔钱 —— 必须先有人捐灵石、宗主设定档位才会开始运转。</p>
+     */
+    private void addSectTreasuryColumns(Statement stmt) {
+        try {
+            stmt.execute("ALTER TABLE sects ADD COLUMN treasury BIGINT DEFAULT 0");
+        } catch (SQLException ignored) {
+            // 列已存在（新库由 CREATE TABLE 直接建出）
+        }
+        try {
+            stmt.execute("ALTER TABLE sects ADD COLUMN salary_per_member BIGINT DEFAULT 0");
+        } catch (SQLException ignored) {
+        }
+        try {
+            stmt.execute("ALTER TABLE sects ADD COLUMN last_salary_time BIGINT DEFAULT 0");
         } catch (SQLException ignored) {
         }
     }

@@ -13,12 +13,66 @@ import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.TimeUnit;
 import com.mtxgdn.i18n.I18n;
+import com.mtxgdn.util.AppConfig;
+import com.mtxgdn.util.GameLogger;
 
 public class EconomyService {
 
+    private static final GameLogger LOG = GameLogger.getLogger(EconomyService.class);
+
     private final PlayerService playerService = new PlayerService();
     private final ItemService itemService = new ItemService();
+
+    /**
+     * 拍卖行到期结算任务。
+     *
+     * <p>历史上到期结算是纯惰性的：只有在有人打开拍卖列表时才顺手结一次。问题是
+     * <b>没人看就永远不结算</b> —— 中标者的物品一直不到账、卖家的灵石一直不入账，
+     * 要等下一次有人翻列表才补上。这里补一个定时任务，让结算与"有没有人看"解耦；
+     * 惰性结算仍然保留，两者都是幂等的（靠 {@code UPDATE ... WHERE status='active'} 抢占）。</p>
+     */
+    private static final ScheduledExecutorService AUCTION_SCHEDULER =
+            Executors.newSingleThreadScheduledExecutor(r -> {
+                Thread t = new Thread(r, "auction-settler");
+                t.setDaemon(true);
+                return t;
+            });
+
+    /** 结算扫描间隔（秒）。拍卖时长是天级的，60 秒的精度完全够用。 */
+    private static final int AUCTION_SWEEP_SECONDS =
+            Math.max(10, AppConfig.getInt("market.auction_sweep_seconds", 60));
+
+    static {
+        // 首个 tick 延迟 30s：避开启动高峰（与坊市回收任务的 20s 错开）
+        AUCTION_SCHEDULER.scheduleWithFixedDelay(() -> {
+            try {
+                new EconomyService().sweepExpiredAuctions();
+            } catch (Throwable t) {
+                // 绝不让异常冒泡：一次失败不应终止后续所有 tick
+                LOG.warn("拍卖到期结算任务异常: " + t);
+            }
+        }, 30, AUCTION_SWEEP_SECONDS, TimeUnit.SECONDS);
+    }
+
+    /** 停止拍卖结算任务（服务端关闭时调用）。 */
+    public static void shutdown() {
+        AUCTION_SCHEDULER.shutdown();
+    }
+
+    /**
+     * 扫一遍到期拍卖并结算。供定时任务与惰性查询共用，幂等。
+     */
+    public void sweepExpiredAuctions() {
+        // 连接池已关闭（停机 / 测试收尾）时直接跳过，否则每 60 秒刷一次无意义的报错
+        if (!DatabaseManager.isAvailable()) {
+            return;
+        }
+        settleExpiredAuctions();
+    }
 
     // ==================== 签到系统 ====================
 

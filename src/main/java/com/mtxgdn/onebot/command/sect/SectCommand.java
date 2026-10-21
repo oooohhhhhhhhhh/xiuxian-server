@@ -43,6 +43,10 @@ public class SectCommand extends Command {
         registerSub(new String[]{"kick", "踢出"}, this::handleKick);
         registerSub(new String[]{"appoint", "任命"}, this::handleAppoint);
         registerSub(new String[]{"donate", "捐献"}, this::handleDonate);
+        registerSub(new String[]{"donate_stones", "捐灵石"}, this::handleDonateStones);
+        registerSub(new String[]{"treasury", "金库"}, this::handleTreasury);
+        registerSub(new String[]{"salary", "工资"}, this::handleSalary);
+        registerSub(new String[]{"pay", "发工资"}, this::handlePaySalary);
         registerSub(new String[]{"warehouse", "仓库"}, this::handleWarehouse);
         registerSub(new String[]{"take", "取出"}, this::handleTake);
         registerSub(new String[]{"disband", "解散"}, this::handleDisband);
@@ -276,8 +280,40 @@ public class SectCommand extends Command {
         ctx.reply((String) result.get("message"));
     }
 
-    private void handleWarehouse(CommandContext ctx, PlayerInfo p, String[] parts) {
-        SectMember me = sectService.getPlayerMember(p.getId());
+    private void handleDonateStones(CommandContext ctx, PlayerInfo p, String[] parts) {
+        if (parts.length < 2) { ctx.reply(I18n.t("sect.treasury_usage")); return; }
+        long amount;
+        try { amount = Long.parseLong(parts[1].trim()); } catch (NumberFormatException e) {
+            ctx.reply(I18n.t("sect.treasury_bad_amount")); return;
+        }
+        var result = sectService.donateStonesToTreasury(p.getId(), amount);
+        ctx.reply((String) result.get("message"));
+    }
+
+    private void handleTreasury(CommandContext ctx, PlayerInfo p, String[] parts) {
+        var result = sectService.getTreasuryInfo(p.getId());
+        ctx.reply((String) result.get("message"));
+    }
+
+    private void handleSalary(CommandContext ctx, PlayerInfo p, String[] parts) {
+        if (parts.length < 2) {
+            ctx.reply(sectService.getTreasuryInfo(p.getId()).get("message") + "\n" + I18n.t("sect.treasury_usage"));
+            return;
+        }
+        long amount;
+        try { amount = Long.parseLong(parts[1].trim()); } catch (NumberFormatException e) {
+            ctx.reply(I18n.t("sect.salary_bad_amount", Sect.SALARY_MAX_PER_MEMBER)); return;
+        }
+        var result = sectService.setSalary(p.getId(), amount);
+        ctx.reply((String) result.get("message"));
+    }
+
+    private void handlePaySalary(CommandContext ctx, PlayerInfo p, String[] parts) {
+        var result = sectService.paySalariesNow(p.getId());
+        ctx.reply((String) result.get("message"));
+    }
+
+    private void handleWarehouse(CommandContext ctx, PlayerInfo p, String[] parts) {        SectMember me = sectService.getPlayerMember(p.getId());
         if (me == null) { ctx.reply(I18n.t("sect.hd3fd3ad4")); return; }
 
         List<SectWarehouseItem> items = sectService.getWarehouse(me.getSectId());
@@ -528,6 +564,10 @@ public class SectCommand extends Command {
 /宗门 levelup                升级宗门（宗主，消耗声望）
 /宗门 war <宗门名>           向其他宗门宣战（宗主，消耗1000声望+300灵石）
 /宗门 donate <物品key> <数量>  向宗门仓库捐献
+/宗门 捐灵石 <数量>          向宗门金库捐献灵石（按 金额/10 折算贡献）
+/宗门 金库                   查看金库余额、工资档位与下次结算时间
+/宗门 工资 <数额>            设定每人每周期工资档位（宗主，0=关闭）
+/宗门 发工资                 立即结算一次工资（宗主）
 /宗门 warehouse              查看宗门仓库
 /宗门 take <物品key> <数量>  从仓库取出（宗主/副宗主/长老）
 /宗门 disband                解散宗门（宗主）
@@ -545,6 +585,10 @@ public class SectCommand extends Command {
         data.addProperty("prestige", sect.getPrestige());
         data.addProperty("memberCount", sect.getMemberCount());
         data.addProperty("maxMembers", Sect.getMaxMembersForLevel(sect.getLevel()));
+        data.addProperty("treasury", sect.getTreasury());
+        data.addProperty("salaryPerMember", sect.getSalaryPerMember());
+        data.addProperty("lastSalaryTime", sect.getLastSalaryTime());
+        data.addProperty("nextSalaryTime", SectService.nextSalaryTime(sect));
         addLeadershipJson(data, sect);
         SectMember me = sectService.getMember(sect.getId(), playerId);
         if (me != null) {

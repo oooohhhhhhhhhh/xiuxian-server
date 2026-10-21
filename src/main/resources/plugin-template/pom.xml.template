@@ -17,20 +17,26 @@
 
     <!--
         ============================================================
-        依赖说明：需要把服务端主 jar 加入 classpath
-        方式一（推荐）：先将服务端 jar 安装到本地仓库
-          mvn install:install-file -Dfile=服务端.jar \
-              -DgroupId=com.mtxgdn -DartifactId=main \
+        依赖说明：插件要编译，必须能访问服务端的类（com.mtxgdn.*）。
+        第一次使用前，请把服务端 jar 安装到本地 Maven 仓库：
+
+          mvn install:install-file -Dfile=<服务端.jar> ^
+              -DgroupId=com.mtxgdn -DartifactId=main ^
               -Dversion={{SERVER_VERSION}} -Dpackaging=jar
-        然后取消下面注释：
+
+        安装完成后 `mvn package` 即可直接编译。
+        若你用的是别的版本号，把下面 dependency 的 <version> 改成实际版本。
+        scope=provided：服务端运行时已经带着这些类，插件 jar 里不需要再打一份。
+        ============================================================
+    -->
+    <dependencies>
         <dependency>
             <groupId>com.mtxgdn</groupId>
             <artifactId>main</artifactId>
             <version>{{SERVER_VERSION}}</version>
             <scope>provided</scope>
         </dependency>
-        ============================================================
-    -->
+    </dependencies>
 
     <build>
         <finalName>${project.artifactId}-${project.version}</finalName>

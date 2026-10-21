@@ -90,9 +90,8 @@ public final class RegistrableEntry {
     public static RegistrableEntry newSecretRealm(String key, String name) {
         RegistrableEntry e = new RegistrableEntry(Type.SECRET_REALM, key, name);
         e.description = "示例秘境";
-        e.extraInfo = "最低等级: 1 | 体力消耗: 10";
-        e.triggers.add(Trigger.forRealmEnter());
-        e.triggers.add(Trigger.forRealmExit());
+        e.extraInfo = "境界: 1 | 冷却: 180秒";
+        // 秘境不支持触发器：服务端核心没有「进入/退出/遭遇秘境」的插件事件（见 availableWhens()）
         return e;
     }
 
@@ -120,20 +119,28 @@ public final class RegistrableEntry {
 
     // ==================== 便捷：根据类型获取默认时机 ====================
 
-    /** 根据当前注册项类型，返回其可选的触发时机列表。 */
+    /**
+     * 根据当前注册项类型，返回其可选的触发时机列表。
+     *
+     * <p>只返回服务端真实存在钩子的时机：物品用 {@code ItemEffect}、探索事件用
+     * {@code ExplorationEvent.execute(...)}、指令用 {@code Command.execute(...)}。</p>
+     *
+     * <p><b>秘境返回空数组</b>：服务端核心没有「进入/退出/遭遇秘境」的插件事件，
+     * 与其生成调不通的代码，不如不提供这个选项（秘境本身仍会真实注册）。</p>
+     */
     public Trigger.When[] availableWhens() {
         switch (type) {
-            case ITEM:    return new Trigger.When[] { Trigger.When.ITEM_ON_USE, Trigger.When.ITEM_ON_OBTAIN };
+            case ITEM:    return new Trigger.When[] { Trigger.When.ITEM_ON_USE };
             case EVENT:   return new Trigger.When[] { Trigger.When.EVENT_ON_FIRE };
             case COMMAND: return new Trigger.When[] { Trigger.When.COMMAND_ON_EXECUTE };
-            case SECRET_REALM:
-                return new Trigger.When[] {
-                        Trigger.When.REALM_ON_ENTER,
-                        Trigger.When.REALM_ON_EXIT,
-                        Trigger.When.REALM_ON_ENCOUNTER
-                };
+            case SECRET_REALM: return new Trigger.When[0];
         }
-        return new Trigger.When[] { Trigger.When.ITEM_ON_USE };
+        return new Trigger.When[0];
+    }
+
+    /** 该类型的注册项是否支持触发器。 */
+    public boolean supportsTriggers() {
+        return availableWhens().length > 0;
     }
 
     // ==================== JSON 序列化 ====================

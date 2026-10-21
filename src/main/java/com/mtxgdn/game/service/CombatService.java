@@ -423,6 +423,13 @@ public class CombatService {
         new DailyService().onBattle(challenger.getId());
         new DailyService().onBattle(target.getId());
 
+        // 装备磨损：PVP 对双方都扣耐久
+        try {
+            ServiceRegistry.getDurabilityService().applyWear(challenger.getId(), DurabilityService.getPvpWear());
+            ServiceRegistry.getDurabilityService().applyWear(target.getId(), DurabilityService.getPvpWear());
+        } catch (Exception ignored) {
+        }
+
         // 持久化双方真实战后 HP/MP（不再用战前旧值覆盖）
         challenger.setHp(Math.max(0, challengerState.playerHp));
         challenger.setMp(Math.max(0, challengerState.playerMp));
@@ -758,6 +765,12 @@ public class CombatService {
             }
 
             if (playerWon || state.playerHp <= 0) break;
+        }
+
+        // 装备磨损：打一场扣一次耐久（PVE 与 PVP 消耗量分开配置）
+        try {
+            ServiceRegistry.getDurabilityService().applyWear(playerId, DurabilityService.getPveWear());
+        } catch (Exception ignored) {
         }
 
         PveCombatResult result = buildPveResult(player, monster, playerWon, state.playerHp, state.monsterHp, state.playerMp, round,
@@ -1171,6 +1184,14 @@ public class CombatService {
                     logGenerator.addPlayerDefeated(targetPlayer.getName());
                 }
             }
+        }
+
+        // 装备磨损：团队副本按 PVP 消耗对每位参战者结算
+        try {
+            for (long pid : playerIds) {
+                ServiceRegistry.getDurabilityService().applyWear(pid, DurabilityService.getPvpWear());
+            }
+        } catch (Exception ignored) {
         }
 
         RaidCombatResult raidResult = buildRaidResult(boss, currentFormIndex, round, playerHpMap, players,

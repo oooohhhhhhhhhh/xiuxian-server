@@ -119,7 +119,9 @@ public final class PluginMaker {
 
             try {
                 String content = loadTemplate(templateFile);
-                content = applyPlaceholders(content, placeholders);
+                // pom.xml / plugin.json 里的占位符必须先按 XML / JSON 规则转义，
+                // 否则插件名里带一个引号就会把生成的配置文件写坏。
+                content = applyPlaceholders(content, placeholders, escapeModeOf(templateFile));
                 writeFile(targetFile, content);
                 out.println("  ✓ 已生成 " + targetFile.getPath());
                 ok++;
@@ -207,10 +209,36 @@ public final class PluginMaker {
 
     /** 在模板字符串中替换所有 {{占位符}} */
     private static String applyPlaceholders(String template, Map<String, String> values) {
+        return applyPlaceholders(template, values, EscapeMode.NONE);
+    }
+
+    /** 目标文件格式 —— 决定占位符取值要不要转义。 */
+    private enum EscapeMode { NONE, XML, JSON }
+
+    private static EscapeMode escapeModeOf(String templateFile) {
+        if (templateFile.endsWith(".xml.template")) return EscapeMode.XML;
+        if (templateFile.endsWith(".json.template")) return EscapeMode.JSON;
+        return EscapeMode.NONE;
+    }
+
+    private static String escapeFor(String v, EscapeMode mode) {
+        if (v == null) return "";
+        switch (mode) {
+            case XML:
+                return v.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;").replace("\"", "&quot;");
+            case JSON:
+                return v.replace("\\", "\\\\").replace("\"", "\\\"")
+                        .replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t");
+            default:
+                return v;
+        }
+    }
+
+    /** 在模板字符串中替换所有 {{占位符}}（按目标格式转义取值） */
+    private static String applyPlaceholders(String template, Map<String, String> values, EscapeMode mode) {
         String result = template;
         for (Map.Entry<String, String> e : values.entrySet()) {
-            String v = e.getValue() == null ? "" : e.getValue();
-            result = result.replace(e.getKey(), v);
+            result = result.replace(e.getKey(), escapeFor(e.getValue(), mode));
         }
         return result;
     }

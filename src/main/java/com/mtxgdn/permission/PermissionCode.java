@@ -22,6 +22,7 @@ public enum PermissionCode {
     GAME_CRAFTING_CRAFT("game.crafting.craft", "制造物品", "游戏功能"),
     GAME_EQUIPMENT_ENHANCE("game.equipment.enhance", "装备强化", "游戏功能"),
     GAME_EQUIPMENT_EQUIP("game.equipment.equip", "装备物品", "游戏功能"),
+    GAME_EQUIPMENT_REPAIR("game.equipment.repair", "修理装备", "游戏功能"),
     GAME_MARKET_TRADE("game.market.trade", "坊市交易", "游戏功能"),
     GAME_CHAT_WORLD("game.chat.world", "世界聊天", "游戏功能"),
     GAME_CHAT_PRIVATE("game.chat.private", "私聊", "游戏功能"),

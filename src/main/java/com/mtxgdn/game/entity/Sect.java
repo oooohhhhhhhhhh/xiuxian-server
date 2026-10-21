@@ -22,6 +22,13 @@ public class Sect {
     /** 挑战者是否已发起挑战（等待宗主应战）。 */
     private boolean contestRequested;
 
+    /** 宗门金库余额（下品灵石等值）。工资只从这里出，不由系统凭空发放。 */
+    private long treasury;
+    /** 每周期给"外门弟子"的基础工资（档位由宗主设定），实际按职位系数加权。 */
+    private long salaryPerMember;
+    /** 上次发放工资的毫秒时间戳；0 = 从未发放。 */
+    private long lastSalaryTime;
+
     public long getId() { return id; }
     public void setId(long id) { this.id = id; }
 
@@ -67,6 +74,18 @@ public class Sect {
     /** 宗主是否处于缺位状态（主动退位或长期不活跃被判定弃坑）。 */
     public boolean isLeaderAbsent() { return leaderAbsentSince > 0; }
 
+    public long getTreasury() { return treasury; }
+    public void setTreasury(long treasury) { this.treasury = treasury; }
+
+    public long getSalaryPerMember() { return salaryPerMember; }
+    public void setSalaryPerMember(long salaryPerMember) { this.salaryPerMember = salaryPerMember; }
+
+    public long getLastSalaryTime() { return lastSalaryTime; }
+    public void setLastSalaryTime(long lastSalaryTime) { this.lastSalaryTime = lastSalaryTime; }
+
+    /** 是否已开启工资发放（档位为 0 视为未开启）。 */
+    public boolean isSalaryEnabled() { return salaryPerMember > 0; }
+
     /** 是否处于<b>进行中</b>的宗主竞争期（有挑战者且未到期）。 */
     public boolean hasActiveContest(long now) {
         return contestUntil > now && contestChallengerId > 0;
@@ -106,6 +125,31 @@ public class Sect {
 
     public static int getMaxMembersForLevel(int level) {
         return MAX_MEMBERS_BASE + (level - 1) * MAX_MEMBERS_PER_LEVEL;
+    }
+
+    // ---- 宗门金库 / 工资 ----
+
+    /** 工资档位（每人每周期基础值）上限，防止宗主填一个天文数字把金库瞬间掏空。 */
+    public static final long SALARY_MAX_PER_MEMBER = 100_000L;
+
+    /** 默认工资结算周期（小时）。 */
+    public static final int SALARY_INTERVAL_HOURS_DEFAULT = 24;
+
+    /**
+     * 职位工资系数：以"外门弟子 = 1.0"为基准。
+     *
+     * <p>用系数而不是"每个职位单独设一个数"，是为了让宗主只需要调一个数字，
+     * 职位间的相对差距保持稳定 —— 否则宗主得为 5 个职位分别填数，
+     * 一不小心就会出现"外门比长老拿得多"的荒唐配置。</p>
+     */
+    public static double getSalaryRankMultiplier(String role) {
+        return switch (role) {
+            case SectMember.ROLE_LEADER -> 3.0;
+            case SectMember.ROLE_VICE_LEADER -> 2.0;
+            case SectMember.ROLE_ELDER -> 1.5;
+            case SectMember.ROLE_INNER_MEMBER -> 1.2;
+            default -> 1.0;
+        };
     }
 
     public static long getLevelUpCost(int currentLevel) {

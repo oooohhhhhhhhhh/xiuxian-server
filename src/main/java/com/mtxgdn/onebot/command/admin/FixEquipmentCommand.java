@@ -2,7 +2,7 @@ package com.mtxgdn.onebot.command.admin;
 
 import com.mtxgdn.common.command.Command;
 import com.mtxgdn.common.command.CommandContext;
-import com.mtxgdn.game.service.EquipmentFixService;
+import com.mtxgdn.game.service.EquipmentDataChecker;
 import com.mtxgdn.onebot.QqBinding;
 import com.mtxgdn.onebot.QqBindingService;
 import com.mtxgdn.permission.PermissionService;
@@ -29,8 +29,9 @@ public class FixEquipmentCommand extends Command {
 
         ctx.reply(I18n.t("admin.h5c19d9d2"));
         
-        EquipmentFixService fixService = new EquipmentFixService();
-        fixService.fixEquipmentData();
+        // 注意：这里必须走 forceCheck，否则启动时已经跑过一次的自检会让这条指令变成空操作
+        EquipmentDataChecker checker = new EquipmentDataChecker();
+        checker.forceCheckEquipmentData();
         
         ctx.reply(I18n.t("admin.h9ff0b1e0"));
     }

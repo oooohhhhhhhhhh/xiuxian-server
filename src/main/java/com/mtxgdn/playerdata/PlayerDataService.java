@@ -12,6 +12,8 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.security.MessageDigest;
+import java.security.NoSuchAlgorithmException;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -20,6 +22,7 @@ import java.sql.SQLException;
 import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Date;
+import java.util.HexFormat;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -28,6 +31,7 @@ import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicLong;
 import com.mtxgdn.i18n.I18n;
 
 /**
@@ -57,6 +61,26 @@ public class PlayerDataService {
 
     /** 等待落盘的玩家集合 */
     private static final Set<Long> dirtyPlayers = ConcurrentHashMap.newKeySet();
+
+    /** 已进入停机流程：后台线程不再发起任何落盘，避免与连接池关闭抢时序。 */
+    private static volatile boolean stopping = false;
+
+    /** 快照格式版本；改动行内值编码方式时递增。 */
+    private static final int SCHEMA_VERSION = 1;
+
+    /**
+     * 导出/还原的成功失败计数。
+     *
+     * <p>以前导出失败只打一条 WARN，运维根本看不见 —— 备份目录可能几个月都是空的，
+     * 直到真要恢复时才发现。这些计数会随 {@link #getStats()} 暴露到管理接口，
+     * 让"备份到底有没有在成功"变成可观测的事实。</p>
+     */
+    private static final AtomicLong EXPORT_OK = new AtomicLong();
+    private static final AtomicLong EXPORT_FAIL = new AtomicLong();
+    private static final AtomicLong RESTORE_OK = new AtomicLong();
+    private static final AtomicLong RESTORE_FAIL = new AtomicLong();
+    private static volatile String lastError = "";
+    private static volatile long lastErrorAt = 0;
 
     private static final ScheduledExecutorService scheduler =
             Executors.newSingleThreadScheduledExecutor(r -> {
@@ -94,7 +118,12 @@ public class PlayerDataService {
 
     /** 立即落盘所有待同步的玩家（供定时任务与停机时调用） */
     public static void flushDirty() {
-        if (!ENABLED || dirtyPlayers.isEmpty()) {
+        if (!ENABLED || dirtyPlayers.isEmpty() || stopping) {
+            return;
+        }
+        // 连接池已关闭（停机或测试收尾）：这时刷盘只会得到 "no such table"，
+        // 既救不了数据也会把日志刷满，直接放弃这一轮。
+        if (!DatabaseManager.isAvailable()) {
             return;
         }
         List<Long> ids = new ArrayList<>(dirtyPlayers);
@@ -104,20 +133,38 @@ public class PlayerDataService {
             try {
                 service.exportPlayer(id);
             } catch (Exception e) {
-                dirtyPlayers.add(id);
+                // 只有数据库还活着才值得重试；否则会把死任务永久留在队列里
+                if (DatabaseManager.isAvailable() && !stopping) {
+                    dirtyPlayers.add(id);
+                }
                 LOG.warn("玩家 " + id + " 数据落盘失败，稍后重试: " + e.getMessage());
             }
         }
     }
 
     public static void shutdown() {
-        scheduler.shutdown();
+        // 顺序很重要：先趁数据库还活着把脏数据刷完，再关调度器并置停机标记。
+        // 反过来的话最后一次落盘会被 stopping 挡掉 —— 那恰恰是最不能丢的一次。
         flushDirty();
+        stopping = true;
+        scheduler.shutdown();
     }
 
     // ==================== 导出 ====================
 
-    /** 将指定玩家的全部数据导出到其个人文件（data/players/{playerId}.json） */
+    /**
+     * 将指定玩家的全部数据导出到其个人文件（data/players/{playerId}.json）。
+     *
+     * <p>相比"写出去就算成功"的旧实现，这里多了三道保障：</p>
+     * <ol>
+     *   <li><b>读失败即导出失败</b>：任何一张表读不出来都会抛异常，不再静默产出一份
+     *       缺表的"完整快照"。</li>
+     *   <li><b>写后回读校验</b>：落盘后立刻把文件读回来重新算摘要与行数，
+     *       与内存中的快照比对，不一致就判定失败 —— 宁可这次不更新，也不留一份坏备份。</li>
+     *   <li><b>保留上一版</b>：覆盖前先把旧文件复制为 {@code <id>.json.bak}，
+     *       这样"新快照是坏的但校验没抓到"这类极端情况还有退路。</li>
+     * </ol>
+     */
     public Map<String, Object> exportPlayer(long playerId) {
         Map<String, Object> result = new LinkedHashMap<>();
         if (!ENABLED) {
@@ -126,30 +173,168 @@ public class PlayerDataService {
             return result;
         }
 
-        PlayerData data = collectPlayerData(playerId);
+        PlayerData data;
+        try {
+            data = collectPlayerData(playerId);
+        } catch (RuntimeException e) {
+            // 读表失败：绝不产出不完整的快照
+            recordExportFailure("采集玩家 " + playerId + " 数据失败: " + e.getMessage());
+            result.put("success", false);
+            result.put("message", I18n.t("playerdata.export_read_failed", e.getMessage()));
+            return result;
+        }
         if (data == null) {
             result.put("success", false);
             result.put("message", I18n.t("playerdata.hc014f818", playerId));
             return result;
         }
 
+        data.schemaVersion = SCHEMA_VERSION;
+
         try {
             Files.createDirectories(DATA_DIR);
             Path target = DATA_DIR.resolve(playerId + ".json");
             Path tmp = DATA_DIR.resolve(playerId + ".json.tmp");
+
+            // 先写一遍，再读回来解析。摘要必须算在"解析后的规范形态"上：
+            // JDBC 取出的数字是 Long/Integer，JSON 里没有整数类型，读回来一律变成 Double
+            // （123 vs 123.0）。如果直接拿内存对象算摘要，跟磁盘那份永远对不上 ——
+            // 这正是最初版本每次导出都报"摘要不一致"的原因。
             Files.write(tmp, GSON.toJson(data).getBytes(StandardCharsets.UTF_8));
+            PlayerData canonical;
+            try {
+                canonical = GSON.fromJson(Files.readString(tmp, StandardCharsets.UTF_8), PlayerData.class);
+            } catch (Exception e) {
+                Files.deleteIfExists(tmp);
+                recordExportFailure("玩家 " + playerId + " 快照解析失败: " + e.getMessage());
+                result.put("success", false);
+                result.put("message", I18n.t("playerdata.export_verify_failed", e.getMessage()));
+                return result;
+            }
+            if (canonical == null || canonical.tables == null) {
+                Files.deleteIfExists(tmp);
+                recordExportFailure("玩家 " + playerId + " 快照内容为空");
+                result.put("success", false);
+                result.put("message", I18n.t("playerdata.export_verify_failed", "内容为空"));
+                return result;
+            }
+            canonical.playerId = data.playerId;
+            canonical.userId = data.userId;
+            canonical.playerName = data.playerName;
+            canonical.exportedAt = data.exportedAt;
+            canonical.schemaVersion = SCHEMA_VERSION;
+            canonical.rowCount = countRows(canonical);
+            canonical.checksum = computeChecksum(canonical);
+            Files.write(tmp, GSON.toJson(canonical).getBytes(StandardCharsets.UTF_8));
+
+            // 回读校验：确认磁盘上那份内容确实能还原成同一份数据
+            String verifyError = verifySerialized(Files.readString(tmp, StandardCharsets.UTF_8), canonical);
+            if (verifyError != null) {
+                Files.deleteIfExists(tmp);
+                recordExportFailure("玩家 " + playerId + " 快照回读校验失败: " + verifyError);
+                result.put("success", false);
+                result.put("message", I18n.t("playerdata.export_verify_failed", verifyError));
+                return result;
+            }
+            data = canonical;
+
+            // 保留上一版，再原子替换
+            if (Files.exists(target)) {
+                try {
+                    Files.copy(target, DATA_DIR.resolve(playerId + ".json.bak"),
+                            StandardCopyOption.REPLACE_EXISTING);
+                } catch (IOException ignored) {
+                    // 备份旧文件失败不阻断新快照落盘
+                }
+            }
             Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
         } catch (IOException e) {
+            recordExportFailure("玩家 " + playerId + " 快照落盘失败: " + e.getMessage());
             result.put("success", false);
             result.put("message", I18n.t("playerdata.heb291fb8", e.getMessage()));
             return result;
         }
 
+        EXPORT_OK.incrementAndGet();
         result.put("success", true);
         result.put("message", I18n.t("playerdata.h31da32fc", data.playerName, playerId, filePath(playerId)));
         result.put("filePath", filePath(playerId));
         result.put("exportedAt", data.exportedAt);
+        result.put("rowCount", data.rowCount);
+        result.put("checksum", data.checksum);
         return result;
+    }
+
+    /** 统计所有表的行数。 */
+    private static int countRows(PlayerData data) {
+        int total = 0;
+        for (List<Map<String, Object>> rows : data.tables.values()) {
+            if (rows != null) total += rows.size();
+        }
+        return total;
+    }
+
+    /**
+     * 对 {@code tables} 求 SHA-256。刻意只算 tables、不算 meta 字段本身
+     * —— 否则导出时间一变化摘要就变，"内容没变但摘要不同"会让校验失去意义。
+     */
+    private static String computeChecksum(PlayerData data) {
+        try {
+            MessageDigest md = MessageDigest.getInstance("SHA-256");
+            byte[] digest = md.digest(GSON.toJson(data.tables).getBytes(StandardCharsets.UTF_8));
+            return HexFormat.of().formatHex(digest);
+        } catch (NoSuchAlgorithmException e) {
+            // SHA-256 是 JDK 必备算法，这里不可能发生
+            return null;
+        }
+    }
+
+    /**
+     * 校验一段 JSON 文本是否与内存中的快照一致。
+     *
+     * @return 不一致时返回错误描述；一致返回 null
+     */
+    private String verifySerialized(String json, PlayerData expected) {
+        PlayerData parsed;
+        try {
+            parsed = GSON.fromJson(json, PlayerData.class);
+        } catch (Exception e) {
+            return "文件无法解析: " + e.getMessage();
+        }
+        if (parsed == null || parsed.tables == null) {
+            return "文件内容为空";
+        }
+        int actualRows = countRows(parsed);
+        if (actualRows != expected.rowCount) {
+            return "行数不一致（期望 " + expected.rowCount + "，实际 " + actualRows + "）";
+        }
+        String actualChecksum = computeChecksum(parsed);
+        if (expected.checksum != null && !expected.checksum.equals(actualChecksum)) {
+            return "内容摘要不一致";
+        }
+        return null;
+    }
+
+    private static void recordExportFailure(String message) {
+        EXPORT_FAIL.incrementAndGet();
+        lastError = message;
+        lastErrorAt = System.currentTimeMillis();
+        LOG.error(message);
+    }
+
+    /** 导出/还原的运行统计，供管理后台展示。 */
+    public static Map<String, Object> getStats() {
+        Map<String, Object> stats = new LinkedHashMap<>();
+        stats.put("enabled", ENABLED);
+        stats.put("dir", DATA_DIR.toAbsolutePath().toString());
+        stats.put("exportOk", EXPORT_OK.get());
+        stats.put("exportFail", EXPORT_FAIL.get());
+        stats.put("restoreOk", RESTORE_OK.get());
+        stats.put("restoreFail", RESTORE_FAIL.get());
+        stats.put("pendingDirty", dirtyPlayers.size());
+        stats.put("lastError", lastError);
+        stats.put("lastErrorAt", lastErrorAt);
+        return stats;
     }
 
     /** 导出全部玩家（迁移/备份用） */
@@ -267,6 +452,14 @@ public class PlayerDataService {
         return data;
     }
 
+    /**
+     * 读某张表里属于该玩家的所有行。
+     *
+     * <p><b>读失败必须抛异常</b>：旧实现只是打一条 WARN 然后返回空列表，
+     * 结果一张表读挂了会产出一份"看起来正常、实际缺表"的快照，
+     * 等到需要恢复时才发现少了一半数据。备份的价值在于完整性，
+     * 所以这里宁可让整次导出失败。</p>
+     */
     private List<Map<String, Object>> queryRowsByColumn(String table, String column, long value) {
         List<Map<String, Object>> rows = new ArrayList<>();
         String sql = "SELECT * FROM " + table + " WHERE " + column + " = ?";
@@ -279,7 +472,7 @@ public class PlayerDataService {
                 }
             }
         } catch (SQLException e) {
-            LOG.warn("读取表 " + table + " 失败: " + e.getMessage());
+            throw new RuntimeException("读取表 " + table + " 失败: " + e.getMessage(), e);
         }
         return rows;
     }
@@ -297,7 +490,7 @@ public class PlayerDataService {
                 }
             }
         } catch (SQLException e) {
-            LOG.warn("读取表 " + table + " 失败: " + e.getMessage());
+            throw new RuntimeException("读取表 " + table + " 失败: " + e.getMessage(), e);
         }
         return rows;
     }
@@ -333,6 +526,15 @@ public class PlayerDataService {
 
     /** 用玩家数据 JSON 还原该玩家（管理员接口；自我恢复受 self-restore 开关控制） */
     public Map<String, Object> restorePlayer(long playerId, String jsonData) {
+        return restorePlayer(playerId, jsonData, false);
+    }
+
+    /**
+     * 用玩家数据 JSON 还原该玩家。
+     *
+     * @param force true = 跳过"玩家在线"保护（仅在管理员明确知道后果时使用）
+     */
+    public Map<String, Object> restorePlayer(long playerId, String jsonData, boolean force) {
         Map<String, Object> result = new LinkedHashMap<>();
         if (!ENABLED) {
             result.put("success", false);
@@ -343,6 +545,7 @@ public class PlayerDataService {
         try {
             data = GSON.fromJson(jsonData, PlayerData.class);
         } catch (Exception e) {
+            recordRestoreFailure("解析玩家 " + playerId + " 数据失败: " + e.getMessage());
             result.put("success", false);
             result.put("message", I18n.t("playerdata.h16464a5c", e.getMessage()));
             return result;
@@ -355,6 +558,33 @@ public class PlayerDataService {
         if (data.playerId != playerId) {
             result.put("success", false);
             result.put("message", I18n.t("playerdata.ha165961c", data.playerId, playerId));
+            return result;
+        }
+
+        // 完整性校验：老版本导出的文件没有 checksum，只做行数粗校验；
+        // 新版本有摘要就严格比对，文件被截断/改坏会在这里被挡住，不会灌回数据库。
+        if (data.checksum != null) {
+            String actual = computeChecksum(data);
+            if (!data.checksum.equals(actual)) {
+                recordRestoreFailure("玩家 " + playerId + " 数据文件校验失败：摘要不匹配");
+                result.put("success", false);
+                result.put("message", I18n.t("playerdata.restore_checksum_mismatch"));
+                return result;
+            }
+            int rows = countRows(data);
+            if (data.rowCount > 0 && rows != data.rowCount) {
+                recordRestoreFailure("玩家 " + playerId + " 数据文件校验失败：行数不一致");
+                result.put("success", false);
+                result.put("message", I18n.t("playerdata.restore_checksum_mismatch"));
+                return result;
+            }
+        }
+
+        // 在线保护：正在玩的角色被回滚会直接覆盖内存里/正在写入的进度，
+        // 而且玩家本人毫无察觉。默认拒绝，要求先下线。
+        if (!force && isPlayerOnline(data.userId)) {
+            result.put("success", false);
+            result.put("message", I18n.t("playerdata.restore_online"));
             return result;
         }
 
@@ -391,23 +621,83 @@ public class PlayerDataService {
                 conn.commit();
             } catch (Exception e) {
                 conn.rollback();
+                recordRestoreFailure("玩家 " + playerId + " 数据还原失败: " + e.getMessage());
                 result.put("success", false);
                 result.put("message", I18n.t("playerdata.h30cace6c", e.getMessage()));
                 return result;
             }
         } catch (SQLException e) {
+            recordRestoreFailure("玩家 " + playerId + " 数据还原失败: " + e.getMessage());
             result.put("success", false);
             result.put("message", I18n.t("playerdata.h0a551337", e.getMessage()));
             return result;
         }
 
+        RESTORE_OK.incrementAndGet();
         result.put("success", true);
+        result.put("restored", restored);
         result.put("message", I18n.t("playerdata.ha130304a", playerId, restored));
         return result;
     }
 
+    private static void recordRestoreFailure(String message) {
+        RESTORE_FAIL.incrementAndGet();
+        lastError = message;
+        lastErrorAt = System.currentTimeMillis();
+        LOG.error(message);
+    }
+
+    /**
+     * 该账号当前是否在线。
+     *
+     * <p>用 userId 判断而不是 playerId：WebSocket 会话是按账号建的，
+     * 一个账号可能同时挂在多个通道上（WebSocket + QQ + MC），
+     * 只要任一通道在线就说明这个角色正在被写。</p>
+     */
+    private static boolean isPlayerOnline(long userId) {
+        try {
+            com.mtxgdn.websocket.GameWebSocketApp app = com.mtxgdn.Main.gameWebSocketApp;
+            return app != null && userId > 0 && app.isUserOnline(userId);
+        } catch (Throwable t) {
+            // 判断不了就当作"不在线"，避免因为一个探测异常把恢复功能彻底堵死
+            return false;
+        }
+    }
+
     /** 从文件还原（管理员：把某个玩家的数据文件写回数据库） */
     public Map<String, Object> restoreFromFile(long playerId) {
+        return restoreFromFile(playerId, false, false);
+    }
+
+    /**
+     * 从文件还原。
+     *
+     * @param useBackup true = 改用 {@code <id>.json.bak}（当前快照损坏时的退路）
+     * @param force     true = 跳过在线保护
+     */
+    public Map<String, Object> restoreFromFile(long playerId, boolean useBackup, boolean force) {
+        Map<String, Object> result = new LinkedHashMap<>();
+        Path file = DATA_DIR.resolve(playerId + (useBackup ? ".json.bak" : ".json"));
+        if (!Files.exists(file)) {
+            result.put("success", false);
+            result.put("message", I18n.t("playerdata.h6fec2084", file.toAbsolutePath()));
+            return result;
+        }
+        try {
+            String json = Files.readString(file, StandardCharsets.UTF_8);
+            return restorePlayer(playerId, json, force);
+        } catch (IOException e) {
+            recordRestoreFailure("读取玩家 " + playerId + " 数据文件失败: " + e.getMessage());
+            result.put("success", false);
+            result.put("message", I18n.t("playerdata.h092cb197", e.getMessage()));
+            return result;
+        }
+    }
+
+    /**
+     * 校验某个玩家的数据文件是否完整（不写库）。供管理后台"体检"使用。
+     */
+    public Map<String, Object> verifyFile(long playerId) {
         Map<String, Object> result = new LinkedHashMap<>();
         Path file = DATA_DIR.resolve(playerId + ".json");
         if (!Files.exists(file)) {
@@ -416,8 +706,26 @@ public class PlayerDataService {
             return result;
         }
         try {
-            String json = Files.readString(file, StandardCharsets.UTF_8);
-            return restorePlayer(playerId, json);
+            PlayerData data = GSON.fromJson(Files.readString(file, StandardCharsets.UTF_8), PlayerData.class);
+            if (data == null || data.tables == null) {
+                result.put("success", false);
+                result.put("message", I18n.t("playerdata.restore_checksum_mismatch"));
+                return result;
+            }
+            if (data.checksum == null) {
+                result.put("success", true);
+                result.put("legacy", true);
+                result.put("rowCount", countRows(data));
+                result.put("message", I18n.t("playerdata.verify_legacy"));
+                return result;
+            }
+            boolean ok = data.checksum.equals(computeChecksum(data));
+            result.put("success", ok);
+            result.put("legacy", false);
+            result.put("rowCount", countRows(data));
+            result.put("checksum", data.checksum);
+            result.put("message", ok ? I18n.t("playerdata.verify_ok") : I18n.t("playerdata.restore_checksum_mismatch"));
+            return result;
         } catch (IOException e) {
             result.put("success", false);
             result.put("message", I18n.t("playerdata.h092cb197", e.getMessage()));

@@ -1114,6 +1114,21 @@ public class GameWebSocketApp extends WebSocketApplication {
         }
     }
 
+    /**
+     * 该账号当前是否持有活跃的 WebSocket 会话。
+     *
+     * <p>玩家数据文件恢复前必须问这一句：正在玩的角色被回滚，
+     * 等于把玩家眼前的进度偷偷换掉，且他下一次操作就会把回滚结果写回去。
+     * 注意只把"连接仍然连着"算在线 —— 掉线的幽灵会话不该永久挡住数据修复。</p>
+     */
+    public boolean isUserOnline(Long userId) {
+        if (userId == null) {
+            return false;
+        }
+        WebSocket socket = userSessions.get(userId);
+        return socket != null && socket.isConnected();
+    }
+
     private void broadcastUserOnline(Long userId, String username) {
         JsonObject data = new JsonObject();
         data.addProperty("userId", userId);

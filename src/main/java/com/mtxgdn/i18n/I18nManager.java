@@ -129,7 +129,10 @@ public final class I18nManager {
      * 并记一条 WARN（由 {@link #reportedMissing} 去重，不会刷屏）。</p>
      */
     public static String raw(String key) {
-        return raw(key, GameLanguage.defaultLanguage());
+        // 走 I18nContext 而不是 defaultLanguage()：否则在 HTTP/WS 线程里调这个重载会
+        // 无视本次请求协商到的语言，静默返回服务端默认语言 —— 和 I18n.t(key) 行为不一致，
+        // 是个只在"某种语言恰好缺这条词条"时才暴露的隐蔽 bug。
+        return raw(key, I18nContext.current());
     }
 
     /** 取指定语言下的原文（无占位符）。 */

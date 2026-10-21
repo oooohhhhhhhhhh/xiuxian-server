@@ -3102,6 +3102,35 @@ public class AdminResource {
         return Response.ok(gson.toJson(out)).build();
     }
 
+    @GET
+    @Path("/player-data/stats")
+    @Produces("application/json;charset=UTF-8")
+    @RequirePermission("admin.database.clear_players")
+    public Response playerDataStats() {
+        JsonObject out = new JsonObject();
+        out.addProperty("code", 200);
+        out.add("data", gson.toJsonTree(com.mtxgdn.playerdata.PlayerDataService.getStats()));
+        return Response.ok(gson.toJson(out)).build();
+    }
+
+    @GET
+    @Path("/player-data/verify/{playerId}")
+    @Produces("application/json;charset=UTF-8")
+    @RequirePermission("admin.database.clear_players")
+    public Response verifyPlayerData(@PathParam("playerId") long playerId) {
+        com.mtxgdn.playerdata.PlayerDataService dataService = new com.mtxgdn.playerdata.PlayerDataService();
+        Map<String, Object> result = dataService.verifyFile(playerId);
+        JsonObject out = new JsonObject();
+        out.addProperty("code", Boolean.TRUE.equals(result.get("success")) ? 200 : 400);
+        out.addProperty("message", (String) result.get("message"));
+        out.addProperty("legacy", Boolean.TRUE.equals(result.get("legacy")));
+        Object rows = result.get("rowCount");
+        if (rows instanceof Number n) {
+            out.addProperty("rowCount", n.intValue());
+        }
+        return Response.ok(gson.toJson(out)).build();
+    }
+
     // ==================== OAuth2 配置管理 ====================
 
     @GET

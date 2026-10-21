@@ -184,8 +184,8 @@ public class EntriesPanel extends JPanel {
 
         // 提示
         g.gridx = 0; g.gridy++; g.gridwidth = 2;
-        JLabel hint = Theme.hintLabel("（额外配置为可选字段，根据注册项类型自定义；例如秘境的" +
-                "\"最低等级: 1 | 体力消耗: 10\"）");
+        JLabel hint = Theme.hintLabel("（额外配置格式：`键: 值`，多项用 | 分隔；未识别的键会被忽略）\n"
+                + extraInfoHint(entryType));
         infoCard.add(hint, g);
 
         detailPanel.add(infoCard);
@@ -198,8 +198,9 @@ public class EntriesPanel extends JPanel {
 
         JPanel triggerTop = new JPanel(new FlowLayout(FlowLayout.LEFT, 6, 4));
         triggerTop.setBackground(Theme.BG_SECONDARY);
-        JLabel triggerHint = Theme.hintLabel(
-                "触发器定义：当该" + entryType.label + "发生某个时机时，系统执行相应动作。");
+        JLabel triggerHint = Theme.hintLabel(entryType == RegistrableEntry.Type.SECRET_REALM
+                ? "秘境暂不支持触发器：服务端核心没有「进入/退出/遭遇秘境」事件；秘境本身会按上方配置真实注册。"
+                : "触发器定义：当该" + entryType.label + "发生某个时机时，系统执行相应动作。");
         triggerTop.add(triggerHint);
         triggerCard.add(triggerTop, BorderLayout.NORTH);
 
@@ -233,6 +234,7 @@ public class EntriesPanel extends JPanel {
 
         JButton addTrigBtn = new JButton("＋ 添加触发器");
         Theme.styleButton(addTrigBtn);
+        addTrigBtn.setEnabled(entryType != RegistrableEntry.Type.SECRET_REALM);
         addTrigBtn.addActionListener(e -> addTrigger());
 
         JButton editTrigBtn = new JButton("✎ 编辑");
@@ -338,10 +340,17 @@ public class EntriesPanel extends JPanel {
     private void addTrigger() {
         if (selectedIndex < 0) return;
         RegistrableEntry entry = entries.get(selectedIndex);
+        Trigger.When[] avail = entry.availableWhens();
+        if (avail.length == 0) {
+            JOptionPane.showMessageDialog(this,
+                    "该类型的注册项暂不支持触发器。\n"
+                            + "（服务端核心没有对应的钩子事件，生成器不会产出调不通的代码）",
+                    "提示", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
         Trigger t = new Trigger();
         // 按类型给默认时机
-        Trigger.When[] avail = entry.availableWhens();
-        if (avail.length > 0) t.setTriggerWhen(avail[0]);
+        t.setTriggerWhen(avail[0]);
         t.setDescription(entry.getType().label + "· " + t.getTriggerWhen().label);
         entry.getTriggers().add(t);
         refreshTriggerTable();
@@ -353,6 +362,12 @@ public class EntriesPanel extends JPanel {
         if (selectedIndex < 0) return;
         Trigger t = entries.get(selectedIndex).getTriggers().get(triggerIdx);
         RegistrableEntry entry = entries.get(selectedIndex);
+        if (entry.availableWhens().length == 0) {
+            JOptionPane.showMessageDialog(this,
+                    "该类型的注册项暂不支持触发器。",
+                    "提示", JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
         new TriggerEditorDialog((Frame) SwingUtilities.getWindowAncestor(this), entry, t, () -> refreshTriggerTable()).setVisible(true);
     }
 
@@ -388,6 +403,22 @@ public class EntriesPanel extends JPanel {
         for (JTextComponent c : new JTextComponent[]{nameField, keyField, descField, extraField}) {
             c.setEnabled(enabled);
             c.setForeground(enabled ? Theme.FG_TEXT : new Color(180, 180, 190));
+        }
+    }
+
+    /** 按注册项类型给出「额外配置」可用的键说明（CodeGenerator 会真的解析这些键）。 */
+    private static String extraInfoHint(RegistrableEntry.Type type) {
+        switch (type) {
+            case ITEM:
+                return "物品可用键：类型（消耗品/装备/材料/功法秘籍/法宝/任务物品/货币/种子）、"
+                        + "稀有度（凡品/良品/珍品/仙品/神品/圣品）、堆叠、价格、可交易（是/否）、境界";
+            case EVENT:
+                return "探索事件可用键：权重（被 /游历 抽中的权重，默认 10）";
+            case COMMAND:
+                return "指令无需额外配置；指令名会自动去掉前缀 '/'";
+            case SECRET_REALM:
+            default:
+                return "秘境可用键：境界（所需境界）、冷却（如 180秒 / 3分钟）、团队（是/否）";
         }
     }
 

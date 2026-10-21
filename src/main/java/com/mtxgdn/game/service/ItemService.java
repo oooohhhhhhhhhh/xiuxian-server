@@ -743,6 +743,16 @@ public class ItemService {
                     return innerResult;
                 }
 
+                // 耐久归零的装备不允许卸下：否则"损坏→卸下→装上"就能免费重置耐久，
+                // 修理系统会被彻底绕过（耐久表是按 玩家+物品key 记的，卸下并不会清记录）。
+                if (com.mtxgdn.common.service.ServiceRegistry.getDurabilityService()
+                        .getDurability(conn, playerId, itemKey) <= 0) {
+                    innerResult.put("success", false);
+                    innerResult.put("message", I18n.t("equip.unequip_broken",
+                            DurabilityService.getSlotDisplayName(slot)));
+                    return innerResult;
+                }
+
                 // 1. 从装备表删除
                 String delSql = "DELETE FROM players_equipment WHERE player_id = ? AND slot = ?";
                 try (PreparedStatement ps = conn.prepareStatement(delSql)) {

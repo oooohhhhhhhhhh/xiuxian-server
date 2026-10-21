@@ -131,10 +131,12 @@ public class PluginMakerGUI extends JFrame {
         JTextArea hint = new JTextArea(
                 "1. 在【基础配置】中填写插件名称、版本、GroupId、ArtifactId、主类名、输出目录。\n" +
                 "2. 在【物品】【事件】【指令】【秘境】各标签页中添加/编辑注册项，每个注册项内可配置多个触发器。\n" +
-                "3. 触发器的含义：当该注册项（例如某个物品）发生指定时机（例如玩家使用物品）时，执行动作（发送消息/给物品/执行代码等）。\n" +
+                "3. 触发器的含义：当该注册项发生指定时机（物品被使用 / 探索事件被游历抽中 / 指令被执行）时，执行动作（发送消息/给灵石/给物品/执行代码/记日志）。\n" +
+                "   · 物品 → 生成 ItemEffect；探索事件 → 生成 ExplorationEvent.execute(...)；指令 → 生成 Command.execute(...)。\n" +
+                "   · 秘境暂不支持触发器：服务端核心没有「进入/退出/遭遇秘境」事件，秘境本身仍会真实注册。\n" +
                 "4. 完成后点击底部【💾 保存配置】把当前配置存为 JSON，下次可通过【📂 加载配置】恢复。\n" +
-                "5. 点击底部【🚀 生成插件项目】即可在输出目录下生成完整的 Maven 项目。\n" +
-                "6. 在生成目录中执行 mvn clean package 即可得到 JAR 包，放入服务端 ./plugins 目录即可加载。"
+                "5. 点击底部【🚀 生成插件项目】即可在输出目录下生成完整的 Maven 项目（生成物可直接 mvn package）。\n" +
+                "6. 先把服务端 jar 装进本地仓库（见生成的 README），再执行 mvn clean package，最后把 JAR 放进服务端 ./plugins 目录。"
         );
         hint.setLineWrap(true);
         hint.setWrapStyleWord(true);
@@ -401,14 +403,28 @@ public class PluginMakerGUI extends JFrame {
         if (c.getArtifactId() == null || c.getArtifactId().trim().isEmpty()) errors.add("ArtifactId 不能为空");
         if (c.getMainClass() == null || c.getMainClass().trim().isEmpty()) errors.add("主类名不能为空");
         if (c.getOutputDir() == null || c.getOutputDir().trim().isEmpty()) errors.add("输出目录不能为空");
-        // 检查每个注册项的 key
-        for (RegistrableEntry e : c.getItems()) {
-            if (e.getKey() == null || e.getKey().trim().isEmpty()) {
-                errors.add("存在物品未设置 key");
-                break;
+        // 检查每个注册项的 key（同类型内不允许重复，否则会生成同名类）
+        checkKeys(errors, c.getItems(), "物品");
+        checkKeys(errors, c.getEvents(), "探索事件");
+        checkKeys(errors, c.getCommands(), "指令");
+        checkKeys(errors, c.getSecretRealms(), "秘境");
+        return errors;
+    }
+
+    private static void checkKeys(List<String> errors, List<RegistrableEntry> entries, String typeLabel) {
+        List<String> seen = new ArrayList<>();
+        for (RegistrableEntry e : entries) {
+            String key = e.getKey() == null ? "" : e.getKey().trim();
+            if (key.isEmpty()) {
+                errors.add("存在" + typeLabel + "未设置 key");
+                continue;
+            }
+            if (seen.contains(key)) {
+                errors.add(typeLabel + "的 key 重复: " + key);
+            } else {
+                seen.add(key);
             }
         }
-        return errors;
     }
 
     private void log(String msg) {

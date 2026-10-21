@@ -58,11 +58,28 @@ class DataFileI18nTest {
         I18nContext.set(GameLanguage.ZH_CN);
         assertEquals("炼气期", r.getName());
 
-        // 换到 en_us：该 key 目前还没有英文译文，必须回落到中文字面量而不是裸 key
+        // 换到 en_us：该 key 已有英文译文，必须返回英文，既不能是中文也不能是裸 key
         I18nContext.set(GameLanguage.EN_US);
         String en = r.getName();
-        assertEquals("炼气期", en, "en_us 无译文时应回落 zh_cn，不能露出 key");
-        assertNotEquals("realm.1.0.name", en);
+        assertNotEquals("realm.1.0.name", en, "不能把 key 露给玩家");
+        assertNotEquals("炼气期", en, "en_us 已有译文时不应再回落中文");
+        assertEquals(I18nManager.raw("realm.1.0.name", GameLanguage.EN_US), en);
+    }
+
+    @Test
+    @DisplayName("RealmConfig: 目标语言缺译文时回落 zh_cn 中文，而不是裸 key")
+    void realmFallsBackWhenTargetLanguageMissing() {
+        // 造一条只存在于 zh_cn 的词条，模拟"en_us 还没翻译"的情况
+        I18nManager.mergeFromStream(GameLanguage.ZH_CN,
+                new java.io.ByteArrayInputStream(
+                        "{\"realm.test.only.zh\":\"仅中文词条\"}".getBytes(java.nio.charset.StandardCharsets.UTF_8)));
+
+        RealmConfig r = new RealmConfig();
+        r.setName("原文名");
+        r.setNameKey("realm.test.only.zh");
+
+        I18nContext.set(GameLanguage.EN_US);
+        assertEquals("仅中文词条", r.getName(), "en_us 缺词条时必须回落 zh_cn，不能露出 key");
     }
 
     @Test

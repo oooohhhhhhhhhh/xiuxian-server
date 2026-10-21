@@ -84,10 +84,42 @@ public final class PluginConfig {
     public List<RegistrableEntry> getCommands() { return commands; }
     public List<RegistrableEntry> getSecretRealms() { return secretRealms; }
 
-    /** 合成的 Java 包名（groupId.artifactId）。 */
-    public String getPackageName() { return groupId + (artifactId.isEmpty() ? "" : "." + artifactId); }
+    /**
+     * 合成的 Java 包名（groupId.artifactId）。
+     *
+     * <p>会做合法性清洗：artifactId 常见写法 {@code my-plugin} 里的连字符不是合法包名字符，
+     * 直接拼进 {@code package com.example.my-plugin;} 会编译失败，所以统一替换成下划线。</p>
+     */
+    public String getPackageName() {
+        return sanitizePackage(groupId + (artifactId.isEmpty() ? "" : "." + artifactId));
+    }
+
     /** 合成的目录路径（相对 src/main/java）。 */
     public String getPackagePath() { return getPackageName().replace('.', '/'); }
+
+    /** Java 保留字（包名段撞上就必须加后缀）。 */
+    private static final java.util.Set<String> JAVA_KEYWORDS = java.util.Set.of(
+            "abstract", "assert", "boolean", "break", "byte", "case", "catch", "char", "class", "const",
+            "continue", "default", "do", "double", "else", "enum", "extends", "final", "finally", "float",
+            "for", "goto", "if", "implements", "import", "instanceof", "int", "interface", "long", "native",
+            "new", "package", "private", "protected", "public", "return", "short", "static", "strictfp",
+            "super", "switch", "synchronized", "this", "throw", "throws", "transient", "try", "void",
+            "volatile", "while", "record", "sealed", "permits", "yield", "var", "true", "false", "null");
+
+    /** 把任意字符串清洗成合法的 Java 包名（非法字符 → 下划线，数字开头加前缀）。 */
+    static String sanitizePackage(String raw) {
+        if (raw == null || raw.trim().isEmpty()) return "com.example.plugin";
+        StringBuilder sb = new StringBuilder();
+        for (String part : raw.trim().split("\\.")) {
+            String seg = part.replaceAll("[^A-Za-z0-9_$]", "_");
+            if (seg.isEmpty()) continue;
+            if (Character.isDigit(seg.charAt(0))) seg = "_" + seg;
+            if (JAVA_KEYWORDS.contains(seg)) seg = seg + "_";
+            if (sb.length() > 0) sb.append('.');
+            sb.append(seg);
+        }
+        return sb.length() == 0 ? "com.example.plugin" : sb.toString();
+    }
 
     /** 返回注册项总数（用于 UI 统计）。 */
     public int totalEntries() {

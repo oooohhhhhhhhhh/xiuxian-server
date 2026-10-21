@@ -1116,12 +1116,12 @@ public class PlayerService {
 
     public int getFinalAttack(Player player) {
         return applyTitleBonus(player, applyConsolidationBonus(player, player.getAttack()), (java.util.function.Function<Title, Integer>) t -> t.getAttackBonus())
-                + getEnhanceBonus(player.getId())[0];
+                + getEnhanceBonus(player.getId())[0] - getBrokenPenalty(player.getId())[0];
     }
 
     public int getFinalDefense(Player player) {
         return applyTitleBonus(player, applyConsolidationBonus(player, player.getDefense()), (java.util.function.Function<Title, Integer>) t -> t.getDefenseBonus())
-                + getEnhanceBonus(player.getId())[1];
+                + getEnhanceBonus(player.getId())[1] - getBrokenPenalty(player.getId())[1];
     }
 
     public int getFinalMaxHp(Player player) {
@@ -1134,12 +1134,23 @@ public class PlayerService {
 
     public int getFinalSpeed(Player player) {
         return applyTitleBonus(player, applyConsolidationBonus(player, player.getSpeed()), (java.util.function.Function<Title, Integer>) t -> t.getSpeedBonus())
-                + getEnhanceBonus(player.getId())[2];
+                + getEnhanceBonus(player.getId())[2] - getBrokenPenalty(player.getId())[2];
     }
 
     public int getFinalSpirit(Player player) {
         return applyTitleBonus(player, applyConsolidationBonus(player, player.getSpirit()), (java.util.function.Function<Title, Integer>) t -> t.getSpiritBonus())
-                + getEnhanceBonus(player.getId())[3];
+                + getEnhanceBonus(player.getId())[3] - getBrokenPenalty(player.getId())[3];
+    }
+
+    /**
+     * 已损坏装备的属性惩罚（攻击/防御/速度/灵力，恒为正数，调用方负责相减）。
+     *
+     * <p>装备属性在 {@code equipItem} 时就物化进 {@code players} 表了，耐久归零后
+     * 无法"就地回退"（那需要写库、还要和并发战斗抢事务）。所以改成读取时扣减：
+     * 修理完耐久回到满值，惩罚自然归零，不存在记账不一致。</p>
+     */
+    private int[] getBrokenPenalty(long playerId) {
+        return com.mtxgdn.common.service.ServiceRegistry.getDurabilityService().getBrokenPenalty(playerId);
     }
 
     /**
@@ -1161,10 +1172,17 @@ public class PlayerService {
         return (int) Math.round(baseValue * (1.0 + layers * perLayer / 100.0));
     }
 
-    /** 读取三件装备的强化加成（攻击/防御/速度/灵力），强化等级真实生效于战斗属性 */
+    /**
+     * 读取三件装备的强化加成（攻击/防御/速度/灵力），强化等级真实生效于战斗属性。
+     *
+     * <p>耐久归零（损坏）的装备不提供强化加成 —— 否则"装备坏了但强化还在"，
+     * 修理就没有必要了。耐久表没有记录 = 从未磨损 = 满耐久，按生效处理。</p>
+     */
     private int[] getEnhanceBonus(long playerId) {
         int[] total = {0, 0, 0, 0};
-        String sql = "SELECT slot, enhance_level FROM players_equipment WHERE player_id = ? AND enhance_level > 0";
+        String sql = "SELECT e.enhance_level FROM players_equipment e "
+                + "LEFT JOIN player_item_durability d ON d.player_id = e.player_id AND d.item_key = e.item_key "
+                + "WHERE e.player_id = ? AND e.enhance_level > 0 AND (d.durability IS NULL OR d.durability > 0)";
         try (Connection conn = DatabaseManager.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, playerId);

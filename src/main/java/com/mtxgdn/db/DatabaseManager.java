@@ -99,12 +99,12 @@ public class DatabaseManager {
                     conn.rollback();
                 } catch (SQLException ignored) {
                 }
-                throw new RuntimeException("事务执行失败", e);
+                throw new RuntimeException("事务执行失败: " + e.getMessage(), e);
             } finally {
                 conn.setAutoCommit(true);
             }
         } catch (SQLException e) {
-            throw new RuntimeException("事务执行失败", e);
+            throw new RuntimeException("事务执行失败: " + e.getMessage(), e);
         }
     }
 
@@ -120,12 +120,12 @@ public class DatabaseManager {
                     conn.rollback();
                 } catch (SQLException ignored) {
                 }
-                throw new RuntimeException("事务执行失败", e);
+                throw new RuntimeException("事务执行失败: " + e.getMessage(), e);
             } finally {
                 conn.setAutoCommit(true);
             }
         } catch (SQLException e) {
-            throw new RuntimeException("事务执行失败", e);
+            throw new RuntimeException("事务执行失败: " + e.getMessage(), e);
         }
     }
 
@@ -142,6 +142,8 @@ public class DatabaseManager {
             stmt.execute(DatabaseSchema.createPlayersTable(pk, tsDefault, tsUpdate, boolType, DIALECT));
             stmt.execute(DatabaseSchema.createPlayersItemsTable(pk, tsDefault, tsUpdate, DIALECT));
             stmt.execute(DatabaseSchema.createPlayersEquipmentTable(pk, tsDefault, tsUpdate, DIALECT));
+            // 装备耐久台账：独立于 players_equipment，卸下装备不会清掉耐久
+            stmt.execute(DatabaseSchema.createPlayerItemDurabilityTable(pk, tsDefault, tsUpdate, DIALECT));
             stmt.execute(DatabaseSchema.createSkillsTable(pk, tsDefault));
             stmt.execute(DatabaseSchema.createPlayersSkillsTable(pk, tsDefault, tsUpdate, DIALECT));
             stmt.execute(DatabaseSchema.createTechniquesTable(pk, tsDefault));
@@ -401,6 +403,17 @@ public class DatabaseManager {
             throw new RuntimeException("统计表记录失败: " + tableName, e);
         }
         return 0;
+    }
+
+    /**
+     * 连接池当前是否可用（已初始化且未关闭）。
+     *
+     * <p>给后台定时任务用：停机与测试收尾阶段连接池已被关闭，
+     * 这时再发起查询只会得到 "no such table" / "pool has been shut down" 这类
+     * 无意义的报错，把真正的故障淹没在噪音里。</p>
+     */
+    public static boolean isAvailable() {
+        return dataSource != null;
     }
 
     public static void shutdown() {

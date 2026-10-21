@@ -177,6 +177,35 @@ public class DatabaseSchema {
                 ")";
     }
 
+    /**
+     * 装备耐久台账：按 (玩家, 物品 key) 记录耐久。
+     *
+     * <p>为什么不把耐久写在 {@code players_equipment} 上：那张表是"槽位 → 物品"的当前状态，
+     * 卸下装备时行就没了，耐久也会跟着丢；玩家只要"卸下再装上"就能免费回满，
+     * 修理系统立刻失去意义。这张表独立于背包/装备的生命周期 —— 装备脱下来耐久还在，
+     * 重新装上接着用，只有修理才能恢复。</p>
+     *
+     * <p>代价是同一玩家身上的同 key 装备共享一条耐久记录（背包没有实例概念，
+     * {@code players_items} 是按 key 堆叠的）。装备类物品实际上极少堆叠，
+     * 这个取舍换来了"无法靠换装绕过修理"。</p>
+     */
+    public static String createPlayerItemDurabilityTable(String pk, String tsDefault, String tsUpdate,
+                                                        DatabaseDialect dialect) {
+        return "CREATE TABLE IF NOT EXISTS player_item_durability (" +
+                "id " + pk + ", " +
+                "player_id BIGINT NOT NULL, " +
+                "item_key VARCHAR(128) NOT NULL, " +
+                // durability：当前耐久，<=0 视为损坏（属性不生效、且不可卸下）
+                "durability INT NOT NULL DEFAULT 100, " +
+                "created_at " + tsDefault + ", " +
+                "updated_at " + tsUpdate + ", " +
+                (dialect.supportsForeignKeysInCreateTable()
+                        ? "FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE, "
+                        : "") +
+                "UNIQUE (player_id, item_key)" +
+                ")";
+    }
+
     public static String createSkillsTable(String pk, String tsDefault) {
         return "CREATE TABLE IF NOT EXISTS skills (" +
                 "id " + pk + ", " +
@@ -485,6 +514,15 @@ public class DatabaseSchema {
                 "contest_challenger_id BIGINT DEFAULT NULL, " +
                 // contest_requested：挑战者已发起，等待宗主应战（0/1）。
                 "contest_requested INT DEFAULT 0, " +
+                // ---- 宗门金库 / 工资 ----
+                // treasury：金库余额（下品灵石等值）。工资只从金库出，不由系统凭空发放，
+                // 因此"发工资"永远不会凭空创造灵石，只是成员捐献的再分配。
+                "treasury BIGINT DEFAULT 0, " +
+                // salary_per_member：每个结算周期给"外门弟子"的基础工资（档位由宗主设定），
+                // 实际发放按职位系数加权，见 SectService#getSalaryRankMultiplier。
+                "salary_per_member BIGINT DEFAULT 0, " +
+                // last_salary_time：上次发放工资的毫秒时间戳；0 = 从未发放。
+                "last_salary_time BIGINT DEFAULT 0, " +
                 "created_at " + tsDefault + ", " +
                 "updated_at " + tsUpdate +
                 (dialect.supportsForeignKeysInCreateTable()

@@ -75,6 +75,7 @@ public class TriggerEditorDialog extends JDialog {
         Trigger.When[] avail = ownerEntry.availableWhens();
         whenCombo = new JComboBox<>(avail);
         Theme.styleComboBox(whenCombo);
+        whenCombo.setEnabled(avail.length > 0);
         // 选当前值
         for (int i = 0; i < avail.length; i++) if (avail[i] == trigger.getTriggerWhen()) whenCombo.setSelectedIndex(i);
         form.add(whenCombo, g);
@@ -142,8 +143,8 @@ public class TriggerEditorDialog extends JDialog {
 
         // 代码区提示
         g.gridx = 0; g.gridy = row; g.gridwidth = 2; g.weightx = 1; g.weighty = 0; g.fill = GridBagConstraints.HORIZONTAL;
-        JLabel codeHint = Theme.hintLabel("提示：代码执行时上下文变量可用（如 context, playerId, event 等，取决于注册项类型）。" +
-                "\n当动作 =「执行代码」时这段代码才会被生成到插件中。");
+        JLabel codeHint = Theme.hintLabel("提示：当动作 =「执行代码」时，下方代码会被原样生成到插件源码。"
+                + "\n可用变量：" + availableVariables(ownerEntry.getType()));
         form.add(codeHint, g);
 
         root.add(form, BorderLayout.CENTER);
@@ -169,6 +170,21 @@ public class TriggerEditorDialog extends JDialog {
 
         setContentPane(root);
         updateParamFields();
+    }
+
+    /** 生成代码时可用的上下文变量说明（与 CodeGenerator 实际生成的变量保持一致）。 */
+    private static String availableVariables(RegistrableEntry.Type type) {
+        switch (type) {
+            case ITEM:
+                return "playerId, playerService, itemService, context, msg（msg.append 的内容会显示给玩家）";
+            case EVENT:
+                return "player, playerId, playerService, itemService, random, result, log, context";
+            case COMMAND:
+                return "ctx, p, playerId, userId, context";
+            case SECRET_REALM:
+            default:
+                return "（该类型暂不支持触发器）";
+        }
     }
 
     private void updateParamFields() {

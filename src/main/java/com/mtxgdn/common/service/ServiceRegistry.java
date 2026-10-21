@@ -31,6 +31,7 @@ public class ServiceRegistry {
     private static volatile FarmService farmService;
     private static volatile MapService mapService;
     private static volatile WorldBossService worldBossService;
+    private static volatile DurabilityService durabilityService;
     private static volatile MinecraftPlayerBindingService mcBindingService;
 
     private ServiceRegistry() {
@@ -331,5 +332,16 @@ public class ServiceRegistry {
             }
         }
         return worldBossService;
+    }
+
+    public static DurabilityService getDurabilityService() {
+        if (durabilityService == null) {
+            synchronized (ServiceRegistry.class) {
+                if (durabilityService == null) {
+                    durabilityService = new DurabilityService();
+                }
+            }
+        }
+        return durabilityService;
     }
 }

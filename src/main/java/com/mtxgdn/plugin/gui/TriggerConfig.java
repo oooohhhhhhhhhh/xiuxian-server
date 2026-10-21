@@ -11,6 +11,11 @@ import java.util.Map;
  * 单个事件触发器配置 —— GUI 中配置的每一条触发器条目。
  * <p>
  * 包含：事件类型、触发条件、响应动作、描述、启用状态。
+ *
+ * <p><b>说明</b>：这是旧版（按 {@link com.mtxgdn.plugin.event.PluginEvent.Type} 配置）的模型，
+ * 当前生成流程已经改用 {@link Trigger}（按注册项类型给出时机）。这里保留是为了不破坏旧配置文件，
+ * 它的 {@code eventType} 取值来自 {@link com.mtxgdn.plugin.event.PluginEvent.Type}、
+ * {@code action} 与 {@link Trigger.Action} 一一对应，都是服务端真实存在的类型。</p>
  */
 public final class TriggerConfig {
 

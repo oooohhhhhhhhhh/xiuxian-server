@@ -12,7 +12,7 @@ import com.mtxgdn.plugin.PluginMaker;
 import com.mtxgdn.plugin.PluginWebManager;
 import com.mtxgdn.plugin.gui.PluginMakerGUI;
 import com.mtxgdn.game.service.CraftingService;
-import com.mtxgdn.game.service.EquipmentFixService;
+import com.mtxgdn.game.service.EquipmentDataChecker;
 import com.mtxgdn.game.service.SkillService;
 import com.mtxgdn.game.service.TechniqueService;
 import com.mtxgdn.adapter.AdapterManager;
@@ -99,6 +99,10 @@ public class Main {
             LOG.info("坊市到期挂单回收与价格历史清理任务已停止");
         });
         hook.addTask(() -> {
+            com.mtxgdn.game.service.EconomyService.shutdown();
+            LOG.info("拍卖到期结算任务已停止");
+        });
+        hook.addTask(() -> {
             com.mtxgdn.playerdata.PlayerDataService.shutdown();
             LOG.info("玩家数据文件同步已完成");
         });
@@ -164,7 +168,7 @@ public class Main {
         LOG.info(scanResult.toString());
 
         LOG.info("正在检查装备数据一致性...");
-        new EquipmentFixService().fixEquipmentData();
+        new EquipmentDataChecker().checkEquipmentData();
 
         LOG.info("正在扫描并注册秘境...");
         SecretRealmScanner.ScanResult realmScanResult = SecretRealmScanner.scanAndRegister();

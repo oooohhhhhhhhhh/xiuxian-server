@@ -23,6 +23,7 @@ public class EquippedCommand extends Command {
         if (p == null) return;
         var itemService = ServiceRegistry.getItemService();
         var guideService = ServiceRegistry.getGuideService();
+        var durabilityService = ServiceRegistry.getDurabilityService();
         Map<String, String> equipment = itemService.getEquipment((int) p.getId());
         StringBuilder sb = new StringBuilder();
         sb.append("===== 已装备 =====\n");
@@ -34,7 +35,9 @@ public class EquippedCommand extends Command {
             if (itemKey != null) {
                 Item item = ItemRegistry.get(itemKey);
                 if (item != null) {
-                    sb.append(labels[i]).append(": ").append(item.getName()).append("\n");
+                    sb.append(labels[i]).append(": ").append(item.getName())
+                            .append("  ").append(durabilityService.describeSlot(p.getId(), slots[i], itemKey))
+                            .append("\n");
                     String desc = item.getDescription();
                     if (!desc.isEmpty() && !desc.equals(item.getDescKey())) {
                         sb.append("  └ ").append(desc).append("\n");
