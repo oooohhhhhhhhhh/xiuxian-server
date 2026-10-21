@@ -76,3 +76,8 @@ build/
 ### Trae ###
 # Trae IDE 本地规格/任务文档（.trae/specs 等），属于本地 AI 助手产物，不入库
 .trae/
+
+### 分析脚本 ###
+# docs/analysis/tools/ 下的探针与复现脚本只服务于本地分析，已移出版本控制，
+# 这里补上忽略规则，免得下次 git add -A 又把它加回来
+docs/analysis/tools/
