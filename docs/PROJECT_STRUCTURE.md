@@ -197,7 +197,7 @@
 |---|---:|---|
 | `DatabaseManager.java` | 614 | HikariCP 连接池初始化、SQLite/MySQL 分支、`shutdown()` |
 | `DatabaseSchema.java` | 811 | 全部 `CREATE TABLE` / `CREATE INDEX` 语句（表清单见第 10 节） |
-| `DatabaseMigration.java` | 363 | 老库结构升级（如给 `map_locations` 补 `cultivation_bonus` / `exploration_bonus`、给 `farm_plots` 补 `settled_time`） |
+| `DatabaseMigration.java` | 545 | 老库结构升级（如给 `map_locations` 补 `cultivation_bonus` / `exploration_bonus`、给 `farm_plots` 补 `settled_time`）。每步登记进 `schema_migrations`（版本/状态/失败原因），只把"列已存在"当作预期错误 |
 | `DatabaseDialect.java` | 43 | 方言接口（`FOR UPDATE` 子句、自增列等） |
 | `SQLiteDialect.java` | 149 | SQLite 方言实现 |
 | `MySQLDialect.java` | 138 | MySQL 方言实现 |
@@ -341,7 +341,8 @@
 | `TitleService.java` | 225 | 集中检查并自动授予「玩法可获得」称号（幂等） |
 | `SeasonService.java` | 214 | 全局季节：`calendar`（按真实月份）或 `cycle`（按小时）更替，更替时全服广播 |
 | `ExplorationService.java` | 211 | 游历：解析玩家所在地点、抽事件、结算收益 |
-| `EquipmentFixService.java` | 184 | 启动时修复装备数据一致性 |
+| `EquipmentDataChecker.java` | 184 | 启动时自检装备数据一致性（清理指向已不存在物品的装备槽、去除背包重复副本）。**不是修理**：耐久与修理见 `DurabilityService` / `/修理` |
+| `DurabilityService.java` | 306 | 装备耐久：独立 `player_item_durability` 表（避免卸下即修复）、战斗磨损、损坏读时扣属性、`/修理` 计费 |
 | `TeamService.java` | 178 | 组队：创建/邀请/接受/退出，进入团队副本 |
 | `EnergyService.java` | 165 | 能量转化：物品 ↔ 能量等价互转，支持插件注册自定义物品能量值 |
 | `ChatService.java` | 158 | 聊天：世界频道与私聊，消息持久化 |
@@ -434,11 +435,9 @@
 | `CodeGenerator.java` | 554 | 把 `PluginConfig` 转换为完整插件工程文件 |
 | `CodeGeneratorTest.java` | 94 | 生成流程测试（不依赖 GUI） |
 | `EntriesPanel.java` | 355 | 通用注册项编辑面板（物品/事件/秘境/指令） |
-| `TriggerPanel.java` | 250 | 触发器管理面板 |
 | `TriggerEditorDialog.java` | 176 | 触发器编辑对话框 |
 | `BasicConfigPanel.java` | 188 | 基础信息面板（名称、版本、作者、GroupId、ArtifactId、主类、输出目录） |
 | `Trigger.java` | 167 | 单个触发器 |
-| `TriggerConfig.java` | 106 | 事件触发器配置条目 |
 | `RegistrableEntry.java` | 150 | 可注册项模型 |
 | `PluginConfig.java` | 143 | 用户在 GUI 中设置的全部内容 |
 | `Theme.java` | 324 | 主题系统 |
@@ -657,11 +656,12 @@
 | `social/PrivateMessageCommand.java` | 52 | `私聊` / `msg` | `chat` | — |
 | `qq/QqButtonCommand.java` | 81 | `按钮` / `button` / `互动按钮` | — | — |
 
-### 4.16 REST 层 `com/mtxgdn/rest`（15）
+### 4.16 REST 层 `com/mtxgdn/rest`（16）
 
 | 文件 | 行数 | 职责 |
 |---|---:|---|
-| `AdminResource.java` | 3695 | 管理后台 API（`@Path("/admin")`，100 个方法级 `@Path` 映射）：登录/状态、插件管理（list/reload/unload/enable/disable/load/watcher）、日志、关机、角色与权限组 CRUD、用户管理、玩家管理（列表/详情/发放/编辑/改名/灵根/称号）、物品与境界字典、轨迹、通用表 CRUD（`db/tables/*`）、备份与导入、兑换码、统计、黑名单、OneBot 群配置、新手奖励配置、系统信息、公告、适配器管理、玩家数据导出、OAuth 配置、地图管理（`map/locations` 列表与改名、`POST/DELETE map/locations`、`map/connections`、`map/event-bias`，均需 `admin.database.access`）、**野外分片视图（`GET map/wilderness`、`POST map/wilderness/restock`，只补货不删除）**、坊市挂单与行情 |
+| `AdminResource.java` | 3695 | 管理后台 API（`@Path("/admin")`，100 个方法级 `@Path` 映射）：登录/状态、插件管理（list/reload/unload/enable/disable/load/watcher）、日志、关机、角色与权限组 CRUD、用户管理、玩家管理（列表/详情/发放/编辑/改名/灵根/称号）、物品与境界字典、轨迹、通用表 CRUD（`db/tables/*`）、备份与导入、兑换码、统计、黑名单、OneBot 群配置、新手奖励配置、系统信息、公告、适配器管理、OAuth 配置、地图管理（`map/locations` 列表与改名、`POST/DELETE map/locations`、`map/connections`、`map/event-bias`，均需 `admin.database.access`）、**野外分片视图（`GET map/wilderness`、`POST map/wilderness/restock`，只补货不删除）**、坊市挂单与行情 |
+| `AdminPlayerDataResource.java` | 106 | 管理台玩家数据文件接口（`@Path("/admin/player-data")`）：导出、导出全部、列出、运行统计、单文件完整性校验。从 `AdminResource` 拆出的第一块，URL 与权限码不变 |
 | `GameResource.java` | 2494 | 玩家侧 REST API（`@Path("/game")`）：角色、突破、修炼、秘境、游历、疗伤、物品与背包、装备、技能、PVP、状态、玩家搜索、灵根、每日/天象、坊市、功法、炼制、聊天、排行、好友、宗门、地图、称号、组队、副本、Buff、农场、季节、玩家数据导出/还原 |
 | `Auth.java` | 384 | 账号 REST（`@Path("/auth")`）：注册、发验证码、登录、改密、登出、忘记密码（发码/重置）、注销账号。含 V5 修复的完整登录校验 |
 | `InstallResource.java` | 388 | 安装向导 API（`@Path("/install")`）：`status`、`configure`、`reset`、`restart` |
@@ -962,7 +962,7 @@ TechniqueService.insertDefaultTechniques()
 CraftingService.insertDefaultRecipes()
   ↓
 ItemScanner.scanAndRegister()            → data.mtxgdn.item
-EquipmentFixService.fixEquipmentData()
+EquipmentDataChecker.checkEquipmentData()
 SecretRealmScanner.scanAndRegister()     → data.mtxgdn.secretrealm
 ExplorationEventScanner.scanAndRegister()→ data.mtxgdn.explorationevent
 CommandScanner.scanAndRegister("com.mtxgdn.onebot.command")
@@ -1165,7 +1165,10 @@ HTTP 侧由 `UnifiedRestResource`（`/game/{path:.*}`）把同一批 `RouteDefin
     地形上"要好，但仍属破坏性操作，改之前请先备份 `data/wilderness/`。
 13. **`danger_level` 不参与 PVP 开关**：唯一的安全区判定是 `is_safe_zone`，`danger_level` 只驱动险地掠夺（危险度 ≥3 才掠夺，比例 `5% × 危险度`，即 3 档 15%、4 档 20%）与野外资源档位。必须维持的不变式是 `is_safe_zone = 1 ⇒ danger_level = 0`（`MapService.loadLocations()` 发现违反时只告警、不静默改写数据）。掠夺走 `removeSpiritStones` 的布尔返回值，因此并发 PK 不会凭空造出灵石。
 14. **`ALLOWED_TABLES` 曾漏登记 `map_location_event_bias`（已修复）**：该集合是管理台通用表 CRUD 的白名单，漏登记会让这张表在管理台报"表不存在"；新增表时必须同时改 `DatabaseManager.initTable()` 与 `ALLOWED_TABLES`。
-15. **`DatabaseMigration` 的列补齐靠"捕获异常当作已存在"**：每个 `addXxxColumn()` 都是 `try { ALTER TABLE ... } catch (SQLException ignored) {}`。这是有意为之（SQLite/MySQL 对"列已存在"报错不一致），代价是**写错列名会被静默吞掉**。配合 `MapService.repairDefaultData()` 的 `columnsOf(conn, table)` 动态列名方案（按库里实际存在的列拼 INSERT），老库缺新列时是"功能降级"而不是启动失败。
+15. **`DatabaseMigration` 只吞"已存在"这一类错误**：每个补列动作都走 `tryAlter()`，它只把 `duplicate column` / `already exists` 这类**预期内**的错误当成"列已存在"，其余（没权限、表不存在、SQL 写错、磁盘满）一律抛出。抛出的错误会记进 `schema_migrations` 表并以 ERROR 打印，启动仍继续（想让它中断启动就把 `db.migration.strict` 设为 true）。
+    - 改造前是 `try { ALTER TABLE ... } catch (SQLException ignored) {}`，所有错误同一待遇，**写错列名会被静默吞掉**——`verification_codes.sent_at` 就因此在 SQLite 上从来没补成功过（SQLite 不支持 `ADD COLUMN IF NOT EXISTS`）。
+    - 迁移**不做"记录过就跳过"**：幂等性同时是自愈能力（运维手工删列、从备份恢复缺列的表，重启即补回，`LegacySchemaUpgradeTest` 依赖这个行为）。
+    - 配合 `MapService.repairDefaultData()` 的 `columnsOf(conn, table)` 动态列名方案（按库里实际存在的列拼 INSERT），老库缺新列时是"功能降级"而不是启动失败。
 
 ---
 

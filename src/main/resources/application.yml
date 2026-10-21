@@ -28,6 +28,9 @@ database:
   password: root               # MySQL 密码（仅 type=mysql 时使用）
   sqlite_path: xiuxian.db      # SQLite 数据库文件路径（仅 type=sqlite 时使用）
   pool_max: 4                  # 连接池最大连接数（SQLite 建议 2~8，MySQL 建议 8~32）
+  migration:
+    strict: false              # true = 任一结构迁移失败即中断启动。默认 false：失败会记入 schema_migrations
+                               # 表并以 ERROR 打印，但服务继续启动（避免一个补列失败就让整个服务起不来）
 
 
 # ┌──────────────────────────────────────────────────────────────┐

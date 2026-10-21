@@ -19,7 +19,7 @@
 1. `LangManager` 的 `get(key)` 缺 key 时**返回 key 本身**（`getOrDefault(key, defaultValue)`，defaultValue 又默认是 key）。这既是兜底也是坑：漏翻译会直接把 key 露给客户端。
 2. `PluginContext.loadLang()` 会把插件 jar 内 `lang/<lang>.json` 合并进 `cache`，**只合并当前语言**，且 `merge` 后不清 key（无法"卸载插件"）。
 3. `realm_config.json` 走 `GameConfigLoader`：先查 `config/game/realm_config.json`（外部），没有再回退 classpath 内置。**外部覆盖优先**这个模式已经确立，语言包沿用同一模式。
-4. `DatabaseMigration.executeMigrations` 是"每条 ALTER 包 try-catch 忽略已存在"的幂等模式，追加迁移就在这里加。
+4. `DatabaseMigration.executeMigrations` 是幂等迁移模式（可重复执行），追加迁移就在 `buildSteps()` 里加一条并登记版本号。注意它只把"列已存在"当作预期错误，其余错误会记进 `schema_migrations` 并打 ERROR。
 5. `players` 表已有 `battle_strategy VARCHAR(16) DEFAULT 'balanced'` 这种"玩家偏好单列"先例——语言列照此办理。
 
 ## 2. 语言模型

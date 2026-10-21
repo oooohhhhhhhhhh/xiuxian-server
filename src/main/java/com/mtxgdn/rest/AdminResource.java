@@ -3054,82 +3054,9 @@ public class AdminResource {
         }
     }
 
-    // ==================== 玩家数据文件（一用户一个文件）====================
-
-    @POST
-    @Path("/player-data/export/{playerId}")
-    @Produces("application/json;charset=UTF-8")
-    @RequirePermission("admin.database.clear_players")
-    public Response exportPlayerData(@PathParam("playerId") long playerId) {
-        com.mtxgdn.playerdata.PlayerDataService dataService = new com.mtxgdn.playerdata.PlayerDataService();
-        Map<String, Object> result = dataService.exportPlayer(playerId);
-        JsonObject out = new JsonObject();
-        out.addProperty("code", Boolean.TRUE.equals(result.get("success")) ? 200 : 400);
-        out.addProperty("message", (String) result.get("message"));
-        return Response.ok(gson.toJson(out)).build();
-    }
-
-    @POST
-    @Path("/player-data/export-all")
-    @Produces("application/json;charset=UTF-8")
-    @RequirePermission("admin.database.clear_players")
-    public Response exportAllPlayerData() {
-        com.mtxgdn.playerdata.PlayerDataService dataService = new com.mtxgdn.playerdata.PlayerDataService();
-        Map<String, Object> result = dataService.exportAllPlayers();
-        JsonObject out = new JsonObject();
-        out.addProperty("code", 200);
-        out.addProperty("message",
-                I18n.t("admin.player_data.exported", result.get("exported"), result.get("failed")));
-        out.addProperty("dir", (String) result.get("dir"));
-        return Response.ok(gson.toJson(out)).build();
-    }
-
-    @GET
-    @Path("/player-data/list")
-    @Produces("application/json;charset=UTF-8")
-    @RequirePermission("admin.database.clear_players")
-    public Response listPlayerDataFiles() {
-        com.mtxgdn.playerdata.PlayerDataService dataService = new com.mtxgdn.playerdata.PlayerDataService();
-        List<String> files = dataService.listPlayerFiles();
-        JsonArray arr = new JsonArray();
-        for (String f : files) {
-            arr.add(f);
-        }
-        JsonObject out = new JsonObject();
-        out.addProperty("code", 200);
-        out.addProperty("count", files.size());
-        out.add("files", arr);
-        return Response.ok(gson.toJson(out)).build();
-    }
-
-    @GET
-    @Path("/player-data/stats")
-    @Produces("application/json;charset=UTF-8")
-    @RequirePermission("admin.database.clear_players")
-    public Response playerDataStats() {
-        JsonObject out = new JsonObject();
-        out.addProperty("code", 200);
-        out.add("data", gson.toJsonTree(com.mtxgdn.playerdata.PlayerDataService.getStats()));
-        return Response.ok(gson.toJson(out)).build();
-    }
-
-    @GET
-    @Path("/player-data/verify/{playerId}")
-    @Produces("application/json;charset=UTF-8")
-    @RequirePermission("admin.database.clear_players")
-    public Response verifyPlayerData(@PathParam("playerId") long playerId) {
-        com.mtxgdn.playerdata.PlayerDataService dataService = new com.mtxgdn.playerdata.PlayerDataService();
-        Map<String, Object> result = dataService.verifyFile(playerId);
-        JsonObject out = new JsonObject();
-        out.addProperty("code", Boolean.TRUE.equals(result.get("success")) ? 200 : 400);
-        out.addProperty("message", (String) result.get("message"));
-        out.addProperty("legacy", Boolean.TRUE.equals(result.get("legacy")));
-        Object rows = result.get("rowCount");
-        if (rows instanceof Number n) {
-            out.addProperty("rowCount", n.intValue());
-        }
-        return Response.ok(gson.toJson(out)).build();
-    }
+    // 玩家数据文件接口已拆分到 {@link AdminPlayerDataResource}（/admin/player-data/*）：
+    // 这个类已经 4000+ 行，按"路径前缀 + 依赖集合"切块比继续往里塞更好维护。
+    // 权限码与 URL 均未变化。
 
     // ==================== OAuth2 配置管理 ====================
 

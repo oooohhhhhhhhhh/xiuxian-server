@@ -26,9 +26,9 @@ class CombatServiceTest {
 
     @BeforeAll
     static void setupAll() {
-        java.io.File dbFile = new java.io.File("test_combat.db");
+        java.io.File dbFile = com.mtxgdn.TestBase.testDbFile("test_combat.db");
         if (dbFile.exists()) dbFile.delete();
-        DatabaseManager.init("jdbc:sqlite:test_combat.db", "", "");
+        DatabaseManager.init(com.mtxgdn.TestBase.testDbUrl("test_combat.db"), "", "");
 
         combatService = new CombatService();
         playerService = new PlayerService();

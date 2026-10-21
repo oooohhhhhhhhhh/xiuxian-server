@@ -133,14 +133,33 @@ public class AppConfig {
         return result;
     }
 
+    /**
+     * 取配置项。
+     *
+     * <p><b>系统属性优先</b>：{@code -Dkey=value} 会覆盖 {@code application.yml} 里的同名项。
+     * 这既是运维的应急开关（改一个值不必动配置文件、不必重新分发），
+     * 也让测试能把"写文件"的目录整体拨到 {@code target/} 下，
+     * 而不是往真实的 {@code data/players} 里灌一堆测试快照。</p>
+     */
     public static String get(String path) {
+        String override = System.getProperty(path);
+        if (override != null) {
+            return override;
+        }
         Object value = config.get(path);
         return value != null ? value.toString() : null;
     }
 
+    /**
+     * 取配置项，缺失时用默认值。
+     *
+     * <p>必须委托给 {@link #get(String)}，否则 {@code -D} 覆盖在这一层就断了
+     * —— 绝大多数调用点用的正是这个带默认值的重载，
+     * 曾经因为这里直接读 {@code config} 而导致系统属性只对少数单参调用生效。</p>
+     */
     public static String get(String path, String defaultValue) {
-        Object value = config.get(path);
-        return value != null ? value.toString() : defaultValue;
+        String value = get(path);
+        return value != null ? value : defaultValue;
     }
 
     public static int getInt(String path, int defaultValue) {

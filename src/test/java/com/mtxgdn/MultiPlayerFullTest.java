@@ -94,12 +94,12 @@ public class MultiPlayerFullTest {
         System.out.println("模拟 5 名玩家交互");
         System.out.println("════════════════════════════════════════════════════════════");
 
-        // 清理测试数据库
+        // 清理测试数据库（统一落在 target/test-db/，不再污染仓库根目录）
         String dbPath = "test_full.db";
-        java.io.File dbFile = new java.io.File(dbPath);
+        java.io.File dbFile = TestBase.testDbFile(dbPath);
         if (dbFile.exists()) dbFile.delete();
 
-        DatabaseManager.init("jdbc:sqlite:" + dbPath, "", "");
+        DatabaseManager.init(TestBase.testDbUrl(dbPath), "", "");
 
         // 初始化 JWT（测试环境：安装模式自动生成临时密钥）
         JwtUtil.init(true);
@@ -149,7 +149,7 @@ public class MultiPlayerFullTest {
         try { BuffService.shutdownScheduler(); } catch (Exception ignored) {}
         try { FarmService.shutdownScheduler(); } catch (Exception ignored) {}
         DatabaseManager.shutdown();
-        new java.io.File("test_full.db").delete();
+        TestBase.testDbFile("test_full.db").delete();
         System.out.println("\n✓ 测试环境清理完成");
     }
 

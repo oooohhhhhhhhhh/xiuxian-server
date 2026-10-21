@@ -236,6 +236,13 @@
                     <systemPropertyVariables>
                         <!-- 插件开关配置指向 target/ 下的临时文件：测试的启停持久化不污染 config/plugins.yml -->
                         <xiuxian.plugins.config>${project.build.directory}/test-config/plugins.yml</xiuxian.plugins.config>
+                        <!--
+                          会写文件的运行期目录一并拨到 target/ 下。
+                          以前测试跑完会在真实数据目录里留下上百个玩家快照，
+                          既污染工作区，也让"备份目录里到底有没有东西"这件事失去意义。
+                        -->
+                        <player-data.dir>${project.build.directory}/test-data/players</player-data.dir>
+                        <wilderness.dir>${project.build.directory}/test-data/wilderness</wilderness.dir>
                     </systemPropertyVariables>
                 </configuration>
             </plugin>
