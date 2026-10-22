@@ -37,18 +37,29 @@ public class ServerConfigurator {
         this.ioThreads = AppConfig.getInt("performance.grizzly_io_threads", 2);
         this.workerCore = AppConfig.getInt("performance.grizzly_worker_cores", 4);
         this.workerMax = AppConfig.getInt("performance.grizzly_worker_max", 8);
+        this.workerQueueLimit = AppConfig.getInt("performance.grizzly_worker_queue", DEFAULT_WORKER_QUEUE);
         this.connectionTimeoutMs = AppConfig.getInt("network.connection_timeout_ms", 10000);
         this.readTimeoutMs = AppConfig.getInt("network.read_timeout_ms", 30000);
         this.lowMemoryMode = AppConfig.getBoolean("performance.low_memory", false);
         this.maxWebSocketMessageSize = getMaxWebSocketMessageSize();
     }
 
+    /**
+     * 工作线程队列的默认上限。
+     *
+     * <p>必须明显小于"一个请求的期望排队时间能容忍的条数"：Grizzly 的工作线程池是标准
+     * {@link java.util.concurrent.ThreadPoolExecutor} 语义 —— 队列没满之前<b>不会</b>把线程数
+     * 从 core 扩到 max。原来 core=4 / max=8 / queue=100 的组合下，max 实际上永远达不到：
+     * 请求先排队 100 条才开始加线程，表现就是"并发一高就整体变慢"而不是"多开线程扛住"。
+     * 32 = core 的 8 倍，既能让 max 在突发时真正生效，又不至于让请求无限堆积。</p>
+     */
+    public static final int DEFAULT_WORKER_QUEUE = 32;
+
+    /** 工作线程队列上限（见 {@link #DEFAULT_WORKER_QUEUE}）。 */
+    private final int workerQueueLimit;
+
     public void configure(HttpServer server) {
-        ThreadPoolConfig workerConfig = ThreadPoolConfig.defaultConfig()
-                .setCorePoolSize(workerCore)
-                .setMaxPoolSize(workerMax)
-                .setQueueLimit(100)
-                .setPoolName("grizzly-worker");
+        ThreadPoolConfig workerConfig = newWorkerPoolConfig();
 
         for (NetworkListener listener : server.getListeners()) {
             configureListener(listener, workerConfig);
@@ -63,9 +74,18 @@ public class ServerConfigurator {
         server.getListeners().forEach(listener -> listener.registerAddOn(wsAddOn));
 
         LOG.info("性能配置: Grizzly IO线程=" + ioThreads +
-                " 工作线程(" + workerCore + "/" + workerMax + ")");
+                " 工作线程(" + workerCore + "/" + workerMax + ") 队列上限=" + workerQueueLimit);
         LOG.info("网络超时: 连接=" + connectionTimeoutMs + "ms 读取=" + readTimeoutMs + "ms");
         LOG.info("WebSocket 单帧上限(应用层强制): " + maxWebSocketMessageSize + " 字节");
+    }
+
+    /** 按配置构造工作线程池（core / max / queue 三者必须一起看，见 DEFAULT_WORKER_QUEUE）。 */
+    private ThreadPoolConfig newWorkerPoolConfig() {
+        return ThreadPoolConfig.defaultConfig()
+                .setCorePoolSize(workerCore)
+                .setMaxPoolSize(workerMax)
+                .setQueueLimit(workerQueueLimit)
+                .setPoolName("grizzly-worker");
     }
 
     public void configureListener(NetworkListener listener, ThreadPoolConfig workerConfig) {
@@ -74,6 +94,15 @@ public class ServerConfigurator {
         listener.getTransport().setConnectionTimeout(connectionTimeoutMs);
         listener.getTransport().setKeepAlive(true);
 
+        // network.read_timeout_ms 以前只读不用 —— 配置项存在但完全不生效，
+        // 运维照着注释调它不会有任何变化。Grizzly 里对应的概念是"单次请求事务超时"
+        // （NetworkListener.setTransactionTimeout，单位秒）：超时后连接被断开，
+        // 避免慢请求把工作线程长期占住。
+        if (readTimeoutMs > 0) {
+            int seconds = Math.max(1, readTimeoutMs / 1000);
+            listener.setTransactionTimeout(seconds);
+        }
+
         if (lowMemoryMode) {
             listener.getTransport().setReadBufferSize(16384);
             listener.getTransport().setWriteBufferSize(16384);
@@ -81,12 +110,7 @@ public class ServerConfigurator {
     }
 
     public void configureListener(NetworkListener listener) {
-        ThreadPoolConfig workerConfig = ThreadPoolConfig.defaultConfig()
-                .setCorePoolSize(workerCore)
-                .setMaxPoolSize(workerMax)
-                .setQueueLimit(100)
-                .setPoolName("grizzly-worker");
-        configureListener(listener, workerConfig);
+        configureListener(listener, newWorkerPoolConfig());
     }
 
     public int getIoThreads() {

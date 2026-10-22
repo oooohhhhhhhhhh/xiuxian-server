@@ -311,6 +311,11 @@ performance:
   grizzly_io_threads: 2        # Grizzly IO 线程数
   grizzly_worker_cores: 4      # Grizzly 工作线程核心数
   grizzly_worker_max: 8        # Grizzly 工作线程最大数
+                               # ⚠ core/max/queue 必须一起看：工作线程池是标准线程池语义，
+                               # 队列没满之前不会把线程从 core 扩到 max。队列上限过大
+                               # （如 100）会让 max 永远达不到，表现为"并发一高就整体变慢"
+                               # 而不是"多开线程扛住"。
+  grizzly_worker_queue: 32     # 工作线程队列上限（默认 core 的 8 倍）
   memory_log_entries: 200      # 内存中保留的日志条数上限
 
 
