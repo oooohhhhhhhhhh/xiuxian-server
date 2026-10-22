@@ -9,7 +9,21 @@ import java.util.Random;
 
 public class HeartDemonService {
 
-    private static final double BASE_CHANCE_PER_HOUR = 0.08;
+    /**
+     * 每小时基础心魔概率，<b>单位是百分点</b>（8.0 表示每小时 8%）。
+     *
+     * <p>这个单位必须和下面的抗性、上限保持一致 —— 历史上它是 {@code 0.08}
+     * （当作"比例"），而抗性 {@code spiritResist/rootResist/caveResist} 与上限
+     * {@code Math.min(40.0, ...)} 用的都是百分点。于是：
+     * {@code finalChance = 0.08 - 0.67(灵力10) - 2.0(杂灵根) - ...} 恒为负，
+     * 被 {@code Math.max(0.0, ...)} 夹到 0，{@code eventRoll >= 0} 恒成立 ——
+     * <b>心魔从来不会触发</b>，整个心魔系统（含文案、修为倒退、各类抗性）都是死代码。</p>
+     */
+    private static final double BASE_CHANCE_PERCENT_PER_HOUR = 8.0;
+
+    /** 单次结算的心魔概率上限（百分点）。 */
+    private static final double MAX_CHANCE_PERCENT = 40.0;
+
     private static final Random RANDOM = new Random();
 
     private final PlayerService playerService = ServiceRegistry.getPlayerService();
@@ -43,8 +57,10 @@ public class HeartDemonService {
             return result;
         }
 
+        // 全部按"百分点"计算：baseChancePercent 是 0~40 之间的百分数，
+        // 各项抗性也是百分点，最后与 RANDOM.nextInt(100) 直接比较。
         double hours = elapsedSeconds / 3600.0;
-        double baseChance = BASE_CHANCE_PER_HOUR * hours;
+        double baseChancePercent = BASE_CHANCE_PERCENT_PER_HOUR * hours;
 
         double spiritResist = Math.min(8.0, player.getSpirit() / 15.0);
         SpiritualRoot root = player.getSpiritualRoot();
@@ -66,14 +82,15 @@ public class HeartDemonService {
         }
 
         double caveResist = caveLevel * 3.0;
-        double finalChance = Math.min(40.0, Math.max(0.0, baseChance - spiritResist - rootResist - caveResist));
+        double finalChancePercent = Math.min(MAX_CHANCE_PERCENT,
+                Math.max(0.0, baseChancePercent - spiritResist - rootResist - caveResist));
 
         int severityRoll = RANDOM.nextInt(100);
         int eventRoll = RANDOM.nextInt(100);
 
         result.roll = eventRoll;
 
-        if (eventRoll >= finalChance) {
+        if (eventRoll >= finalChancePercent) {
             result.netExpChange = rawExpGained;
             return result;
         }
