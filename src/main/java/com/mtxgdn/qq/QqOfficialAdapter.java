@@ -803,7 +803,7 @@ public class QqOfficialAdapter implements OneBotSession, OneBotMessageSenderClie
         if (openid.isEmpty()) return;
 
         lastC2cMsg.put(openid, new LastMsg(msgId, msgId, System.currentTimeMillis()));
-        log.info("[QQ私聊:" + openid + "] " + nickname + ": " + content);
+        log.info("[QQ私聊:" + openid + "] " + nickname + ": " + com.mtxgdn.util.LogMasker.mask(content));
         handlePrivateMessage(openid, nickname, content);
     }
 

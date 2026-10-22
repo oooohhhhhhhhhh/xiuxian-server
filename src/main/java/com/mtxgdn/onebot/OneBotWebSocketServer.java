@@ -303,7 +303,7 @@ public class OneBotWebSocketServer extends WebSocketApplication
 
     @Override
     public void onMessage(WebSocket socket, String text) {
-        botLog.logRecv(text);
+        botLog.logRecv(com.mtxgdn.util.LogMasker.mask(text));
         try {
             JsonObject json = gson.fromJson(text, JsonObject.class);
             if (json.has("post_type")) {
@@ -412,7 +412,7 @@ public class OneBotWebSocketServer extends WebSocketApplication
 
     private void handlePrivateMessage(WebSocket socket, String selfId, String senderQq,
                                        String senderNickname, String rawMessage) {
-        log.info("[私聊:" + senderQq + "] " + senderNickname + ": " + rawMessage);
+        log.info("[私聊:" + senderQq + "] " + senderNickname + ": " + com.mtxgdn.util.LogMasker.mask(rawMessage));
         String trimmed = rawMessage.trim();
         StatsCollector.getInstance().recordMessage(senderQq, null);
 
@@ -439,7 +439,7 @@ public class OneBotWebSocketServer extends WebSocketApplication
 
     private void handleGroupMessage(WebSocket socket, String selfId, Long groupId,
                                      String senderQq, String senderNickname, String rawMessage) {
-        log.info("[群聊:" + groupId + "] [QQ:" + senderQq + "] " + senderNickname + ": " + rawMessage);
+        log.info("[群聊:" + groupId + "] [QQ:" + senderQq + "] " + senderNickname + ": " + com.mtxgdn.util.LogMasker.mask(rawMessage));
         String trimmed = rawMessage.trim();
         StatsCollector.getInstance().recordMessage(senderQq, groupId);
 

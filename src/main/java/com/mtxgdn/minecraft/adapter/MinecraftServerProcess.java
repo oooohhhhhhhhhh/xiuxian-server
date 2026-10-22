@@ -368,7 +368,7 @@ public class MinecraftServerProcess implements Runnable {
         if (matcher.find()) {
             String name = matcher.group("name");
             String msg = matcher.group("msg").trim();
-            log.info("[MC 聊天] " + name + ": " + msg);
+            log.info("[MC 聊天] " + name + ": " + com.mtxgdn.util.LogMasker.mask(msg));
             if (adapter != null) {
                 adapter.onChatMessage(name, msg);
             }

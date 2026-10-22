@@ -198,7 +198,7 @@ public class MinecraftPlayerAdapter implements MinecraftMessageSender {
 
         client.setOnChatMessage((sender, message) -> {
             // 公屏消息忽略（只处理私聊）
-            log.debug("[" + adapterId + "] 公屏: " + (sender != null ? sender + ": " : "") + message);
+            log.debug("[" + adapterId + "] 公屏: " + (sender != null ? sender + ": " : "") + com.mtxgdn.util.LogMasker.mask(message));
         });
 
         client.setOnDisconnected(reason -> {
