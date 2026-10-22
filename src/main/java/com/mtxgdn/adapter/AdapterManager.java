@@ -328,8 +328,21 @@ public class AdapterManager {
         }
 
         int port = cfg.getInt("port", 6700);
+        // 默认只监听回环地址：OneBot 客户端通常与服务器同机部署。
+        // 需要远程接入时必须显式配置 host 与 access_token。
+        String host = cfg.getString("host", "127.0.0.1");
+        String accessToken = cfg.getString("access_token", "");
+        if (accessToken == null) {
+            accessToken = "";
+        }
+        if (!isLoopbackHost(host) && accessToken.isBlank()) {
+            throw new IllegalStateException("适配器 " + cfg.getId()
+                    + " 监听在非本机地址 " + host + " 但未配置 access_token，拒绝启动"
+                    + "（OneBot 通道无鉴权等同于把全部指令暴露给网络）");
+        }
+
         HttpServer server = new HttpServer();
-        NetworkListener listener = new NetworkListener("onebot-" + cfg.getId(), "0.0.0.0", port);
+        NetworkListener listener = new NetworkListener("onebot-" + cfg.getId(), host, port);
         listener.registerAddOn(new WebSocketAddOn());
 
         ServerConfigurator serverConfig = new ServerConfigurator();
@@ -337,21 +350,38 @@ public class AdapterManager {
 
         server.addListener(listener);
 
-        OneBotWebSocketServer wsServer = new OneBotWebSocketServer();
+        OneBotWebSocketServer wsServer = new OneBotWebSocketServer(accessToken);
         WebSocketEngine.getEngine().register("", "/onebot", wsServer);
 
         server.start();
         runningAdapters.put(cfg.getId(), wsServer);
         // 保存 server 引用用于后续关闭
         runningAdapters.put(cfg.getId() + ".server", server);
+        // 保存 engine 引用用于反注册，避免热重载时残留映射与调度线程
+        runningAdapters.put(cfg.getId() + ".engine", wsServer);
 
-        LOG.info("OneBot WebSocket: ws://0.0.0.0:" + port + "/onebot");
+        LOG.info("OneBot WebSocket: ws://" + host + ":" + port + "/onebot"
+                + (accessToken.isBlank() ? "（仅本机，未启用 access_token）" : "（已启用 access_token）"));
+    }
+
+    private static boolean isLoopbackHost(String host) {
+        return host == null || host.isBlank()
+                || host.startsWith("127.") || host.equals("::1") || host.equalsIgnoreCase("localhost");
     }
 
     private static void cleanupOneBotServer(String adapterId) {
         Object serverObj = runningAdapters.remove(adapterId + ".server");
         if (serverObj instanceof HttpServer server) {
             server.shutdownNow();
+        }
+        Object engineObj = runningAdapters.remove(adapterId + ".engine");
+        if (engineObj instanceof OneBotWebSocketServer wsServer) {
+            // 先从 WebSocketEngine 反注册，否则重载后旧的 application 仍然占着 /onebot 映射
+            try {
+                WebSocketEngine.getEngine().unregister(wsServer);
+            } catch (RuntimeException e) {
+                LOG.warn("反注册 OneBot WebSocket 失败: " + e.getMessage());
+            }
         }
     }
 

@@ -21,6 +21,7 @@ import com.mtxgdn.util.OneBotLogger;
 import com.mtxgdn.util.PlayerActionLogger;
 import com.mtxgdn.util.RateLimiter;
 import com.mtxgdn.util.StatsCollector;
+import org.glassfish.grizzly.http.HttpRequestPacket;
 import org.glassfish.grizzly.websockets.DataFrame;
 import org.glassfish.grizzly.websockets.WebSocket;
 import org.glassfish.grizzly.websockets.WebSocketApplication;
@@ -55,11 +56,116 @@ public class OneBotWebSocketServer extends WebSocketApplication
     private final BlacklistService blacklistService = new BlacklistService();
     private final OneBotGroupConfigService groupConfigService = new OneBotGroupConfigService();
 
+    /**
+     * 期望的 OneBot 访问令牌。空字符串表示"未配置"——此时只允许回环地址接入，
+     * 避免默认部署把指令通道暴露给整个网络。
+     */
+    private final String accessToken;
+
     public OneBotWebSocketServer() {
+        this("");
+    }
+
+    public OneBotWebSocketServer(String accessToken) {
+        this.accessToken = accessToken == null ? "" : accessToken.trim();
         // 每12小时检查一次黑名单用户并续期禁言
         muteRenewalScheduler.scheduleAtFixedRate(this::renewMuteForBlacklistedUsers,
                 12, 12, java.util.concurrent.TimeUnit.HOURS);
         log.info("黑名单自动续期禁言定时任务已启动（每12小时执行一次）");
+        if (this.accessToken.isEmpty()) {
+            log.warn("OneBot 未配置 access_token：仅允许本机(127.0.0.1/::1)接入；"
+                    + "如需远程接入，请在 config/adapters.json 中为该适配器设置 access_token");
+        }
+    }
+
+    /**
+     * 握手前校验：在 WebSocket 升级阶段就拒绝未授权连接，而不是先建连再关闭。
+     *
+     * <p>OneBot v11 客户端（go-cqhttp / NapCat / LLOneBot 等）支持两种携带方式，这里都接受：
+     * {@code Authorization: Bearer <token>} 请求头，或 {@code ?access_token=<token>} 查询参数。
+     */
+    @Override
+    public boolean isApplicationRequest(HttpRequestPacket request) {
+        if (!super.isApplicationRequest(request)) {
+            return false;
+        }
+        String remote = request.getRemoteAddress();
+        if (accessToken.isEmpty()) {
+            if (isLoopback(remote)) {
+                return true;
+            }
+            log.warn("OneBot 握手被拒绝：未配置 access_token 且来源不是本机（来源 " + remote + "）");
+            return false;
+        }
+        String provided = extractAccessToken(request);
+        if (provided != null && constantTimeEquals(accessToken, provided)) {
+            return true;
+        }
+        log.warn("OneBot 握手被拒绝：access_token 缺失或不匹配（来源 " + remote + "）");
+        return false;
+    }
+
+    private static String extractAccessToken(HttpRequestPacket request) {
+        String auth = request.getHeader("Authorization");
+        if (auth != null) {
+            String v = auth.trim();
+            if (v.regionMatches(true, 0, "Bearer ", 0, 7)) {
+                v = v.substring(7).trim();
+            }
+            if (!v.isEmpty()) {
+                return v;
+            }
+        }
+        String token = queryParam(request.getQueryString(), "access_token");
+        if (token != null && !token.isEmpty()) {
+            return token;
+        }
+        String header = request.getHeader("X-OneBot-Token");
+        return header != null && !header.isBlank() ? header.trim() : null;
+    }
+
+    /** 从原始 query string 取参数。 */
+    private static String queryParam(String queryString, String name) {
+        if (queryString == null || queryString.isEmpty()) {
+            return null;
+        }
+        for (String pair : queryString.split("&")) {
+            int eq = pair.indexOf('=');
+            if (eq <= 0) {
+                continue;
+            }
+            if (pair.substring(0, eq).equals(name)) {
+                String raw = pair.substring(eq + 1);
+                try {
+                    return java.net.URLDecoder.decode(raw, java.nio.charset.StandardCharsets.UTF_8);
+                } catch (IllegalArgumentException e) {
+                    return raw;
+                }
+            }
+        }
+        return null;
+    }
+
+    private static boolean isLoopback(String remote) {
+        if (remote == null) {
+            return false;
+        }
+        return remote.startsWith("127.") || remote.equals("::1")
+                || remote.equals("0:0:0:0:0:0:0:1") || remote.equalsIgnoreCase("localhost");
+    }
+
+    /** 定长比较，避免通过响应时间差推断令牌。 */
+    private static boolean constantTimeEquals(String expected, String actual) {
+        byte[] a = expected.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        byte[] b = actual.getBytes(java.nio.charset.StandardCharsets.UTF_8);
+        if (a.length != b.length) {
+            return false;
+        }
+        int diff = 0;
+        for (int i = 0; i < a.length; i++) {
+            diff |= a[i] ^ b[i];
+        }
+        return diff == 0;
     }
 
     private void renewMuteForBlacklistedUsers() {

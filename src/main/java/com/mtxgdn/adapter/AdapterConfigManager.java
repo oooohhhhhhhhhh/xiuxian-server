@@ -103,6 +103,11 @@ public class AdapterConfigManager {
     /** 创建默认配置 */
     private static AdaptersConfig createDefaultConfig() {
         Map<String, Object> onebotConfig = new LinkedHashMap<>();
+        // 默认只监听本机：OneBot 客户端一般与服务器同机。
+        // 如需远程接入，把 host 改成 0.0.0.0 并务必同时设置 access_token，
+        // 否则 startOneBot 会拒绝启动（无鉴权的指令通道等于把全部指令暴露给网络）。
+        onebotConfig.put("host", "127.0.0.1");
+        onebotConfig.put("access_token", "");
         onebotConfig.put("port", 6700);
         onebotConfig.put("mode", "ws_server");
         onebotConfig.put("send_mode", "text");
