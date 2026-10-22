@@ -709,14 +709,36 @@ public class FarmService {
         long exposedSeconds = (now - eligibleFrom) / 1000;
         if (exposedSeconds <= 0) return;
 
-        double perSecond = PEST_CHANCE_PER_HOUR / 60.0;
-        double chance = 1.0 - Math.pow(1.0 - perSecond, exposedSeconds);
+        // 每小时 2% 换算成"每秒概率"，再按已暴露的秒数复利折算。
+        // 注意分母必须是 3600 而不是 60：exposedSeconds 的单位是秒，
+        // 写成 /60.0 等于把小时率当成了分钟率，病虫害实际发生率被放大 60 倍
+        // （2%/小时 → 名义 2%/分钟），作物几乎一种下就生虫。
+        double chance = pestChanceForExposedSeconds(exposedSeconds);
         if (random.nextDouble() < chance) {
             plot.setPestState(random.nextDouble() < 0.7
                     ? FarmPlot.PestState.MILD
                     : FarmPlot.PestState.DISEASE);
             plot.setPestTime(now);
         }
+    }
+
+    /**
+     * 已暴露 {@code exposedSeconds} 秒后"至少生一次虫"的概率。
+     *
+     * <p>把小时率折算成秒率再复利累计：{@code 1 - (1 - p_小时/3600)^秒数}。
+     * 抽成包内可见的静态方法是为了能直接断言量纲 —— 这段逻辑曾经把 {@code /3600.0}
+     * 写成了 {@code /60.0}，导致病虫害发生率被放大 60 倍，而这种错误
+     * 靠随机数测试很难稳定复现。</p>
+     *
+     * @param exposedSeconds 超过宽限期后的暴露秒数（&le;0 时返回 0）
+     * @return [0,1] 区间的概率
+     */
+    static double pestChanceForExposedSeconds(long exposedSeconds) {
+        if (exposedSeconds <= 0) {
+            return 0.0;
+        }
+        double perSecond = PEST_CHANCE_PER_HOUR / 3600.0;
+        return 1.0 - Math.pow(1.0 - perSecond, exposedSeconds);
     }
 
     /** 生长阶段：无状态，可由时间直接推导。 */
