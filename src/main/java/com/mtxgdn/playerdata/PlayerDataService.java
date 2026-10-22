@@ -588,6 +588,16 @@ public class PlayerDataService {
             return result;
         }
 
+        // 标识符校验：表名/列名来自这份 JSON，而它们要拼进 SQL 文本（无法参数化）。
+        // 放在事务之前 —— 宁可整份文件拒收，也不要在事务中途抛异常回滚一堆已执行的 DELETE。
+        String invalidStructure = validateTableStructure(data.tables);
+        if (invalidStructure != null) {
+            recordRestoreFailure("玩家 " + playerId + " 数据文件结构非法: " + invalidStructure);
+            result.put("success", false);
+            result.put("message", I18n.t("playerdata.h0a551337", invalidStructure));
+            return result;
+        }
+
         int restored = 0;
         try (Connection conn = DatabaseManager.getConnection()) {
             conn.setAutoCommit(false);
@@ -733,6 +743,48 @@ public class PlayerDataService {
         }
     }
 
+    /**
+     * 还原前校验数据文件的"结构"，也就是表名与列名。
+     *
+     * <p><b>为什么必须校验</b>：备份文件是外部输入（备份目录里的 JSON、或管理后台上传），
+     * 而 {@code insertRow} / {@code deleteByColumn} / {@code restorePlayerRow} 都要把
+     * 表名和列名拼进 SQL 文本 —— 标识符天生无法用 {@code ?} 参数化。
+     * 也就是说，一个被篡改或损坏的文件里只要把表名写成
+     * {@code players; DROP TABLE users; --}、或把列名写成 {@code hp = 999, mp},
+     * 就会被原样拼进 SQL 执行。数据值本身一直走占位符，是安全的；漏掉的是标识符。</p>
+     *
+     * <p>校验放在事务之前：宁可整份文件拒收并明确报错，也不要在事务中途抛异常
+     * 回滚一堆已经执行过的 DELETE。</p>
+     *
+     * @return 校验失败时返回可读原因；通过则返回 {@code null}
+     */
+    private static String validateTableStructure(Map<String, List<Map<String, Object>>> tables) {
+        for (Map.Entry<String, List<Map<String, Object>>> entry : tables.entrySet()) {
+            try {
+                DatabaseManager.assertSafeTableName(entry.getKey());
+            } catch (IllegalArgumentException e) {
+                return "表名非法: " + e.getMessage();
+            }
+            List<Map<String, Object>> rows = entry.getValue();
+            if (rows == null) {
+                continue;
+            }
+            for (Map<String, Object> row : rows) {
+                if (row == null) {
+                    continue;
+                }
+                for (String column : row.keySet()) {
+                    try {
+                        DatabaseManager.assertSafeColumnName(column);
+                    } catch (IllegalArgumentException e) {
+                        return "表 " + entry.getKey() + " 的列名非法: " + e.getMessage();
+                    }
+                }
+            }
+        }
+        return null;
+    }
+
     private void restorePlayerRow(Connection conn, Map<String, Object> row) throws SQLException {
         Long id = ((Number) row.get("id")).longValue();
         StringBuilder sql = new StringBuilder("UPDATE players SET ");
@@ -744,6 +796,8 @@ public class PlayerDataService {
                     || "created_at".equals(entry.getKey()) || "updated_at".equals(entry.getKey())) {
                 continue;
             }
+            // 列名要拼进 SQL 文本，必须逐个校验（值走占位符，列名没有占位符可用）
+            DatabaseManager.assertSafeColumnName(entry.getKey());
             if (!first) {
                 sql.append(", ");
             }
@@ -762,6 +816,8 @@ public class PlayerDataService {
     }
 
     private boolean insertRow(Connection conn, String table, Map<String, Object> row) {
+        // 纵深防御：即便上游漏了结构校验，这里也不允许把非法标识符拼进 SQL
+        DatabaseManager.assertSafeTableName(table);
         StringBuilder sql = new StringBuilder("INSERT INTO " + table + " (");
         StringBuilder values = new StringBuilder("VALUES (");
         List<Object> params = new ArrayList<>();
@@ -770,6 +826,7 @@ public class PlayerDataService {
             if (entry.getValue() == null) {
                 continue;
             }
+            DatabaseManager.assertSafeColumnName(entry.getKey());
             if (!first) {
                 sql.append(", ");
                 values.append(", ");
@@ -809,6 +866,8 @@ public class PlayerDataService {
     }
 
     private void deleteByColumn(Connection conn, String table, String column, long value) throws SQLException {
+        DatabaseManager.assertSafeTableName(table);
+        DatabaseManager.assertSafeColumnName(column);
         String sql = "DELETE FROM " + table + " WHERE " + column + " = ?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, value);
@@ -817,6 +876,9 @@ public class PlayerDataService {
     }
 
     private void deleteByColumnOr(Connection conn, String table, String colA, String colB, long value) throws SQLException {
+        DatabaseManager.assertSafeTableName(table);
+        DatabaseManager.assertSafeColumnName(colA);
+        DatabaseManager.assertSafeColumnName(colB);
         String sql = "DELETE FROM " + table + " WHERE " + colA + " = ? OR " + colB + " = ?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, value);

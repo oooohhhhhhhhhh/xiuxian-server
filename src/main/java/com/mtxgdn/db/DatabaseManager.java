@@ -419,8 +419,19 @@ public class DatabaseManager {
     private static volatile Set<String> tableNameCache;
     private static volatile long tableNameCacheTime;
 
-    /** 表名白名单校验：仅允许当前数据库中真实存在的表（防 SQL 标识符注入）。 */
-    private static void assertSafeTableName(String tableName) {
+    /**
+     * 表名白名单校验：仅允许当前数据库中真实存在的表（防 SQL 标识符注入）。
+     *
+     * <p>凡是把表名拼进 SQL 文本的地方（不能走 {@code ?} 占位符，标识符天生无法参数化）
+     * 都必须先调用它。校验分三层：格式（只允许小写字母与下划线）、硬编码白名单、
+     * 以及"该表在库里真实存在"。</p>
+     *
+     * <p>公开给其它拼 SQL 的模块复用（如 {@code PlayerDataService} 的备份还原：
+     * 表名与列名都来自外部 JSON 文件，属于不可信输入）。</p>
+     *
+     * @throws IllegalArgumentException 表名非法、不在白名单或库里不存在
+     */
+    public static void assertSafeTableName(String tableName) {
         if (tableName == null || tableName.isBlank()) {
             throw new IllegalArgumentException("非法表名: " + tableName);
         }
@@ -448,8 +459,14 @@ public class DatabaseManager {
         }
     }
 
-    /** 列名校验：仅允许纯标识符字符（防 SQL 标识符注入）。 */
-    private static void assertSafeColumnName(String columnName) {
+    /**
+     * 列名校验：仅允许纯标识符字符（防 SQL 标识符注入）。
+     *
+     * <p>与 {@link #assertSafeTableName(String)} 同样公开给其它拼 SQL 的模块复用。</p>
+     *
+     * @throws IllegalArgumentException 列名含标识符以外的字符
+     */
+    public static void assertSafeColumnName(String columnName) {
         if (columnName == null || !columnName.matches("^[A-Za-z_][A-Za-z0-9_]*$")) {
             throw new IllegalArgumentException("非法列名: " + columnName);
         }
