@@ -117,8 +117,11 @@ public class BuffEffect extends ItemEffect {
 
         if (durationSeconds > 0) {
             BuffService buffService = ServiceRegistry.getBuffService();
+            // 必须用带 Connection 的重载：这里是别人的事务（使用/装备丹药装备的流程）。
+            // 若调用自开事务的版本，增益行会提前提交 —— 外层事务随后回滚时，
+            // 玩家已经白得了一个增益，而且没有任何东西会去撤销它。
             // 同种丹药使用同一 buffId：重复使用只刷新时长，不重复叠加属性
-            buffService.addBuff(playerId, "buff_" + attackBonus + "_" + defenseBonus + "_" + speedBonus + "_" + spiritBonus,
+            buffService.addBuff(conn, playerId, "buff_" + attackBonus + "_" + defenseBonus + "_" + speedBonus + "_" + spiritBonus,
                 attackBonus, defenseBonus, speedBonus, spiritBonus, durationSeconds);
 
             if (attackBonus > 0) sb.append("攻击力 +").append(attackBonus).append("，");

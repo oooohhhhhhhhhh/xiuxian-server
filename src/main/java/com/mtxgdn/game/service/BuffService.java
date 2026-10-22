@@ -162,54 +162,82 @@ public class BuffService {
 
     public void addBuff(long playerId, String buffId, int attackBonus, int defenseBonus, int speedBonus, int spiritBonus, int durationSeconds) {
         long expireTime = System.currentTimeMillis() + (long) durationSeconds * 1000;
-
         DatabaseManager.runTransaction(conn -> {
-            // 先清掉该玩家已过期的增益：否则"同 buffId 已存在"会把一条早已过期的行当成有效增益
-            expirePlayerBuffs(conn, playerId, System.currentTimeMillis());
-            // 同 buffId 已存在（如重复使用同种丹药）：只刷新时长，不重复叠加属性
-            String existsSql = "SELECT id FROM player_buffs WHERE player_id = ? AND buff_id = ?";
-            boolean exists;
-            try (PreparedStatement ps = conn.prepareStatement(existsSql)) {
-                ps.setLong(1, playerId);
-                ps.setString(2, buffId);
-                try (ResultSet rs = ps.executeQuery()) {
-                    exists = rs.next();
-                }
-            }
-            if (exists) {
-                String refreshSql = "UPDATE player_buffs SET expire_time = ? WHERE player_id = ? AND buff_id = ?";
-                try (PreparedStatement ps = conn.prepareStatement(refreshSql)) {
-                    ps.setLong(1, expireTime);
-                    ps.setLong(2, playerId);
-                    ps.setString(3, buffId);
-                    ps.executeUpdate();
-                }
-                return true;
-            }
-
-            String sql = """
-                INSERT INTO player_buffs (player_id, buff_id, attack_bonus, defense_bonus, speed_bonus, spirit_bonus, expire_time)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
-                """;
-            try (PreparedStatement ps = conn.prepareStatement(sql)) {
-                ps.setLong(1, playerId);
-                ps.setString(2, buffId);
-                ps.setInt(3, attackBonus);
-                ps.setInt(4, defenseBonus);
-                ps.setInt(5, speedBonus);
-                ps.setInt(6, spiritBonus);
-                ps.setLong(7, expireTime);
-                ps.executeUpdate();
-            }
-
-            PlayerService playerService = ServiceRegistry.getPlayerService();
-            if (attackBonus != 0) playerService.addAttack(conn, playerId, attackBonus);
-            if (defenseBonus != 0) playerService.addDefense(conn, playerId, defenseBonus);
-            if (speedBonus != 0) playerService.addSpeed(conn, playerId, speedBonus);
-            if (spiritBonus != 0) playerService.addSpirit(conn, playerId, spiritBonus);
-
+            applyBuff(conn, playerId, buffId, attackBonus, defenseBonus, speedBonus, spiritBonus, expireTime);
             return true;
         });
+    }
+
+    /**
+     * 在<b>调用方已开启的事务</b>里加增益。
+     *
+     * <p><b>为什么需要这个重载</b>：{@link #addBuff(long, String, int, int, int, int, int)}
+     * 自己开事务。而丹药/装备的效果是在别人的事务里执行的
+     * （见 {@code ItemService.useItem}、{@code ItemService.equipItem}）——
+     * 如果那里调用自开事务的版本，增益行会<b>提前提交</b>：
+     * 外层事务随后回滚（例如扣物品失败、后续效果抛异常），玩家已经"白得"了一个增益，
+     * 而且这个增益在回滚后没有任何东西会去撤销它。</p>
+     *
+     * <p>把连接传进来，增益行与外层事务同生共死。</p>
+     */
+    public void addBuff(Connection conn, long playerId, String buffId,
+                        int attackBonus, int defenseBonus, int speedBonus, int spiritBonus,
+                        int durationSeconds) throws SQLException {
+        long expireTime = System.currentTimeMillis() + (long) durationSeconds * 1000;
+        applyBuff(conn, playerId, buffId, attackBonus, defenseBonus, speedBonus, spiritBonus, expireTime);
+    }
+
+    /**
+     * 加增益的实际逻辑（不加事务、不取连接，完全由调用方的事务托管）。
+     *
+     * @param expireTime 过期时间戳（毫秒）
+     */
+    private void applyBuff(Connection conn, long playerId, String buffId,
+                           int attackBonus, int defenseBonus, int speedBonus, int spiritBonus,
+                           long expireTime) throws SQLException {
+        // 先清掉该玩家已过期的增益：否则"同 buffId 已存在"会把一条早已过期的行当成有效增益
+        expirePlayerBuffs(conn, playerId, System.currentTimeMillis());
+        // 同 buffId 已存在（如重复使用同种丹药）：只刷新时长，不重复叠加属性
+        String existsSql = "SELECT id FROM player_buffs WHERE player_id = ? AND buff_id = ?";
+        boolean exists;
+        try (PreparedStatement ps = conn.prepareStatement(existsSql)) {
+            ps.setLong(1, playerId);
+            ps.setString(2, buffId);
+            try (ResultSet rs = ps.executeQuery()) {
+                exists = rs.next();
+            }
+        }
+        if (exists) {
+            String refreshSql = "UPDATE player_buffs SET expire_time = ? WHERE player_id = ? AND buff_id = ?";
+            try (PreparedStatement ps = conn.prepareStatement(refreshSql)) {
+                ps.setLong(1, expireTime);
+                ps.setLong(2, playerId);
+                ps.setString(3, buffId);
+                ps.executeUpdate();
+            }
+            return;
+        }
+
+        String sql = """
+            INSERT INTO player_buffs (player_id, buff_id, attack_bonus, defense_bonus, speed_bonus, spirit_bonus, expire_time)
+            VALUES (?, ?, ?, ?, ?, ?, ?)
+            """;
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setLong(1, playerId);
+            ps.setString(2, buffId);
+            ps.setInt(3, attackBonus);
+            ps.setInt(4, defenseBonus);
+            ps.setInt(5, speedBonus);
+            ps.setInt(6, spiritBonus);
+            ps.setLong(7, expireTime);
+            ps.executeUpdate();
+        }
+
+        PlayerService playerService = ServiceRegistry.getPlayerService();
+        if (attackBonus != 0) playerService.addAttack(conn, playerId, attackBonus);
+        if (defenseBonus != 0) playerService.addDefense(conn, playerId, defenseBonus);
+        if (speedBonus != 0) playerService.addSpeed(conn, playerId, speedBonus);
+        if (spiritBonus != 0) playerService.addSpirit(conn, playerId, spiritBonus);
     }
 
     public void removeBuff(long playerId, String buffId) {
