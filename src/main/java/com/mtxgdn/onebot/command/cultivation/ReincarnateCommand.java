@@ -44,7 +44,7 @@ public class ReincarnateCommand extends Command {
         if (p == null) return;
 
         PlayerService playerService = ServiceRegistry.getPlayerService();
-        Player player = playerService.getPlayerRaw(userId);
+        Player player = playerService.getPlayerByUserIdRaw(userId);
         if (player == null) {
             ctx.reply(I18n.t("cultivation.h59a76b2c"));
             return;

@@ -39,7 +39,7 @@ public class SecretRealmService {
     }
 
     public List<SecretRealm> getAvailableAreas(long userId) {
-        Player player = playerService.getPlayerRaw(userId);
+        Player player = playerService.getPlayerByUserIdRaw(userId);
         if (player == null) {
             return List.of();
         }
@@ -47,7 +47,7 @@ public class SecretRealmService {
     }
 
     public SecretRealmResult enterSecretRealm(long userId, String areaName) {
-        Player player = playerService.getPlayerRaw(userId);
+        Player player = playerService.getPlayerByUserIdRaw(userId);
         if (player == null) {
             return SecretRealmResult.failure("角色不存在，请先创建角色");
         }
@@ -498,7 +498,7 @@ public class SecretRealmService {
     }
 
     public SecretRealmResult enterRaid(long leaderId, String areaName) {
-        Player leader = playerService.getPlayerRaw(leaderId);
+        Player leader = playerService.getPlayerById(leaderId);
         if (leader == null) {
             return SecretRealmResult.failure("角色不存在，请先创建角色");
         }
@@ -529,7 +529,7 @@ public class SecretRealmService {
 
         List<Player> members = new ArrayList<>();
         for (long memberId : memberIds) {
-            Player member = playerService.getPlayerRaw(memberId);
+            Player member = playerService.getPlayerById(memberId);
             if (member == null) {
                 return SecretRealmResult.failure("团队成员不存在");
             }

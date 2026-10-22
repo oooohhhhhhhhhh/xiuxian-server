@@ -54,7 +54,7 @@ public class ExplorationService {
      * 修复 TOCTOU 竞态条件：冷却检查和时间更新必须在同一事务内
      */
     public ExplorationResult explore(long userId) {
-        Player player = playerService.getPlayerRaw(userId);
+        Player player = playerService.getPlayerByUserIdRaw(userId);
         if (player == null) {
             return ExplorationResult.failure("角色不存在，请先创建角色");
         }

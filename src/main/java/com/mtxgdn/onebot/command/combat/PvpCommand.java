@@ -91,7 +91,7 @@ public class PvpCommand extends Command {
             if (official == null && onebot == null) return;
 
             var playerService = ServiceRegistry.getPlayerService();
-            var targetPlayer = playerService.getPlayerRaw(target.getUserId());
+            var targetPlayer = playerService.getPlayerByUserIdRaw(target.getUserId());
             String targetTactic = "";
             if (targetPlayer != null && targetPlayer.getBattleStrategy() != null) {
                 targetTactic = getTacticDisplay(targetPlayer);
@@ -156,7 +156,7 @@ public class PvpCommand extends Command {
     private String getTacticDisplay(PlayerInfo p) {
         if (p == null) return "";
         var ps = ServiceRegistry.getPlayerService();
-        var player = ps.getPlayerRaw(p.getUserId());
+        var player = ps.getPlayerByUserIdRaw(p.getUserId());
         if (player == null) return "";
         String tactic = player.getBattleStrategy();
         if (tactic == null) tactic = "balanced";

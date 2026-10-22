@@ -53,7 +53,7 @@ public class BattleTacticCommand extends Command {
 
     private void showCurrent(CommandContext ctx, PlayerInfo p) {
         var playerService = ServiceRegistry.getPlayerService();
-        var player = playerService.getPlayerRaw(p.getUserId());
+        var player = playerService.getPlayerByUserIdRaw(p.getUserId());
         String tactic = player != null ? player.getBattleStrategy() : "balanced";
         if (tactic == null) tactic = "balanced";
 

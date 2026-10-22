@@ -60,6 +60,13 @@ public class PlayerService {
         return null;
     }
 
+    /**
+     * 按 <b>角色 ID（{@code players.id}）</b> 取玩家。
+     *
+     * <p>与 {@link #getPlayerByUserIdRaw(long)} 的区别只在 id 域：本方法收 {@code players.id}，
+     * 那个方法收 {@code users.id}。玩法层（背包、技能、秘境、战斗、宗门…）拿到的几乎都是
+     * playerId，应使用本方法。</p>
+     */
     public Player getPlayerById(long playerId) {
         String sql = "SELECT * FROM players WHERE id = ?";
         try (Connection conn = DatabaseManager.getConnection();
@@ -162,7 +169,23 @@ public class PlayerService {
         }
     }
 
-    public Player getPlayerRaw(long userId) {
+    /**
+     * 按 <b>账号 ID（{@code players.user_id}）</b> 取玩家，且不刷新活跃时间。
+     *
+     * <p><b>注意 id 域</b>：本方法收的是 {@code users.id}，不是 {@code players.id}。
+     * 这两列在库里通常并不相等，传错会读到<b>另一个角色</b>或直接返回 {@code null}，
+     * 表现为"角色不存在"这类毫无线索的失败。</p>
+     *
+     * <p>历史教训：本方法原名 {@code getPlayerRaw(long userId)}，因为形参名不显眼，
+     * 曾有 5 处调用方把 playerId 传了进来（学技能、技能书、团队副本入口、心魔结算），
+     * 导致这些链路在 {@code players.id != players.user_id} 的库上整体失效。
+     * 改名就是为了让代码审查能一眼看出 id 域。</p>
+     *
+     * @param userId 账号 ID（{@code users.id} / {@code players.user_id}）
+     * @return 玩家；账号下没有角色时返回 {@code null}
+     * @see #getPlayerById(long) 按角色 ID 取玩家
+     */
+    public Player getPlayerByUserIdRaw(long userId) {
         String sql = "SELECT * FROM players WHERE user_id = ?";
         try (Connection conn = DatabaseManager.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {

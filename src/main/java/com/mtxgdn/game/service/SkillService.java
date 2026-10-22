@@ -140,7 +140,7 @@ public class SkillService {
             return result;
         }
 
-        Player player = playerService.getPlayerRaw(playerId);
+        Player player = playerService.getPlayerById(playerId);
         if (player == null) {
             result.put("success", false);
             result.put("message", I18n.t("skill.h59a76b2c"));
@@ -222,7 +222,7 @@ public class SkillService {
             return result;
         }
 
-        Player player = playerService.getPlayerRaw(playerId);
+        Player player = playerService.getPlayerById(playerId);
         if (player == null) {
             result.put("success", false);
             result.put("message", I18n.t("skill.h59a76b2c"));

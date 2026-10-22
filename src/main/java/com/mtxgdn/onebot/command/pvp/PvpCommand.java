@@ -60,6 +60,12 @@ public class PvpCommand extends Command {
         PlayerInfo p = ctx.requirePlayer(userId);
         if (p == null) return;
 
+        // 注意 id 域：CombatService 全族（acceptChallenge / rejectChallenge /
+        // createChallenge / pveFight / raidBossFight）收的都是 playerId，
+        // 而 ctx.requireBinding() 给的是 userId。两者在库里通常不相等，
+        // 早期这里直接把 userId 传进去，导致整条指令族在 players.id != user_id 的库上失效。
+        long playerId = p.getId();
+
         String arg = ctx.getArg();
         if (arg == null || arg.isBlank()) {
             ctx.reply(I18n.t("pvp.h6af3afb0", getUsage()));
@@ -71,48 +77,48 @@ public class PvpCommand extends Command {
 
         switch (subCommand) {
             case "接受":
-                ctx.reply(handleAccept(userId));
+                ctx.reply(handleAccept(playerId));
                 break;
             case "拒绝":
-                ctx.reply(handleReject(userId));
+                ctx.reply(handleReject(playerId));
                 break;
             case "战斗":
-                ctx.reply(handleFight(userId));
+                ctx.reply(handleFight(playerId));
                 break;
             case "讨伐":
-                ctx.reply(handleBossFight(userId));
+                ctx.reply(handleBossFight(playerId));
                 break;
             case "boss":
-                ctx.reply(handleRaidBoss(userId, parts));
+                ctx.reply(handleRaidBoss(playerId, parts));
                 break;
             default:
-                ctx.reply(handleChallenge(userId, subCommand));
+                ctx.reply(handleChallenge(playerId, subCommand));
                 break;
         }
     }
 
-    private String handleAccept(long userId) {
-        CombatService.CombatResult result = combatService.acceptChallenge(userId);
+    private String handleAccept(long playerId) {
+        CombatService.CombatResult result = combatService.acceptChallenge(playerId);
         if (!result.isSuccess()) {
             return result.getMessage();
         }
         return formatPvpResult(result);
     }
 
-    private String handleReject(long userId) {
-        String challengerName = combatService.rejectChallenge(userId);
+    private String handleReject(long playerId) {
+        String challengerName = combatService.rejectChallenge(playerId);
         if (challengerName == null) {
             return "没有待接受的挑战";
         }
         return "已拒绝【" + challengerName + "】的挑战";
     }
 
-    private String handleChallenge(long userId, String targetName) {
+    private String handleChallenge(long playerId, String targetName) {
         List<PlayerInfo> targets = playerService.searchPlayersByName(targetName, 1, 0);
         if (targets.isEmpty()) return "角色【" + targetName + "】不存在";
         PlayerInfo target = targets.get(0);
 
-        CombatService.CombatResult result = combatService.createChallenge(userId, target.getId());
+        CombatService.CombatResult result = combatService.createChallenge(playerId, target.getId());
         if (!result.isSuccess()) {
             return result.getMessage();
         }
@@ -124,8 +130,8 @@ public class PvpCommand extends Command {
         return formatPvpResult(result);
     }
 
-    private String handleFight(long userId) {
-        PlayerInfo player = playerService.getPlayerInfoById(userId);
+    private String handleFight(long playerId) {
+        PlayerInfo player = playerService.getPlayerInfoById(playerId);
         if (player == null) return "你还没有角色，请先注册";
 
         if (player.getHp() <= 0) return "你的生命值不足，无法战斗";
@@ -136,12 +142,12 @@ public class PvpCommand extends Command {
                 monster.getLootTable(), monster.getLootChance(), monster.getExpReward(),
                 monster.getGoldReward(), monster.getSpiritStoneReward(), monster.getDescription());
 
-        PveCombatResult result = combatService.pveFight(userId, monster);
+        PveCombatResult result = combatService.pveFight(playerId, monster);
         return formatPveResult(result);
     }
 
-    private String handleBossFight(long userId) {
-        PlayerInfo player = playerService.getPlayerInfoById(userId);
+    private String handleBossFight(long playerId) {
+        PlayerInfo player = playerService.getPlayerInfoById(playerId);
         if (player == null) return "你还没有角色，请先注册";
 
         if (player.getHp() <= 0) return "你的生命值不足，无法战斗";
@@ -150,18 +156,20 @@ public class PvpCommand extends Command {
                 new String[]{"mtxgdn:cultivation_elixir", "mtxgdn:spirit_sword"}, 0.5, 500, 100, 50,
                 "千年妖王，修为深厚，已修炼出人形");
 
-        PveCombatResult result = combatService.pveFight(userId, boss);
+        PveCombatResult result = combatService.pveFight(playerId, boss);
         return formatPveResult(result);
     }
 
-    private String handleRaidBoss(long userId, String[] args) {
-        PlayerInfo player = playerService.getPlayerInfoById(userId);
+    private String handleRaidBoss(long playerId, String[] args) {
+        PlayerInfo player = playerService.getPlayerInfoById(playerId);
         if (player == null) return "你还没有角色，请先注册";
 
         if (player.getHp() <= 0) return "你的生命值不足，无法参加Boss战";
 
         List<Long> playerIds = new ArrayList<>();
-        playerIds.add(userId);
+        // 这里必须是 playerId —— 同列表里其它成员来自 targets.get(0).getId()（也是 playerId），
+        // 早先加入的是 userId，导致混入不同 id 域、raidBossFight 取到错误的角色。
+        playerIds.add(playerId);
 
         if (args.length > 1) {
             String[] playerNames = args[1].split("\\s+");

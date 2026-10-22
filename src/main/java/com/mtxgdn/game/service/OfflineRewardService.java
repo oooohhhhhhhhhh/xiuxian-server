@@ -22,7 +22,7 @@ public class OfflineRewardService {
     }
 
     public OfflineRewardResult processOfflineRewards(long userId) {
-        Player player = playerService.getPlayerRaw(userId);
+        Player player = playerService.getPlayerByUserIdRaw(userId);
         if (player == null) {
             return OfflineRewardResult.noReward();
         }

@@ -35,7 +35,7 @@ public class HeartDemonService {
             return result;
         }
 
-        Player player = playerService.getPlayerRaw(playerId);
+        Player player = playerService.getPlayerById(playerId);
         if (player == null) {
             result.netExpChange = rawExpGained;
             return result;
