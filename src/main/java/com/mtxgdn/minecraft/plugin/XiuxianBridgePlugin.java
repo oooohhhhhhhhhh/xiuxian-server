@@ -30,12 +30,29 @@ import java.nio.charset.StandardCharsets;
 public class XiuxianBridgePlugin extends JavaPlugin implements CommandExecutor {
 
     private static final Gson gson = new Gson();
-    private static final String API_URL = "http://localhost:8080/api/mc-command";
+    private static final String DEFAULT_API_URL = "http://localhost:8080/api/mc-command";
+
+    private String apiUrl = DEFAULT_API_URL;
+    private String apiToken = "";
 
     @Override
     public void onEnable() {
+        // 默认配置：config.yml 里的 api-url / api-token 必须与服务端
+        // application.yml 的 minecraft.api_token 一致，否则请求会被拒绝。
+        saveDefaultConfig();
+        apiUrl = getConfig().getString("api-url", DEFAULT_API_URL);
+        apiToken = getConfig().getString("api-token", "");
+        if (apiToken == null) {
+            apiToken = "";
+        }
+
         // 注册 /xiuxian 为根命令
         getCommand("xiuxian").setExecutor(this);
+        if (apiToken.isBlank()) {
+            getLogger().warning("[修仙] 未配置 api-token，服务端会拒绝全部指令请求。"
+                    + "请在 plugins/XiuxianBridge/config.yml 中填写与服务端"
+                    + " application.yml 的 minecraft.api_token 相同的令牌。");
+        }
         getLogger().info("[修仙] 桥接插件已加载。用法: /xiuxian <子命令> [参数]");
     }
 
@@ -72,7 +89,7 @@ public class XiuxianBridgePlugin extends JavaPlugin implements CommandExecutor {
                 request.addProperty("command", subCmd);
                 request.addProperty("args", cmdArgs);
 
-                JsonObject response = postJson(API_URL, request);
+                JsonObject response = postJson(apiUrl, request);
                 if (response == null) {
                     player.sendMessage("§c[修仙] §r主服务端未响应，请稍后重试。");
                     return;
@@ -102,6 +119,9 @@ public class XiuxianBridgePlugin extends JavaPlugin implements CommandExecutor {
         conn.setConnectTimeout(3000);
         conn.setReadTimeout(10000);
         conn.setRequestProperty("Content-Type", "application/json; charset=UTF-8");
+        if (!apiToken.isBlank()) {
+            conn.setRequestProperty("X-Api-Token", apiToken);
+        }
 
         try (OutputStream os = conn.getOutputStream()) {
             os.write(data);

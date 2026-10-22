@@ -159,6 +159,11 @@ minecraft:
   extra_jvm_args: ""           # 额外的 JVM 启动参数
   online_mode: false           # 是否正版验证（true=正版用户名，false=离线）
   command_prefix: "xiuxian"    # MC 内指令前缀
+  api_token: ""                # MC 桥接插件调用 /api/mc-command 的共享令牌
+                               # 为空 = 该接口关闭（拒绝所有请求）。
+                               # 启用 MC 桥接时必须同时在本文件和 MC 插件的
+                               # plugins/XiuxianBridge/config.yml 里配置同一个值，
+                               # 否则任何人都能冒充任意 MC 玩家执行指令。
 
 
 # ┌──────────────────────────────────────────────────────────────┐

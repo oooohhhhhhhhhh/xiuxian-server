@@ -1,0 +1,10 @@
+# XiuxianBridge 桥接插件默认配置（本文件随主 jar 一起分发，首次加载时复制到
+# plugins/XiuxianBridge/config.yml，之后以 plugins 目录下的副本为准）
+
+# 主服务端 /api/mc-command 端点地址
+api-url: "http://localhost:8080/api/mc-command"
+
+# 与服务端 config/application.yml 中 minecraft.api_token 完全一致的共享令牌。
+# 留空 = 服务端会拒绝所有请求（这是安全默认值，不会静默放行）。
+# 生成建议：openssl rand -hex 24
+api-token: ""

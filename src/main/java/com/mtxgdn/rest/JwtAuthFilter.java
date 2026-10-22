@@ -22,8 +22,11 @@ public class JwtAuthFilter implements ContainerRequestFilter {
         //
         // 同时把前缀匹配收紧为"路径段"匹配：原实现用 path.startsWith("auth/")，
         // 会让 "authXxx/..." 这类路径被误判进白名单。
+        //
+        // mc-command 是机器对机器端点（MC 桥接插件调用，没有玩家 JWT 可用），
+        // 因此仍在此放行，但 McCommandResource 内部强制校验 minecraft.api_token，
+        // 未配置令牌时直接拒绝——不再是可以匿名冒充玩家的入口。
         if (isBypassPath(path, "auth") || isBypassPath(path, "install") || isBypassPath(path, "mc-command")) {
-            System.out.println("[JwtFilter] bypass: " + path);
             return;
         }
 
