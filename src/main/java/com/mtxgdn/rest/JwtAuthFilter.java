@@ -2,12 +2,28 @@ package com.mtxgdn.rest;
 
 import com.mtxgdn.util.JwtUtil;
 import com.mtxgdn.util.TokenBlacklist;
+import jakarta.annotation.Priority;
+import jakarta.ws.rs.Priorities;
 import jakarta.ws.rs.container.ContainerRequestContext;
 import jakarta.ws.rs.container.ContainerRequestFilter;
 import jakarta.ws.rs.core.Response;
 import jakarta.ws.rs.ext.Provider;
 
+/**
+ * 玩家 JWT 鉴权过滤器。
+ *
+ * <p><b>优先级很关键</b>：本过滤器负责把 {@code userId} 写入请求上下文，而
+ * {@link PermissionFilter}（{@code Priorities.AUTHORIZATION} = 2000）会读取该属性。
+ * 未标注 {@code @Priority} 时 JAX-RS 默认按 {@code Priorities.USER} = 5000 处理，
+ * 即本过滤器会排在权限校验<b>之后</b>执行 —— 届时 {@code userId} 恒为 {@code null}，
+ * 所有带 {@code @RequirePermission} 的玩家端点都会返回 401。
+ * 因此这里显式钉在 {@code AUTHENTICATION + 10}（= 1010）：
+ * 晚于 {@link LanguageRequestFilter}(900) 与 {@link AdminAuthFilter}(1000)，
+ * 早于 {@link ModuleGateFilter}(1950) 与 {@link PermissionFilter}(2000)。
+ * 该顺序由 {@code AuthFilterOrderTest} 守护，改动请同步更新测试。
+ */
 @Provider
+@Priority(Priorities.AUTHENTICATION + 10)
 public class JwtAuthFilter implements ContainerRequestFilter {
 
     @Override
