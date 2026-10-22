@@ -2,7 +2,9 @@ package com.mtxgdn.game.service;
 
 import com.mtxgdn.db.DatabaseManager;
 import com.mtxgdn.entity.Player;
+import com.mtxgdn.game.item.BuffEffect;
 import com.mtxgdn.game.item.Item;
+import com.mtxgdn.game.item.ItemEffect;
 import com.mtxgdn.game.item.ItemRegistry;
 import com.mtxgdn.common.service.ServiceRegistry;
 import com.mtxgdn.util.GameLogger;
@@ -261,12 +263,74 @@ public class EnhanceService {
         }
     }
 
+    /**
+     * 强化碎裂：装备被销毁。
+     *
+     * <p><b>这里曾经只发一条 {@code DELETE FROM players_equipment}</b>，后果是
+     * 装备虽然从身上消失了，但它通过 {@link BuffEffect} <b>实打实加在
+     * {@code players.attack/defense/speed/spirit} 上的属性从未被扣回</b> ——
+     * 玩家可以靠"强化到高等级再碎掉"永久白嫖一份属性，而且这份属性不在任何界面上
+     * 显示为来源，排查时完全看不出来。装备被销毁是玩法设定（碎裂），但属性必须一起消失。</p>
+     *
+     * <p>属性回退逻辑与 {@code ItemService.equipItem} 里"回退旧装备效果"完全对齐：
+     * 同样只看 {@link BuffEffect} 的四项加成，同样在同一个事务连接上扣减，
+     * 保证"删装备行"与"扣属性"要么一起成功要么一起回滚。</p>
+     *
+     * <p>另外记一条 warn：装备碎裂是不可逆的玩家资产损失，之前没有任何日志，
+     * 玩家申诉时无从查证。</p>
+     */
     private void unequipItem(Connection conn, long playerId, String slot) throws SQLException {
+        String itemKey = getEquippedItemKey(conn, playerId, slot);
+        int enhanceLevel = getEnhanceLevel(conn, playerId, slot);
+        if (itemKey != null) {
+            Item item = ItemRegistry.get(itemKey);
+            if (item != null) {
+                for (ItemEffect effect : item.getEffects()) {
+                    if (effect instanceof BuffEffect be) {
+                        if (be.getAttackBonus() > 0) playerService.addAttack(conn, playerId, -be.getAttackBonus());
+                        if (be.getDefenseBonus() > 0) playerService.addDefense(conn, playerId, -be.getDefenseBonus());
+                        if (be.getSpeedBonus() > 0) playerService.addSpeed(conn, playerId, -be.getSpeedBonus());
+                        if (be.getSpiritBonus() > 0) playerService.addSpirit(conn, playerId, -be.getSpiritBonus());
+                    }
+                }
+            } else {
+                LOG.warn("强化碎裂时找不到装备定义，属性无法回退: playerId=" + playerId
+                        + " slot=" + slot + " itemKey=" + itemKey);
+            }
+        }
+
         String sql = "DELETE FROM players_equipment WHERE player_id = ? AND slot = ?";
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setLong(1, playerId);
             ps.setString(2, slot);
             ps.executeUpdate();
+        }
+
+        LOG.warn("装备强化碎裂销毁: playerId=" + playerId + " slot=" + slot
+                + " itemKey=" + itemKey + " enhanceLevel=" + enhanceLevel);
+    }
+
+    /** 事务内版本：复用调用方已开启的连接，避免在持有连接时再向池里要一条。 */
+    private String getEquippedItemKey(Connection conn, long playerId, String slot) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT item_key FROM players_equipment WHERE player_id = ? AND slot = ?")) {
+            ps.setLong(1, playerId);
+            ps.setString(2, slot);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getString("item_key") : null;
+            }
+        }
+    }
+
+    /** 事务内版本：同 {@link #getEquippedItemKey(Connection, long, String)}。 */
+    private int getEnhanceLevel(Connection conn, long playerId, String slot) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT enhance_level FROM players_equipment WHERE player_id = ? AND slot = ?")) {
+            ps.setLong(1, playerId);
+            ps.setString(2, slot);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getInt("enhance_level") : 0;
+            }
         }
     }
 }
