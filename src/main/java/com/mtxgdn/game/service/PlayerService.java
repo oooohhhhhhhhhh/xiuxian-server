@@ -658,6 +658,42 @@ public class PlayerService {
         markDataDirty(playerId);
     }
 
+    /**
+     * 扣血并保留一个最低值（用于陷阱、跌落等"不应致死"的场景）。
+     *
+     * <p><b>为什么需要这个方法</b>：这类场景原来在内容层直接
+     * {@code UPDATE players SET hp = ?}，写入的是<b>读内存快照算出来的绝对值</b>。
+     * 两条通道同时动这个角色时，后写的一方会把对方刚做的治疗/伤害整个覆盖掉
+     * （典型的 lost update）；而且绕过了 {@link #markDataDirty(long)}，
+     * 玩家快照可能与库里的血量不一致。</p>
+     *
+     * <p>改为"在 SQL 里做减法"：并发下的加法与减法会正确累加，
+     * 只把最终结果夹在 {@code [floor, max_hp]} 区间内。</p>
+     *
+     * @param playerId 角色 id
+     * @param amount   扣血量（&le;0 时不做任何事）
+     * @param floor    血量下限，调用方决定是否允许致死（传 0 表示可以死）
+     */
+    public void damageHp(long playerId, int amount, int floor) {
+        if (amount <= 0) {
+            return;
+        }
+        int minHp = Math.max(0, floor);
+        String sql = DatabaseManager.isSqlite()
+                ? "UPDATE players SET hp = MAX(?, hp - ?) WHERE id = ?"
+                : "UPDATE players SET hp = GREATEST(?, hp - ?) WHERE id = ?";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, minHp);
+            ps.setInt(2, amount);
+            ps.setLong(3, playerId);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException("扣除生命值失败", e);
+        }
+        markDataDirty(playerId);
+    }
+
     public Map<String, Object> healPlayer(long playerId) {
         Map<String, Object> result = new LinkedHashMap<>();
         Player player = getPlayerById(playerId);

@@ -22,18 +22,16 @@ public class TrapEvent extends ExplorationEvent {
         result.setEventDescription("遭遇陷阱");
 
         int maxHp = player.getMaxHp();
-        int hpLoss = maxHp / 10 + random.nextInt(maxHp / 8);
-        int newHp = Math.max(1, player.getHp() - hpLoss);
+        int hpLoss = maxHp / 10 + random.nextInt(Math.max(1, maxHp / 8));
         result.setHpLost(hpLoss);
 
-        try (var conn = com.mtxgdn.db.DatabaseManager.getConnection();
-             var ps = conn.prepareStatement("UPDATE players SET hp = ? WHERE id = ?")) {
-            ps.setInt(1, newHp);
-            ps.setLong(2, player.getId());
-            ps.executeUpdate();
-        } catch (Exception e) {
-            throw new RuntimeException("更新生命值失败", e);
-        }
+        // 走 PlayerService 而不是直接 UPDATE players：
+        // 1) 原来的写法写入的是"读内存快照算出来的绝对值"，并发下会覆盖掉别的通道
+        //    刚做的治疗/伤害（lost update）；
+        // 2) 绕过了 markDataDirty，玩家快照可能与库里的血量不一致；
+        // 3) 内容层不该知道 players 表长什么样。
+        // floor=1：陷阱不该直接打死玩家。
+        playerService.damageHp(player.getId(), hpLoss, 1);
 
         log.add("⚠ 你不慎触发了古老的机关陷阱！损失了 " + hpLoss + " 点生命值。");
         result.setMessage("触发陷阱，损失了 " + hpLoss + " 点生命值");
