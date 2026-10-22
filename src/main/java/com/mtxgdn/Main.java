@@ -206,22 +206,16 @@ public class Main {
                         new File("data"), Main.class.getClassLoader());
         builtInRegistry.enableAll(sharedPluginCtx);
 
+        // 管理后台凭据引导 + 默认凭据告警。
+        // 必须放在 ResourceConfig 之前：Jersey 的包扫描会加载 com.mtxgdn.rest 下的类，
+        // 而 AdminAuthFilter 用 static final 持有密码哈希 —— 一旦它在自动生成之前完成
+        // 类初始化，进程内就是空哈希，表现为"控制台打印了密码却登不进去"。
+        bootstrapAdminPassword();
+
         ResourceConfig config = new ResourceConfig().packages("com.mtxgdn.rest");
         // 监听地址与端口从配置读取（server.host / server.port）
         // S5 修复：默认绑定 127.0.0.1（仅本机），避免配置丢失/格式错误时回退到 0.0.0.0 公网全开
         String serverHost = AppConfig.get("server.host", "127.0.0.1");
-        // 公网绑定时若 admin 凭据仍是默认 admin/admin123，发出强警告
-        if (!"127.0.0.1".equals(serverHost) && !"localhost".equals(serverHost)
-                && !"0:0:0:0:0:0:0:1".equals(serverHost) && !"::1".equals(serverHost)) {
-            String adminPwdHash = AppConfig.get("admin.password_hash", "");
-            String adminPwd = AppConfig.get("admin.password", "");
-            if (adminPwdHash.isEmpty() && (adminPwd.isEmpty() || "admin123".equals(adminPwd))) {
-                System.err.println("============================================================");
-                System.err.println("[Main] ⚠ 严重安全警告: 服务绑定到公网 (" + serverHost + ") 但 admin 凭据未配置或仍为默认！");
-                System.err.println("[Main] 请立即修改 admin.password_hash 并重启，或改回 127.0.0.1。");
-                System.err.println("============================================================");
-            }
-        }
         int serverPort = AppConfig.getInt("server.port", 8080);
         // 重启场景：上一个实例可能尚未释放端口（Windows 上尤其明显），先等它退出再 bind
         waitForPortRelease(serverHost, serverPort);
@@ -491,6 +485,107 @@ public class Main {
             }
         }
         LOG.warn("等待端口 " + host + ":" + port + " 释放超时（15s），继续尝试启动");
+    }
+
+    /**
+     * 出厂默认的管理员密码哈希（{@code admin123}）。
+     *
+     * <p>老版本的 {@code application.yml} 直接带着这个哈希发出去，等于<b>所有实例的管理后台
+     * 密码都是公开的 {@code admin123}</b>。现在模板里该值为空，但已有部署可能仍在用，
+     * 所以启动时识别出来并告警。</p>
+     */
+    private static final String KNOWN_DEFAULT_ADMIN_HASH =
+            "$2a$10$njJJacGfGPEX1FHD6MB1HeKEgjfWx5zF2nrGo.gEbdjb3Q.KA3gcC";
+
+    /** 自动生成的管理员密码长度（去掉易混淆字符后的字符集长度足够，20 位 ≈ 100 bit 熵）。 */
+    private static final int GENERATED_ADMIN_PASSWORD_LENGTH = 20;
+
+    /** 生成随机密码用的字符集：去掉了 0/O/1/l/I 等易混淆字符，便于人工抄写。 */
+    private static final String PASSWORD_ALPHABET =
+            "abcdefghijkmnpqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789!@#%^&*-_=+";
+
+    /**
+     * 管理后台凭据引导。
+     *
+     * <p><b>为什么需要它</b>：{@code application.yml} 曾长期带着 {@code admin/admin123} 的
+     * bcrypt 哈希作为出厂默认值。bcrypt 哈希本身不可逆，但这个特定哈希是公开的 ——
+     * 任何人拿到一份部署都能用 {@code admin123} 登进管理后台，而管理后台可以改数据库连接串、
+     * 重置任意玩家密码、下发全服公告。把默认值删掉只是"没有密码"，还需要给运维一条
+     * <b>能真正登进去</b>的路，否则只能手动去算 bcrypt 哈希。</p>
+     *
+     * <p>策略：</p>
+     * <ol>
+     *   <li>已配置 {@code admin.password_hash}（或旧的明文 {@code admin.password}，由
+     *       {@code AdminAuthFilter} 负责升级）→ 什么都不做；</li>
+     *   <li>都没配置 → 生成一个 20 位随机密码，bcrypt 哈希后<b>落盘</b>并设置运行期覆盖
+     *       （保证本进程内立刻可见），然后把<b>明文打印一次</b>；</li>
+     *   <li>若配置里仍是那份公开的默认哈希 → 大声告警，提示立即更换。</li>
+     * </ol>
+     *
+     * <p>关于"把密码打印到日志"：这是唯一的引导通道，属于刻意的例外 ——
+     * 不打出来运维就只能靠猜。明文只在本次启动打印一次，落盘的是 bcrypt 哈希；
+     * 拿到密码后应立即登录安装向导改掉，并清理该段日志。</p>
+     */
+    private static void bootstrapAdminPassword() {
+        String hash = AppConfig.get("admin.password_hash", "");
+        String plain = AppConfig.get("admin.password", "");
+
+        if (!hash.isEmpty() || !plain.isEmpty()) {
+            if (KNOWN_DEFAULT_ADMIN_HASH.equals(hash)) {
+                printSecurityBanner(
+                        "⚠ 严重安全警告: 管理后台仍在使用出厂默认密码 admin123",
+                        "请立即登录安装向导（/install.html）或修改 config/application.yml 中的",
+                        "admin.password_hash 后重启。该默认值是公开的，任何人可登入管理后台。");
+            }
+            return;
+        }
+
+        String generated = generateAdminPassword();
+        String bcrypt = org.mindrot.jbcrypt.BCrypt.hashpw(generated, org.mindrot.jbcrypt.BCrypt.gensalt(10));
+        boolean persisted = false;
+        try {
+            java.util.Map<String, Object> updates = new java.util.LinkedHashMap<>();
+            updates.put("admin.password_hash", bcrypt);
+            AppConfig.update(updates);
+            persisted = true;
+        } catch (Exception e) {
+            LOG.error("写入自动生成的管理员密码失败（本次启动仍可用，重启后会重新生成）: " + e.getMessage());
+        }
+        // 必须同时设置运行期覆盖：AppConfig 的 config 是启动时的不可变快照，
+        // 只落盘会让随后加载的 AdminAuthFilter 读到空哈希 —— 表现为"打印了密码却登不进去"。
+        AppConfig.setRuntimeOverride("admin.password_hash", bcrypt);
+
+        printSecurityBanner(
+                "管理后台尚未设置密码，已自动生成一个随机密码",
+                "",
+                "  用户名: " + AppConfig.get("admin.username", "admin"),
+                "  密  码: " + generated,
+                "",
+                persisted
+                        ? "  该密码已写入 config/application.yml（只存 bcrypt 哈希）。"
+                        : "  ⚠ 写入配置失败，该密码仅本次启动有效。",
+                "  ⚠ 明文只显示这一次，请立即保存，并登录安装向导修改为自己的密码。");
+    }
+
+    /** 生成一个随机管理员密码（去掉易混淆字符，长度固定）。 */
+    private static String generateAdminPassword() {
+        java.security.SecureRandom random = new java.security.SecureRandom();
+        StringBuilder sb = new StringBuilder(GENERATED_ADMIN_PASSWORD_LENGTH);
+        for (int i = 0; i < GENERATED_ADMIN_PASSWORD_LENGTH; i++) {
+            sb.append(PASSWORD_ALPHABET.charAt(random.nextInt(PASSWORD_ALPHABET.length())));
+        }
+        return sb.toString();
+    }
+
+    /** 安全告警统一走这个格式，保证在满屏启动日志里一眼能看到。 */
+    private static void printSecurityBanner(String... lines) {
+        String bar = "============================================================";
+        System.err.println(bar);
+        for (String line : lines) {
+            System.err.println(line.isEmpty() ? "" : "[Main] " + line);
+        }
+        System.err.println(bar);
+        LOG.warn(lines.length > 0 ? lines[0] : "管理后台凭据告警");
     }
 
 

@@ -21,6 +21,19 @@ public class AppConfig {
     private static final String CONFIG_DIR = "config";
     private static final Map<String, Object> config;
 
+    /**
+     * 运行期覆盖：只影响本进程，不写盘。
+     *
+     * <p>存在的理由：{@link #config} 是启动时读进内存的<b>不可变</b>快照，而有些配置项
+     * 是启动过程中才产生、又必须立刻对后续代码可见的 —— 典型例子是首次启动自动生成的
+     * 管理员密码哈希：它既要 {@link #update(Map)} 落盘（重启后继续生效），
+     * 又必须让随后加载的 {@code AdminAuthFilter} 立刻读到，否则进程内的哈希与磁盘不一致，
+     * 表现为"控制台打印了密码但登录失败"。</p>
+     *
+     * <p>优先级：{@code -D} 系统属性 &gt; 运行期覆盖 &gt; application.yml。</p>
+     */
+    private static final Map<String, String> runtimeOverrides = new java.util.concurrent.ConcurrentHashMap<>();
+
     public static Path getJarDir() {
         try {
             String jarPath = AppConfig.class.getProtectionDomain().getCodeSource().getLocation().toURI().getPath();
@@ -146,8 +159,37 @@ public class AppConfig {
         if (override != null) {
             return override;
         }
+        String runtime = runtimeOverrides.get(path);
+        if (runtime != null) {
+            return runtime;
+        }
         Object value = config.get(path);
         return value != null ? value.toString() : null;
+    }
+
+    /**
+     * 设置一个仅本进程生效的配置覆盖（优先级低于 {@code -D} 系统属性，高于 application.yml）。
+     *
+     * <p>用于"启动过程中才产生、且必须立刻对后续代码可见"的配置项，
+     * 典型场景是首次启动自动生成的管理员密码哈希：先 {@link #update(Map)} 落盘，
+     * 再调用本方法让本进程内的 {@code AdminAuthFilter} 立刻读到同一个值。
+     * 只设本方法而不落盘会导致重启后失效；只落盘而不设本方法会导致
+     * "控制台打印了密码但登录失败"（进程内仍是旧快照）。</p>
+     */
+    public static void setRuntimeOverride(String path, String value) {
+        if (path == null) {
+            return;
+        }
+        if (value == null) {
+            runtimeOverrides.remove(path);
+        } else {
+            runtimeOverrides.put(path, value);
+        }
+    }
+
+    /** 清除运行期覆盖（测试用，避免用例之间互相影响）。 */
+    public static void clearRuntimeOverrides() {
+        runtimeOverrides.clear();
     }
 
     /**
