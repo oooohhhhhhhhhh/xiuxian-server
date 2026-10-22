@@ -1,5 +1,7 @@
 package com.mtxgdn.onebot.command.economy;
 
+import com.mtxgdn.common.service.ServiceRegistry;
+
 import com.mtxgdn.common.command.Command;
 import com.mtxgdn.common.command.CommandContext;
 import com.mtxgdn.entity.Player;
@@ -18,9 +20,9 @@ import com.mtxgdn.i18n.I18n;
  */
 public class CurrencyExchangeCommand extends Command {
 
-    private final EconomyService economyService = new EconomyService();
-    private final PlayerService playerService = new PlayerService();
-    private final ItemService itemService = new ItemService();
+    private final EconomyService economyService = ServiceRegistry.getEconomyService();
+    private final PlayerService playerService = ServiceRegistry.getPlayerService();
+    private final ItemService itemService = ServiceRegistry.getItemService();
 
     public CurrencyExchangeCommand() {
         super(new String[]{"货币兑换", "币兑", "currency_exchange"}, "金币与下品灵石双向兑换",

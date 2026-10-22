@@ -1,5 +1,7 @@
 package com.mtxgdn.game.service;
 
+import com.mtxgdn.common.service.ServiceRegistry;
+
 import com.mtxgdn.db.DatabaseManager;
 import com.mtxgdn.entity.Player;
 import com.mtxgdn.game.config.GameConfigLoader;
@@ -24,8 +26,8 @@ public class EconomyService {
 
     private static final GameLogger LOG = GameLogger.getLogger(EconomyService.class);
 
-    private final PlayerService playerService = new PlayerService();
-    private final ItemService itemService = new ItemService();
+    private final PlayerService playerService = ServiceRegistry.getPlayerService();
+    private final ItemService itemService = ServiceRegistry.getItemService();
 
     /**
      * 拍卖行到期结算任务。
@@ -50,7 +52,7 @@ public class EconomyService {
         // 首个 tick 延迟 30s：避开启动高峰（与坊市回收任务的 20s 错开）
         AUCTION_SCHEDULER.scheduleWithFixedDelay(() -> {
             try {
-                new EconomyService().sweepExpiredAuctions();
+                ServiceRegistry.getEconomyService().sweepExpiredAuctions();
             } catch (Throwable t) {
                 // 绝不让异常冒泡：一次失败不应终止后续所有 tick
                 LOG.warn("拍卖到期结算任务异常: " + t);
@@ -952,7 +954,7 @@ public class EconomyService {
 
         // 洞府灵气（"灵气"资源）
         long auraCost = PURIFY_AURA_COST[grade];
-        CaveService caveService = new CaveService();
+        CaveService caveService = ServiceRegistry.getCaveService();
         Cave cave = caveService.getCaveByPlayerId(playerId);
         if (cave == null) {
             result.put("success", false);

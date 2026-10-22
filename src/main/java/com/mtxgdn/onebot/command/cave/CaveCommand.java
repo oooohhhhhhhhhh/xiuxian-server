@@ -1,5 +1,7 @@
 package com.mtxgdn.onebot.command.cave;
 
+import com.mtxgdn.common.service.ServiceRegistry;
+
 import com.google.gson.JsonObject;
 import com.mtxgdn.common.command.Command;
 import com.mtxgdn.common.command.CommandContext;
@@ -10,7 +12,7 @@ import com.mtxgdn.game.service.CaveService;
 import com.mtxgdn.i18n.I18n;
 
 public class CaveCommand extends Command {
-    private static final CaveService caveService = new CaveService();
+    private static final CaveService caveService = ServiceRegistry.getCaveService();
 
     public CaveCommand() {
         super(new String[]{"洞府", "cave"},

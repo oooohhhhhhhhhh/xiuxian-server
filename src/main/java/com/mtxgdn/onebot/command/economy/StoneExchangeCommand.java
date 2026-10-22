@@ -1,5 +1,7 @@
 package com.mtxgdn.onebot.command.economy;
 
+import com.mtxgdn.common.service.ServiceRegistry;
+
 import com.mtxgdn.common.command.Command;
 import com.mtxgdn.common.command.CommandContext;
 import com.mtxgdn.game.entity.PlayerInfo;
@@ -11,7 +13,7 @@ import com.mtxgdn.i18n.I18n;
 
 public class StoneExchangeCommand extends Command {
 
-    private final ItemService itemService = new ItemService();
+    private final ItemService itemService = ServiceRegistry.getItemService();
 
     private static final String[] STONE_NAMES = CurrencyEffect.GRADE_NAMES;
 

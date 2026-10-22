@@ -1,5 +1,7 @@
 package com.mtxgdn.game.service;
 
+import com.mtxgdn.common.service.ServiceRegistry;
+
 import com.mtxgdn.db.DatabaseManager;
 import com.mtxgdn.entity.Player;
 import com.mtxgdn.game.entity.Skill;
@@ -19,8 +21,8 @@ import com.mtxgdn.i18n.I18n;
 public class SkillService {
 
     private static final GameLogger LOG = GameLogger.getLogger(SkillService.class);
-    private final PlayerService playerService = new PlayerService();
-    private final ItemService itemService = new ItemService();
+    private final PlayerService playerService = ServiceRegistry.getPlayerService();
+    private final ItemService itemService = ServiceRegistry.getItemService();
 
     public Skill getSkillById(long skillId) {
         String sql = "SELECT * FROM skills WHERE id = ?";
@@ -202,7 +204,7 @@ public class SkillService {
         result.put("success", true);
         result.put("message", I18n.t("skill.hbccfeb34", skill.getName()));
         result.put("skill", skill);
-        new DailyService().onSkillLearn(playerId);
+        ServiceRegistry.getDailyService().onSkillLearn(playerId);
 
         // 学会第一个技能授予「剑道学徒」
         try {

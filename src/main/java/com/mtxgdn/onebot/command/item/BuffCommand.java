@@ -1,5 +1,7 @@
 package com.mtxgdn.onebot.command.item;
 
+import com.mtxgdn.common.service.ServiceRegistry;
+
 import com.mtxgdn.common.command.Command;
 import com.mtxgdn.common.command.CommandContext;
 import com.mtxgdn.game.entity.PlayerInfo;
@@ -23,7 +25,7 @@ public class BuffCommand extends Command {
         PlayerInfo p = ctx.requirePlayer(userId);
         if (p == null) return;
 
-        BuffService buffService = new BuffService();
+        BuffService buffService = ServiceRegistry.getBuffService();
         Map<String, Object> result = buffService.getActiveBuffs(p.getId());
 
         @SuppressWarnings("unchecked")

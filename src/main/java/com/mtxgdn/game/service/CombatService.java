@@ -96,7 +96,7 @@ public class CombatService {
     /** 读取玩家今日PVP次数（跨天自动清零） */
     private static int getDailyPvpCount(long playerId) {
         // 先执行 player_daily 行级按日复位，保证 PVP 次数在跨天后从 0 开始
-        new DailyService().ensureDailyReset(playerId);
+        ServiceRegistry.getDailyService().ensureDailyReset(playerId);
         String today = java.time.LocalDate.now().toString();
         String sql = "SELECT pvp_count FROM player_daily WHERE player_id = ? AND last_daily_reset = ?";
         try (java.sql.Connection conn = com.mtxgdn.db.DatabaseManager.getConnection();
@@ -118,7 +118,7 @@ public class CombatService {
     /** 原子递增玩家今日PVP次数（跨天自动重置为1） */
     private static void incrementDailyPvpCount(long playerId) {
         // 先执行行级按日复位，确保上一日的 last_daily_reset 已刷新到今天（否则共享行会导致其它列跨日失效）
-        new DailyService().ensureDailyReset(playerId);
+        ServiceRegistry.getDailyService().ensureDailyReset(playerId);
         String today = java.time.LocalDate.now().toString();
         String sql;
         if (com.mtxgdn.db.DatabaseManager.isSqlite()) {
@@ -145,8 +145,8 @@ public class CombatService {
     }
 
     public CombatService() {
-        this.playerService = new PlayerService();
-        this.skillService = new SkillService();
+        this.playerService = ServiceRegistry.getPlayerService();
+        this.skillService = ServiceRegistry.getSkillService();
     }
 
     /**
@@ -201,7 +201,7 @@ public class CombatService {
         int danger = mapService.getDangerLevel(mapService.getPlayerLocationId(winner.getId()));
         if (danger < PK_LOOT_MIN_DANGER) return 0;
 
-        ItemService itemService = new ItemService();
+        ItemService itemService = ServiceRegistry.getItemService();
         long loserStones = itemService.getSpiritStoneCount(loser.getId());
         if (loserStones <= 0) return 0;
 
@@ -420,8 +420,8 @@ public class CombatService {
         addSkillProficiency(challenger.getId(), challengerUsedSkillIds);
         addSkillProficiency(target.getId(), targetUsedSkillIds);
 
-        new DailyService().onBattle(challenger.getId());
-        new DailyService().onBattle(target.getId());
+        ServiceRegistry.getDailyService().onBattle(challenger.getId());
+        ServiceRegistry.getDailyService().onBattle(target.getId());
 
         // 装备磨损：PVP 对双方都扣耐久
         try {
@@ -1012,7 +1012,7 @@ public class CombatService {
         result.setMonsterHpRemaining(Math.max(0, monsterHp));
         result.setTotalRounds(rounds);
 
-        ItemService itemService = new ItemService();
+        ItemService itemService = ServiceRegistry.getItemService();
 
         if (playerWon) {
             result.setPlayerWon(true);

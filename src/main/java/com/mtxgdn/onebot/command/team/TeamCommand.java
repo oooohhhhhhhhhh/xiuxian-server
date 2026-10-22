@@ -119,7 +119,7 @@ public class TeamCommand extends Command {
                     ctx.reply(I18n.t("team.hbd4c6317"));
                     return;
                 }
-                SecretRealmResult result = new SecretRealmService().enterRaid(p.getId(), param.trim());
+                SecretRealmResult result = ServiceRegistry.getSecretRealmService().enterRaid(p.getId(), param.trim());
                 StringBuilder sb = new StringBuilder();
                 if (result.isSuccess()) {
                     if (result.getLog() != null) {

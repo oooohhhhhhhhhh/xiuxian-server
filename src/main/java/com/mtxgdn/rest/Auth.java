@@ -1,5 +1,7 @@
 package com.mtxgdn.rest;
 
+import com.mtxgdn.common.service.ServiceRegistry;
+
 import com.google.gson.JsonObject;
 import com.mtxgdn.game.service.PlayerService;
 import com.mtxgdn.service.UserService;
@@ -21,7 +23,7 @@ import com.mtxgdn.i18n.I18n;
 public class Auth {
 
     private final UserService userService = new UserService();
-    private final PlayerService playerService = new PlayerService();
+    private final PlayerService playerService = ServiceRegistry.getPlayerService();
     private final VerificationCodeService verificationCodeService = new VerificationCodeService();
 
     @Context

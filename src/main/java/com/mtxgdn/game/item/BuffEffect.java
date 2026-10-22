@@ -1,5 +1,7 @@
 package com.mtxgdn.game.item;
 
+import com.mtxgdn.common.service.ServiceRegistry;
+
 import com.mtxgdn.game.service.BuffService;
 import com.mtxgdn.game.service.ItemService;
 import com.mtxgdn.game.service.PlayerService;
@@ -76,7 +78,7 @@ public class BuffEffect extends ItemEffect {
         StringBuilder sb = new StringBuilder();
 
         if (durationSeconds > 0) {
-            BuffService buffService = new BuffService();
+            BuffService buffService = ServiceRegistry.getBuffService();
             // 同种丹药使用同一 buffId：重复使用只刷新时长，不重复叠加属性
             buffService.addBuff(playerId, "buff_" + attackBonus + "_" + defenseBonus + "_" + speedBonus + "_" + spiritBonus,
                 attackBonus, defenseBonus, speedBonus, spiritBonus, durationSeconds);
@@ -114,7 +116,7 @@ public class BuffEffect extends ItemEffect {
         StringBuilder sb = new StringBuilder();
 
         if (durationSeconds > 0) {
-            BuffService buffService = new BuffService();
+            BuffService buffService = ServiceRegistry.getBuffService();
             // 同种丹药使用同一 buffId：重复使用只刷新时长，不重复叠加属性
             buffService.addBuff(playerId, "buff_" + attackBonus + "_" + defenseBonus + "_" + speedBonus + "_" + spiritBonus,
                 attackBonus, defenseBonus, speedBonus, spiritBonus, durationSeconds);

@@ -336,7 +336,7 @@ public class OneBotWebSocketServer extends WebSocketApplication
     }
 
     private void processOfflineReward(WebSocket socket, String selfId, String senderQq, Long userId) {
-        OfflineRewardService offlineService = new OfflineRewardService();
+        OfflineRewardService offlineService = ServiceRegistry.getOfflineRewardService();
         OfflineRewardService.OfflineRewardResult result = offlineService.processOfflineRewards(userId);
 
         if (!result.hasReward) {

@@ -98,7 +98,7 @@ public class ReincarnateCommand extends Command {
 
         // 授予「逆天者」称号
         try {
-            new TitleService().grantTitle(player.getId(), "heaven_defier");
+            ServiceRegistry.getTitleService().grantTitle(player.getId(), "heaven_defier");
         } catch (Exception ignored) {
         }
 

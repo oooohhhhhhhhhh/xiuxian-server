@@ -1,5 +1,7 @@
 package com.mtxgdn.onebot.command.formation;
 
+import com.mtxgdn.common.service.ServiceRegistry;
+
 import com.google.gson.JsonObject;
 import com.mtxgdn.common.command.Command;
 import com.mtxgdn.common.command.CommandContext;
@@ -11,7 +13,7 @@ import com.mtxgdn.i18n.I18n;
 
 public class FormationCommand extends Command {
 
-    private final FormationService formationService = new FormationService();
+    private final FormationService formationService = ServiceRegistry.getFormationService();
 
     public FormationCommand() {
         super(new String[]{"阵法", "formation"},

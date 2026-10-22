@@ -1,5 +1,7 @@
 package com.mtxgdn.onebot.command.sect;
 
+import com.mtxgdn.common.service.ServiceRegistry;
+
 import com.mtxgdn.common.command.Command;
 import com.mtxgdn.common.command.CommandContext;
 import com.mtxgdn.common.command.RouteDefinition;
@@ -20,7 +22,7 @@ import java.util.List;
 import com.mtxgdn.i18n.I18n;
 
 public class SectCommand extends Command {
-    private static final SectService sectService = new SectService();
+    private static final SectService sectService = ServiceRegistry.getSectService();
 
     public SectCommand() {
         super(new String[]{"宗门", "sect"},

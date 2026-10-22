@@ -73,7 +73,7 @@ public class SectService {
         // 首个 tick 延迟 45s（等数据库与服务注册表就绪），之后按配置间隔扫一次。
         successionScheduler.scheduleAtFixedRate(() -> {
             try {
-                new SectService().sweepLeaderSuccession(System.currentTimeMillis());
+                ServiceRegistry.getSectService().sweepLeaderSuccession(System.currentTimeMillis());
             } catch (Throwable t) {
                 // 绝不让异常冒泡：一次失败不应终止后续所有 tick
                 LOG.warn("宗门宗主继位扫描任务异常: " + t);
@@ -83,7 +83,7 @@ public class SectService {
         // 工资结算：与继位扫描共用同一个单线程调度器（都是低频 DB 操作，串行反而省连接）
         successionScheduler.scheduleAtFixedRate(() -> {
             try {
-                new SectService().sweepSalaries(System.currentTimeMillis());
+                ServiceRegistry.getSectService().sweepSalaries(System.currentTimeMillis());
             } catch (Throwable t) {
                 LOG.warn("宗门工资结算任务异常: " + t);
             }

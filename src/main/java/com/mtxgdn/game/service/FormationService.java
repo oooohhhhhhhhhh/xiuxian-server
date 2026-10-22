@@ -1,5 +1,7 @@
 package com.mtxgdn.game.service;
 
+import com.mtxgdn.common.service.ServiceRegistry;
+
 import com.mtxgdn.db.DatabaseManager;
 import com.mtxgdn.entity.Player;
 import com.mtxgdn.game.entity.Formation;
@@ -21,8 +23,8 @@ public class FormationService {
 
     private static final GameLogger LOG = GameLogger.getLogger(FormationService.class);
 
-    private final PlayerService playerService = new PlayerService();
-    private final ItemService itemService = new ItemService();
+    private final PlayerService playerService = ServiceRegistry.getPlayerService();
+    private final ItemService itemService = ServiceRegistry.getItemService();
 
     private static final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
 

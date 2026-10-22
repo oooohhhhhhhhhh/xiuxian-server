@@ -175,7 +175,7 @@ public class ExplorationService {
             }
         }
 
-        new DailyService().onExplore(player.getId(), result.getEventType());
+        ServiceRegistry.getDailyService().onExplore(player.getId(), result.getEventType());
 
         // 插件事件：游历结束
         com.mtxgdn.plugin.event.PluginEventManager.fireQuietly(

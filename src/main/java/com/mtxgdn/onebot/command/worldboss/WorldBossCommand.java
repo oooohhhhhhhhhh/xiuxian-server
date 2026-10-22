@@ -1,5 +1,7 @@
 package com.mtxgdn.onebot.command.worldboss;
 
+import com.mtxgdn.common.service.ServiceRegistry;
+
 import com.mtxgdn.common.GameMessage;
 import com.mtxgdn.common.command.Command;
 import com.mtxgdn.common.command.CommandContext;
@@ -31,7 +33,7 @@ import com.mtxgdn.i18n.I18n;
  */
 public class WorldBossCommand extends Command {
 
-    private static final WorldBossService worldBossService = new WorldBossService();
+    private static final WorldBossService worldBossService = ServiceRegistry.getWorldBossService();
 
     /** 管理员强制重建所需的权限码（与地图等世界数据的管理接口保持一致）。 */
     private static final String ADMIN_PERMISSION = "admin.database.access";

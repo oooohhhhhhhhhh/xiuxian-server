@@ -1,11 +1,13 @@
 package com.mtxgdn.game.service;
 
+import com.mtxgdn.common.service.ServiceRegistry;
+
 import com.mtxgdn.game.entity.PlayerInfo;
 import com.mtxgdn.game.entity.SpiritualRoot;
 
 public class NewbieGuideService {
 
-    private final PlayerService playerService = new PlayerService();
+    private final PlayerService playerService = ServiceRegistry.getPlayerService();
 
     private static final int GUIDE_COMPLETE = -1;
 
@@ -296,7 +298,7 @@ public class NewbieGuideService {
     }
 
     public static String getWelcomeMessage(PlayerInfo player) {
-        return new NewbieGuideService().buildCreateMessage(player);
+        return ServiceRegistry.getGuideService().buildCreateMessage(player);
     }
 
     private void advanceStep(long playerId, int step) {

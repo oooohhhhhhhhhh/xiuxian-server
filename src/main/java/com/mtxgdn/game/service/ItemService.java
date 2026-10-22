@@ -1,5 +1,7 @@
 package com.mtxgdn.game.service;
 
+import com.mtxgdn.common.service.ServiceRegistry;
+
 import com.mtxgdn.db.DatabaseManager;
 import com.mtxgdn.entity.Player;
 import com.mtxgdn.game.item.BuffEffect;
@@ -25,7 +27,7 @@ public class ItemService {
     private static final int BASE_CAPACITY = AppConfig.getInt("inventory.base_capacity", 30);
     private static final int CAPACITY_PER_LEVEL = AppConfig.getInt("inventory.capacity_per_level", 5);
 
-    private final PlayerService playerService = new PlayerService();
+    private final PlayerService playerService = ServiceRegistry.getPlayerService();
 
     // ==================== 背包容量 ====================
 

@@ -23,8 +23,8 @@ import com.mtxgdn.i18n.I18n;
 public class DailyService {
 
     private static final GameLogger LOG = GameLogger.getLogger(DailyService.class);
-    private final PlayerService playerService = new PlayerService();
-    private final ItemService itemService = new ItemService();
+    private final PlayerService playerService = ServiceRegistry.getPlayerService();
+    private final ItemService itemService = ServiceRegistry.getItemService();
     private final Random random = new Random();
 
     private CelestialPhenomenon todayPhenomenon;

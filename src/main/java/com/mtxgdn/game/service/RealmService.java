@@ -644,13 +644,13 @@ public class RealmService {
         // 大境界突破成功授予「破天者」称号 + 集中检查境界/战力类称号（不朽尊者/逆天者/大道之主/混沌帝尊/剑道宗师）
         if (majorBreakthrough) {
             try {
-                new TitleService().grantTitle(player.getId(), "sky_breaker");
+                ServiceRegistry.getTitleService().grantTitle(player.getId(), "sky_breaker");
             } catch (Exception ignored) {
                 // 称号授予失败不影响突破
             }
         }
         try {
-            new TitleService().checkAndGrantTitles(player);
+            ServiceRegistry.getTitleService().checkAndGrantTitles(player);
         } catch (Exception ignored) {
         }
 

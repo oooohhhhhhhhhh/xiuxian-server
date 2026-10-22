@@ -139,7 +139,7 @@ public class GameResource {
         }
 
         OfflineRewardService.OfflineRewardResult offlineReward =
-                new OfflineRewardService().processOfflineRewards(userId);
+                ServiceRegistry.getOfflineRewardService().processOfflineRewards(userId);
 
         JsonObject data = gson.toJsonTree(player).getAsJsonObject();
 
@@ -1755,7 +1755,7 @@ public class GameResource {
             return Response.ok(GameMessage.restError(GameErrorCode.PARAM_MISSING).toString()).build();
         }
 
-        EconomyService economyService = new EconomyService();
+        EconomyService economyService = ServiceRegistry.getEconomyService();
         Map<String, Object> result;
         switch (type) {
             case "goldToStones" -> result = economyService.exchangeGoldToStones(player.getId(), amount);
@@ -2585,7 +2585,7 @@ public class GameResource {
         Long userId = getCurrentUserId();
         int playerId = getPlayerIdByUserId(userId);
 
-        BuffService buffService = new BuffService();
+        BuffService buffService = ServiceRegistry.getBuffService();
         Map<String, Object> result = buffService.getActiveBuffs(playerId);
 
         JsonObject data = new JsonObject();
@@ -2630,7 +2630,7 @@ public class GameResource {
         Long userId = getCurrentUserId();
         int playerId = getPlayerIdByUserId(userId);
 
-        FarmService farmService = new FarmService();
+        FarmService farmService = ServiceRegistry.getFarmService();
         List<FarmPlot> plots = farmService.getPlots(playerId);
 
         JsonArray plotArray = new JsonArray();
@@ -2686,7 +2686,7 @@ public class GameResource {
             return Response.ok(GameMessage.restError(GameErrorCode.PARAM_MISSING).toString()).build();
         }
 
-        FarmService farmService = new FarmService();
+        FarmService farmService = ServiceRegistry.getFarmService();
         Map<String, Object> result = farmService.plant(playerId, plotIndex, seedKey);
 
         if (Boolean.TRUE.equals(result.get("success"))) {
@@ -2711,7 +2711,7 @@ public class GameResource {
             return Response.ok(GameMessage.restError(GameErrorCode.PARAM_MISSING).toString()).build();
         }
 
-        FarmService farmService = new FarmService();
+        FarmService farmService = ServiceRegistry.getFarmService();
         Map<String, Object> result = farmService.water(playerId, plotIndex);
 
         if (Boolean.TRUE.equals(result.get("success"))) {
@@ -2736,7 +2736,7 @@ public class GameResource {
             return Response.ok(GameMessage.restError(GameErrorCode.PARAM_MISSING).toString()).build();
         }
 
-        FarmService farmService = new FarmService();
+        FarmService farmService = ServiceRegistry.getFarmService();
         Map<String, Object> result = farmService.fertilize(playerId, plotIndex);
 
         if (Boolean.TRUE.equals(result.get("success"))) {
@@ -2761,7 +2761,7 @@ public class GameResource {
             return Response.ok(GameMessage.restError(GameErrorCode.PARAM_MISSING).toString()).build();
         }
 
-        FarmService farmService = new FarmService();
+        FarmService farmService = ServiceRegistry.getFarmService();
         Map<String, Object> result = farmService.harvest(playerId, plotIndex);
 
         if (Boolean.TRUE.equals(result.get("success"))) {
@@ -2786,7 +2786,7 @@ public class GameResource {
             return Response.ok(GameMessage.restError(GameErrorCode.PARAM_MISSING).toString()).build();
         }
 
-        FarmService farmService = new FarmService();
+        FarmService farmService = ServiceRegistry.getFarmService();
         Map<String, Object> result = farmService.clearPlot(playerId, plotIndex);
 
         if (Boolean.TRUE.equals(result.get("success"))) {
@@ -2803,7 +2803,7 @@ public class GameResource {
         Long userId = getCurrentUserId();
         int playerId = getPlayerIdByUserId(userId);
 
-        FarmService farmService = new FarmService();
+        FarmService farmService = ServiceRegistry.getFarmService();
         Map<String, Object> result = farmService.expandPlot(playerId);
 
         if (Boolean.TRUE.equals(result.get("success"))) {
@@ -2820,7 +2820,7 @@ public class GameResource {
         Long userId = getCurrentUserId();
         int playerId = getPlayerIdByUserId(userId);
 
-        FarmService farmService = new FarmService();
+        FarmService farmService = ServiceRegistry.getFarmService();
         Map<String, Object> result = farmService.waterAll(playerId);
 
         if (Boolean.TRUE.equals(result.get("success"))) {
@@ -2841,7 +2841,7 @@ public class GameResource {
         JsonObject json = gson.fromJson(body, JsonObject.class);
         String fertilizerKey = json.has("fertilizerKey") ? json.get("fertilizerKey").getAsString() : "mtxgdn:low_grade_fertilizer";
 
-        FarmService farmService = new FarmService();
+        FarmService farmService = ServiceRegistry.getFarmService();
         Map<String, Object> result = farmService.fertilizeAll(playerId, fertilizerKey);
 
         if (Boolean.TRUE.equals(result.get("success"))) {
@@ -2858,7 +2858,7 @@ public class GameResource {
         Long userId = getCurrentUserId();
         int playerId = getPlayerIdByUserId(userId);
 
-        FarmService farmService = new FarmService();
+        FarmService farmService = ServiceRegistry.getFarmService();
         Map<String, Object> result = farmService.harvestAll(playerId);
 
         if (Boolean.TRUE.equals(result.get("success"))) {
@@ -2883,7 +2883,7 @@ public class GameResource {
             return Response.ok(GameMessage.restError(GameErrorCode.PARAM_MISSING).toString()).build();
         }
 
-        FarmService farmService = new FarmService();
+        FarmService farmService = ServiceRegistry.getFarmService();
         Map<String, Object> result = farmService.usePesticide(playerId, plotIndex);
 
         if (Boolean.TRUE.equals(result.get("success"))) {

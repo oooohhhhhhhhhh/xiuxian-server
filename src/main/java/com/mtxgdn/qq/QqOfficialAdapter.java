@@ -1052,7 +1052,7 @@ public class QqOfficialAdapter implements OneBotSession, OneBotMessageSenderClie
     // ==================== 离线奖励 ====================
 
     private void processOfflineReward(String senderQq, Long userId) {
-        OfflineRewardService offlineService = new OfflineRewardService();
+        OfflineRewardService offlineService = ServiceRegistry.getOfflineRewardService();
         OfflineRewardService.OfflineRewardResult result = offlineService.processOfflineRewards(userId);
 
         if (!result.hasReward) {

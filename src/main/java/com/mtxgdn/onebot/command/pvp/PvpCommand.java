@@ -1,5 +1,7 @@
 package com.mtxgdn.onebot.command.pvp;
 
+import com.mtxgdn.common.service.ServiceRegistry;
+
 import com.mtxgdn.common.command.Command;
 import com.mtxgdn.common.command.CommandContext;
 import com.mtxgdn.game.entity.BossForm;
@@ -49,8 +51,8 @@ public class PvpCommand extends Command {
         
         setI18nKeys("cmd.pvp.desc", "cmd.pvp.usage");
     setModule("pvp");
-        this.combatService = new CombatService();
-        this.playerService = new PlayerService();
+        this.combatService = ServiceRegistry.getCombatService();
+        this.playerService = ServiceRegistry.getPlayerService();
     }
 
     @Override

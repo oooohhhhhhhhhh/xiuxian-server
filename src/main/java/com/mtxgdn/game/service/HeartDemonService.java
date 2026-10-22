@@ -1,5 +1,7 @@
 package com.mtxgdn.game.service;
 
+import com.mtxgdn.common.service.ServiceRegistry;
+
 import com.mtxgdn.entity.Player;
 import com.mtxgdn.game.entity.SpiritualRoot;
 
@@ -10,7 +12,7 @@ public class HeartDemonService {
     private static final double BASE_CHANCE_PER_HOUR = 0.08;
     private static final Random RANDOM = new Random();
 
-    private final PlayerService playerService = new PlayerService();
+    private final PlayerService playerService = ServiceRegistry.getPlayerService();
 
     public static class HeartDemonResult {
         public boolean triggered;

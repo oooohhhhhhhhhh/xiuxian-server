@@ -1,5 +1,7 @@
 package com.mtxgdn.game.service;
 
+import com.mtxgdn.common.service.ServiceRegistry;
+
 import com.mtxgdn.db.DatabaseManager;
 import com.mtxgdn.entity.Player;
 import com.mtxgdn.game.config.GameConfigLoader;
@@ -22,8 +24,8 @@ public class CaveService {
 
     private static final GameLogger LOG = GameLogger.getLogger(CaveService.class);
 
-    private final PlayerService playerService = new PlayerService();
-    private final ItemService itemService = new ItemService();
+    private final PlayerService playerService = ServiceRegistry.getPlayerService();
+    private final ItemService itemService = ServiceRegistry.getItemService();
 
     private static final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
 
@@ -235,7 +237,7 @@ public class CaveService {
         int formationResist = com.mtxgdn.common.service.ServiceRegistry.getFormationService().getTotalHeartDemonResist(playerId);
         int totalCaveLevelForHeartDemon = cave.getLevel() + (formationResist / 2);
 
-        HeartDemonService heartDemonService = new HeartDemonService();
+        HeartDemonService heartDemonService = ServiceRegistry.getHeartDemonService();
         HeartDemonService.HeartDemonResult heartDemon = heartDemonService.processCultivationWithCave(playerId, expGain, 30, totalCaveLevelForHeartDemon);
 
         if (heartDemon.triggered) {

@@ -259,7 +259,7 @@ public class PlayerService {
 
             NewbieRewardConfig rewardConfig = GameConfigLoader.getNewbieRewardConfig();
             if (rewardConfig.isEnabled()) {
-                ItemService itemService = new ItemService();
+                ItemService itemService = ServiceRegistry.getItemService();
 
                 if (rewardConfig.getGoldReward() > 0) {
                     addGold(conn, playerId, rewardConfig.getGoldReward());

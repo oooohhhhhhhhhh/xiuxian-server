@@ -70,7 +70,7 @@ public class TradeService {
         scheduler.scheduleAtFixedRate(() -> {
             try {
                 // 惰性构造，避免静态初始化期就依赖 ServiceRegistry 造成循环初始化。
-                new TradeService().sweepExpiredListings();
+                ServiceRegistry.getTradeService().sweepExpiredListings();
             } catch (Throwable t) {
                 // 绝不让异常冒泡：一次失败不应终止后续所有 tick
                 LOG.warn("坊市到期挂单回收任务异常: " + t);
@@ -82,7 +82,7 @@ public class TradeService {
         long cleanupPeriodHours = PRICE_HISTORY_CLEANUP_INTERVAL_HOURS;
         scheduler.scheduleAtFixedRate(() -> {
             try {
-                int deleted = new TradeService().cleanupPriceHistory();
+                int deleted = ServiceRegistry.getTradeService().cleanupPriceHistory();
                 if (deleted > 0) {
                     LOG.info("坊市已清理过期价格历史 " + deleted + " 条（保留 " + PRICE_HISTORY_KEEP_DAYS + " 天）");
                 }

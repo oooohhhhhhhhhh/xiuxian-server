@@ -1,5 +1,7 @@
 package com.mtxgdn.websocket;
 
+import com.mtxgdn.common.service.ServiceRegistry;
+
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
@@ -52,18 +54,18 @@ public class GameWebSocketApp extends WebSocketApplication {
 
     private static final Gson gson = new Gson();
     private static final PlayerActionLogger actionLog = PlayerActionLogger.getInstance();
-    private static final PlayerService playerService = new PlayerService();
+    private static final PlayerService playerService = ServiceRegistry.getPlayerService();
     private static final RealmService realmService = new RealmService(playerService);
-    private static final ItemService itemService = new ItemService();
+    private static final ItemService itemService = ServiceRegistry.getItemService();
     private static final SecretRealmService secretRealmService = new SecretRealmService(playerService);
     private static final ExplorationService explorationService = new ExplorationService(playerService);
-    private static final HeartDemonService heartDemonService = new HeartDemonService();
-    private static final TechniqueService techniqueService = new TechniqueService();
-    private static final CraftingService craftingService = new CraftingService();
-    private static final EnhanceService enhanceService = new EnhanceService();
-    private static final ChatService chatService = new ChatService();
-    private static final FriendService friendService = new FriendService();
-    private static final SectService sectService = new SectService();
+    private static final HeartDemonService heartDemonService = ServiceRegistry.getHeartDemonService();
+    private static final TechniqueService techniqueService = ServiceRegistry.getTechniqueService();
+    private static final CraftingService craftingService = ServiceRegistry.getCraftingService();
+    private static final EnhanceService enhanceService = ServiceRegistry.getEnhanceService();
+    private static final ChatService chatService = ServiceRegistry.getChatService();
+    private static final FriendService friendService = ServiceRegistry.getFriendService();
+    private static final SectService sectService = ServiceRegistry.getSectService();
     private static final MapService mapService = com.mtxgdn.common.service.ServiceRegistry.getMapService();
 
     private final Map<WebSocket, Long> sessionUsers = new ConcurrentHashMap<>();
@@ -186,7 +188,7 @@ public class GameWebSocketApp extends WebSocketApplication {
                             .build());
 
             OfflineRewardService.OfflineRewardResult offlineReward =
-                    new OfflineRewardService().processOfflineRewards(userId);
+                    ServiceRegistry.getOfflineRewardService().processOfflineRewards(userId);
 
             JsonObject welcomeData = new JsonObject();
             welcomeData.addProperty("userId", userId);

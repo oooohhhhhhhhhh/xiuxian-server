@@ -1,5 +1,7 @@
 package com.mtxgdn.game.service;
 
+import com.mtxgdn.common.service.ServiceRegistry;
+
 import com.mtxgdn.db.DatabaseManager;
 import com.mtxgdn.game.entity.Title;
 import com.mtxgdn.game.title.TitleRegistry;
@@ -10,7 +12,7 @@ import com.mtxgdn.i18n.I18n;
 
 public class TitleService {
 
-    private final PlayerService playerService = new PlayerService();
+    private final PlayerService playerService = ServiceRegistry.getPlayerService();
 
     public TitleService() {
         TitleRegistry.init();

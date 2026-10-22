@@ -29,13 +29,13 @@ public class SecretRealmService {
     };
 
     public SecretRealmService() {
-        this.playerService = new PlayerService();
-        this.itemService = new ItemService();
+        this.playerService = ServiceRegistry.getPlayerService();
+        this.itemService = ServiceRegistry.getItemService();
     }
 
     public SecretRealmService(PlayerService playerService) {
         this.playerService = playerService;
-        this.itemService = new ItemService();
+        this.itemService = ServiceRegistry.getItemService();
     }
 
     public List<SecretRealm> getAvailableAreas(long userId) {
@@ -97,7 +97,7 @@ public class SecretRealmService {
         result.setArea(areaName);
         applyLocationBonus(player, result);
 
-        new DailyService().onSecretRealm(player.getId());
+        ServiceRegistry.getDailyService().onSecretRealm(player.getId());
 
         // 玩法计数 + 称号检查（秘境探险家）
         playerService.incrementSecretRealmCount(player.getId());
@@ -275,7 +275,7 @@ public class SecretRealmService {
 
         // 按区域境界生成怪物（原按玩家境界，导致高境界玩家在低阶秘境也遇强怪、区域难度形同虚设）
         Monster monster = Monster.random(area.getRequiredRealm(), random);
-        CombatService combatService = new CombatService();
+        CombatService combatService = ServiceRegistry.getCombatService();
         PveCombatResult pveResult = combatService.pveFight(player.getId(), monster);
 
         result.setMonsterDefeated(pveResult.isPlayerWon());
@@ -299,7 +299,7 @@ public class SecretRealmService {
         result.setEventDescription("遭遇秘境守护者");
 
         Monster boss = Monster.createBossForRealm(area.getRequiredRealm(), random);
-        CombatService combatService = new CombatService();
+        CombatService combatService = ServiceRegistry.getCombatService();
         PveCombatResult pveResult = combatService.pveFight(player.getId(), boss);
 
         result.setMonsterDefeated(pveResult.isPlayerWon());
@@ -582,7 +582,7 @@ public class SecretRealmService {
                 for (Player member : members) {
                     if (member.getHp() <= 0) continue;
 
-                    CombatService combatService = new CombatService();
+                    CombatService combatService = ServiceRegistry.getCombatService();
                     PveCombatResult pveResult = combatService.pveFight(member.getId(), monster);
 
                     if (pveResult.isPlayerWon()) {
@@ -620,7 +620,7 @@ public class SecretRealmService {
             log.add("所有小怪已清除，最终Boss出现！");
 
             List<BossForm> bossForms = BossForm.createFormsForRealm(area.getRequiredRealm());
-            CombatService combatService = new CombatService();
+            CombatService combatService = ServiceRegistry.getCombatService();
             RaidCombatResult raidResult = combatService.raidBossFight(memberIds, bossForms);
 
             if (raidResult.getBattleLog() != null) {
@@ -677,7 +677,7 @@ public class SecretRealmService {
                 }
 
                 if (raidResult.getLastHitPlayerId() > 0) {
-            new TitleService().grantTitle(raidResult.getLastHitPlayerId(), "raid_conqueror");
+            ServiceRegistry.getTitleService().grantTitle(raidResult.getLastHitPlayerId(), "raid_conqueror");
             log.add("🏆 【" + raidResult.getLastHitPlayerName() + "】获得了「副本征服者」称号！");
         }
 
@@ -691,7 +691,7 @@ public class SecretRealmService {
             result.setMessage("团队全军覆没");
         }
 
-        new DailyService().onSecretRealm(leaderId);
+        ServiceRegistry.getDailyService().onSecretRealm(leaderId);
         return result;
     }
 }

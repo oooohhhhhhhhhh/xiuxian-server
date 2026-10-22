@@ -1,5 +1,7 @@
 package com.mtxgdn.onebot.command.social;
 
+import com.mtxgdn.common.service.ServiceRegistry;
+
 import com.mtxgdn.common.command.Command;
 import com.mtxgdn.common.command.CommandContext;
 import com.mtxgdn.game.entity.PlayerInfo;
@@ -31,7 +33,7 @@ public class RankCommand extends Command {
 
         String type = ctx.getArg().trim().toLowerCase();
 
-        var playerService = new PlayerService();
+        var playerService = ServiceRegistry.getPlayerService();
         List<PlayerInfo> players;
         String title;
         switch (type) {

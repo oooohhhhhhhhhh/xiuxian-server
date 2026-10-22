@@ -14,7 +14,7 @@ import com.mtxgdn.i18n.I18n;
 
 public class RedeemCommand extends Command {
 
-    private static final RedeemCodeService redeemCodeService = new RedeemCodeService();
+    private static final RedeemCodeService redeemCodeService = ServiceRegistry.getRedeemCodeService();
     private static final PlayerService playerService = ServiceRegistry.getPlayerService();
 
     public RedeemCommand() {

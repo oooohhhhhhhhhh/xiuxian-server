@@ -1174,9 +1174,9 @@ public class AdminResource {
         System.out.println("[Admin] >>> POST /admin/database/reset_all");
         Map<String, Integer> counts = DatabaseManager.resetAllData();
 
-        new SkillService().insertDefaultSkills();
-        new TechniqueService().insertDefaultTechniques();
-        new CraftingService().insertDefaultRecipes();
+        ServiceRegistry.getSkillService().insertDefaultSkills();
+        ServiceRegistry.getTechniqueService().insertDefaultTechniques();
+        ServiceRegistry.getCraftingService().insertDefaultRecipes();
 
         int total = counts.values().stream().mapToInt(Integer::intValue).sum();
 
@@ -2027,9 +2027,9 @@ public class AdminResource {
             Map<String, Integer> counts = DatabaseManager.importData(body);
 
             // 重新初始化默认数据
-            new SkillService().insertDefaultSkills();
-            new TechniqueService().insertDefaultTechniques();
-            new CraftingService().insertDefaultRecipes();
+            ServiceRegistry.getSkillService().insertDefaultSkills();
+            ServiceRegistry.getTechniqueService().insertDefaultTechniques();
+            ServiceRegistry.getCraftingService().insertDefaultRecipes();
 
             JsonObject result = new JsonObject();
             result.addProperty("code", 200);

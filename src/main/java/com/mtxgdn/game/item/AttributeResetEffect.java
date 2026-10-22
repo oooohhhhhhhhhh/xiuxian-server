@@ -1,5 +1,7 @@
 package com.mtxgdn.game.item;
 
+import com.mtxgdn.common.service.ServiceRegistry;
+
 import com.mtxgdn.game.service.BuffService;
 import com.mtxgdn.game.service.ItemService;
 import com.mtxgdn.game.service.PlayerService;
@@ -15,7 +17,7 @@ public class AttributeResetEffect extends ItemEffect {
 
     @Override
     public String execute(long playerId, PlayerService playerService, ItemService itemService) {
-        new BuffService().removeAllBuffs(playerId);
+        ServiceRegistry.getBuffService().removeAllBuffs(playerId);
         playerService.addHp(playerId, Integer.MAX_VALUE);
         playerService.addMp(playerId, Integer.MAX_VALUE);
         return "洗髓伐毛！已清除全部增益状态，生命与法力恢复至满值，";

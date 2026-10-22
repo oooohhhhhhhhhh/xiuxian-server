@@ -78,7 +78,7 @@ public abstract class CommandContext {
     public Long resolveBoundUserId() {
         QqBinding qqB = resolveQqBinding();
         if (qqB != null) return qqB.getUserId();
-        MinecraftPlayerBinding mcB = new MinecraftPlayerBindingService().findByMcUuid(senderId);
+        MinecraftPlayerBinding mcB = ServiceRegistry.getMcBindingService().findByMcUuid(senderId);
         if (mcB != null) return mcB.getUserId();
         return null;
     }
@@ -131,7 +131,7 @@ public abstract class CommandContext {
     private Long resolveUserId() {
         QqBinding qqB = resolveQqBinding();
         if (qqB != null) return qqB.getUserId();
-        MinecraftPlayerBinding mcB = new MinecraftPlayerBindingService().findByMcUuid(senderId);
+        MinecraftPlayerBinding mcB = ServiceRegistry.getMcBindingService().findByMcUuid(senderId);
         if (mcB != null) return mcB.getUserId();
         return null;
     }

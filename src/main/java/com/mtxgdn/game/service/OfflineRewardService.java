@@ -1,5 +1,7 @@
 package com.mtxgdn.game.service;
 
+import com.mtxgdn.common.service.ServiceRegistry;
+
 import com.mtxgdn.entity.Player;
 import com.mtxgdn.game.config.GameConfigLoader;
 import com.mtxgdn.game.entity.CelestialPhenomenon;
@@ -16,9 +18,9 @@ public class OfflineRewardService {
     private final HeartDemonService heartDemonService;
 
     public OfflineRewardService() {
-        this.playerService = new PlayerService();
-        this.dailyService = new DailyService();
-        this.heartDemonService = new HeartDemonService();
+        this.playerService = ServiceRegistry.getPlayerService();
+        this.dailyService = ServiceRegistry.getDailyService();
+        this.heartDemonService = ServiceRegistry.getHeartDemonService();
     }
 
     public OfflineRewardResult processOfflineRewards(long userId) {

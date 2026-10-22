@@ -1,5 +1,7 @@
 package com.mtxgdn;
 
+import com.mtxgdn.common.service.ServiceRegistry;
+
 import com.mtxgdn.db.DatabaseManager;
 import com.mtxgdn.demo.DemoClient;
 import com.mtxgdn.game.config.GameConfigLoader;
@@ -155,13 +157,13 @@ public class Main {
         initializeDatabase();
 
         LOG.info("正在初始化默认技能...");
-        new SkillService().insertDefaultSkills();
+        ServiceRegistry.getSkillService().insertDefaultSkills();
 
         LOG.info("正在初始化默认功法...");
-        new TechniqueService().insertDefaultTechniques();
+        ServiceRegistry.getTechniqueService().insertDefaultTechniques();
 
         LOG.info("正在初始化默认配方...");
-        new CraftingService().insertDefaultRecipes();
+        ServiceRegistry.getCraftingService().insertDefaultRecipes();
 
         LOG.info("正在扫描并注册物品...");
         ItemScanner.ScanResult scanResult = ItemScanner.scanAndRegister();

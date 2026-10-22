@@ -33,6 +33,8 @@ public class ServiceRegistry {
     private static volatile WorldBossService worldBossService;
     private static volatile DurabilityService durabilityService;
     private static volatile MinecraftPlayerBindingService mcBindingService;
+    private static volatile OfflineRewardService offlineRewardService;
+    private static volatile RedeemCodeService redeemCodeService;
 
     private ServiceRegistry() {
     }
@@ -343,5 +345,36 @@ public class ServiceRegistry {
             }
         }
         return durabilityService;
+    }
+
+    /**
+     * 离线奖励服务。
+     *
+     * <p>它本身无状态，但历史上被 {@code new OfflineRewardService()} 在
+     * 「每次读取玩家状态」「每条指令」的路径上反复构造 —— 每次构造都会新建
+     * 一个 {@link ItemService} 与 {@link PlayerService}，等于每来一条消息就多
+     * 开一批对象。统一走注册表即可消除这类无意义开销。</p>
+     */
+    public static OfflineRewardService getOfflineRewardService() {
+        if (offlineRewardService == null) {
+            synchronized (ServiceRegistry.class) {
+                if (offlineRewardService == null) {
+                    offlineRewardService = new OfflineRewardService();
+                }
+            }
+        }
+        return offlineRewardService;
+    }
+
+    /** 兑换码服务（无状态，但同样避免重复构造）。 */
+    public static RedeemCodeService getRedeemCodeService() {
+        if (redeemCodeService == null) {
+            synchronized (ServiceRegistry.class) {
+                if (redeemCodeService == null) {
+                    redeemCodeService = new RedeemCodeService();
+                }
+            }
+        }
+        return redeemCodeService;
     }
 }

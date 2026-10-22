@@ -28,7 +28,7 @@ public class StatusCommand extends Command {
 
         Long userId = ctx.requireBinding();
         OfflineRewardService.OfflineRewardResult offlineReward =
-                new OfflineRewardService().processOfflineRewards(userId);
+                ServiceRegistry.getOfflineRewardService().processOfflineRewards(userId);
 
         StringBuilder sb = new StringBuilder();
 
