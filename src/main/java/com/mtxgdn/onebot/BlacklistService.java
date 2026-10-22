@@ -58,7 +58,14 @@ public class BlacklistService {
             if (!Files.exists(configPath)) {
                 return new ArrayList<>();
             }
-            Map<String, Object> data = yaml.load(Files.newInputStream(configPath));
+            // 必须 try-with-resources：yaml.load 不会关闭传入的流，
+            // 每次调用都会泄漏一个文件句柄 —— 而本方法在每条消息的过滤链上都会被调用，
+            // 长时间运行后句柄耗尽，表现为"配置文件突然读不出来"甚至整个进程无法再开文件
+            // （Windows 上尤其明显）。
+            Map<String, Object> data;
+            try (java.io.InputStream in = Files.newInputStream(configPath)) {
+                data = yaml.load(in);
+            }
             if (data == null || data.get("entries") == null) {
                 return new ArrayList<>();
             }

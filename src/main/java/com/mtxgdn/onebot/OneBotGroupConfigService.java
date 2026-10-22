@@ -58,7 +58,13 @@ public class OneBotGroupConfigService {
             if (!Files.exists(configPath)) {
                 return new ArrayList<>();
             }
-            Map<String, Object> data = yaml.load(Files.newInputStream(configPath));
+            // 必须 try-with-resources：yaml.load 不会关闭传入的流，
+            // 每次调用都会泄漏一个文件句柄 —— 而本方法在消息路由时会被频繁调用，
+            // 长时间运行后句柄耗尽（Windows 上尤其明显）。
+            Map<String, Object> data;
+            try (java.io.InputStream in = Files.newInputStream(configPath)) {
+                data = yaml.load(in);
+            }
             if (data == null || data.get("groups") == null) {
                 return new ArrayList<>();
             }
