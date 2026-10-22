@@ -88,44 +88,137 @@ public class DatabaseManager {
         return DIALECT;
     }
 
+    /**
+     * 事务遇到"可重试的并发冲突"时的最大尝试次数。
+     *
+     * <p>为什么需要重试：SQLite 在 WAL 模式下，一个 {@code BEGIN DEFERRED} 事务
+     * （{@code setAutoCommit(false)} 发出的就是这个）如果先读后写，而期间别的连接
+     * 已经提交了写，SQLite 会直接抛 {@code SQLITE_BUSY_SNAPSHOT} —— 这个错误
+     * <b>不受 {@code busy_timeout} 约束</b>（重试会破坏快照隔离，所以它选择立刻报错）。
+     * MySQL 的 InnoDB 死锁（SQLState 40001）同理。</p>
+     *
+     * <p>而本进程里有大量后台调度线程在写同一批表（自动回血每 10 秒 UPDATE players、
+     * 玩家快照每 30 秒回写、拍卖/坊市/宗门定时清扫），所以"前台事务读后写"与
+     * "后台任务写"撞车是常态而不是意外。不重试的表现就是随机出现
+     * 「事务执行失败: [SQLITE_BUSY_SNAPSHOT]」，用户侧看到的是"使用物品失败"
+     * 这类毫无规律、无法复现的报错。</p>
+     *
+     * <p>事务已回滚，重跑一次是安全的；次数刻意压得很少（4 次，退避 20/40/80ms），
+     * 避免真正的高争用时把线程长时间占住。</p>
+     */
+    private static final int TX_MAX_ATTEMPTS = 4;
+
+    private static final long TX_RETRY_BASE_DELAY_MS = 20L;
+
     public static void executeInTransaction(SQLRunnable runnable) {
-        try (Connection conn = getConnection()) {
-            conn.setAutoCommit(false);
-            try {
-                runnable.run(conn);
-                conn.commit();
-            } catch (Exception e) {
+        RuntimeException last = null;
+        for (int attempt = 1; attempt <= TX_MAX_ATTEMPTS; attempt++) {
+            try (Connection conn = getConnection()) {
+                conn.setAutoCommit(false);
                 try {
-                    conn.rollback();
-                } catch (SQLException ignored) {
+                    runnable.run(conn);
+                    conn.commit();
+                    return;
+                } catch (Exception e) {
+                    try {
+                        conn.rollback();
+                    } catch (SQLException ignored) {
+                    }
+                    if (isRetryableConflict(e) && attempt < TX_MAX_ATTEMPTS) {
+                        last = new RuntimeException("事务执行失败: " + e.getMessage(), e);
+                        backoffBeforeRetry(attempt);
+                        continue;
+                    }
+                    throw new RuntimeException("事务执行失败: " + e.getMessage(), e);
+                } finally {
+                    try {
+                        conn.setAutoCommit(true);
+                    } catch (SQLException ignored) {
+                    }
                 }
+            } catch (SQLException e) {
                 throw new RuntimeException("事务执行失败: " + e.getMessage(), e);
-            } finally {
-                conn.setAutoCommit(true);
             }
-        } catch (SQLException e) {
-            throw new RuntimeException("事务执行失败: " + e.getMessage(), e);
         }
+        throw last != null ? last : new RuntimeException("事务执行失败");
     }
 
     public static <T> T runTransaction(SQLFunction<T> function) {
-        try (Connection conn = getConnection()) {
-            conn.setAutoCommit(false);
-            try {
-                T result = function.run(conn);
-                conn.commit();
-                return result;
-            } catch (Exception e) {
+        RuntimeException last = null;
+        for (int attempt = 1; attempt <= TX_MAX_ATTEMPTS; attempt++) {
+            try (Connection conn = getConnection()) {
+                conn.setAutoCommit(false);
                 try {
-                    conn.rollback();
-                } catch (SQLException ignored) {
+                    T result = function.run(conn);
+                    conn.commit();
+                    return result;
+                } catch (Exception e) {
+                    try {
+                        conn.rollback();
+                    } catch (SQLException ignored) {
+                    }
+                    if (isRetryableConflict(e) && attempt < TX_MAX_ATTEMPTS) {
+                        last = new RuntimeException("事务执行失败: " + e.getMessage(), e);
+                        backoffBeforeRetry(attempt);
+                        continue;
+                    }
+                    throw new RuntimeException("事务执行失败: " + e.getMessage(), e);
+                } finally {
+                    try {
+                        conn.setAutoCommit(true);
+                    } catch (SQLException ignored) {
+                    }
                 }
+            } catch (SQLException e) {
                 throw new RuntimeException("事务执行失败: " + e.getMessage(), e);
-            } finally {
-                conn.setAutoCommit(true);
             }
-        } catch (SQLException e) {
-            throw new RuntimeException("事务执行失败: " + e.getMessage(), e);
+        }
+        throw last != null ? last : new RuntimeException("事务执行失败");
+    }
+
+    /**
+     * 判断异常是否属于"回滚后重跑就能成功"的并发冲突。
+     *
+     * <p>只认三类明确语义的冲突，其余异常一律原样抛出 —— 不能把业务失败
+     * （比如"灵石不足"）当成并发冲突去重试。</p>
+     */
+    private static boolean isRetryableConflict(Throwable error) {
+        for (Throwable t = error; t != null; t = t.getCause()) {
+            if (t instanceof SQLException sql) {
+                String state = sql.getSQLState();
+                if ("40001".equals(state) || "40P01".equals(state)) {
+                    return true; // 序列化失败 / 死锁
+                }
+                String msg = sql.getMessage();
+                if (msg != null) {
+                    String upper = msg.toUpperCase(java.util.Locale.ROOT);
+                    if (upper.contains("SQLITE_BUSY_SNAPSHOT")
+                            || upper.contains("SQLITE_BUSY")
+                            || upper.contains("DATABASE IS LOCKED")
+                            || upper.contains("DEADLOCK")) {
+                        return true;
+                    }
+                }
+            }
+            String msg = t.getMessage();
+            if (msg != null) {
+                String upper = msg.toUpperCase(java.util.Locale.ROOT);
+                if (upper.contains("SQLITE_BUSY_SNAPSHOT") || upper.contains("SQLITE_BUSY")) {
+                    return true;
+                }
+            }
+            if (t.getCause() == t) {
+                break;
+            }
+        }
+        return false;
+    }
+
+    private static void backoffBeforeRetry(int attempt) {
+        try {
+            Thread.sleep(TX_RETRY_BASE_DELAY_MS * (1L << (attempt - 1)));
+        } catch (InterruptedException e) {
+            Thread.currentThread().interrupt();
         }
     }
 
