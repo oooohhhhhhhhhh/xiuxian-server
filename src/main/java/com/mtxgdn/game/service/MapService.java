@@ -19,6 +19,8 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.*;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ThreadLocalRandom;
 import com.mtxgdn.i18n.I18n;
 
@@ -66,12 +68,26 @@ public class MapService {
      */
     private static final int MAX_MAINTENANCE_SCAN = 5000;
 
-    private final Map<Long, MapLocation> locationCache = new LinkedHashMap<>();
-    private final List<long[]> connections = new ArrayList<>();
+    /**
+     * 已知世界地点缓存（id → 地点，含连接信息）。
+     *
+     * <p><b>为什么要包一层 {@code synchronizedMap}</b>：{@link #reload()} 会在后台
+     * （管理后台改完 {@code map_locations} 后）清空并重填这些缓存，而同一时刻前台
+     * 正在 {@code getLocation()} / {@code travel()} / {@code getAllLocations()}。
+     * 原来的裸 {@link LinkedHashMap} 在这种"边读边被 clear+put"的场景下会抛
+     * {@code ConcurrentModificationException}，甚至可能读到半加载状态（地点表已清空、
+     * 连接表还没重填），表现为玩家传送到错误地点或"该地点不存在"。</p>
+     *
+     * <p>注意：迭代一律走 {@link #snapshotLocations()}，绝不要直接遍历
+     * {@code values()} —— 同步包装只保证单次操作原子，不保证迭代期间不被改动。</p>
+     */
+    private final Map<Long, MapLocation> locationCache =
+            Collections.synchronizedMap(new LinkedHashMap<>());
+    private final List<long[]> connections = new CopyOnWriteArrayList<>();
     /** 连接耗时表：key = "from-to"，value = 通行秒数 */
-    private final Map<String, Integer> travelTimes = new HashMap<>();
+    private final Map<String, Integer> travelTimes = new ConcurrentHashMap<>();
     /** 地界 → (探索事件 key → 权重倍率) */
-    private final Map<Long, Map<String, Double>> eventBias = new HashMap<>();
+    private final Map<Long, Map<String, Double>> eventBias = new ConcurrentHashMap<>();
     /** 野外分片的文件存储（一个分片一个 JSON）。 */
     private final WildernessChunkStore chunkStore = WildernessChunkStore.get();
     /**
@@ -79,17 +95,36 @@ public class MapService {
      *
      * <p>上限刻意设得不大：野外的"真相"是生成器，缓存只是省一次重算，
      * 淘汰掉随时能再算出来，不存在丢数据的风险。</p>
+     *
+     * <p>这是 LRU（{@code accessOrder=true}），{@code get} 本身就会改动链表顺序，
+     * 所以同样必须同步 —— 否则并发 {@code get} 会把链表改坏，轻则淘汰错对象，
+     * 重则 {@code get} 返回 null 或抛 {@code NullPointerException}。</p>
      */
     private final Map<Long, MapLocation> wildernessCache =
-            new LinkedHashMap<>(64, 0.75f, true) {
+            Collections.synchronizedMap(new LinkedHashMap<>(64, 0.75f, true) {
                 @Override
                 protected boolean removeEldestEntry(Map.Entry<Long, MapLocation> eldest) {
                     return size() > 1024;
                 }
-            };
+            });
     /** 野外邻居"轻量对象"缓存：只有自身信息、不带邻居，用来避免解析时无限递归。 */
-    private final Map<Long, MapLocation> wildernessStubCache = new LinkedHashMap<>();
+    private final Map<Long, MapLocation> wildernessStubCache =
+            Collections.synchronizedMap(new LinkedHashMap<>());
     private volatile boolean initialized = false;
+
+    /**
+     * 取地点缓存的快照。
+     *
+     * <p>所有"遍历全部地点"的读路径都必须用它，不能直接遍历 {@code locationCache.values()}：
+     * {@link #reload()} 可能在迭代途中清空并重填缓存，直接遍历会抛
+     * {@code ConcurrentModificationException}。复制一份的代价是几十个元素，
+     * 而这些调用点都是"列地图""按名查找"这种低频操作。</p>
+     */
+    private List<MapLocation> snapshotLocations() {
+        synchronized (locationCache) {
+            return new ArrayList<>(locationCache.values());
+        }
+    }
 
     private final PlayerService playerService;
 
@@ -122,23 +157,31 @@ public class MapService {
      *
      * <p>进入时先清空缓存，因此加载中途失败不会留下"半新半旧"的数据；
      * 由于 {@code initialized} 此时仍为 false，下一次 {@link #ensureInitialized()} 会从干净状态重试。</p>
+     *
+     * <p><b>整段加载都持有 {@code locationCache} 的监视器</b>：同步包装只能保证
+     * 单次 {@code clear()}/{@code put()} 原子，无法保证"清空 + 重填"这一整段对外不可见。
+     * 不加这把锁时，前台读地图可能正好落在"已清空、还没填完"的窗口里，看到一张空地图
+     * 或"该地点不存在"，而重载只是一次管理后台操作，没有必要让玩家看到这种中间态。
+     * 读路径的 {@link #snapshotLocations()} 会短暂等待重载结束，代价是几十毫秒。</p>
      */
     private void loadFromDb() {
-        locationCache.clear();
-        connections.clear();
-        travelTimes.clear();
-        eventBias.clear();
-        wildernessCache.clear();
-        wildernessStubCache.clear();
-        try (Connection conn = DatabaseManager.getConnection()) {
-            repairDefaultData(conn);
-            loadLocations(conn);
-            loadConnections(conn);
-            loadEventBias(conn);
-            // 出入口连边不存在数据库里（野外整个不在库中），加载完已知世界后现挂上
-            attachGatewayLinks();
-        } catch (SQLException e) {
-            throw new RuntimeException("加载地图数据失败", e);
+        synchronized (locationCache) {
+            locationCache.clear();
+            connections.clear();
+            travelTimes.clear();
+            eventBias.clear();
+            wildernessCache.clear();
+            wildernessStubCache.clear();
+            try (Connection conn = DatabaseManager.getConnection()) {
+                repairDefaultData(conn);
+                loadLocations(conn);
+                loadConnections(conn);
+                loadEventBias(conn);
+                // 出入口连边不存在数据库里（野外整个不在库中），加载完已知世界后现挂上
+                attachGatewayLinks();
+            } catch (SQLException e) {
+                throw new RuntimeException("加载地图数据失败", e);
+            }
         }
     }
 
@@ -534,7 +577,7 @@ public class MapService {
                 if (eventKey == null || eventKey.isBlank() || multiplier <= 0) {
                     continue;
                 }
-                eventBias.computeIfAbsent(locationId, k -> new LinkedHashMap<>()).put(eventKey, multiplier);
+                eventBias.computeIfAbsent(locationId, k -> new ConcurrentHashMap<>()).put(eventKey, multiplier);
             }
         } catch (SQLException e) {
             // 老库尚未建表时降级为"无偏置"，不影响地图主流程
@@ -595,7 +638,7 @@ public class MapService {
 
     public MapLocation getLocationByName(String name) {
         ensureInitialized();
-        return locationCache.values().stream()
+        return snapshotLocations().stream()
                 .filter(l -> l.getName().equals(name))
                 .findFirst().orElse(null);
     }
@@ -667,7 +710,7 @@ public class MapService {
     public List<MapLocation> getAllLocations() {
         ensureInitialized();
         List<MapLocation> result = new ArrayList<>();
-        for (MapLocation loc : locationCache.values()) {
+        for (MapLocation loc : snapshotLocations()) {
             if (!loc.isWilderness()) result.add(loc);
         }
         return result;
@@ -676,7 +719,7 @@ public class MapService {
     /** 按区域取<b>已知世界</b>地点（区域筛选与 /地图 list 的区域参数）。 */
     public List<MapLocation> getLocationsByRegion(String region) {
         ensureInitialized();
-        return locationCache.values().stream()
+        return snapshotLocations().stream()
                 .filter(l -> !l.isWilderness())
                 .filter(l -> l.getRegion().equals(region))
                 .toList();
@@ -1073,7 +1116,7 @@ public class MapService {
     public List<MapLocation> getKnownWorldLocations() {
         ensureInitialized();
         List<MapLocation> result = new ArrayList<>();
-        for (MapLocation loc : locationCache.values()) {
+        for (MapLocation loc : snapshotLocations()) {
             if (!loc.isWilderness()) result.add(loc);
         }
         return result;
