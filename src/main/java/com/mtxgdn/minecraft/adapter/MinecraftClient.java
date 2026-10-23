@@ -959,6 +959,20 @@ public class MinecraftClient implements Runnable {
         return CT_MSG_OUTGOING.equals(chatType) || CT_TEAM_MSG_OUTGOING.equals(chatType);
     }
 
+    /**
+     * 单个数据包的长度上限（压缩前/压缩后都适用）。
+     *
+     * <p>Minecraft 协议本身把包长限制在 3 字节 VarInt（最大 2,097,151 字节），
+     * 原版客户端也按这个上限拒包，这里用同样的值作为服务端侧上限。</p>
+     *
+     * <p><b>为什么必须有这个上限</b>：{@code packetLen} 与压缩包里的"未压缩长度"
+     * 都是<b>对端给的数字</b>，而代码直接拿它们去 {@code new byte[...]}。
+     * 一个恶意/异常的 MC 服务端（或中间人、或损坏的流）只要声明
+     * {@code dataLen = 2GB}，就能让我们在收到任何实际数据之前先 {@code OutOfMemoryError}
+     * —— 整个 Java 进程直接死掉，连日志都来不及写。这是典型的"用输入当分配长度"。</p>
+     */
+    static final int MAX_PACKET_SIZE = 2_097_151;
+
     /** 从纯文本检测私聊格式 (whispers to you) */
     private void processPlainTextTell(String text) {
         if (text.contains("whispers to you:") || text.contains("whispers:")) {
@@ -993,11 +1007,30 @@ public class MinecraftClient implements Runnable {
     // ==================== 底层 IO（含压缩支持）====================
 
     /**
+     * 校验对端声明的长度，超限直接拒绝而不是去分配内存。
+     *
+     * @param length 对端给的字节数
+     * @param what   字段名（用于日志）
+     * @throws IOException 长度非法或超过 {@link #MAX_PACKET_SIZE}
+     */
+    private static void checkPacketLength(int length, String what) throws IOException {
+        if (length < 0) {
+            throw new IOException("非法包长度: " + what + "=" + length);
+        }
+        if (length > MAX_PACKET_SIZE) {
+            throw new IOException("包长度超过上限: " + what + "=" + length
+                    + " > " + MAX_PACKET_SIZE);
+        }
+    }
+
+    /**
      * 读取一个数据包（自动处理压缩）。
      * @return Object[]{packetId, data}
      */
     private Object[] readPacket() throws IOException {
         int packetLen = VarInt.readVarInt(in);
+        // 长度是对端给的数字，分配内存前必须先校验（见 MAX_PACKET_SIZE）
+        checkPacketLength(packetLen, "packetLen");
 
         if (compressionThreshold < 0) {
             // 无压缩
@@ -1011,7 +1044,12 @@ public class MinecraftClient implements Runnable {
 
         // 有压缩
         int dataLen = VarInt.readVarInt(in);  // 未压缩数据长度
+        // 这个数字同样是对端给的，而且会被直接当成 new byte[] 的长度
+        checkPacketLength(dataLen, "uncompressedLen");
         int remaining = packetLen - VarInt.writeVarInt(dataLen).length;
+        if (remaining < 0) {
+            throw new IOException("压缩包长度非法: packetLen=" + packetLen + " dataLen=" + dataLen);
+        }
 
         if (dataLen == 0) {
             // 未压缩（数据小于 threshold）
@@ -1030,10 +1068,11 @@ public class MinecraftClient implements Runnable {
         byte[] decompressed = new byte[dataLen];
         Inflater inflater = new Inflater();
         inflater.setInput(compressed);
+        int actualLen;
         try {
             // inflate 一次不保证填满目标缓冲（zlib 可能只吐一部分），必须循环到
             // finished / 缓冲区满为止，否则会把一个完整包读成半截。
-            int actualLen = 0;
+            actualLen = 0;
             while (!inflater.finished() && actualLen < decompressed.length) {
                 int n = inflater.inflate(decompressed, actualLen, decompressed.length - actualLen);
                 if (n == 0) {
@@ -1043,19 +1082,25 @@ public class MinecraftClient implements Runnable {
                 }
                 actualLen += n;
             }
-            inflater.end();
-
-            ByteArrayInputStream bais = new ByteArrayInputStream(decompressed, 0, actualLen);
-            DataInputStream din = new DataInputStream(bais);
-            int packetId = VarInt.readVarInt(din);
-            int payloadLen = actualLen - VarInt.writeVarInt(packetId).length;
-            byte[] data = new byte[payloadLen];
-            din.readFully(data);
-            return new Object[]{packetId, data};
         } catch (java.util.zip.DataFormatException e) {
-            inflater.end();
             throw new IOException("解压失败", e);
+        } finally {
+            // 必须放在 finally：上面既可能抛 DataFormatException，也可能抛 IOException
+            // （数据不完整），原实现只在 DataFormatException 分支里 end()，
+            // 坏包会漏掉 Inflater 的本地内存（zlib 的 native 资源不受 GC 管理）
+            inflater.end();
         }
+
+        ByteArrayInputStream bais = new ByteArrayInputStream(decompressed, 0, actualLen);
+        DataInputStream din = new DataInputStream(bais);
+        int packetId = VarInt.readVarInt(din);
+        int payloadLen = actualLen - VarInt.writeVarInt(packetId).length;
+        if (payloadLen < 0) {
+            throw new IOException("解压后长度不足以容纳包 ID: actualLen=" + actualLen + " packetId=" + packetId);
+        }
+        byte[] data = new byte[payloadLen];
+        din.readFully(data);
+        return new Object[]{packetId, data};
     }
 
     /**
