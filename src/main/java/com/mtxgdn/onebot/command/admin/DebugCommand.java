@@ -140,14 +140,14 @@ public class DebugCommand extends Command {
 
             DebugCommandContext debugCtx = new DebugCommandContext(ctx.getSenderId(), ctx.getSenderNickname(), cmdArgs, ctx);
 
-            try (java.sql.Connection conn = com.mtxgdn.db.DatabaseManager.getConnection()) {
-                conn.setAutoCommit(false);
-                try {
-                    targetCmd.execute(debugCtx);
-                } finally {
-                    conn.rollback();
-                }
-            }
+            // 这里原本是"假沙箱"：开一个连接、setAutoCommit(false)、执行目标指令、然后 rollback()。
+            // 但目标指令自己通过 DatabaseManager.getConnection() 拿连接，根本不在这个事务里 ——
+            // rollback 什么也没回滚，而回复里却写着"事务已回滚"。
+            // 也就是说管理员以为在试跑，实际上加物品、改属性、发钱全部永久生效。
+            //
+            // 真正的沙箱需要把连接一路透传到每个指令（几十个类、上百处 SQL），
+            // 成本远高于收益。这里选择诚实地直接执行，并把提示文案改成"会真实生效"。
+            targetCmd.execute(debugCtx);
 
             ctx.reply(I18n.t("admin.hdbaa383c"));
         } catch (Exception e) {
