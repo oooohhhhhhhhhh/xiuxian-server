@@ -505,18 +505,31 @@ public class PermissionService {
         }
     }
 
+    /**
+     * 移除用户的某个角色。
+     *
+     * <p><b>修复说明</b>：这里原来有一道
+     * {@code if (getHighestRoleLevel(userId) <= groupHierarchy.getOrDefault(roleName, 0))}
+     * 的判断，方向是反的 —— {@code getHighestRoleLevel} 是<b>目标用户</b>的最高角色等级，
+     * 它必然 &ge; 该用户持有的任何角色等级，所以条件只在"要移除的正好是他的最高角色"时成立。
+     * 也就是说：管理员给一个同时持有 admin(100) 和 vip(5) 的用户摘掉 vip，条件
+     * {@code 100 <= 5} 不成立，角色<b>纹丝不动</b>，而调用方还照样回 200 成功。</p>
+     *
+     * <p>而且这里根本没有"操作者"参数 —— 授权判断本来就该由调用方的
+     * {@code @RequirePermission} 负责，服务层不该拿目标用户自己的等级去猜权限。
+     * 因此删掉这道守卫，让本方法成为纯数据操作；"用户是否真的有这个角色""能不能移除默认角色"
+     * 由 {@code AdminResource} 显式检查并给出诚实的响应。</p>
+     */
     public static void removeRole(long userId, String roleName) {
         ensureLoaded();
-        if (getHighestRoleLevel(userId) <= groupHierarchy.getOrDefault(roleName, 0)) {
-            String sql = "DELETE FROM user_roles WHERE user_id = ? AND role_name = ?";
-            try (Connection conn = DatabaseManager.getConnection();
-                 PreparedStatement ps = conn.prepareStatement(sql)) {
-                ps.setLong(1, userId);
-                ps.setString(2, roleName);
-                ps.executeUpdate();
-            } catch (SQLException e) {
-                throw new RuntimeException("移除角色失败", e);
-            }
+        String sql = "DELETE FROM user_roles WHERE user_id = ? AND role_name = ?";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setLong(1, userId);
+            ps.setString(2, roleName);
+            ps.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException("移除角色失败", e);
         }
     }
 

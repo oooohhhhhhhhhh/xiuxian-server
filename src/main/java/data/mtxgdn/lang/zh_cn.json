@@ -104,6 +104,8 @@
   "admin.h883fd7a8": "获取玩家信息失败: {0}",
   "admin.h8889c2a8": "已更新，地图缓存已热重载",
   "admin.h89776548": "角色移除成功",
+  "admin.cannot_remove_default_role": "不能移除默认角色，否则该用户将没有任何角色",
+  "admin.user_role_not_held": "该用户没有这个角色",
   "admin.h8bde915f": "已从玩家 {0} (ID:{1}) 减少 {2} 能量\n当前能量: {3}",
   "admin.h8cce6bb4": "服务器正在关闭...",
   "admin.h8d21b010": "修改失败: {0}",

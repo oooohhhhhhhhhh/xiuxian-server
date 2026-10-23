@@ -104,6 +104,8 @@
   "admin.h883fd7a8": "Failed to fetch player info: {0}",
   "admin.h8889c2a8": "Updated; map cache hot-reloaded",
   "admin.h89776548": "Role removed successfully",
+  "admin.cannot_remove_default_role": "The default role cannot be removed, otherwise the user would have no role at all",
+  "admin.user_role_not_held": "The user does not have this role",
   "admin.h8bde915f": "Reduced {2} energy from player {0} (ID:{1})\nCurrent energy: {3}",
   "admin.h8cce6bb4": "Server is shutting down...",
   "admin.h8d21b010": "Modification failed: {0}",

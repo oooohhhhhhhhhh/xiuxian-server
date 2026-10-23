@@ -879,11 +879,23 @@ public class AdminResource {
             return Response.status(400).entity(gson.toJson(err)).build();
         }
 
-        int currentLevel = PermissionService.getHighestRoleLevel(userId);
-        Integer roleLevel = PermissionService.getRoleHierarchy().get(roleName);
-        if (roleLevel != null && currentLevel <= roleLevel) {
-            PermissionService.removeRole(userId, roleName);
+        // 原来这里是 currentLevel <= roleLevel 才移除，方向是反的：
+        // currentLevel 是目标用户的最高角色等级，必然 >= 他持有的任何角色等级，
+        // 于是"摘掉低于他最高角色的那个角色"永远不生效，接口却照样回 200 成功。
+        // 现在改为显式检查三件事，并给出诚实的响应。
+        if (PermissionService.getDefaultRoleName().equals(roleName)) {
+            JsonObject err = new JsonObject();
+            err.addProperty("code", 400);
+            err.addProperty("message", I18n.t("admin.cannot_remove_default_role"));
+            return Response.status(400).entity(gson.toJson(err)).build();
         }
+        if (!PermissionService.getUserRoles(userId).contains(roleName)) {
+            JsonObject err = new JsonObject();
+            err.addProperty("code", 404);
+            err.addProperty("message", I18n.t("admin.user_role_not_held"));
+            return Response.status(404).entity(gson.toJson(err)).build();
+        }
+        PermissionService.removeRole(userId, roleName);
 
         JsonObject result = new JsonObject();
         result.addProperty("code", 200);
