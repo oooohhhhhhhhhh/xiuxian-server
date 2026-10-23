@@ -27,20 +27,61 @@ public class DailyService {
     private final ItemService itemService = ServiceRegistry.getItemService();
     private final Random random = new Random();
 
-    private CelestialPhenomenon todayPhenomenon;
-    private LocalDate phenomenonDate;
+    /**
+     * 今日天象的缓存。必须是 <b>static</b>：天象是全局天气，不是某个服务实例的私有状态。
+     *
+     * <p><b>原来的三个问题</b>（实例字段 + 首次访问时随机）：</p>
+     * <ol>
+     *   <li><b>不全局</b>：直接 new DailyService 实例的地方散布在
+     *       {@code OfflineRewardService} / {@code CombatService} / {@code ExplorationService} /
+     *       {@code SkillService} 等处，每个新实例都是 {@code phenomenonDate == null}，
+     *       于是各自给"今天"抽一个不同的天象 —— 同一时刻，
+     *       界面显示的天象和掉落结算用的天象可以不是同一个。</li>
+     *   <li><b>不持久</b>：重启后重新抽，玩家眼里的"今日天象"说变就变。</li>
+     *   <li><b>不线程安全</b>：注释写着"线程安全"，但两个线程同时进
+     *       {@code if (phenomenonDate == null)} 会各抽一次，后写的覆盖先写的。</li>
+     * </ol>
+     *
+     * <p>修复：改成 static 缓存 + 按日期播种的确定性抽取 ——
+     * 同一天在任意实例、任意线程、任意次重启下都得到同一个天象，
+     * 既解决了全局一致性，也顺带解决了持久化，还不用新增一张表。</p>
+     */
+    private static volatile CelestialPhenomenon todayPhenomenon;
+    private static volatile LocalDate phenomenonDate;
 
     public CelestialPhenomenon getTodayPhenomenon() {
         LocalDate today = LocalDate.now();
-        if (phenomenonDate == null || !phenomenonDate.equals(today)) {
-            CelestialPhenomenon[] values = CelestialPhenomenon.values();
-            todayPhenomenon = values[random.nextInt(values.length)];
-            phenomenonDate = today;
+        // 双检：热路径（每次掉落/修炼结算都会问一次）不加锁
+        CelestialPhenomenon cached = todayPhenomenon;
+        if (cached != null && today.equals(phenomenonDate)) {
+            return cached;
         }
-        return todayPhenomenon;
+        synchronized (DailyService.class) {
+            if (todayPhenomenon == null || !today.equals(phenomenonDate)) {
+                todayPhenomenon = pickPhenomenonFor(today);
+                phenomenonDate = today;
+            }
+            return todayPhenomenon;
+        }
     }
 
-    /** 静态入口：获取今日天象（供修炼/掉落等全局结算使用，线程安全）。 */
+    /**
+     * 按日期确定性抽取天象：同一天永远是同一个。
+     *
+     * <p>用 {@code toEpochDay()} 播种而不是每次 {@code new Random()}，
+     * 是为了让"今日天象"这件事在重启、多实例、并发下都不再是一个随机量。</p>
+     */
+    static CelestialPhenomenon pickPhenomenonFor(LocalDate date) {
+        CelestialPhenomenon[] values = CelestialPhenomenon.values();
+        return values[new Random(date.toEpochDay()).nextInt(values.length)];
+    }
+
+    /**
+     * 静态入口：获取今日天象（供修炼/掉落等全局结算使用）。
+     *
+     * <p>现在"全局"和"线程安全"都是真的：缓存本身是 static 的，
+     * 任意实例、任意线程拿到的都是同一个值。</p>
+     */
     public static CelestialPhenomenon getTodayPhenomenonStatic() {
         return ServiceRegistry.getDailyService().getTodayPhenomenon();
     }
