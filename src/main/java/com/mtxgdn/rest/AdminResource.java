@@ -1211,7 +1211,12 @@ public class AdminResource {
     @GET
     @Path("/players")
     @Produces(MediaType.APPLICATION_JSON)
-    @RequirePermission("admin.users.manage")
+    // 只读接口用 admin.status：这是本项目自己定下的划分（"读用 admin.status、
+    // 写用 admin.users.manage"，见 docs/PROJECT_STRUCTURE.md 第 9 条）。
+    // 之前这里误用了 admin.users.manage，而该权限码不在 ADMIN 的默认权限里
+    // （只有 SUPER_ADMIN 持有），等于把版主/管理员看玩家列表的能力一并砍掉了。
+    // 真正的写操作（/players/{id}/edit、/spiritual-root 等）仍然要 admin.users.manage。
+    @RequirePermission("admin.status")
     public Response getPlayers(
             @QueryParam("name") @DefaultValue("") String name,
             @QueryParam("limit") @DefaultValue("50") int limit,

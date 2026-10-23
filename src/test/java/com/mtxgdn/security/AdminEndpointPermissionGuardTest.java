@@ -82,7 +82,10 @@ class AdminEndpointPermissionGuardTest {
     @DisplayName("三个曾经漏注解的端点现在都带上了权限码")
     void previouslyUnprotectedEndpointsAreCovered() {
         assertPermission("/logs", "admin.logs.view");
-        assertPermission("/players", "admin.users.manage");
+        // 只读接口按本项目自己的划分用 admin.status（"读用 admin.status、写用 admin.users.manage"）。
+        // admin.users.manage 不在 ADMIN 的默认权限里，挂在读接口上等于把版主/管理员
+        // 看玩家列表的能力一起砍掉了；写接口（/players/{id}/edit 等）仍要求 admin.users.manage。
+        assertPermission("/players", "admin.status");
         assertPermission("/plugins", "admin.plugins.manage");
     }
 
