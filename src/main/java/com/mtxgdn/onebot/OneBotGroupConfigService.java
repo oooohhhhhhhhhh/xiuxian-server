@@ -24,6 +24,19 @@ public class OneBotGroupConfigService {
     private final ReadWriteLock lock = new ReentrantReadWriteLock();
     private final Yaml yaml;
 
+    /**
+     * 解析结果缓存，配合 {@link #cachedStamp} 使用。
+     *
+     * <p><b>为什么需要</b>：{@code isAutoMuteEnabled()} / {@code getMuteDuration()}
+     * 在<b>每条群消息</b>上都会被调用，每次都重新打开文件 + 完整解析 YAML。
+     * 群消息一多这就是纯浪费。</p>
+     *
+     * <p>用「文件指纹」而不是固定 TTL 做失效判断：管理员手工编辑
+     * {@code config/onebot_group_config.yml} 后下一次调用就生效。</p>
+     */
+    private volatile List<Map<String, Object>> cachedList;
+    private volatile long cachedStamp = Long.MIN_VALUE;
+
     public OneBotGroupConfigService() {
         this.configPath = Paths.get(CONFIG_FILE);
         copyDefaultIfMissing();
@@ -58,6 +71,11 @@ public class OneBotGroupConfigService {
             if (!Files.exists(configPath)) {
                 return new ArrayList<>();
             }
+            long stamp = stampOf(configPath);
+            List<Map<String, Object>> cached = cachedList;
+            if (cached != null && stamp == cachedStamp) {
+                return cached;
+            }
             // 必须 try-with-resources：yaml.load 不会关闭传入的流，
             // 每次调用都会泄漏一个文件句柄 —— 而本方法在消息路由时会被频繁调用，
             // 长时间运行后句柄耗尽（Windows 上尤其明显）。
@@ -65,15 +83,25 @@ public class OneBotGroupConfigService {
             try (java.io.InputStream in = Files.newInputStream(configPath)) {
                 data = yaml.load(in);
             }
+            List<Map<String, Object>> list;
             if (data == null || data.get("groups") == null) {
-                return new ArrayList<>();
+                list = new ArrayList<>();
+            } else {
+                list = (List<Map<String, Object>>) data.get("groups");
             }
-            return (List<Map<String, Object>>) data.get("groups");
+            cachedList = list;
+            cachedStamp = stamp;
+            return list;
         } catch (IOException e) {
             throw new RuntimeException("读取群组配置文件失败", e);
         } finally {
             lock.readLock().unlock();
         }
+    }
+
+    /** 文件指纹：修改时间 + 长度。任一变化都视为"文件被改过"，需要重新解析。 */
+    private static long stampOf(Path path) throws IOException {
+        return Files.getLastModifiedTime(path).toMillis() * 31L + Files.size(path);
     }
 
     private void saveRawList(List<Map<String, Object>> entries) {
@@ -85,6 +113,9 @@ public class OneBotGroupConfigService {
             try (Writer writer = new OutputStreamWriter(Files.newOutputStream(configPath), StandardCharsets.UTF_8)) {
                 yaml.dump(root, writer);
             }
+            // 主动失效：同一毫秒内"同长度"的两次写入指纹会相同，不能只依赖文件指纹
+            cachedList = null;
+            cachedStamp = Long.MIN_VALUE;
         } catch (IOException e) {
             throw new RuntimeException("写入群组配置文件失败", e);
         } finally {

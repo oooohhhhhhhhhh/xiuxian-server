@@ -24,6 +24,19 @@ public class BlacklistService {
     private final ReadWriteLock lock = new ReentrantReadWriteLock();
     private final Yaml yaml;
 
+    /**
+     * 解析结果缓存，配合 {@link #cachedStamp} 使用。
+     *
+     * <p><b>为什么需要</b>：{@code isBlacklisted()} 在<b>每条群消息</b>的过滤链上都会被调用，
+     * 而它每次都重新打开文件 + 完整解析一遍 YAML。群消息一多，这块就是纯浪费
+     * （一次消息至少一次磁盘读 + 一次 YAML 解析）。</p>
+     *
+     * <p>用「文件指纹」而不是固定 TTL 做失效判断：管理员手工编辑
+     * {@code config/blacklist.yml} 后下一次调用就生效，不会读到过期缓存。</p>
+     */
+    private volatile List<Map<String, Object>> cachedList;
+    private volatile long cachedStamp = Long.MIN_VALUE;
+
     public BlacklistService() {
         this.configPath = Paths.get(CONFIG_FILE);
         copyDefaultIfMissing();
@@ -58,6 +71,11 @@ public class BlacklistService {
             if (!Files.exists(configPath)) {
                 return new ArrayList<>();
             }
+            long stamp = stampOf(configPath);
+            List<Map<String, Object>> cached = cachedList;
+            if (cached != null && stamp == cachedStamp) {
+                return cached;
+            }
             // 必须 try-with-resources：yaml.load 不会关闭传入的流，
             // 每次调用都会泄漏一个文件句柄 —— 而本方法在每条消息的过滤链上都会被调用，
             // 长时间运行后句柄耗尽，表现为"配置文件突然读不出来"甚至整个进程无法再开文件
@@ -66,15 +84,25 @@ public class BlacklistService {
             try (java.io.InputStream in = Files.newInputStream(configPath)) {
                 data = yaml.load(in);
             }
+            List<Map<String, Object>> list;
             if (data == null || data.get("entries") == null) {
-                return new ArrayList<>();
+                list = new ArrayList<>();
+            } else {
+                list = (List<Map<String, Object>>) data.get("entries");
             }
-            return (List<Map<String, Object>>) data.get("entries");
+            cachedList = list;
+            cachedStamp = stamp;
+            return list;
         } catch (IOException e) {
             throw new RuntimeException("读取黑名单配置文件失败", e);
         } finally {
             lock.readLock().unlock();
         }
+    }
+
+    /** 文件指纹：修改时间 + 长度。任一变化都视为"文件被改过"，需要重新解析。 */
+    private static long stampOf(Path path) throws IOException {
+        return Files.getLastModifiedTime(path).toMillis() * 31L + Files.size(path);
     }
 
     private void saveRawList(List<Map<String, Object>> entries) {
@@ -86,6 +114,9 @@ public class BlacklistService {
             try (Writer writer = new OutputStreamWriter(Files.newOutputStream(configPath), StandardCharsets.UTF_8)) {
                 yaml.dump(root, writer);
             }
+            // 主动失效：同一毫秒内"同长度"的两次写入指纹会相同，不能只依赖文件指纹
+            cachedList = null;
+            cachedStamp = Long.MIN_VALUE;
         } catch (IOException e) {
             throw new RuntimeException("写入黑名单配置文件失败", e);
         } finally {
@@ -111,6 +142,11 @@ public class BlacklistService {
      */
     public boolean isBlacklisted(String qqNumber) {
         List<Map<String, Object>> list = loadRawList();
+        // 绑定关系只查一次：原来写在循环里，每条 userId 模式的记录都会
+        // new 一个 QqBindingService 并打一次数据库 —— 黑名单越长越慢，
+        // 而本方法在每条群消息上都会跑。
+        QqBinding binding = null;
+        boolean bindingResolved = false;
         for (Map<String, Object> entry : list) {
             // 直接ban的QQ号
             Object eqq = entry.get("qqNumber");
@@ -120,7 +156,10 @@ public class BlacklistService {
             // 通过userId ban（查绑定）
             Object uid = entry.get("userId");
             if (uid != null) {
-                QqBinding binding = new QqBindingService().findByQq(qqNumber);
+                if (!bindingResolved) {
+                    binding = new QqBindingService().findByQq(qqNumber);
+                    bindingResolved = true;
+                }
                 if (binding != null && String.valueOf(binding.getUserId()).equals(String.valueOf(uid))) {
                     return true;
                 }

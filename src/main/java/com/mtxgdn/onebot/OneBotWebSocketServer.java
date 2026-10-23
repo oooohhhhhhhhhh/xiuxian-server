@@ -345,6 +345,52 @@ public class OneBotWebSocketServer extends WebSocketApplication
         log.info("黑名单自动续期禁言定时任务已停止");
     }
 
+    /**
+     * 离线奖励结算节流：QQ -> 上次结算的毫秒时间戳。
+     *
+     * <p><b>为什么需要</b>：原来私聊/群聊<b>每条消息</b>（包括根本不构成指令的闲聊）
+     * 都会先 {@code bindingService.findByQq(...)} 查一次绑定，
+     * 再调 {@code processOfflineRewards(userId)} 做一次完整的离线结算。
+     * 一个热闹的群里这等于每说一句话就跑一次"读玩家 + 算离线时长 + 写回状态"，
+     * 既浪费数据库，也会因为频繁写同一行而制造锁竞争。</p>
+     *
+     * <p>离线奖励本来就是"一段时间没上线后第一次互动"才该结算的东西，
+     * 所以按 QQ 做冷却：冷却期内直接返回，连绑定都不查（一次 HashMap 查询替代两次 DB 操作）。
+     * 冷却时间由 {@code onebot.offline_reward_cooldown_seconds} 控制，默认 3600 秒；
+     * 设为 0 或负数表示不节流（退化为原来的行为）。</p>
+     */
+    private final Map<String, Long> lastOfflineRewardAt = new ConcurrentHashMap<>();
+
+    private static final long OFFLINE_REWARD_COOLDOWN_MS =
+            Math.max(0, AppConfig.getInt("onebot.offline_reward_cooldown_seconds", 3600)) * 1000L;
+
+    /** 冷却表超过这个规模就顺手清一遍过期项，避免长期运行后无限增长。 */
+    private static final int OFFLINE_REWARD_CACHE_SWEEP_THRESHOLD = 5000;
+
+    /**
+     * 到点才结算离线奖励：冷却窗口内直接跳过，不查绑定、不碰数据库。
+     */
+    private void settleOfflineRewardIfDue(WebSocket socket, String selfId, String senderQq) {
+        long now = System.currentTimeMillis();
+        if (OFFLINE_REWARD_COOLDOWN_MS > 0) {
+            Long last = lastOfflineRewardAt.get(senderQq);
+            if (last != null && now - last < OFFLINE_REWARD_COOLDOWN_MS) {
+                return;
+            }
+            if (lastOfflineRewardAt.size() > OFFLINE_REWARD_CACHE_SWEEP_THRESHOLD) {
+                lastOfflineRewardAt.entrySet()
+                        .removeIf(e -> now - e.getValue() >= OFFLINE_REWARD_COOLDOWN_MS);
+            }
+        }
+        QqBinding binding = bindingService.findByQq(senderQq);
+        if (binding == null) {
+            // 未绑定：不记时间戳，玩家绑定后的第一条消息就能立刻拿到离线奖励
+            return;
+        }
+        lastOfflineRewardAt.put(senderQq, now);
+        processOfflineReward(socket, selfId, senderQq, binding.getUserId());
+    }
+
     private void processOfflineReward(WebSocket socket, String selfId, String senderQq, Long userId) {
         OfflineRewardService offlineService = ServiceRegistry.getOfflineRewardService();
         OfflineRewardService.OfflineRewardResult result = offlineService.processOfflineRewards(userId);
@@ -426,10 +472,8 @@ public class OneBotWebSocketServer extends WebSocketApplication
         String trimmed = rawMessage.trim();
         StatsCollector.getInstance().recordMessage(senderQq, null);
 
-        QqBinding binding = bindingService.findByQq(senderQq);
-        if (binding != null) {
-            processOfflineReward(socket, selfId, senderQq, binding.getUserId());
-        }
+        // 节流：冷却窗口内连绑定都不查（原来每条消息都要查一次绑定 + 跑一次离线结算）
+        settleOfflineRewardIfDue(socket, selfId, senderQq);
 
         PendingSession session = pendingSessions.get(senderQq);
         if (session != null) {
@@ -453,10 +497,8 @@ public class OneBotWebSocketServer extends WebSocketApplication
         String trimmed = rawMessage.trim();
         StatsCollector.getInstance().recordMessage(senderQq, groupId);
 
-        QqBinding binding = bindingService.findByQq(senderQq);
-        if (binding != null) {
-            processOfflineReward(socket, selfId, senderQq, binding.getUserId());
-        }
+        // 节流：冷却窗口内连绑定都不查（原来每条消息都要查一次绑定 + 跑一次离线结算）
+        settleOfflineRewardIfDue(socket, selfId, senderQq);
 
         // 黑名单检查：如果在黑名单中且群组启用了自动禁言，则禁言
         if (blacklistService.isBlacklisted(senderQq)) {
@@ -693,10 +735,12 @@ public class OneBotWebSocketServer extends WebSocketApplication
 
     @Override
     public void handleBind(WebSocket socket, String selfId, String senderQq) {
-        if (bindingService.findByQq(senderQq) != null) {
-            QqBinding b = bindingService.findByQq(senderQq);
+        // 只查一次：原来先 findByQq(...) != null 判断、再 findByQq(...) 取对象，
+        // 同一份数据打两次库（中间还可能被并发解绑，导致 b 为 null 时 NPE）
+        QqBinding existing = bindingService.findByQq(senderQq);
+        if (existing != null) {
             sendPrivateMsg(socket, selfId, senderQq,
-                    "你已绑定账号 (用户ID: " + b.getUserId() + ")，/unbind 可解绑。");
+                    "你已绑定账号 (用户ID: " + existing.getUserId() + ")，/unbind 可解绑。");
             return;
         }
         PendingSession session = new PendingSession();
