@@ -2,6 +2,7 @@ target/
 # Maven wrapper 为 distributionType=only-script（见 .mvn/wrapper/maven-wrapper.properties），
 # 由 mvnw / mvnw.cmd 自行下载 Maven，不需要也不使用 maven-wrapper.jar。
 # 故此处不再对 .mvn/wrapper/maven-wrapper.jar 做白名单放行。
+.mvn/wrapper/maven-wrapper.jar
 !**/src/main/**/target/
 !**/src/test/**/target/
 .kotlin
@@ -40,6 +41,9 @@ log/
 dependency-reduced-pom.xml
 
 ### IntelliJ IDEA ###
+# 整个目录都不该进版本库：里面是每台机器各自的模块索引、编码、字典等本地配置，
+# 提交上来只会制造无意义的合并冲突（下面几条是历史遗留的逐文件写法，保留兼容）
+.idea/
 .idea/modules.xml
 .idea/jarRepositories.xml
 .idea/compiler.xml
