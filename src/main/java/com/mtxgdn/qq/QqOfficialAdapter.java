@@ -1023,7 +1023,14 @@ public class QqOfficialAdapter implements OneBotSession, OneBotMessageSenderClie
                         .data("senderQq", senderQq)
                         .data("groupId", groupId == null ? 0L : groupId)
                         .build());
-        command.execute(ctx);
+        // 指令执行挪到独立线程池：见 CommandExecutor 的说明。
+        // 原来直接跑在 Grizzly worker 线程上，与所有 REST 请求抢同一个池。
+        final Command execCmd = command;
+        final OneBotClientCommandContext execCtx = ctx;
+        if (!com.mtxgdn.common.command.CommandExecutor.submit("qq:/" + cmd,
+                () -> execCmd.execute(execCtx))) {
+            replyToSource(this, selfId, senderQq, groupId, "服务器繁忙，请稍后再试。");
+        }
     }
 
     private boolean isCommand(String msg) {

@@ -109,6 +109,12 @@ public class Main {
             LOG.info("玩家数据文件同步已完成");
         });
         hook.addTask(() -> {
+            // 指令线程池：停止接收新任务，给已入队的指令 5 秒跑完再强制收尾。
+            // 放在数据库关闭之前 —— 指令执行要用数据库连接。
+            com.mtxgdn.common.command.CommandExecutor.shutdown();
+            LOG.info("指令执行线程池已停止");
+        });
+        hook.addTask(() -> {
             com.mtxgdn.plugin.BuiltInPluginRegistry.getInstance().disableAll(
                     com.mtxgdn.plugin.PluginContext.createSharedContext(
                             new File("data"), Main.class.getClassLoader()));

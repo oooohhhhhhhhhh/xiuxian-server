@@ -341,7 +341,13 @@ public class MinecraftPlayerAdapter implements MinecraftMessageSender {
 
         MinecraftCommandContext ctx = new MinecraftCommandContext(
                 senderName, uuid, arg, this, getCmdPrefix());
-        command.execute(ctx);
+        // 指令执行挪到独立线程池，别占着 MC 的读线程 / Grizzly worker
+        final Command execCmd = command;
+        final MinecraftCommandContext execCtx = ctx;
+        if (!com.mtxgdn.common.command.CommandExecutor.submit("mcplayer:/" + cmd,
+                () -> execCmd.execute(execCtx))) {
+            sendTellRaw(senderName, "服务器繁忙，请稍后再试");
+        }
     }
 
     // ==================== 注册/绑定/解绑 ====================

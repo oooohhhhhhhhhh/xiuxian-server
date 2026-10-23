@@ -168,7 +168,14 @@ public class MinecraftAdapter implements MinecraftMessageSender {
                         .data("arg", args == null ? "" : args)
                         .data("mcName", mcName)
                         .build());
-        command.execute(ctx);
+        // 异步路径（结果通过 sender 回发）可以走独立线程池；
+        // 上面 executeCommand 那条是同步取输出的请求/响应接口，必须留在调用线程
+        final Command execCmd = command;
+        final MinecraftCommandContext execCtx = ctx;
+        if (!com.mtxgdn.common.command.CommandExecutor.submit("mc:/" + cmd,
+                () -> execCmd.execute(execCtx))) {
+            sendPrivateMsg(mcName, "服务器繁忙，请稍后再试");
+        }
     }
 
     private String resolveUuidFor(String mcName) {

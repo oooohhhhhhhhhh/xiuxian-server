@@ -572,7 +572,14 @@ public class OneBotWebSocketServer extends WebSocketApplication
                         .data("senderQq", senderQq)
                         .data("groupId", groupId == null ? 0L : groupId)
                         .build());
-        command.execute(ctx);
+        // 指令执行挪到独立线程池：一条指令 3~12 次 DB 查询，/注册 /改密 还要跑 BCrypt，
+        // 不能占着 Grizzly 的 worker 线程（那个池同时服务所有 REST 请求）
+        final Command execCmd = command;
+        final OneBotCommandContext execCtx = ctx;
+        if (!com.mtxgdn.common.command.CommandExecutor.submit("onebot:/" + cmd,
+                () -> execCmd.execute(execCtx))) {
+            replyToSource(socket, selfId, senderQq, groupId, "服务器繁忙，请稍后再试。");
+        }
     }
 
     private void handleApiResponse(WebSocket socket, JsonObject json) {
