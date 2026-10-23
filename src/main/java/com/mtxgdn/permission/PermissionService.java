@@ -109,6 +109,54 @@ public class PermissionService {
     private static volatile boolean initialized = false;
 
     /**
+     * 用户有效权限码的短期缓存：userId → (权限码集合, 过期时间)。
+     *
+     * <p><b>为什么需要它</b>：{@code hasPermission} 每次调用要跑 <b>3 条 SQL</b> ——
+     * 一次查角色（{@code getUserRoles}）、一次查直接授予的内置权限、
+     * 一次再查同一张 {@code user_permissions} 表拿插件权限码（两次查的是同一张表、同一批行，
+     * 只是过滤条件不同）。而 {@code hasPermission} 会被
+     * {@code PermissionFilter}（每个 REST 请求）、每个 WS 动作、每条 QQ 指令调用一次 ——
+     * 也就是说一次 API 请求光"校验权限"就要 3 次数据库往返。</p>
+     *
+     * <p>权限变更频率远低于读取频率，因此这里按用户缓存有效权限集合，
+     * TTL 内直接命中。所有会改动权限的入口都会显式失效缓存
+     * （见 {@link #invalidatePermissionCache()}），所以 TTL 只用于兜底
+     * "别的地方直接改了库"这种非正常路径。</p>
+     */
+    private static final java.util.concurrent.ConcurrentHashMap<Long, CachedPermissions> PERMISSION_CACHE =
+            new java.util.concurrent.ConcurrentHashMap<>();
+
+    /** 缓存有效期（毫秒）：默认 5 秒，可通过 permission.cache_ttl_ms 调整，0 表示禁用缓存。 */
+    private static final long PERMISSION_CACHE_TTL_MS =
+            Math.max(0, com.mtxgdn.util.AppConfig.getInt("permission.cache_ttl_ms", 5000));
+
+    /** 一个用户的权限缓存项。 */
+    private static final class CachedPermissions {
+        final Set<String> codes;
+        final long expiresAt;
+
+        CachedPermissions(Set<String> codes, long expiresAt) {
+            this.codes = codes;
+            this.expiresAt = expiresAt;
+        }
+    }
+
+    /**
+     * 清空权限缓存。
+     *
+     * <p>所有权限写操作（分配/移除角色、授予/撤销权限、改权限组）都必须调用它，
+     * 否则管理员刚改完的权限要等 TTL 到期才生效 —— 撤销权限尤其不能等。</p>
+     */
+    public static void invalidatePermissionCache() {
+        PERMISSION_CACHE.clear();
+    }
+
+    /** 仅失效单个用户（当前实现直接整体清空，代价可忽略）。 */
+    public static void invalidatePermissionCache(long userId) {
+        PERMISSION_CACHE.remove(userId);
+    }
+
+    /**
      * 确保运行时缓存已加载。
      */
     private static synchronized void ensureLoaded() {
@@ -196,6 +244,9 @@ public class PermissionService {
         groupHierarchy = hierarchy;
         groupDisplayNames = displayNames;
         groupPermissionCodes = perms;
+        // 权限组数据变了，用户的有效权限缓存必须一起作废，
+        // 否则刚被撤掉的权限在 TTL 内仍然有效。
+        PERMISSION_CACHE.clear();
     }
 
     // ==================== 插件权限 ====================
@@ -238,6 +289,8 @@ public class PermissionService {
         } catch (SQLException e) {
             throw new RuntimeException("注册插件权限失败: " + code, e);
         }
+        // 新注册的插件权限会影响"直接授予的权限码是否算数"，缓存必须作废
+        invalidatePermissionCache();
     }
 
     /** 判断一个权限码是否为已注册的插件权限。 */
@@ -470,20 +523,70 @@ public class PermissionService {
 
     /**
      * 检查用户是否拥有指定权限。
+     *
+     * <p>走 {@link #getEffectivePermissionCodes(long)} 的缓存，避免每次调用都跑 3 条 SQL。
+     * 权限判定逻辑本身没有变化：角色继承（含插件权限） ∪ 直接授予，任一命中即为有权。</p>
      */
     public static boolean hasPermission(long userId, String permissionCode) {
-        // 先检查权限组继承（包括插件权限）
-        if (getUserGroupPermissionCodes(userId).contains(permissionCode)) {
-            return true;
+        if (permissionCode == null || permissionCode.isEmpty()) {
+            return false;
         }
-        // 再检查直接分配
-        Set<PermissionCode> directPerms = getUserDirectPermissions(userId);
-        for (PermissionCode pc : directPerms) {
-            if (pc.getCode().equals(permissionCode)) {
-                return true;
+        return getEffectivePermissionCodes(userId).contains(permissionCode);
+    }
+
+    /**
+     * 取用户的有效权限码集合（角色继承 ∪ 直接授予），带短期缓存。
+     *
+     * <p>原来 {@code hasPermission} 分三次查询、其中两次查的是同一张
+     * {@code user_permissions} 表（一次取内置枚举、一次取插件权限码）。
+     * 这里合并成"取一次全量码集合再在内存里判断"，
+     * 单次未命中时是 2 条 SQL，命中时是 0 条。</p>
+     */
+    static Set<String> getEffectivePermissionCodes(long userId) {
+        if (PERMISSION_CACHE_TTL_MS <= 0) {
+            return computeEffectivePermissionCodes(userId);
+        }
+        long now = System.currentTimeMillis();
+        CachedPermissions cached = PERMISSION_CACHE.get(userId);
+        if (cached != null && cached.expiresAt > now) {
+            return cached.codes;
+        }
+        Set<String> codes = computeEffectivePermissionCodes(userId);
+        PERMISSION_CACHE.put(userId, new CachedPermissions(codes, now + PERMISSION_CACHE_TTL_MS));
+        return codes;
+    }
+
+    private static Set<String> computeEffectivePermissionCodes(long userId) {
+        Set<String> result = new HashSet<>(getUserGroupPermissionCodes(userId));
+        // user_permissions 只查一次：同时取出内置权限码与插件权限码
+        for (String code : queryDirectPermissionCodes(userId)) {
+            result.add(code);
+        }
+        return Collections.unmodifiableSet(result);
+    }
+
+    /** 读取 user_permissions 里该用户的全部权限码（内置与插件混在一起）。 */
+    private static Set<String> queryDirectPermissionCodes(long userId) {
+        Set<String> result = new HashSet<>();
+        String sql = "SELECT permission_code FROM user_permissions WHERE user_id = ?";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setLong(1, userId);
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    String code = rs.getString("permission_code");
+                    // 保持原有语义：只有"内置枚举里存在的"或"已注册插件权限"才算数，
+                    // 手工塞进库里的野码一律忽略（否则 hasPermission 的判定范围会比以前宽）。
+                    if (code != null
+                            && (PermissionCode.fromCode(code) != null || pluginPermissions.containsKey(code))) {
+                        result.add(code);
+                    }
+                }
             }
+        } catch (SQLException e) {
+            throw new RuntimeException("查询用户权限失败", e);
         }
-        return getUserPluginPermissionCodes(userId).contains(permissionCode);
+        return result;
     }
 
     // ==================== 用户角色分配 ====================
@@ -503,6 +606,7 @@ public class PermissionService {
         } catch (SQLException e) {
             throw new RuntimeException("分配角色失败", e);
         }
+        invalidatePermissionCache(userId);
     }
 
     /**
@@ -531,6 +635,7 @@ public class PermissionService {
         } catch (SQLException e) {
             throw new RuntimeException("移除角色失败", e);
         }
+        invalidatePermissionCache(userId);
     }
 
     public static void assignDefaultRole(long userId) {
@@ -553,6 +658,7 @@ public class PermissionService {
         } catch (SQLException e) {
             throw new RuntimeException("分配权限失败", e);
         }
+        invalidatePermissionCache(userId);
     }
 
     /**
@@ -568,6 +674,7 @@ public class PermissionService {
         } catch (SQLException e) {
             throw new RuntimeException("移除权限失败", e);
         }
+        invalidatePermissionCache(userId);
     }
 
     /** 获取权限组的默认权限码列表（字符串集合）。 */
