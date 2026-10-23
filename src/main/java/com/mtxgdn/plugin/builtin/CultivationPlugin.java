@@ -6,7 +6,7 @@ import com.mtxgdn.plugin.PluginContext;
 /**
  * 修炼玩法模块。
  * <p>
- * 配置键: built_in_plugins.cultivation（默认 true）
+ * 配置键: plugins.cultivation（默认 true）
  * 功能: 打坐修炼、突破境界、转世重修、每日天象与晨修
  */
 public class CultivationPlugin extends BuiltInPlugin {

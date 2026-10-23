@@ -6,7 +6,7 @@ import com.mtxgdn.plugin.PluginContext;
 /**
  * 技能玩法模块。
  * <p>
- * 配置键: built_in_plugins.skill（默认 true）
+ * 配置键: plugins.skill（默认 true）
  * 功能: 学习技能、技能列表、战斗策略
  */
 public class SkillPlugin extends BuiltInPlugin {

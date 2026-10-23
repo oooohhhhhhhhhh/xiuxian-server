@@ -6,7 +6,7 @@ import com.mtxgdn.plugin.PluginContext;
 /**
  * 洞府玩法模块。
  * <p>
- * 配置键: built_in_plugins.cave（默认 true）
+ * 配置键: plugins.cave（默认 true）
  * 功能: 灵力收集、洞府升级
  */
 public class CavePlugin extends BuiltInPlugin {

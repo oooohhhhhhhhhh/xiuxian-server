@@ -6,7 +6,7 @@ import com.mtxgdn.plugin.PluginContext;
 /**
  * 能量玩法模块。
  * <p>
- * 配置键: built_in_plugins.energy（默认 true）
+ * 配置键: plugins.energy（默认 true）
  * 功能: 物品转化为能量、能量兑换物品
  */
 public class EnergyPlugin extends BuiltInPlugin {

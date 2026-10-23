@@ -6,7 +6,7 @@ import com.mtxgdn.plugin.PluginContext;
 /**
  * 阵法玩法模块。
  * <p>
- * 配置键: built_in_plugins.formation（默认 true）
+ * 配置键: plugins.formation（默认 true）
  * 功能: 阵法布置、阵法加成
  */
 public class FormationPlugin extends BuiltInPlugin {

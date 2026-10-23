@@ -99,11 +99,16 @@ WS 侧 `GameMessage.error(0, "error", GameErrorCode.XXX)` 自动带上 key，无
 
 ## 6. 请求上下文绑定
 
-新增 `LanguageRequestFilter`（`@Provider`，`Priorities.AUTHENTICATION + 10`，排在 JwtAuthFilter 之后）：
+新增 `LanguageRequestFilter`（`@Provider`，`@Priority(Priorities.AUTHENTICATION - 10)`，即 990）：
 
 ```java
 requestContext.setProperty("lang", Locale);
 ```
+
+**优先级说明（此前文档写错过）**：它是 `AUTHENTICATION - 10` = 990，
+排在 `AdminAuthFilter`（1000）与 `JwtAuthFilter`（1010）**之前**，而不是之后。
+顺序必须是「先定语言、再鉴权」—— 否则未登录/令牌过期时返回的 401 响应
+只能落到默认语言，恰恰是最需要让用户看懂的那条消息没有本地化。
 
 `I18n.target()` 读取当前请求的 `ContainerRequestContext`（ThreadLocal 由过滤器注入），service 层无需感知 HTTP：
 

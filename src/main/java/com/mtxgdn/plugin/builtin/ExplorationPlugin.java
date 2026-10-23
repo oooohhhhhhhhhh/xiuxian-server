@@ -6,7 +6,7 @@ import com.mtxgdn.plugin.PluginContext;
 /**
  * 探索/游历玩法模块。
  * <p>
- * 配置键: built_in_plugins.exploration（默认 true）
+ * 配置键: plugins.exploration（默认 true）
  * 功能: 游历探索事件、随机遭遇、奖励结算
  */
 public class ExplorationPlugin extends BuiltInPlugin {

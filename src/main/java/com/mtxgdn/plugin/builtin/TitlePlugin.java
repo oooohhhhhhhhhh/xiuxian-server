@@ -6,7 +6,7 @@ import com.mtxgdn.plugin.PluginContext;
 /**
  * 称号玩法模块。
  * <p>
- * 配置键: built_in_plugins.title（默认 true）
+ * 配置键: plugins.title（默认 true）
  * 功能: 查看称号、装备称号
  */
 public class TitlePlugin extends BuiltInPlugin {

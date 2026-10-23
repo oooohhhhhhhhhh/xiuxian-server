@@ -16,9 +16,38 @@
     </properties>
 
     <dependencies>
-        <!-- 重要：将服务端 jar（或其源码）放到本地 classpath 中
-             例如：将编译好的 服务端 jar 放到 ./libs/ 下，或用 system scope
-             这里展示最简单方式——依赖已编译好的服务端主 jar -->
+        <!--
+          服务端 API。插件源码里 import 的 com.mtxgdn.plugin.* / com.mtxgdn.common.command.* /
+          com.mtxgdn.game.* 全都在服务端主 jar 里，所以必须先把它装进本地仓库：
+
+              cd <服务端仓库根目录>
+              .\mvnw.cmd install        # Linux/macOS: ./mvnw install
+
+          然后本示例才能编译。原来这里是个空的 <dependencies>，照着示例做的插件
+          一定会报 "package com.mtxgdn.plugin does not exist"。
+
+          scope=provided：这些类运行时由服务端提供，插件 jar 里不能再打包一份，
+          否则同一个类会被两个类加载器各加载一次，运行时报 ClassCastException。
+        -->
+        <dependency>
+            <groupId>com.mtxgdn</groupId>
+            <artifactId>main</artifactId>
+            <version>0.1.0</version>
+            <scope>provided</scope>
+        </dependency>
+
+        <!--
+          不想 install 服务端？把 target/main-0.1.0.jar 复制到 examples/sample-plugin/libs/ 下，
+          改用下面这段（system scope 属应急手段，正常开发请用上面的 provided 方式）：
+
+          <dependency>
+              <groupId>com.mtxgdn</groupId>
+              <artifactId>main</artifactId>
+              <version>0.1.0</version>
+              <scope>system</scope>
+              <systemPath>${project.basedir}/libs/main-0.1.0.jar</systemPath>
+          </dependency>
+        -->
     </dependencies>
 
     <build>

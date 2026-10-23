@@ -6,7 +6,7 @@ import com.mtxgdn.plugin.PluginContext;
 /**
  * 团队玩法模块。
  * <p>
- * 配置键: built_in_plugins.team（默认 true）
+ * 配置键: plugins.team（默认 true）
  * 功能: 创建团队、组队副本
  */
 public class TeamPlugin extends BuiltInPlugin {

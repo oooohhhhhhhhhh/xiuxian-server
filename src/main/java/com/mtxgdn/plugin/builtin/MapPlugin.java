@@ -6,7 +6,7 @@ import com.mtxgdn.plugin.PluginContext;
 /**
  * 地图玩法模块。
  * <p>
- * 配置键: built_in_plugins.map（默认 true）
+ * 配置键: plugins.map（默认 true）
  * 功能: 查看地图、移动、旅行
  */
 public class MapPlugin extends BuiltInPlugin {

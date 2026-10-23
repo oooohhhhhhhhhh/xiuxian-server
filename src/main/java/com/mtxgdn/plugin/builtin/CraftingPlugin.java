@@ -6,7 +6,7 @@ import com.mtxgdn.plugin.PluginContext;
 /**
  * 炼丹锻造玩法模块。
  * <p>
- * 配置键: built_in_plugins.crafting（默认 true）
+ * 配置键: plugins.crafting（默认 true）
  * 功能: 配方查看、合成炼制
  */
 public class CraftingPlugin extends BuiltInPlugin {

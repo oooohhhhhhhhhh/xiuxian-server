@@ -6,7 +6,7 @@ import com.mtxgdn.plugin.PluginContext;
 /**
  * Buff 玩法模块。
  * <p>
- * 配置键: built_in_plugins.buff（默认 true）
+ * 配置键: plugins.buff（默认 true）
  * 功能: 增益效果查看与管理
  */
 public class BuffPlugin extends BuiltInPlugin {

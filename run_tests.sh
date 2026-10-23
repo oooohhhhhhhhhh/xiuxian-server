@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 #
-# 运行完整测试套件（146 个测试）
+# 运行完整测试套件（全部测试；具体数量以实际输出为准）
 #
 # 历史遗留问题：本脚本原先引用 -Dtest=SecurityTest 与
 # -Dtest=ComprehensiveFunctionalTest，这两个类在仓库里并不存在，

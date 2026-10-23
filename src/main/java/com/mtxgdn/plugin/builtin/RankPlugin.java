@@ -6,7 +6,7 @@ import com.mtxgdn.plugin.PluginContext;
 /**
  * 排行玩法模块。
  * <p>
- * 配置键: built_in_plugins.rank（默认 true）
+ * 配置键: plugins.rank（默认 true）
  * 功能: 查看排行榜
  */
 public class RankPlugin extends BuiltInPlugin {

@@ -6,7 +6,7 @@ import com.mtxgdn.plugin.PluginContext;
 /**
  * 秘境玩法模块。
  * <p>
- * 配置键: built_in_plugins.secret_realm（默认 true）
+ * 配置键: plugins.secret_realm（默认 true）
  * 功能: 秘境列表、进入秘境、秘境探索奖励
  */
 public class SecretRealmPlugin extends BuiltInPlugin {

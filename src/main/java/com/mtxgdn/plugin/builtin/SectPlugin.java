@@ -6,7 +6,7 @@ import com.mtxgdn.plugin.PluginContext;
 /**
  * 宗门玩法模块。
  * <p>
- * 配置键: built_in_plugins.sect（默认 true）
+ * 配置键: plugins.sect（默认 true）
  * 功能: 创建宗门、宗门管理、宗门仓库、宗门战争
  */
 public class SectPlugin extends BuiltInPlugin {

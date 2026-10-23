@@ -78,9 +78,10 @@ volumes:
 #   2) 编辑卷内的 config/application.yml，把 database 段改成：
 #        database:
 #          type: mysql
-#          host: 127.0.0.1
-#          port: 3306
-#          name: xiuxian
+#          url: jdbc:mysql://127.0.0.1:3306/xiuxian?useUnicode=true&characterEncoding=UTF-8&connectionCollation=utf8mb4_unicode_ci
 #          username: root
 #          password: 改成强口令
+#      注意：本项目**没有** host / port / name 三个配置键，MySQL 连接串是一个完整的
+#      JDBC url。写错键名不会报错（未知键被忽略），服务会继续用 SQLite 启动，
+#      表现为"我明明配了 MySQL，数据却还在 xiuxian.db 里"。
 #      然后 docker compose restart

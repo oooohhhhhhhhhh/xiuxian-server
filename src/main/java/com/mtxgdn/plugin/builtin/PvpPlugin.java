@@ -6,7 +6,7 @@ import com.mtxgdn.plugin.PluginContext;
 /**
  * 战斗玩法模块。
  * <p>
- * 配置键: built_in_plugins.pvp（默认 true）
+ * 配置键: plugins.pvp（默认 true）
  * 功能: 挑战其他修士、决斗系统
  */
 public class PvpPlugin extends BuiltInPlugin {

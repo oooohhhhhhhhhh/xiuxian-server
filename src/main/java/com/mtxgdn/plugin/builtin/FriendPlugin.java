@@ -6,7 +6,7 @@ import com.mtxgdn.plugin.PluginContext;
 /**
  * 好友玩法模块。
  * <p>
- * 配置键: built_in_plugins.friend（默认 true）
+ * 配置键: plugins.friend（默认 true）
  * 功能: 添加好友、好友列表
  */
 public class FriendPlugin extends BuiltInPlugin {

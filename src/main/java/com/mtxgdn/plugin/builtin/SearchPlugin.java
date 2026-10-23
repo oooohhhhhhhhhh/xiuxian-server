@@ -6,7 +6,7 @@ import com.mtxgdn.plugin.PluginContext;
 /**
  * 玩家搜索玩法模块。
  * <p>
- * 配置键: built_in_plugins.search（默认 true）
+ * 配置键: plugins.search（默认 true）
  * 功能: 按名称搜索玩家
  */
 public class SearchPlugin extends BuiltInPlugin {

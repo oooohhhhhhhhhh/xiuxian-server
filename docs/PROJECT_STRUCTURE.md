@@ -4,7 +4,10 @@
 >
 > - 项目版本：`0.1.0`（唯一来源为 `pom.xml` 的 `<version>`；运行时由 `com.mtxgdn.util.BuildInfo` 读取，见 `build-info.properties`）
 > - 构建：Maven（JDK 23）；产物 `target/main-0.1.0.jar`
-> - 统计口径：`src/main/java` 486 个 `.java`（另有 1 个 `data/mtxgdn/lang/zh_cn.json` 语言包）、`src/test/java` 38 个 `.java`，主源码约 7.04 万行（70440 非空白行）；`src` 下共 562 个文件
+> - 统计口径（体量参考，随代码演进会变化；**不是**契约，别拿它对账）：
+>   `src/main/java` 约 500 个 `.java`、`src/test/java` 约 75 个 `.java`，
+>   主源码约 7.5 万非空白行。需要精确数字请自行统计，例如：
+>   `(Get-ChildItem -Recurse -File -Filter *.java src/main/java).Count`
 > - 文中「行数」为该文件的物理行数，用于判断文件体量
 
 ---

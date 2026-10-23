@@ -3,7 +3,9 @@
 本文件记录 xiuxian-server-alpha 各版本的变化。
 
 - 版本号以 `pom.xml` 的 `<version>` 为准，当前为 `0.1.0`。
-- 本仓库目前**没有 git tag**，版本边界以提交信息与 `pom.xml` 为准。
+- 本仓库已有版本 tag（`V1.0.0`、`V1.1.0`、`V1.1.1`、`V1.2.0`、`V1.4.1-beta1`），
+  但当前 `pom.xml` 的 `0.1.0` 与这些 tag 不属于同一条版本线（见下方说明）；
+  日常版本边界仍以提交信息与 `pom.xml` 为准。
 - 分类约定：新增 / 变更 / 修复 / 移除 / 安全 / 测试 / 工程与仓库。
 - 格式参考 [Keep a Changelog](https://keepachangelog.com/zh-CN/1.1.0/)。
 

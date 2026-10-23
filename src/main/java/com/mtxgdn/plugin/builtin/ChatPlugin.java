@@ -6,7 +6,7 @@ import com.mtxgdn.plugin.PluginContext;
 /**
  * 聊天玩法模块。
  * <p>
- * 配置键: built_in_plugins.chat（默认 true）
+ * 配置键: plugins.chat（默认 true）
  * 功能: 世界频道、私聊消息
  */
 public class ChatPlugin extends BuiltInPlugin {

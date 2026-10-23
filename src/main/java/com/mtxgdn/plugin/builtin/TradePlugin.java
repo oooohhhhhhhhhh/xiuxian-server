@@ -6,7 +6,7 @@ import com.mtxgdn.plugin.PluginContext;
 /**
  * 坊市交易玩法模块。
  * <p>
- * 配置键: built_in_plugins.trade（默认 true）
+ * 配置键: plugins.trade（默认 true）
  * 功能: 物品上架、购买、取消挂单、市场列表
  */
 public class TradePlugin extends BuiltInPlugin {

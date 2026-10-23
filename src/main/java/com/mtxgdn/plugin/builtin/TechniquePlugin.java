@@ -6,7 +6,7 @@ import com.mtxgdn.plugin.PluginContext;
 /**
  * 功法玩法模块。
  * <p>
- * 配置键: built_in_plugins.technique（默认 true）
+ * 配置键: plugins.technique（默认 true）
  * 功能: 功法学习、装备、升级
  */
 public class TechniquePlugin extends BuiltInPlugin {
