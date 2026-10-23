@@ -105,24 +105,24 @@ final class SectSuccessionDomain {
         SectMember member = queryDomain.getPlayerMember(playerId);
         if (member == null) {
             result.put("success", false);
-            result.put("message", I18n.t("sect.h6b4e3074"));
+            result.put("message", I18n.t("sect.you_have_not_joined_any"));
             return result;
         }
         if (!member.isLeader()) {
             result.put("success", false);
-            result.put("message", I18n.t("sect.h0349c594"));
+            result.put("message", I18n.t("sect.only_the_sect_leader"));
             return result;
         }
 
         Sect sect = queryDomain.getSectById(member.getSectId());
         if (sect == null) {
             result.put("success", false);
-            result.put("message", I18n.t("sect.hbffa2528"));
+            result.put("message", I18n.t("sect.sect_does_not_exist"));
             return result;
         }
         if (sect.getMemberCount() <= 1) {
             result.put("success", false);
-            result.put("message", I18n.t("sect.h2a6b3b5e"));
+            result.put("message", I18n.t("sect.you_are_the_last_member"));
             return result;
         }
 
@@ -275,14 +275,14 @@ final class SectSuccessionDomain {
         Sect sect = queryDomain.getPlayerSect(playerId);
         if (sect == null) {
             result.put("success", false);
-            result.put("message", I18n.t("sect.h6b4e3074"));
+            result.put("message", I18n.t("sect.you_have_not_joined_any"));
             return result;
         }
 
         long now = System.currentTimeMillis();
         if (!sect.hasActiveContest(now)) {
             result.put("success", false);
-            result.put("message", I18n.t("sect.hd8088058"));
+            result.put("message", I18n.t("sect.there_is_no_ongoing_leadership"));
             return result;
         }
 
@@ -290,14 +290,14 @@ final class SectSuccessionDomain {
         boolean isLeader = playerId == sect.getLeaderPlayerId();
         if (!isChallenger && !isLeader) {
             result.put("success", false);
-            result.put("message", I18n.t("sect.he21dc790"));
+            result.put("message", I18n.t("sect.only_this_sect_s_leader"));
             return result;
         }
 
         if (isChallenger) {
             if (accept) {
                 result.put("success", false);
-                result.put("message", I18n.t("sect.h3e4690e4"));
+                result.put("message", I18n.t("sect.you_are_the_challenger_so"));
                 return result;
             }
             return requestContest(sect, now);
@@ -358,7 +358,7 @@ final class SectSuccessionDomain {
         Map<String, Object> result = new LinkedHashMap<>();
         if (sect.isContestRequested()) {
             result.put("success", false);
-            result.put("message", I18n.t("sect.h937adf7c"));
+            result.put("message", I18n.t("sect.you_have_started_the_challenge"));
             return result;
         }
         String sql = "UPDATE sects SET contest_requested = 1, updated_at = CURRENT_TIMESTAMP "
@@ -375,11 +375,11 @@ final class SectSuccessionDomain {
         }
         if (rows == 0) {
             result.put("success", false);
-            result.put("message", I18n.t("sect.hb77b5854"));
+            result.put("message", I18n.t("sect.the_contest_period_has_ended"));
             return result;
         }
         result.put("success", true);
-        result.put("message", I18n.t("sect.h63a32578", SectSupport.formatTime(sect.getContestUntil())));
+        result.put("message", I18n.t("sect.you_have_challenged_the_sect", SectSupport.formatTime(sect.getContestUntil())));
         return result;
     }
 
@@ -394,7 +394,7 @@ final class SectSuccessionDomain {
         Map<String, Object> result = new LinkedHashMap<>();
         if (!sect.isContestRequested()) {
             result.put("success", false);
-            result.put("message", I18n.t("sect.hb12ade10"));
+            result.put("message", I18n.t("sect.the_challenger_has_not_started"));
             return result;
         }
 
@@ -404,7 +404,7 @@ final class SectSuccessionDomain {
         Player challenger = playerService.getPlayerById(challengerId);
         if (leader == null || challenger == null) {
             result.put("success", false);
-            result.put("message", I18n.t("sect.h07ebe188"));
+            result.put("message", I18n.t("sect.a_dueling_character_no_longer"));
             return result;
         }
 
@@ -468,7 +468,7 @@ final class SectSuccessionDomain {
 
         if (!Boolean.TRUE.equals(applied)) {
             result.put("success", false);
-            result.put("message", I18n.t("sect.hfad55360"));
+            result.put("message", I18n.t("sect.the_challenge_state_has_changed"));
             return result;
         }
 
@@ -482,7 +482,7 @@ final class SectSuccessionDomain {
         result.put("winnerId", winnerId);
         result.put("winnerName", winnerName);
         result.put("battleLog", String.join("\n", battleLog));
-        result.put("message", I18n.t("sect.he75cb234", winnerName));
+        result.put("message", I18n.t("sect.the_leadership_contest_is_over", winnerName));
         return result;
     }
 

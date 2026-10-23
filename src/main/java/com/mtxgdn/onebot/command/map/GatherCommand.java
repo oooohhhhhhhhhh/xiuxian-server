@@ -35,7 +35,7 @@ public class GatherCommand extends Command {
         Long userId = ctx.requireBinding();
         if (userId == null) return;
         PlayerInfo p = ctx.requirePlayer(userId);
-        if (p == null) { ctx.reply(I18n.t("map.hde5e9ffe")); return; }
+        if (p == null) { ctx.reply(I18n.t("map.please_create_a_character_first")); return; }
 
         var result = mapService.gather(p.getId());
         ctx.reply((String) result.get("message"));

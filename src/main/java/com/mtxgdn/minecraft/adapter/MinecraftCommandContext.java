@@ -61,7 +61,7 @@ public class MinecraftCommandContext extends CommandContext {
         if (mcB != null) {
             return mcB.getUserId();
         }
-        reply(I18n.t("minecraft.h9c8a05b2", cmdPrefix, cmdPrefix));
+        reply(I18n.t("minecraft.please_register_or_bind", cmdPrefix, cmdPrefix));
         return null;
     }
 

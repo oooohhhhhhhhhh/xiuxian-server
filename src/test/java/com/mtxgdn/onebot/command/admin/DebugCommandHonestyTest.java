@@ -39,8 +39,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  */
 class DebugCommandHonestyTest {
 
-    private static final String NOTE_KEY = "admin.h3bcc1334";
-    private static final String DONE_KEY = "admin.hdbaa383c";
+    private static final String NOTE_KEY = "admin.note";
+    private static final String DONE_KEY = "admin.command_test_complete_2";
 
     @Test
     @DisplayName("DebugCommand 源码里不得再出现假事务（setAutoCommit(false) / rollback）")

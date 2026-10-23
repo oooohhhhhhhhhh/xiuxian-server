@@ -66,19 +66,19 @@ final class SectWarehouseDomain {
         Map<String, Object> result = new LinkedHashMap<>();
         SectMember member = queryDomain.getMember(sectId, playerId);
         if (member == null) {
-            result.put("success", false); result.put("message", I18n.t("sect.h9e5d5d34")); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.you_are_not_a_member")); return result;
         }
 
         Item item = ItemRegistry.resolve(itemKey);
         if (item == null) {
-            result.put("success", false); result.put("message", I18n.t("sect.hadf213b8")); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.item_does_not_exist")); return result;
         }
         String fullKey = item.getFullKey();
         if (quantity <= 0) {
-            result.put("success", false); result.put("message", I18n.t("sect.h893a9a8c")); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.the_amount_must_be_greater")); return result;
         }
         if (!itemService.hasItem(playerId, fullKey, quantity)) {
-            result.put("success", false); result.put("message", I18n.t("sect.h125ccfd8", item.getName())); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.not_enough_in_your_backpack", item.getName())); return result;
         }
 
         // 修复刷贡献 bug：管理职位（宗主/副宗主/长老）可以免费从仓库取出物品，
@@ -130,9 +130,9 @@ final class SectWarehouseDomain {
 
         result.put("success", true);
         if (isManager) {
-            result.put("message", I18n.t("sect.h69936cdc", item.getName(), quantity));
+            result.put("message", I18n.t("sect.donated_x_to_the_sect", item.getName(), quantity));
         } else {
-            result.put("message", I18n.t("sect.he11c0848", item.getName(), quantity, contributionGain));
+            result.put("message", I18n.t("sect.donated_x_to_the_sect_2", item.getName(), quantity, contributionGain));
         }
         result.put("contributionGain", contributionGain);
         return result;
@@ -142,22 +142,22 @@ final class SectWarehouseDomain {
         Map<String, Object> result = new LinkedHashMap<>();
         SectMember member = queryDomain.getMember(sectId, playerId);
         if (member == null) {
-            result.put("success", false); result.put("message", I18n.t("sect.h9e5d5d34")); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.you_are_not_a_member")); return result;
         }
         if (quantity <= 0) {
-            result.put("success", false); result.put("message", I18n.t("sect.h893a9a8c")); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.the_amount_must_be_greater")); return result;
         }
 
         Item item = ItemRegistry.resolve(itemKey);
         if (item == null) {
-            result.put("success", false); result.put("message", I18n.t("sect.hadf213b8")); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.item_does_not_exist")); return result;
         }
         String fullKey = item.getFullKey();
 
         int available = getWarehouseItemCount(sectId, fullKey);
         if (available < quantity) {
             result.put("success", false);
-            result.put("message", I18n.t("sect.hfb15b644", item.getName(), available)); return result;
+            result.put("message", I18n.t("sect.not_enough_in_the_sect", item.getName(), available)); return result;
         }
 
         boolean isManager = member.canManage();
@@ -166,7 +166,7 @@ final class SectWarehouseDomain {
             long totalCost = costPerItem * quantity;
             if (member.getContribution() < totalCost) {
                 result.put("success", false);
-                result.put("message", I18n.t("sect.h5c16ae54", item.getName(), quantity, totalCost, member.getContribution()));
+                result.put("message", I18n.t("sect.not_enough_contribution", item.getName(), quantity, totalCost, member.getContribution()));
                 return result;
             }
         }

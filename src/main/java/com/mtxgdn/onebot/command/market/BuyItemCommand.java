@@ -15,10 +15,10 @@ public class BuyItemCommand extends Command {
     public void execute(CommandContext ctx) {
         Long userId = ctx.requireBinding(); if (userId == null) return;
         PlayerInfo p = ctx.requirePlayer(userId); if (p == null) return;
-        if (ctx.getArg().trim().isEmpty()) { ctx.reply(I18n.t("market.h6a23d51c")); return; }
+        if (ctx.getArg().trim().isEmpty()) { ctx.reply(I18n.t("market.usage_4")); return; }
         long listingId;
         try { listingId = Long.parseLong(ctx.getArg().trim()); }
-        catch (NumberFormatException e) { ctx.reply(I18n.t("market.h321fe128")); return; }
+        catch (NumberFormatException e) { ctx.reply(I18n.t("market.the_listing_id_must")); return; }
         Map<String, Object> result = ServiceRegistry.getTradeService().buyItem(p.getId(), listingId);
         ctx.reply((String) result.getOrDefault("message", I18n.t("market.buy_failed")));
     }

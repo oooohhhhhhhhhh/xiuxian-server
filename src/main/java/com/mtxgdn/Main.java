@@ -250,7 +250,7 @@ public class Main {
                 data.addProperty("season", season.name());
                 data.addProperty("seasonDisplay", season.getDisplayName());
                 data.addProperty("seasonDesc", season.getDescription());
-                data.addProperty("message", I18n.t("main.h6e8e8544", season.getDisplayName(), season.getDescription()));
+                data.addProperty("message", I18n.t("main.shift_of_the_heavenly_dao", season.getDisplayName(), season.getDescription()));
                 app.broadcast(com.mtxgdn.common.GameMessage.ok(0, "season_change", data));
             }
         });

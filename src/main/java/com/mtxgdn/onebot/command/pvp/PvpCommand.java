@@ -70,7 +70,7 @@ public class PvpCommand extends Command {
 
         String arg = ctx.getArg();
         if (arg == null || arg.isBlank()) {
-            ctx.reply(I18n.t("pvp.h6af3afb0", getUsage()));
+            ctx.reply(I18n.t("pvp.usage", getUsage()));
             return;
         }
 

@@ -23,11 +23,11 @@ public class EditPlayerCommand extends Command {
     public void execute(CommandContext ctx) {
         QqBinding b = ctx.resolveBoundBinding();
         if (b == null) {
-            ctx.reply(I18n.t("admin.hd852a51e"));
+            ctx.reply(I18n.t("admin.please_bind_your_account_first_2"));
             return;
         }
         if (!PermissionService.hasPermission(b.getUserId(), "admin.users.manage")) {
-            ctx.reply(I18n.t("admin.ha43d576a"));
+            ctx.reply(I18n.t("admin.insufficient_permission_3"));
             return;
         }
 
@@ -39,7 +39,7 @@ public class EditPlayerCommand extends Command {
 
         String[] parts = arg.trim().split("\\s+");
         if (parts.length < 2) {
-            ctx.reply(I18n.t("admin.h41e3bb7c"));
+            ctx.reply(I18n.t("admin.missing_arguments_2"));
             return;
         }
 
@@ -47,14 +47,14 @@ public class EditPlayerCommand extends Command {
         try {
             playerId = Long.parseLong(parts[0]);
         } catch (NumberFormatException e) {
-            ctx.reply(I18n.t("admin.haed2b682"));
+            ctx.reply(I18n.t("admin.player_id_must"));
             return;
         }
 
         PlayerService playerService = ServiceRegistry.getPlayerService();
         var p = playerService.getPlayerById(playerId);
         if (p == null) {
-            ctx.reply(I18n.t("admin.h4b69b8e4", playerId));
+            ctx.reply(I18n.t("admin.player_not_found_id", playerId));
             return;
         }
 

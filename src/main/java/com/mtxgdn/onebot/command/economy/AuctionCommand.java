@@ -81,7 +81,7 @@ public class AuctionCommand extends Command {
     }
 
     private void createAuction(CommandContext ctx, PlayerInfo p, String[] parts) {
-        if (parts.length < 4) { ctx.reply(I18n.t("economy.h4bf6cef4")); return; }
+        if (parts.length < 4) { ctx.reply(I18n.t("economy.usage_4")); return; }
 
         String itemName = parts[1];
         int qty;
@@ -89,7 +89,7 @@ public class AuctionCommand extends Command {
         try {
             qty = Integer.parseInt(parts[2]);
             startPrice = Long.parseLong(parts[3]);
-        } catch (NumberFormatException e) { ctx.reply(I18n.t("economy.h1d142008")); return; }
+        } catch (NumberFormatException e) { ctx.reply(I18n.t("economy.invalid_quantity_or_price")); return; }
 
         int hours = 24;
         if (parts.length > 4) {
@@ -102,14 +102,14 @@ public class AuctionCommand extends Command {
     }
 
     private void placeBid(CommandContext ctx, PlayerInfo p, String[] parts) {
-        if (parts.length < 3) { ctx.reply(I18n.t("economy.h4baccbe0")); return; }
+        if (parts.length < 3) { ctx.reply(I18n.t("economy.usage_3")); return; }
 
         long listingId;
         long amount;
         try {
             listingId = Long.parseLong(parts[1]);
             amount = Long.parseLong(parts[2]);
-        } catch (NumberFormatException e) { ctx.reply(I18n.t("economy.he12b3244")); return; }
+        } catch (NumberFormatException e) { ctx.reply(I18n.t("economy.invalid_id_or_price")); return; }
 
         var eco = ServiceRegistry.getEconomyService();
         var result = eco.placeBid(p.getId(), listingId, amount);
@@ -159,7 +159,7 @@ public class AuctionCommand extends Command {
             result.add("items", arr);
         } catch (Exception e) {
             result.addProperty("code", 500);
-            result.addProperty("message", I18n.t("economy.hf186bd38", e.getMessage()));
+            result.addProperty("message", I18n.t("economy.server_error", e.getMessage()));
         }
         return result;
     }
@@ -183,7 +183,7 @@ public class AuctionCommand extends Command {
             result.add("items", arr);
         } catch (Exception e) {
             result.addProperty("code", 500);
-            result.addProperty("message", I18n.t("economy.hf186bd38", e.getMessage()));
+            result.addProperty("message", I18n.t("economy.server_error", e.getMessage()));
         }
         return result;
     }
@@ -198,7 +198,7 @@ public class AuctionCommand extends Command {
             int hours = req.has("hours") ? req.get("hours").getAsInt() : 24;
             if (itemKey.isBlank()) {
                 result.addProperty("code", 400);
-                result.addProperty("message", I18n.t("economy.he3b69f3c"));
+                result.addProperty("message", I18n.t("economy.please_provide_an_item_key"));
                 return result;
             }
             var eco = ServiceRegistry.getEconomyService();
@@ -209,7 +209,7 @@ public class AuctionCommand extends Command {
             if (data.containsKey("listingId")) result.addProperty("listingId", (long) data.get("listingId"));
         } catch (Exception e) {
             result.addProperty("code", 500);
-            result.addProperty("message", I18n.t("economy.hf186bd38", e.getMessage()));
+            result.addProperty("message", I18n.t("economy.server_error", e.getMessage()));
         }
         return result;
     }
@@ -222,7 +222,7 @@ public class AuctionCommand extends Command {
             long amount = req.has("amount") ? req.get("amount").getAsLong() : 0;
             if (listingId <= 0 || amount <= 0) {
                 result.addProperty("code", 400);
-                result.addProperty("message", I18n.t("economy.h3c5e72d8"));
+                result.addProperty("message", I18n.t("economy.please_provide_a_valid_listing"));
                 return result;
             }
             var eco = ServiceRegistry.getEconomyService();
@@ -232,7 +232,7 @@ public class AuctionCommand extends Command {
             result.addProperty("message", (String) data.get("message"));
         } catch (Exception e) {
             result.addProperty("code", 500);
-            result.addProperty("message", I18n.t("economy.hf186bd38", e.getMessage()));
+            result.addProperty("message", I18n.t("economy.server_error", e.getMessage()));
         }
         return result;
     }

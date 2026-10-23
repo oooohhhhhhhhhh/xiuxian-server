@@ -35,7 +35,7 @@ public class SecretAreasCommand extends Command {
         List<SecretRealm> areas = secretRealmService.getAvailableAreas(userId);
 
         if (areas.isEmpty()) {
-            ctx.reply(I18n.t("exploration.h06fd7070"));
+            ctx.reply(I18n.t("exploration.no_secret_realms_are_available"));
             return;
         }
 

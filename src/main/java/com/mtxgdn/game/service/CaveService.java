@@ -58,7 +58,7 @@ public class CaveService {
         Player player = playerService.getPlayerById(playerId);
         if (player == null) {
             result.put("success", false);
-            result.put("message", I18n.t("cave.h59a76b2c"));
+            result.put("message", I18n.t("cave.character_does_not_exist"));
             return result;
         }
 
@@ -66,20 +66,20 @@ public class CaveService {
             String realmName = GameConfigLoader.getRealmConfig(player.getRealm(), 0) != null
                     ? GameConfigLoader.getRealmConfig(player.getRealm(), 0).getFullName() : "凡人";
             result.put("success", false);
-            result.put("message", I18n.t("cave.h90f650ef", realmName));
+            result.put("message", I18n.t("cave.realm_too_low", realmName));
             return result;
         }
 
         if (getCaveByPlayerId(playerId) != null) {
             result.put("success", false);
-            result.put("message", I18n.t("cave.hcf358280"));
+            result.put("message", I18n.t("cave.you_already_have_a_cave"));
             return result;
         }
 
         long spiritStones = itemService.getSpiritStoneCount(playerId);
         if (spiritStones < Cave.CREATE_COST_SPIRIT_STONES) {
             result.put("success", false);
-            result.put("message", I18n.t("cave.h76e9d310", Cave.CREATE_COST_SPIRIT_STONES, spiritStones));
+            result.put("message", I18n.t("cave.not_enough_spirit_stones_2", Cave.CREATE_COST_SPIRIT_STONES, spiritStones));
             return result;
         }
 
@@ -118,11 +118,11 @@ public class CaveService {
 
         if (cave != null) {
             result.put("success", true);
-            result.put("message", I18n.t("cave.h57e5697c", player.getName(), name, Cave.CREATE_COST_SPIRIT_STONES));
+            result.put("message", I18n.t("cave.congratulations_to_on_establishing", player.getName(), name, Cave.CREATE_COST_SPIRIT_STONES));
             result.put("cave", cave);
         } else {
             result.put("success", false);
-            result.put("message", I18n.t("cave.h6e2e686c"));
+            result.put("message", I18n.t("cave.failed_to_establish_the_cave"));
         }
         return result;
     }
@@ -146,7 +146,7 @@ public class CaveService {
         Cave cave = getCaveByPlayerId(playerId);
         if (cave == null) {
             result.put("success", false);
-            result.put("message", I18n.t("cave.h7b28cff2"));
+            result.put("message", I18n.t("cave.you_don_t_3"));
             return result;
         }
 
@@ -197,16 +197,16 @@ public class CaveService {
             if (elapsed < collectInterval) {
                 long remaining = (collectInterval - elapsed) / 1000;
                 result.put("success", false);
-                result.put("message", I18n.t("cave.h5560681a", remaining));
+                result.put("message", I18n.t("cave.the_spiritual_energy", remaining));
             } else {
                 result.put("success", false);
-                result.put("message", I18n.t("cave.h13067628"));
+                result.put("message", I18n.t("cave.not_enough_cave_dwelling_spiritual"));
             }
             return result;
         }
 
         result.put("success", true);
-        result.put("message", I18n.t("cave.h4ad47298", collectedEnergy));
+        result.put("message", I18n.t("cave.collected_the_cave_dwelling_s", collectedEnergy));
         result.put("collected", collectedEnergy);
         return result;
     }
@@ -218,14 +218,14 @@ public class CaveService {
         Cave cave = getCaveByPlayerId(playerId);
         if (cave == null) {
             result.put("success", false);
-            result.put("message", I18n.t("cave.h4e9943c4"));
+            result.put("message", I18n.t("cave.you_don_t"));
             return result;
         }
 
         Player player = playerService.getPlayerById(playerId);
         if (player == null) {
             result.put("success", false);
-            result.put("message", I18n.t("cave.h59a76b2c"));
+            result.put("message", I18n.t("cave.character_does_not_exist"));
             return result;
         }
 
@@ -280,13 +280,13 @@ public class CaveService {
         Cave cave = getCaveByPlayerId(playerId);
         if (cave == null) {
             result.put("success", false);
-            result.put("message", I18n.t("cave.h7b28cff2"));
+            result.put("message", I18n.t("cave.you_don_t_3"));
             return result;
         }
 
         if (cave.getLevel() >= Cave.MAX_LEVEL) {
             result.put("success", false);
-            result.put("message", I18n.t("cave.h58c56ef8", Cave.MAX_LEVEL));
+            result.put("message", I18n.t("cave.the_cave_dwelling_has_reached", Cave.MAX_LEVEL));
             return result;
         }
 
@@ -294,7 +294,7 @@ public class CaveService {
         long spiritStones = itemService.getSpiritStoneCount(playerId);
         if (spiritStones < cost) {
             result.put("success", false);
-            result.put("message", I18n.t("cave.h1c7e44f3", cost, spiritStones));
+            result.put("message", I18n.t("cave.not_enough_spirit_stones", cost, spiritStones));
             return result;
         }
 
@@ -318,7 +318,7 @@ public class CaveService {
 
         int newLevel = cave.getLevel() + 1;
         result.put("success", true);
-        result.put("message", I18n.t("cave.h862af23c", cave.getName(), newLevel, cost, Cave.getCultivationBonusForLevel(newLevel), Cave.getStorageBonusForLevel(newLevel)));
+        result.put("message", I18n.t("cave.cave_dwelling_advanced_to_level", cave.getName(), newLevel, cost, Cave.getCultivationBonusForLevel(newLevel), Cave.getStorageBonusForLevel(newLevel)));
         result.put("newLevel", newLevel);
         return result;
     }

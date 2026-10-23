@@ -64,19 +64,19 @@ public class FormationService {
         Player player = playerService.getPlayerById(playerId);
         if (player == null) {
             result.put("success", false);
-            result.put("message", I18n.t("formation.h59a76b2c"));
+            result.put("message", I18n.t("formation.character_not_found"));
             return result;
         }
 
         if (com.mtxgdn.common.service.ServiceRegistry.getCaveService().getCaveByPlayerId(playerId) == null) {
             result.put("success", false);
-            result.put("message", I18n.t("formation.h28e14f54"));
+            result.put("message", I18n.t("formation.you_do"));
             return result;
         }
 
         if (getActiveFormation(playerId) != null) {
             result.put("success", false);
-            result.put("message", I18n.t("formation.ha5ec7f40"));
+            result.put("message", I18n.t("formation.you_have_already_set_up"));
             return result;
         }
 
@@ -84,7 +84,7 @@ public class FormationService {
         long spiritStones = itemService.getSpiritStoneCount(playerId);
         if (spiritStones < cost) {
             result.put("success", false);
-            result.put("message", I18n.t("formation.h1d087e70", cost, spiritStones));
+            result.put("message", I18n.t("formation.not_enough_spirit_stones_2", cost, spiritStones));
             return result;
         }
 
@@ -116,7 +116,7 @@ public class FormationService {
 
         Formation formation = getActiveFormation(playerId);
         result.put("success", true);
-        result.put("message", I18n.t("formation.h3e37c926", formation.getName(), cost, formation.getDurationMinutes(), formation.getSpiritEnergyBoost(), formation.getCultivationBonus()));
+        result.put("message", I18n.t("formation.successfully_set_up", formation.getName(), cost, formation.getDurationMinutes(), formation.getSpiritEnergyBoost(), formation.getCultivationBonus()));
         result.put("formation", formation);
         return result;
     }
@@ -128,13 +128,13 @@ public class FormationService {
         Formation formation = getActiveFormation(playerId);
         if (formation == null) {
             result.put("success", false);
-            result.put("message", I18n.t("formation.hcd888a30"));
+            result.put("message", I18n.t("formation.you_have_not_set_up"));
             return result;
         }
 
         if (formation.getLevel() >= Formation.MAX_LEVEL) {
             result.put("success", false);
-            result.put("message", I18n.t("formation.ha73f8608", Formation.MAX_LEVEL));
+            result.put("message", I18n.t("formation.the_formation_is_already", Formation.MAX_LEVEL));
             return result;
         }
 
@@ -143,7 +143,7 @@ public class FormationService {
         long spiritStones = itemService.getSpiritStoneCount(playerId);
         if (spiritStones < cost) {
             result.put("success", false);
-            result.put("message", I18n.t("formation.h1c7e44f3", cost, spiritStones));
+            result.put("message", I18n.t("formation.not_enough_spirit_stones", cost, spiritStones));
             return result;
         }
 
@@ -180,7 +180,7 @@ public class FormationService {
         Formation formation = getActiveFormation(playerId);
         if (formation == null) {
             result.put("success", false);
-            result.put("message", I18n.t("formation.hcd888a30"));
+            result.put("message", I18n.t("formation.you_have_not_set_up"));
             return result;
         }
 
@@ -194,7 +194,7 @@ public class FormationService {
         });
 
         result.put("success", true);
-        result.put("message", I18n.t("formation.hd0e361b0", formation.getName()));
+        result.put("message", I18n.t("formation.dismantled", formation.getName()));
         return result;
     }
 
@@ -262,17 +262,17 @@ public class FormationService {
         String formationKey = treasureKeyToFormationKey(treasureFullKey);
         if (formationKey == null) {
             result.put("success", false);
-            result.put("message", I18n.t("formation.h98b5a0c2"));
+            result.put("message", I18n.t("formation.this_is_not_a_formation"));
             return result;
         }
         if (com.mtxgdn.common.service.ServiceRegistry.getCaveService().getCaveByPlayerId(playerId) == null) {
             result.put("success", false);
-            result.put("message", I18n.t("formation.h28e14f54"));
+            result.put("message", I18n.t("formation.you_do"));
             return result;
         }
         if (getActiveFormation(playerId) != null) {
             result.put("success", false);
-            result.put("message", I18n.t("formation.ha5ec7f40"));
+            result.put("message", I18n.t("formation.you_have_already_set_up"));
             return result;
         }
         final int level = 1;
@@ -314,7 +314,7 @@ public class FormationService {
             });
         } catch (Exception e) {
             result.put("success", false);
-            result.put("message", I18n.t("formation.hcbb50590", e.getMessage()));
+            result.put("message", I18n.t("formation.failed_to_use_the_formation", e.getMessage()));
             return result;
         }
         Formation formation = getActiveFormation(playerId);

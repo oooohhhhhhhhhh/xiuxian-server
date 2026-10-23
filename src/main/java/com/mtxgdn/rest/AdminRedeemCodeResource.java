@@ -81,7 +81,7 @@ public class AdminRedeemCodeResource {
             if (code.isBlank()) {
                 JsonObject err = new JsonObject();
                 err.addProperty("code", 400);
-                err.addProperty("message", I18n.t("admin.h6c0eef00"));
+                err.addProperty("message", I18n.t("admin.redeem_code_cannot_be_empty"));
                 return Response.ok(gson.toJson(err)).build();
             }
 
@@ -98,13 +98,13 @@ public class AdminRedeemCodeResource {
 
             JsonObject result = new JsonObject();
             result.addProperty("code", 200);
-            result.addProperty("message", I18n.t("admin.h46172edd"));
+            result.addProperty("message", I18n.t("admin.redeem_code_created"));
             result.add("codeInfo", toRedeemCodeJson(rc));
             return Response.ok(gson.toJson(result)).build();
         } catch (Exception e) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 500);
-            err.addProperty("message", I18n.t("admin.hacdab49b", e.getMessage()));
+            err.addProperty("message", I18n.t("admin.creation_failed_2", e.getMessage()));
             return Response.ok(gson.toJson(err)).build();
         }
     }
@@ -121,7 +121,7 @@ public class AdminRedeemCodeResource {
             if (existing != null && (existing.isRedeemed() || existing.isExpired())) {
                 JsonObject err = new JsonObject();
                 err.addProperty("code", 400);
-                err.addProperty("message", I18n.t("admin.hd589e27c"));
+                err.addProperty("message", I18n.t("admin.redeemed_or_expired_redeem_codes"));
                 return Response.ok(gson.toJson(err)).build();
             }
 
@@ -146,12 +146,12 @@ public class AdminRedeemCodeResource {
 
             JsonObject result = new JsonObject();
             result.addProperty("code", 200);
-            result.addProperty("message", I18n.t("admin.h4d604ddc"));
+            result.addProperty("message", I18n.t("admin.redeem_code_updated"));
             return Response.ok(gson.toJson(result)).build();
         } catch (Exception e) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 500);
-            err.addProperty("message", I18n.t("admin.hae754cdb", e.getMessage()));
+            err.addProperty("message", I18n.t("admin.update_failed", e.getMessage()));
             return Response.ok(gson.toJson(err)).build();
         }
     }
@@ -165,12 +165,12 @@ public class AdminRedeemCodeResource {
             redeemCodeService.deleteCode(id);
             JsonObject result = new JsonObject();
             result.addProperty("code", 200);
-            result.addProperty("message", I18n.t("admin.h2bff2074"));
+            result.addProperty("message", I18n.t("admin.redeem_code_deleted"));
             return Response.ok(gson.toJson(result)).build();
         } catch (Exception e) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 500);
-            err.addProperty("message", I18n.t("admin.h4360d4cc", e.getMessage()));
+            err.addProperty("message", I18n.t("admin.delete_failed_2", e.getMessage()));
             return Response.ok(gson.toJson(err)).build();
         }
     }

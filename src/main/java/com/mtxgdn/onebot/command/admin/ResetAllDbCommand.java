@@ -25,6 +25,6 @@ public class ResetAllDbCommand extends Command {
             }
             sb.append("\n全部数据已重置，默认角色权限已重新初始化。");
             ctx.reply(sb.toString());
-        } catch (Exception e) { ctx.reply(I18n.t("admin.h5c97dedc", e.getMessage())); }
+        } catch (Exception e) { ctx.reply(I18n.t("admin.reset_failed", e.getMessage())); }
     }
 }

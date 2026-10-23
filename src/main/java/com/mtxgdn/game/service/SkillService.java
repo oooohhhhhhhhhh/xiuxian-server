@@ -130,14 +130,14 @@ public class SkillService {
         Skill skill = getSkillById(skillId);
         if (skill == null) {
             result.put("success", false);
-            result.put("message", I18n.t("skill.ha5b097e0"));
+            result.put("message", I18n.t("skill.skill_does_not_exist"));
             result.put("code", 6101);
             return result;
         }
 
         if (hasSkill(playerId, skillId)) {
             result.put("success", false);
-            result.put("message", I18n.t("skill.h013e2d0b", skill.getName()));
+            result.put("message", I18n.t("skill.you_have_already_learned", skill.getName()));
             result.put("code", 6102);
             return result;
         }
@@ -145,21 +145,21 @@ public class SkillService {
         Player player = playerService.getPlayerById(playerId);
         if (player == null) {
             result.put("success", false);
-            result.put("message", I18n.t("skill.h59a76b2c"));
+            result.put("message", I18n.t("skill.character_does_not_exist"));
             result.put("code", 3001);
             return result;
         }
 
         if (player.getRealm() < skill.getRequiredRealm()) {
             result.put("success", false);
-            result.put("message", I18n.t("skill.h72a80ea4", skill.getName()));
+            result.put("message", I18n.t("skill.your_realm_is_too_low", skill.getName()));
             result.put("code", 6103);
             return result;
         }
 
         if (player.getGold() < skill.getLearnCostGold()) {
             result.put("success", false);
-            result.put("message", I18n.t("skill.h3cc9ba00", skill.getName(), skill.getLearnCostGold()));
+            result.put("message", I18n.t("skill.not_enough_gold", skill.getName(), skill.getLearnCostGold()));
             result.put("code", 6104);
             return result;
         }
@@ -168,7 +168,7 @@ public class SkillService {
             long spiritStoneCount = itemService.getSpiritStoneCount(playerId);
             if (spiritStoneCount < skill.getLearnCostSpiritStones()) {
                 result.put("success", false);
-                result.put("message", I18n.t("skill.h0ca410dc", skill.getName(), skill.getLearnCostSpiritStones()));
+                result.put("message", I18n.t("skill.not_enough_spirit_stones", skill.getName(), skill.getLearnCostSpiritStones()));
                 result.put("code", 6104);
                 return result;
             }
@@ -196,13 +196,13 @@ public class SkillService {
             });
         } catch (Exception e) {
             result.put("success", false);
-            result.put("message", I18n.t("skill.h2ac1fb7f", e.getMessage()));
+            result.put("message", I18n.t("skill.failed_to_learn_the_skill", e.getMessage()));
             result.put("code", 6106);
             return result;
         }
 
         result.put("success", true);
-        result.put("message", I18n.t("skill.hbccfeb34", skill.getName()));
+        result.put("message", I18n.t("skill.successfully_learned", skill.getName()));
         result.put("skill", skill);
         ServiceRegistry.getDailyService().onSkillLearn(playerId);
 
@@ -220,20 +220,20 @@ public class SkillService {
         Skill skill = getSkillById(skillId);
         if (skill == null) {
             result.put("success", false);
-            result.put("message", I18n.t("skill.ha299b65a"));
+            result.put("message", I18n.t("skill.the_skill_recorded"));
             return result;
         }
 
         Player player = playerService.getPlayerById(playerId);
         if (player == null) {
             result.put("success", false);
-            result.put("message", I18n.t("skill.h59a76b2c"));
+            result.put("message", I18n.t("skill.character_does_not_exist"));
             return result;
         }
 
         if (player.getRealm() < skill.getRequiredRealm()) {
             result.put("success", false);
-            result.put("message", I18n.t("skill.hc12ff78c", skill.getName()));
+            result.put("message", I18n.t("skill.your_realm_is_too_low_2", skill.getName()));
             return result;
         }
 
@@ -243,7 +243,7 @@ public class SkillService {
             int maxLevel = skill.getMaxLevel();
             if (currentLevel >= maxLevel) {
                 result.put("success", false);
-                result.put("message", I18n.t("skill.hb792b128", skill.getName(), maxLevel));
+                result.put("message", I18n.t("skill.has_reached_max_level_so", skill.getName(), maxLevel));
                 return result;
             }
             int newLevel = currentLevel + 1;
@@ -258,7 +258,7 @@ public class SkillService {
                 throw new RuntimeException("升级技能失败", e);
             }
             result.put("success", true);
-            result.put("message", I18n.t("skill.hbce3b1e7", skill.getName(), newLevel));
+            result.put("message", I18n.t("skill.comprehension_successful_2", skill.getName(), newLevel));
             result.put("skill", skill);
             result.put("newLevel", newLevel);
             return result;
@@ -275,7 +275,7 @@ public class SkillService {
         }
 
         result.put("success", true);
-        result.put("message", I18n.t("skill.h507af608", skill.getName()));
+        result.put("message", I18n.t("skill.comprehension_successful", skill.getName()));
         result.put("skill", skill);
         return result;
     }

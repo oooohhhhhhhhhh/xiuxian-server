@@ -175,7 +175,7 @@ public abstract class Command {
         Long userId = ctx.requireBinding();
         if (userId == null) return;
         if (permission != null && !PermissionService.hasPermission(userId, permission)) {
-            ctx.reply(I18n.t("game.hb36f9631"));
+            ctx.reply(I18n.t("game.insufficient_permission"));
             return;
         }
         PlayerInfo p = ctx.requirePlayer(userId);
@@ -201,13 +201,13 @@ public abstract class Command {
     /** 无参数时的默认行为。覆写此方法来自定义。 */
     protected void onDefault(CommandContext ctx, PlayerInfo p) {
         if (!subIndex.isEmpty()) {
-            ctx.reply(I18n.t("game.h4126d3a0", getUsage()));
+            ctx.reply(I18n.t("game.usage", getUsage()));
         }
     }
 
     /** 未知子命令时的默认行为。覆写此方法来自定义。 */
     protected void onUnknown(CommandContext ctx, PlayerInfo p, String sub, String[] parts) {
-        ctx.reply(I18n.t("game.he37e6dac", sub, getUsage()));
+        ctx.reply(I18n.t("game.unknown_subcommand", sub, getUsage()));
     }
 
     protected PlayerInfo requirePlayerInfo(CommandContext ctx) {

@@ -80,13 +80,13 @@ public class AdminBlacklistResource {
         if (!hasQq && !hasUid) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 400);
-            err.addProperty("message", I18n.t("admin.h7443b43e"));
+            err.addProperty("message", I18n.t("admin.either_qqnumber_or_userid_must"));
             return Response.status(400).entity(gson.toJson(err)).build();
         }
         if (hasQq && hasUid) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 400);
-            err.addProperty("message", I18n.t("admin.hacbe32d4"));
+            err.addProperty("message", I18n.t("admin.provide_only_one_of_qqnumber"));
             return Response.status(400).entity(gson.toJson(err)).build();
         }
 
@@ -116,7 +116,7 @@ public class AdminBlacklistResource {
             blacklistService.removeFromBlacklist(qqNumber);
             JsonObject result = new JsonObject();
             result.addProperty("code", 200);
-            result.addProperty("message", I18n.t("admin.h0ae42a94"));
+            result.addProperty("message", I18n.t("admin.removed_from_the_blacklist"));
             return Response.ok(gson.toJson(result)).build();
         } catch (RuntimeException e) {
             JsonObject err = new JsonObject();
@@ -136,7 +136,7 @@ public class AdminBlacklistResource {
             blacklistService.removeFromBlacklistByUserId(userId);
             JsonObject result = new JsonObject();
             result.addProperty("code", 200);
-            result.addProperty("message", I18n.t("admin.h0ae42a94"));
+            result.addProperty("message", I18n.t("admin.removed_from_the_blacklist"));
             return Response.ok(gson.toJson(result)).build();
         } catch (RuntimeException e) {
             JsonObject err = new JsonObject();

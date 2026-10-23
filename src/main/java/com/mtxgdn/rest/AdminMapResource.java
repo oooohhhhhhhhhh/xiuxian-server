@@ -156,7 +156,7 @@ public class AdminMapResource {
             out.add("data", data);
         } catch (Exception e) {
             out.addProperty("code", 500);
-            out.addProperty("message", I18n.t("admin.h85569e18", e.getMessage()));
+            out.addProperty("message", I18n.t("admin.failed_to_fetch_map_data", e.getMessage()));
         }
         return Response.ok(gson.toJson(out)).build();
     }
@@ -252,7 +252,7 @@ public class AdminMapResource {
 
             if (affected == 0) {
                 out.addProperty("code", 404);
-                out.addProperty("message", I18n.t("admin.ha4a58c18", id));
+                out.addProperty("message", I18n.t("admin.location_not_found", id));
                 return Response.ok(gson.toJson(out)).build();
             }
 
@@ -262,14 +262,14 @@ public class AdminMapResource {
             JsonObject data = new JsonObject();
             data.addProperty("updated", affected);
             out.addProperty("code", 200);
-            out.addProperty("message", I18n.t("admin.h8889c2a8"));
+            out.addProperty("message", I18n.t("admin.updated"));
             out.add("data", data);
         } catch (IllegalArgumentException e) {
             out.addProperty("code", 400);
             out.addProperty("message", e.getMessage());
         } catch (Exception e) {
             out.addProperty("code", 500);
-            out.addProperty("message", I18n.t("admin.hc8779714", e.getMessage()));
+            out.addProperty("message", I18n.t("admin.failed_to_update_location", e.getMessage()));
         }
         return Response.ok(gson.toJson(out)).build();
     }
@@ -376,14 +376,14 @@ public class AdminMapResource {
             JsonObject data = new JsonObject();
             data.addProperty("id", createdId);
             out.addProperty("code", 200);
-            out.addProperty("message", I18n.t("admin.hd47b31cc", name, createdId));
+            out.addProperty("message", I18n.t("admin.new_location_created", name, createdId));
             out.add("data", data);
         } catch (IllegalArgumentException e) {
             out.addProperty("code", 400);
             out.addProperty("message", e.getMessage());
         } catch (Exception e) {
             out.addProperty("code", 500);
-            out.addProperty("message", I18n.t("admin.h4073d7c0", e.getMessage()));
+            out.addProperty("message", I18n.t("admin.failed_to_create_location", e.getMessage()));
         }
         return Response.ok(gson.toJson(out)).build();
     }
@@ -414,7 +414,7 @@ public class AdminMapResource {
                 }
                 if (name == null) {
                     out.addProperty("code", 404);
-                    out.addProperty("message", I18n.t("admin.ha4a58c18", id));
+                    out.addProperty("message", I18n.t("admin.location_not_found", id));
                     return Response.ok(gson.toJson(out)).build();
                 }
 
@@ -456,14 +456,14 @@ public class AdminMapResource {
             JsonObject data = new JsonObject();
             data.addProperty("deleted", affected);
             out.addProperty("code", 200);
-            out.addProperty("message", I18n.t("admin.hbd2c7468"));
+            out.addProperty("message", I18n.t("admin.location_and_its_connections_biases"));
             out.add("data", data);
         } catch (IllegalArgumentException e) {
             out.addProperty("code", 400);
             out.addProperty("message", e.getMessage());
         } catch (Exception e) {
             out.addProperty("code", 500);
-            out.addProperty("message", I18n.t("admin.h4b1fa990", e.getMessage()));
+            out.addProperty("message", I18n.t("admin.failed_to_delete_location", e.getMessage()));
         }
         return Response.ok(gson.toJson(out)).build();
     }
@@ -519,7 +519,7 @@ public class AdminMapResource {
             out.addProperty("message", e.getMessage());
         } catch (Exception e) {
             out.addProperty("code", 500);
-            out.addProperty("message", I18n.t("admin.h711068e8", e.getMessage()));
+            out.addProperty("message", I18n.t("admin.failed_to_save_connection", e.getMessage()));
         }
         return Response.ok(gson.toJson(out)).build();
     }
@@ -551,7 +551,7 @@ public class AdminMapResource {
             }
             if (affected == 0) {
                 out.addProperty("code", 404);
-                out.addProperty("message", I18n.t("admin.hdc76425c", from, to));
+                out.addProperty("message", I18n.t("admin.connection_not_found", from, to));
                 return Response.ok(gson.toJson(out)).build();
             }
 
@@ -560,14 +560,14 @@ public class AdminMapResource {
             JsonObject data = new JsonObject();
             data.addProperty("deleted", affected);
             out.addProperty("code", 200);
-            out.addProperty("message", I18n.t("admin.h673c972e", affected));
+            out.addProperty("message", I18n.t("admin.deleted_connection", affected));
             out.add("data", data);
         } catch (IllegalArgumentException e) {
             out.addProperty("code", 400);
             out.addProperty("message", e.getMessage());
         } catch (Exception e) {
             out.addProperty("code", 500);
-            out.addProperty("message", I18n.t("admin.ha9c91554", e.getMessage()));
+            out.addProperty("message", I18n.t("admin.failed_to_delete_connection", e.getMessage()));
         }
         return Response.ok(gson.toJson(out)).build();
     }

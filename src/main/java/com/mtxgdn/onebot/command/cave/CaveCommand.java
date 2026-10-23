@@ -47,7 +47,7 @@ public class CaveCommand extends Command {
             if (cave == null) {
                 result.addProperty("code", 404);
                 result.addProperty("success", false);
-                result.addProperty("message", I18n.t("cave.h632647d8"));
+                result.addProperty("message", I18n.t("cave.you_don_t_2"));
                 result.addProperty("hasCave", false);
                 return result;
             }
@@ -67,7 +67,7 @@ public class CaveCommand extends Command {
         } catch (Exception e) {
             result.addProperty("code", 500);
             result.addProperty("success", false);
-            result.addProperty("message", I18n.t("cave.hf186bd38", e.getMessage()));
+            result.addProperty("message", I18n.t("cave.server_error", e.getMessage()));
         }
         return result;
     }
@@ -86,7 +86,7 @@ public class CaveCommand extends Command {
         } catch (Exception e) {
             result.addProperty("code", 500);
             result.addProperty("success", false);
-            result.addProperty("message", I18n.t("cave.hf186bd38", e.getMessage()));
+            result.addProperty("message", I18n.t("cave.server_error", e.getMessage()));
         }
         return result;
     }
@@ -104,7 +104,7 @@ public class CaveCommand extends Command {
         } catch (Exception e) {
             result.addProperty("code", 500);
             result.addProperty("success", false);
-            result.addProperty("message", I18n.t("cave.hf186bd38", e.getMessage()));
+            result.addProperty("message", I18n.t("cave.server_error", e.getMessage()));
         }
         return result;
     }
@@ -123,7 +123,7 @@ public class CaveCommand extends Command {
         } catch (Exception e) {
             result.addProperty("code", 500);
             result.addProperty("success", false);
-            result.addProperty("message", I18n.t("cave.hf186bd38", e.getMessage()));
+            result.addProperty("message", I18n.t("cave.server_error", e.getMessage()));
         }
         return result;
     }
@@ -141,7 +141,7 @@ public class CaveCommand extends Command {
         } catch (Exception e) {
             result.addProperty("code", 500);
             result.addProperty("success", false);
-            result.addProperty("message", I18n.t("cave.hf186bd38", e.getMessage()));
+            result.addProperty("message", I18n.t("cave.server_error", e.getMessage()));
         }
         return result;
     }
@@ -178,7 +178,7 @@ public class CaveCommand extends Command {
     private void handleInfo(CommandContext ctx, PlayerInfo p, String[] parts) {
         Cave cave = caveService.getCaveByPlayerId(p.getId());
         if (cave == null) {
-            ctx.reply(I18n.t("cave.h8db42343"));
+            ctx.reply(I18n.t("cave.you_don_t_4"));
             return;
         }
         StringBuilder sb = new StringBuilder();

@@ -51,56 +51,56 @@ public class TeamCommand extends Command {
             case "创建" -> {
                 TeamService.Team team = teamService.createTeam(p.getId());
                 if (team == null) {
-                    ctx.reply(I18n.t("team.h585dd414"));
+                    ctx.reply(I18n.t("team.failed_to_create_the_team"));
                 } else {
-                    ctx.reply(I18n.t("team.hba409ad4", team.getTeamId()));
+                    ctx.reply(I18n.t("team.team_created", team.getTeamId()));
                 }
             }
             case "邀请" -> {
                 if (param == null || param.isBlank()) {
-                    ctx.reply(I18n.t("team.h65714a14"));
+                    ctx.reply(I18n.t("team.usage"));
                     return;
                 }
                 PlayerService playerService = ServiceRegistry.getPlayerService();
                 List<PlayerInfo> targets = playerService.searchPlayersByName(param.trim(), 1, 0);
                 if (targets.isEmpty()) {
-                    ctx.reply(I18n.t("team.h8da85e34", param));
+                    ctx.reply(I18n.t("team.player_does_not_exist", param));
                     return;
                 }
                 PlayerInfo target = targets.get(0);
                 if (target.getId() == p.getId()) {
-                    ctx.reply(I18n.t("team.hcbccd8bd"));
+                    ctx.reply(I18n.t("team.you_cannot_invite_yourself"));
                     return;
                 }
                 if (teamService.invitePlayer(p.getId(), target.getId())) {
-                    ctx.reply(I18n.t("team.h5f9da01c", target.getName()));
+                    ctx.reply(I18n.t("team.team_invite_sent", target.getName()));
                 } else {
-                    ctx.reply(I18n.t("team.h08e42790"));
+                    ctx.reply(I18n.t("team.invite_failed_2"));
                 }
             }
             case "接受" -> {
                 TeamService.Team team = teamService.acceptInvite(p.getId());
                 if (team == null) {
-                    ctx.reply(I18n.t("team.hd4e90c90"));
+                    ctx.reply(I18n.t("team.there_are_no_pending_team"));
                 } else {
-                    ctx.reply(I18n.t("team.hb51696d8", team.getTeamId()));
+                    ctx.reply(I18n.t("team.you_joined_the_team", team.getTeamId()));
                 }
             }
             case "拒绝" -> {
                 teamService.declineInvite(p.getId());
-                ctx.reply(I18n.t("team.hd2c6b3d0"));
+                ctx.reply(I18n.t("team.team_invite_rejected"));
             }
             case "退出" -> {
                 if (teamService.leaveTeam(p.getId())) {
-                    ctx.reply(I18n.t("team.h5ce1c1b0"));
+                    ctx.reply(I18n.t("team.you_have_left_the_team"));
                 } else {
-                    ctx.reply(I18n.t("team.hbe8ba070"));
+                    ctx.reply(I18n.t("team.you_are_not_in_any_2"));
                 }
             }
             case "信息" -> {
                 TeamService.Team team = teamService.getTeam(p.getId());
                 if (team == null) {
-                    ctx.reply(I18n.t("team.ha732136d"));
+                    ctx.reply(I18n.t("team.you_are_not_in_any"));
                     return;
                 }
                 PlayerService playerService = ServiceRegistry.getPlayerService();
@@ -116,7 +116,7 @@ public class TeamCommand extends Command {
             }
             case "副本" -> {
                 if (param == null || param.isBlank()) {
-                    ctx.reply(I18n.t("team.hbd4c6317"));
+                    ctx.reply(I18n.t("team.usage_2"));
                     return;
                 }
                 SecretRealmResult result = ServiceRegistry.getSecretRealmService().enterRaid(p.getId(), param.trim());

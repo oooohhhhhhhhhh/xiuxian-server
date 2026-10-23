@@ -47,7 +47,7 @@ public class CultivateStopCommand extends Command {
 
         if (expGained <= 0) {
             actionLog.logCultivateStop(userId, p.getName(), 0, elapsedSeconds);
-            ctx.reply(I18n.t("cultivation.hf53b1cd0"));
+            ctx.reply(I18n.t("cultivation.the_meditation_was_too_short"));
             return;
         }
 

@@ -61,15 +61,15 @@ public class CraftingService {
         Map<String, Object> result = new LinkedHashMap<>();
         Recipe recipe = getRecipeById(recipeId);
         if (recipe == null) {
-            result.put("success", false); result.put("message", I18n.t("crafting.he6cc13cc")); return result;
+            result.put("success", false); result.put("message", I18n.t("crafting.recipe_not_found")); return result;
         }
 
         Player player = playerService.getPlayerById(playerId);
         if (player == null) {
-            result.put("success", false); result.put("message", I18n.t("crafting.h59a76b2c")); return result;
+            result.put("success", false); result.put("message", I18n.t("crafting.character_not_found")); return result;
         }
         if (player.getRealm() < recipe.getRequiredRealm()) {
-            result.put("success", false); result.put("message", I18n.t("crafting.h944f430b")); return result;
+            result.put("success", false); result.put("message", I18n.t("crafting.realm_too_low")); return result;
         }
 
         Map<String, Integer> requiredMaterials = getRequiredMaterials(recipe);
@@ -82,17 +82,17 @@ public class CraftingService {
                 Item item = ItemRegistry.get(key);
                 String itemName = item != null ? item.getName() : key;
                 result.put("success", false);
-                result.put("message", I18n.t("crafting.hc29629d8", itemName, needed, has));
+                result.put("message", I18n.t("crafting.not_enough_materials", itemName, needed, has));
                 return result;
             }
         }
 
         if (player.getGold() < recipe.getCostGold()) {
-            result.put("success", false); result.put("message", I18n.t("crafting.h3232b74b", recipe.getCostGold())); return result;
+            result.put("success", false); result.put("message", I18n.t("crafting.not_enough_gold", recipe.getCostGold())); return result;
         }
         long ssCount = itemService.getSpiritStoneCount(playerId);
         if (ssCount < recipe.getCostSpiritStones()) {
-            result.put("success", false); result.put("message", I18n.t("crafting.h3bf6a1b1", recipe.getCostSpiritStones())); return result;
+            result.put("success", false); result.put("message", I18n.t("crafting.not_enough_spirit_stones", recipe.getCostSpiritStones())); return result;
         }
 
         // 合成熟练度加成：由累计制造成功次数（craft_count）派生，每级 +0.5% 成功率（上限 +4.5%）
@@ -170,7 +170,7 @@ public class CraftingService {
                     long pityExp = recipe.getMinExpGain() / 3;
                     playerService.addExperience(conn, playerId, pityExp);
                     txResult.put("success", true);
-                    txResult.put("message", I18n.t("crafting.h3acc6868", pityExp));
+                    txResult.put("message", I18n.t("crafting.crafting_failed_2", pityExp));
                     txResult.put("craftSuccess", false);
                     txResult.put("expGained", pityExp);
                 }
@@ -179,7 +179,7 @@ public class CraftingService {
             });
         } catch (Exception e) {
             result.put("success", false);
-            result.put("message", I18n.t("crafting.h178fc9ef", e.getMessage()));
+            result.put("message", I18n.t("crafting.crafting_failed", e.getMessage()));
             return result;
         }
 

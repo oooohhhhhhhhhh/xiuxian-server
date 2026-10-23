@@ -25,11 +25,11 @@ public class TitleService {
     public Map<String, Object> grantTitle(long playerId, String titleKey) {
         Title title = TitleRegistry.get(titleKey);
         if (title == null) {
-            return createResult(false, I18n.t("title.h59382207", titleKey));
+            return createResult(false, I18n.t("title.title_does_not_exist", titleKey));
         }
 
         if (hasTitle(playerId, titleKey)) {
-            return createResult(false, I18n.t("title.h56c44c8c"));
+            return createResult(false, I18n.t("title.you_already_own_that_title"));
         }
 
         String sql = "INSERT INTO player_titles (player_id, title_key, is_equipped) VALUES (?, ?, ?)";
@@ -39,12 +39,12 @@ public class TitleService {
             ps.setString(2, titleKey);
             ps.setBoolean(3, false);
             ps.executeUpdate();
-            Map<String, Object> result = createResult(true, I18n.t("title.hc147083f", title.getName()));
+            Map<String, Object> result = createResult(true, I18n.t("title.successfully_granted_title", title.getName()));
             result.put("titleKey", titleKey);
             result.put("titleName", title.getName());
             return result;
         } catch (SQLException e) {
-            return createResult(false, I18n.t("title.h1b0b95d4", e.getMessage()));
+            return createResult(false, I18n.t("title.failed_to_grant_the_title", e.getMessage()));
         }
     }
 
@@ -105,10 +105,10 @@ public class TitleService {
                 return createResult(true, I18n.t("title.revoked",
                         title != null ? title.getName() : titleKey));
             } else {
-                return createResult(false, I18n.t("title.h4f740e50"));
+                return createResult(false, I18n.t("title.the_player_does_not_own"));
             }
         } catch (SQLException e) {
-            return createResult(false, I18n.t("title.h9856ec28", e.getMessage()));
+            return createResult(false, I18n.t("title.failed_to_revoke_the_title", e.getMessage()));
         }
     }
 
@@ -116,11 +116,11 @@ public class TitleService {
     public Map<String, Object> equipTitle(long playerId, String titleKey) {
         Title title = TitleRegistry.get(titleKey);
         if (title == null) {
-            return createResult(false, I18n.t("title.h59382207", titleKey));
+            return createResult(false, I18n.t("title.title_does_not_exist", titleKey));
         }
 
         if (!hasTitle(playerId, titleKey)) {
-            return createResult(false, I18n.t("title.h3a7cd8ac"));
+            return createResult(false, I18n.t("title.you_do_not_own"));
         }
 
         try {
@@ -130,12 +130,12 @@ public class TitleService {
                 return null;
             });
 
-            Map<String, Object> result = createResult(true, I18n.t("title.h564f1978", title.getName()));
+            Map<String, Object> result = createResult(true, I18n.t("title.equipped_title", title.getName()));
             result.put("titleKey", titleKey);
             result.put("titleName", title.getName());
             return result;
         } catch (Exception e) {
-            return createResult(false, I18n.t("title.h0b6bcf28", e.getMessage()));
+            return createResult(false, I18n.t("title.failed_to_equip_the_title", e.getMessage()));
         }
     }
 
@@ -152,7 +152,7 @@ public class TitleService {
                     rows > 0 ? I18n.t("title.unequipped") : I18n.t("title.none_equipped"));
             return result;
         } catch (SQLException e) {
-            return createResult(false, I18n.t("title.h3e363884", e.getMessage()));
+            return createResult(false, I18n.t("title.failed_to_unequip_the_title", e.getMessage()));
         }
     }
 

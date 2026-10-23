@@ -25,7 +25,7 @@ public class TraceCommand extends Command {
     public void execute(CommandContext ctx) {
         QqBinding b = ctx.resolveBoundBinding();
         if (b == null) {
-            ctx.reply(I18n.t("admin.h3f4f055e"));
+            ctx.reply(I18n.t("admin.please_bind_your_account_first"));
             return;
         }
 
@@ -48,7 +48,7 @@ public class TraceCommand extends Command {
             String input = arg.trim();
             if (!isAdmin) {
                 // player组只能查看自己的轨迹
-                ctx.reply(I18n.t("admin.h10d4d6b8"));
+                ctx.reply(I18n.t("admin.insufficient_permission"));
                 return;
             }
 
@@ -71,7 +71,7 @@ public class TraceCommand extends Command {
             if (targetUserId != null) {
                 String targetRole = PermissionService.getHighestRole(targetUserId);
                 if (!isSuperAdmin && ("ADMIN".equals(targetRole) || "SUPER_ADMIN".equals(targetRole))) {
-                    ctx.reply(I18n.t("admin.h85ed1b46"));
+                    ctx.reply(I18n.t("admin.insufficient_permission_to_view"));
                     return;
                 }
             }
@@ -102,7 +102,7 @@ public class TraceCommand extends Command {
         }
 
         if (logs.isEmpty()) {
-            ctx.reply(I18n.t("admin.h9149f304"));
+            ctx.reply(I18n.t("admin.no_activity_trail_records_yet"));
             return;
         }
 

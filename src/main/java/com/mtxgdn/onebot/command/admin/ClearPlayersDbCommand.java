@@ -25,6 +25,6 @@ public class ClearPlayersDbCommand extends Command {
             }
             sb.append("\n玩家数据已全部清除。");
             ctx.reply(sb.toString());
-        } catch (Exception e) { ctx.reply(I18n.t("admin.hccbaacd4", e.getMessage())); }
+        } catch (Exception e) { ctx.reply(I18n.t("admin.clear_failed", e.getMessage())); }
     }
 }

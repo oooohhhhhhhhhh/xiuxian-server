@@ -109,7 +109,7 @@ public abstract class CommandContext {
             return false;
         }
         if (!PermissionService.hasPermission(userId, permission)) {
-            reply(I18n.t("command_context.ha43d576a"));
+            reply(I18n.t("command_context.insufficient_permission"));
             return false;
         }
         return true;
@@ -118,11 +118,11 @@ public abstract class CommandContext {
     public boolean requirePermission(String permission) {
         Long userId = resolveUserId();
         if (userId == null) {
-            reply(I18n.t("command_context.h3f4f055e"));
+            reply(I18n.t("command_context.please_bind_your_account_first"));
             return false;
         }
         if (!PermissionService.hasPermission(userId, permission)) {
-            reply(I18n.t("command_context.ha43d576a"));
+            reply(I18n.t("command_context.insufficient_permission"));
             return false;
         }
         return true;

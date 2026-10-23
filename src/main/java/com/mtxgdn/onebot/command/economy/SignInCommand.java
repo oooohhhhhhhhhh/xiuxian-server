@@ -63,7 +63,7 @@ public class SignInCommand extends Command {
             if (data.containsKey("reward")) result.addProperty("reward", (String) data.get("reward"));
         } catch (Exception e) {
             result.addProperty("code", 500);
-            result.addProperty("message", I18n.t("economy.hf186bd38", e.getMessage()));
+            result.addProperty("message", I18n.t("economy.server_error", e.getMessage()));
         }
         return result;
     }

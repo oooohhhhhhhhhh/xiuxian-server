@@ -401,7 +401,7 @@ public class UserService {
             }
 
             JsonObject data = new JsonObject();
-            data.addProperty("message", I18n.t("user.hd0c6ad88"));
+            data.addProperty("message", I18n.t("user.password_changed_successfully"));
             return Response.ok(GameMessage.restOk(I18n.t("auth.password_changed"), data).toString()).build();
         } catch (SQLException e) {
             throw new RuntimeException("修改密码失败", e);
@@ -449,7 +449,7 @@ public class UserService {
                 return buildError(404, "用户不存在");
             }
             JsonObject data = new JsonObject();
-            data.addProperty("message", I18n.t("user.h723a7388"));
+            data.addProperty("message", I18n.t("user.account_deleted_successfully"));
             return Response.ok(GameMessage.restOk(I18n.t("auth.account_deleted"), data).toString()).build();
         } catch (SQLException e) {
             throw new RuntimeException("注销账户失败", e);
@@ -477,7 +477,7 @@ public class UserService {
                 }
 
                 JsonObject data = new JsonObject();
-                data.addProperty("message", I18n.t("user.h536a6d04"));
+                data.addProperty("message", I18n.t("user.password_reset_successfully"));
                 data.addProperty("username", username);
                 return Response.ok(GameMessage.restOk(I18n.t("auth.password_reset"), data).toString()).build();
             }

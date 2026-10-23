@@ -41,7 +41,7 @@ public class ExchangeCommand extends Command {
     @Override
     protected void onDefault(CommandContext ctx, PlayerInfo p) {
         if (!BuiltInPluginRegistry.isModuleEnabled(ENERGY_EXCHANGE_PLUGIN)) {
-            ctx.reply(I18n.t("economy.h6ac429d0"));
+            ctx.reply(I18n.t("economy.the_energy_conversion_system_2"));
             return;
         }
         // 默认行为：物品转化为能量
@@ -62,12 +62,12 @@ public class ExchangeCommand extends Command {
             try {
                 quantity = Integer.parseInt(parts[1]);
             } catch (NumberFormatException e) {
-                ctx.reply(I18n.t("economy.h076e926e"));
+                ctx.reply(I18n.t("economy.quantity_must_be_a_whole"));
                 return;
             }
         }
         if (quantity <= 0) {
-            ctx.reply(I18n.t("economy.h5afa12b2"));
+            ctx.reply(I18n.t("economy.quantity_must_be_greater_than"));
             return;
         }
 
@@ -80,20 +80,20 @@ public class ExchangeCommand extends Command {
 
         Item item = ItemRegistry.resolve(itemInput);
         if (item == null) {
-            ctx.reply(I18n.t("economy.h2fd99a58", itemInput));
+            ctx.reply(I18n.t("economy.item_not_found", itemInput));
             return;
         }
 
         String fullKey = item.getFullKey();
         if (!itemService.hasItem(p.getId(), fullKey, quantity)) {
             long have = itemService.getItemCount(p.getId(), fullKey);
-            ctx.reply(I18n.t("economy.h9bf61f18", item.getName(), quantity, have));
+            ctx.reply(I18n.t("economy.not_enough_in_your_backpack_2", item.getName(), quantity, have));
             return;
         }
 
         long energyPerItem = EnergyService.resolveConvertGain(fullKey);
         if (energyPerItem <= 0) {
-            ctx.reply(I18n.t("economy.h5837e388", item.getName()));
+            ctx.reply(I18n.t("economy.has_no_conversion_value", item.getName()));
             return;
         }
 
@@ -102,16 +102,16 @@ public class ExchangeCommand extends Command {
         itemService.removeItem(p.getId(), fullKey, quantity);
         energyService.addEnergy(p.getId(), totalEnergy);
 
-        ctx.reply(I18n.t("economy.h598550a0", item.getName(), quantity, totalEnergy, item.getName(), energyPerItem, energyService.getEnergy(p.getId())));
+        ctx.reply(I18n.t("economy.conversion_successful", item.getName(), quantity, totalEnergy, item.getName(), energyPerItem, energyService.getEnergy(p.getId())));
     }
 
     private void doConvertEnergyToItem(CommandContext ctx, PlayerInfo p, String[] parts) {
         if (!BuiltInPluginRegistry.isModuleEnabled(ENERGY_EXCHANGE_PLUGIN)) {
-            ctx.reply(I18n.t("economy.h6ac429d0"));
+            ctx.reply(I18n.t("economy.the_energy_conversion_system_2"));
             return;
         }
         if (parts.length < 2) {
-            ctx.reply(I18n.t("economy.hf8f3e890"));
+            ctx.reply(I18n.t("economy.usage_8"));
             return;
         }
 
@@ -121,12 +121,12 @@ public class ExchangeCommand extends Command {
             try {
                 quantity = Integer.parseInt(parts[2]);
             } catch (NumberFormatException e) {
-                ctx.reply(I18n.t("economy.h076e926e"));
+                ctx.reply(I18n.t("economy.quantity_must_be_a_whole"));
                 return;
             }
         }
         if (quantity <= 0) {
-            ctx.reply(I18n.t("economy.h5afa12b2"));
+            ctx.reply(I18n.t("economy.quantity_must_be_greater_than"));
             return;
         }
 
@@ -135,13 +135,13 @@ public class ExchangeCommand extends Command {
 
         Item item = ItemRegistry.resolve(itemInput);
         if (item == null) {
-            ctx.reply(I18n.t("economy.h75ee4eb8", itemInput));
+            ctx.reply(I18n.t("economy.item_not_found_4", itemInput));
             return;
         }
 
         long energyPerItem = EnergyService.resolveEnergyValue(item.getFullKey());
         if (energyPerItem <= 0) {
-            ctx.reply(I18n.t("economy.h8bf2c41e", item.getName()));
+            ctx.reply(I18n.t("economy.has_no_conversion_value_2", item.getName()));
             return;
         }
 
@@ -149,28 +149,28 @@ public class ExchangeCommand extends Command {
         long currentEnergy = energyService.getEnergy(p.getId());
 
         if (currentEnergy < totalCost) {
-            ctx.reply(I18n.t("economy.hdb421330", totalCost, currentEnergy));
+            ctx.reply(I18n.t("economy.not_enough_energy_2", totalCost, currentEnergy));
             return;
         }
 
         if (!energyService.removeEnergy(p.getId(), totalCost)) {
-            ctx.reply(I18n.t("economy.h64014920"));
+            ctx.reply(I18n.t("economy.failed_to_deduct_energy"));
             return;
         }
 
         itemService.addItem(p.getId(), item.getFullKey(), quantity);
 
-        ctx.reply(I18n.t("economy.hbefa0def", totalCost, item.getName(), quantity, item.getName(), energyPerItem, energyService.getEnergy(p.getId())));
+        ctx.reply(I18n.t("economy.exchange_successful_3", totalCost, item.getName(), quantity, item.getName(), energyPerItem, energyService.getEnergy(p.getId())));
     }
 
     private void doList(CommandContext ctx, PlayerInfo p, String[] parts) {
         if (!BuiltInPluginRegistry.isModuleEnabled(ENERGY_EXCHANGE_PLUGIN)) {
-            ctx.reply(I18n.t("economy.h6ac429d0"));
+            ctx.reply(I18n.t("economy.the_energy_conversion_system_2"));
             return;
         }
         var items = ItemRegistry.getAll();
         if (items.isEmpty()) {
-            ctx.reply(I18n.t("economy.he88d4f66"));
+            ctx.reply(I18n.t("economy.there_are_no_convertible_items"));
             return;
         }
 
@@ -191,7 +191,7 @@ public class ExchangeCommand extends Command {
         hasItems = !sb.toString().equals("可转化的物品列表（按价值排序）:\n");
 
         if (!hasItems) {
-            ctx.reply(I18n.t("economy.he88d4f66"));
+            ctx.reply(I18n.t("economy.there_are_no_convertible_items"));
             return;
         }
 
@@ -202,13 +202,13 @@ public class ExchangeCommand extends Command {
 
     private void doHelp(CommandContext ctx, PlayerInfo p, String[] parts) {
         if (!BuiltInPluginRegistry.isModuleEnabled(ENERGY_EXCHANGE_PLUGIN)) {
-            ctx.reply(I18n.t("economy.h6ac429d0"));
+            ctx.reply(I18n.t("economy.the_energy_conversion_system_2"));
             return;
         }
         EnergyService energyService = ServiceRegistry.getEnergyService();
         long energy = energyService.getEnergy(p.getId());
 
-        ctx.reply(I18n.t("economy.hc9dbf890", energy));
+        ctx.reply(I18n.t("economy.energy_conversion_system_ncurrent_energy", energy));
     }
 
     // ==================== REST API 处理器 ====================
@@ -222,7 +222,7 @@ public class ExchangeCommand extends Command {
         try {
             if (!BuiltInPluginRegistry.isModuleEnabled(ENERGY_EXCHANGE_PLUGIN)) {
                 result.addProperty("code", 403);
-                result.addProperty("message", I18n.t("economy.h4aa0a0f2"));
+                result.addProperty("message", I18n.t("economy.the_energy_conversion_system"));
                 return result;
             }
 
@@ -232,12 +232,12 @@ public class ExchangeCommand extends Command {
 
             if (itemKey.isBlank()) {
                 result.addProperty("code", 400);
-                result.addProperty("message", I18n.t("economy.he3b69f3c"));
+                result.addProperty("message", I18n.t("economy.please_provide_an_item_key"));
                 return result;
             }
             if (quantity <= 0) {
                 result.addProperty("code", 400);
-                result.addProperty("message", I18n.t("economy.hc0d8a9c4"));
+                result.addProperty("message", I18n.t("economy.quantity_must_be_greater_than_3"));
                 return result;
             }
 
@@ -248,7 +248,7 @@ public class ExchangeCommand extends Command {
             Item item = ItemRegistry.resolve(itemKey);
             if (item == null) {
                 result.addProperty("code", 404);
-                result.addProperty("message", I18n.t("economy.h3c2a9282", itemKey));
+                result.addProperty("message", I18n.t("economy.item_not_found_2", itemKey));
                 return result;
             }
 
@@ -256,14 +256,14 @@ public class ExchangeCommand extends Command {
             if (!itemService.hasItem(playerId, fullKey, quantity)) {
                 long have = itemService.getItemCount(playerId, fullKey);
                 result.addProperty("code", 400);
-                result.addProperty("message", I18n.t("economy.h366e16c0", quantity, have));
+                result.addProperty("message", I18n.t("economy.not_enough_items", quantity, have));
                 return result;
             }
 
             long energyPerItem = EnergyService.resolveConvertGain(fullKey);
             if (energyPerItem <= 0) {
                 result.addProperty("code", 400);
-                result.addProperty("message", I18n.t("economy.h3a017ec4"));
+                result.addProperty("message", I18n.t("economy.this_item_has_no_conversion"));
                 return result;
             }
 
@@ -272,7 +272,7 @@ public class ExchangeCommand extends Command {
             energyService.addEnergy(playerId, totalEnergy);
 
             result.addProperty("code", 200);
-            result.addProperty("message", I18n.t("economy.h863a8dc5"));
+            result.addProperty("message", I18n.t("economy.conversion_successful_2"));
             result.addProperty("itemName", item.getName());
             result.addProperty("itemKey", fullKey);
             result.addProperty("quantity", quantity);
@@ -280,7 +280,7 @@ public class ExchangeCommand extends Command {
             result.addProperty("currentEnergy", energyService.getEnergy(playerId));
         } catch (Exception e) {
             result.addProperty("code", 500);
-            result.addProperty("message", I18n.t("economy.hf186bd38", e.getMessage()));
+            result.addProperty("message", I18n.t("economy.server_error", e.getMessage()));
         }
         return result;
     }
@@ -294,7 +294,7 @@ public class ExchangeCommand extends Command {
         try {
             if (!BuiltInPluginRegistry.isModuleEnabled(ENERGY_EXCHANGE_PLUGIN)) {
                 result.addProperty("code", 403);
-                result.addProperty("message", I18n.t("economy.h4aa0a0f2"));
+                result.addProperty("message", I18n.t("economy.the_energy_conversion_system"));
                 return result;
             }
 
@@ -304,12 +304,12 @@ public class ExchangeCommand extends Command {
 
             if (itemKey.isBlank()) {
                 result.addProperty("code", 400);
-                result.addProperty("message", I18n.t("economy.he3b69f3c"));
+                result.addProperty("message", I18n.t("economy.please_provide_an_item_key"));
                 return result;
             }
             if (quantity <= 0) {
                 result.addProperty("code", 400);
-                result.addProperty("message", I18n.t("economy.hc0d8a9c4"));
+                result.addProperty("message", I18n.t("economy.quantity_must_be_greater_than_3"));
                 return result;
             }
 
@@ -320,14 +320,14 @@ public class ExchangeCommand extends Command {
             Item item = ItemRegistry.resolve(itemKey);
             if (item == null) {
                 result.addProperty("code", 404);
-                result.addProperty("message", I18n.t("economy.h3c2a9282", itemKey));
+                result.addProperty("message", I18n.t("economy.item_not_found_2", itemKey));
                 return result;
             }
 
             long energyPerItem = EnergyService.resolveEnergyValue(item.getFullKey());
             if (energyPerItem <= 0) {
                 result.addProperty("code", 400);
-                result.addProperty("message", I18n.t("economy.h99e42a98"));
+                result.addProperty("message", I18n.t("economy.this_item_has_no_conversion_2"));
                 return result;
             }
 
@@ -336,20 +336,20 @@ public class ExchangeCommand extends Command {
 
             if (currentEnergy < totalCost) {
                 result.addProperty("code", 400);
-                result.addProperty("message", I18n.t("economy.h22ad3990", totalCost, currentEnergy));
+                result.addProperty("message", I18n.t("economy.not_enough_energy", totalCost, currentEnergy));
                 return result;
             }
 
             if (!energyService.removeEnergy(playerId, totalCost)) {
                 result.addProperty("code", 500);
-                result.addProperty("message", I18n.t("economy.h66110c74"));
+                result.addProperty("message", I18n.t("economy.failed_to_deduct_energy_2"));
                 return result;
             }
 
             itemService.addItem(playerId, item.getFullKey(), quantity);
 
             result.addProperty("code", 200);
-            result.addProperty("message", I18n.t("economy.h88ec9794"));
+            result.addProperty("message", I18n.t("economy.exchange_successful"));
             result.addProperty("itemName", item.getName());
             result.addProperty("itemKey", item.getFullKey());
             result.addProperty("quantity", quantity);
@@ -357,7 +357,7 @@ public class ExchangeCommand extends Command {
             result.addProperty("currentEnergy", energyService.getEnergy(playerId));
         } catch (Exception e) {
             result.addProperty("code", 500);
-            result.addProperty("message", I18n.t("economy.hf186bd38", e.getMessage()));
+            result.addProperty("message", I18n.t("economy.server_error", e.getMessage()));
         }
         return result;
     }
@@ -371,7 +371,7 @@ public class ExchangeCommand extends Command {
         try {
             if (!BuiltInPluginRegistry.isModuleEnabled(ENERGY_EXCHANGE_PLUGIN)) {
                 result.addProperty("code", 403);
-                result.addProperty("message", I18n.t("economy.h4aa0a0f2"));
+                result.addProperty("message", I18n.t("economy.the_energy_conversion_system"));
                 return result;
             }
 
@@ -391,7 +391,7 @@ public class ExchangeCommand extends Command {
             result.add("items", itemsArr);
         } catch (Exception e) {
             result.addProperty("code", 500);
-            result.addProperty("message", I18n.t("economy.hf186bd38", e.getMessage()));
+            result.addProperty("message", I18n.t("economy.server_error", e.getMessage()));
         }
         return result;
     }
@@ -405,7 +405,7 @@ public class ExchangeCommand extends Command {
         try {
             if (!BuiltInPluginRegistry.isModuleEnabled(ENERGY_EXCHANGE_PLUGIN)) {
                 result.addProperty("code", 403);
-                result.addProperty("message", I18n.t("economy.h4aa0a0f2"));
+                result.addProperty("message", I18n.t("economy.the_energy_conversion_system"));
                 return result;
             }
 
@@ -418,7 +418,7 @@ public class ExchangeCommand extends Command {
             result.addProperty("energy", energy);
         } catch (Exception e) {
             result.addProperty("code", 500);
-            result.addProperty("message", I18n.t("economy.hf186bd38", e.getMessage()));
+            result.addProperty("message", I18n.t("economy.server_error", e.getMessage()));
         }
         return result;
     }

@@ -46,7 +46,7 @@ public class RedeemCommand extends Command {
         try {
             doExecute(ctx);
         } catch (Exception e) {
-            ctx.reply(I18n.t("redeem.h4943b29e"));
+            ctx.reply(I18n.t("redeem.the_redemption_system_is_temporarily"));
             LOG.error("兑换指令执行异常: " + e.getMessage(), e);
             // 不再 printStackTrace：异常要进日志文件，也不能把堆栈刷到控制台
         }
@@ -55,32 +55,32 @@ public class RedeemCommand extends Command {
     private void doExecute(CommandContext ctx) {
         QqBinding b = ctx.resolveBoundBinding();
         if (b == null) {
-            ctx.reply(I18n.t("redeem.hd852a51e"));
+            ctx.reply(I18n.t("redeem.please_bind_your_account_first"));
             return;
         }
         if (!PermissionService.hasPermission(b.getUserId(), "game.redeem.code")) {
-            ctx.reply(I18n.t("redeem.ha43d576a"));
+            ctx.reply(I18n.t("redeem.insufficient_permissions"));
             return;
         }
 
         var p = playerService.getPlayerByUserId(b.getUserId());
         if (p == null) {
-            ctx.reply(I18n.t("redeem.h0b0f09b4"));
+            ctx.reply(I18n.t("redeem.please_create_a_character_first"));
             return;
         }
 
         String arg = ctx.getArg();
         if (arg == null || arg.isBlank()) {
-            ctx.reply(I18n.t("redeem.h5468348e"));
+            ctx.reply(I18n.t("redeem.usage"));
             return;
         }
 
         String result = redeemCodeService.doRedeem(arg.trim(), p.getId());
         if (result == null) {
-            ctx.reply(I18n.t("redeem.h2128a290"));
+            ctx.reply(I18n.t("redeem.redeemed_successfully"));
         } else if (result.startsWith("SUCCESS:")) {
             String rewards = result.substring("SUCCESS:".length());
-            ctx.reply(I18n.t("redeem.h660db410", rewards));
+            ctx.reply(I18n.t("redeem.redeemed_successfully_2", rewards));
         } else {
             ctx.reply(result);
         }
@@ -93,7 +93,7 @@ public class RedeemCommand extends Command {
             String body = ctx.body();
             if (body == null || body.isBlank()) {
                 result.addProperty("code", 400);
-                result.addProperty("message", I18n.t("redeem.h3a7bedb4"));
+                result.addProperty("message", I18n.t("redeem.the_request_body_cannot"));
                 return result;
             }
             JsonObject req = ctx.bodyJson();
@@ -101,32 +101,32 @@ public class RedeemCommand extends Command {
 
             if (code.isBlank()) {
                 result.addProperty("code", 400);
-                result.addProperty("message", I18n.t("redeem.h4616a2ab"));
+                result.addProperty("message", I18n.t("redeem.please_provide_a_redemption_code"));
                 return result;
             }
 
             int playerId = ctx.playerId();
             if (playerId <= 0) {
                 result.addProperty("code", 400);
-                result.addProperty("message", I18n.t("redeem.h9e82cff4"));
+                result.addProperty("message", I18n.t("redeem.please_enter_the_game_first"));
                 return result;
             }
 
             String redeemResult = redeemCodeService.doRedeem(code.trim(), playerId);
             if (redeemResult == null) {
                 result.addProperty("code", 200);
-                result.addProperty("message", I18n.t("redeem.h2128a290"));
+                result.addProperty("message", I18n.t("redeem.redeemed_successfully"));
             } else if (redeemResult.startsWith("SUCCESS:")) {
                 String rewards = redeemResult.substring("SUCCESS:".length());
                 result.addProperty("code", 200);
-                result.addProperty("message", I18n.t("redeem.h660db410", rewards));
+                result.addProperty("message", I18n.t("redeem.redeemed_successfully_2", rewards));
             } else {
                 result.addProperty("code", 400);
                 result.addProperty("message", redeemResult);
             }
         } catch (Exception e) {
             result.addProperty("code", 500);
-            result.addProperty("message", I18n.t("redeem.hf186bd38", e.getMessage()));
+            result.addProperty("message", I18n.t("redeem.server_error", e.getMessage()));
         }
         return result;
     }

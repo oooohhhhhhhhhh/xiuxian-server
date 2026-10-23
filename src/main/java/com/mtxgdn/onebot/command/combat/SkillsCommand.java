@@ -29,7 +29,7 @@ public class SkillsCommand extends Command {
         var skillService = ServiceRegistry.getSkillService();
         var guideService = ServiceRegistry.getGuideService();
         List<Skill> allSkills = skillService.getAllSkills();
-        if (allSkills.isEmpty()) { ctx.reply(I18n.t("combat.hc0c642ae")); return; }
+        if (allSkills.isEmpty()) { ctx.reply(I18n.t("combat.no_skills_available")); return; }
         StringBuilder sb = new StringBuilder();
         sb.append("===== 技能列表 =====\n");
         for (Skill s : allSkills) {
@@ -45,7 +45,7 @@ public class SkillsCommand extends Command {
 
     private void upgradeSkill(CommandContext ctx, PlayerInfo p, String[] parts) {
         if (parts.length < 2) {
-            ctx.reply(I18n.t("combat.h5ff9c1a2"));
+            ctx.reply(I18n.t("combat.usage_3"));
             return;
         }
 
@@ -53,21 +53,21 @@ public class SkillsCommand extends Command {
         try {
             skillId = Long.parseLong(parts[1]);
         } catch (NumberFormatException e) {
-            ctx.reply(I18n.t("combat.hc411208c"));
+            ctx.reply(I18n.t("combat.invalid_skill_id"));
             return;
         }
 
         var skillService = ServiceRegistry.getSkillService();
         Skill skill = skillService.getPlayerSkill(p.getId(), skillId);
         if (skill == null) {
-            ctx.reply(I18n.t("combat.h940932f1"));
+            ctx.reply(I18n.t("combat.you_have_not_learned"));
             return;
         }
 
         int currentLevel = skill.getLevel();
         int maxLevel = skill.getMaxLevel();
         if (currentLevel >= maxLevel) {
-            ctx.reply(I18n.t("combat.h9805e04c", skill.getName(), maxLevel));
+            ctx.reply(I18n.t("combat.skill_is_already_at_max", skill.getName(), maxLevel));
             return;
         }
 
@@ -75,7 +75,7 @@ public class SkillsCommand extends Command {
         int currentProficiency = skill.getProficiency();
         if (currentProficiency < proficiencyNeeded) {
             int remaining = proficiencyNeeded - currentProficiency;
-            ctx.reply(I18n.t("combat.he295e0a4", skill.getName(), currentLevel, proficiencyNeeded, currentProficiency, remaining));
+            ctx.reply(I18n.t("combat.not_enough_proficiency", skill.getName(), currentLevel, proficiencyNeeded, currentProficiency, remaining));
             return;
         }
 
@@ -91,10 +91,10 @@ public class SkillsCommand extends Command {
             ps.setLong(4, skillId);
             ps.executeUpdate();
         } catch (SQLException e) {
-            ctx.reply(I18n.t("combat.h585194df", e.getMessage()));
+            ctx.reply(I18n.t("combat.upgrade_failed", e.getMessage()));
             return;
         }
 
-        ctx.reply(I18n.t("combat.ha04c1ada", skill.getName(), currentLevel, newLevel, proficiencyNeeded, newProficiency));
+        ctx.reply(I18n.t("combat.upgrade_successful", skill.getName(), currentLevel, newLevel, proficiencyNeeded, newProficiency));
     }
 }

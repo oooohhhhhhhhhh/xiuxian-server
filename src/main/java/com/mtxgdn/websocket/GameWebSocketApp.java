@@ -320,7 +320,7 @@ public class GameWebSocketApp extends WebSocketApplication implements WsContext 
                 }
                 welcomeData.add("offlineReward", offlineJson);
             }
-            welcomeData.addProperty("message", I18n.t("websocket.h39800675"));
+            welcomeData.addProperty("message", I18n.t("websocket.connected"));
 
             GameMessage welcome = GameMessage.ok(0, "welcome", welcomeData);
             socket.send(welcome.toJson());

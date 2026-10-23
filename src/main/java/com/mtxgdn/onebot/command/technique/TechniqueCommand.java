@@ -74,9 +74,9 @@ public class TechniqueCommand extends Command {
     }
 
     private void learnTechnique(CommandContext ctx, PlayerInfo p, String[] parts) {
-        if (parts.length < 2) { ctx.reply(I18n.t("technique.h32f7d28c")); return; }
+        if (parts.length < 2) { ctx.reply(I18n.t("technique.usage")); return; }
         long techniqueId;
-        try { techniqueId = Long.parseLong(parts[1]); } catch (NumberFormatException e) { ctx.reply(I18n.t("technique.h886e6000")); return; }
+        try { techniqueId = Long.parseLong(parts[1]); } catch (NumberFormatException e) { ctx.reply(I18n.t("technique.invalid_technique_id")); return; }
 
         var service = ServiceRegistry.getTechniqueService();
         Map<String, Object> result = service.learnTechnique(p.getId(), techniqueId);
@@ -84,9 +84,9 @@ public class TechniqueCommand extends Command {
     }
 
     private void equipTechnique(CommandContext ctx, PlayerInfo p, String[] parts) {
-        if (parts.length < 2) { ctx.reply(I18n.t("technique.h9af56d32")); return; }
+        if (parts.length < 2) { ctx.reply(I18n.t("technique.usage_3")); return; }
         long techniqueId;
-        try { techniqueId = Long.parseLong(parts[1]); } catch (NumberFormatException e) { ctx.reply(I18n.t("technique.h886e6000")); return; }
+        try { techniqueId = Long.parseLong(parts[1]); } catch (NumberFormatException e) { ctx.reply(I18n.t("technique.invalid_technique_id")); return; }
 
         var service = ServiceRegistry.getTechniqueService();
         Map<String, Object> result = service.equipTechnique(p.getId(), techniqueId);
@@ -94,9 +94,9 @@ public class TechniqueCommand extends Command {
     }
 
     private void unequipTechnique(CommandContext ctx, PlayerInfo p, String[] parts) {
-        if (parts.length < 2) { ctx.reply(I18n.t("technique.hbd19bbc8")); return; }
+        if (parts.length < 2) { ctx.reply(I18n.t("technique.usage_4")); return; }
         long techniqueId;
-        try { techniqueId = Long.parseLong(parts[1]); } catch (NumberFormatException e) { ctx.reply(I18n.t("technique.h886e6000")); return; }
+        try { techniqueId = Long.parseLong(parts[1]); } catch (NumberFormatException e) { ctx.reply(I18n.t("technique.invalid_technique_id")); return; }
 
         var service = ServiceRegistry.getTechniqueService();
         Map<String, Object> result = service.unequipTechnique(p.getId(), techniqueId);
@@ -104,9 +104,9 @@ public class TechniqueCommand extends Command {
     }
 
     private void upgradeTechnique(CommandContext ctx, PlayerInfo p, String[] parts) {
-        if (parts.length < 2) { ctx.reply(I18n.t("technique.h5731328a")); return; }
+        if (parts.length < 2) { ctx.reply(I18n.t("technique.usage_2")); return; }
         long techniqueId;
-        try { techniqueId = Long.parseLong(parts[1]); } catch (NumberFormatException e) { ctx.reply(I18n.t("technique.h886e6000")); return; }
+        try { techniqueId = Long.parseLong(parts[1]); } catch (NumberFormatException e) { ctx.reply(I18n.t("technique.invalid_technique_id")); return; }
 
         var service = ServiceRegistry.getTechniqueService();
         Map<String, Object> result = service.upgradeTechnique(p.getId(), techniqueId);
@@ -158,7 +158,7 @@ public class TechniqueCommand extends Command {
             result.add("techniques", arr);
         } catch (Exception e) {
             result.addProperty("code", 500);
-            result.addProperty("message", I18n.t("technique.hf186bd38", e.getMessage()));
+            result.addProperty("message", I18n.t("technique.server_error", e.getMessage()));
         }
         return result;
     }
@@ -184,7 +184,7 @@ public class TechniqueCommand extends Command {
             result.add("techniques", arr);
         } catch (Exception e) {
             result.addProperty("code", 500);
-            result.addProperty("message", I18n.t("technique.hf186bd38", e.getMessage()));
+            result.addProperty("message", I18n.t("technique.server_error", e.getMessage()));
         }
         return result;
     }
@@ -196,7 +196,7 @@ public class TechniqueCommand extends Command {
             long techniqueId = req.has("techniqueId") ? req.get("techniqueId").getAsLong() : 0;
             if (techniqueId <= 0) {
                 result.addProperty("code", 400);
-                result.addProperty("message", I18n.t("technique.hfc59992c"));
+                result.addProperty("message", I18n.t("technique.please_provide_a_valid_technique"));
                 return result;
             }
             var service = ServiceRegistry.getTechniqueService();
@@ -206,7 +206,7 @@ public class TechniqueCommand extends Command {
             result.addProperty("message", (String) data.get("message"));
         } catch (Exception e) {
             result.addProperty("code", 500);
-            result.addProperty("message", I18n.t("technique.hf186bd38", e.getMessage()));
+            result.addProperty("message", I18n.t("technique.server_error", e.getMessage()));
         }
         return result;
     }
@@ -230,7 +230,7 @@ public class TechniqueCommand extends Command {
             long techniqueId = req.has("techniqueId") ? req.get("techniqueId").getAsLong() : 0;
             if (techniqueId <= 0) {
                 result.addProperty("code", 400);
-                result.addProperty("message", I18n.t("technique.hfc59992c"));
+                result.addProperty("message", I18n.t("technique.please_provide_a_valid_technique"));
                 return result;
             }
             var service = ServiceRegistry.getTechniqueService();
@@ -247,7 +247,7 @@ public class TechniqueCommand extends Command {
             }
         } catch (Exception e) {
             result.addProperty("code", 500);
-            result.addProperty("message", I18n.t("technique.hf186bd38", e.getMessage()));
+            result.addProperty("message", I18n.t("technique.server_error", e.getMessage()));
         }
         return result;
     }

@@ -38,7 +38,7 @@ public class CurrencyExchangeCommand extends Command {
         Long userId = ctx.requireBinding();
         if (userId == null) return;
         PlayerInfo p = ctx.requirePlayer(userId);
-        if (p == null) { ctx.reply(I18n.t("economy.hde5e9ffe")); return; }
+        if (p == null) { ctx.reply(I18n.t("economy.please_create_a_character_first")); return; }
 
         String args = ctx.getArg();
         if (args == null || args.trim().isEmpty()) {
@@ -48,7 +48,7 @@ public class CurrencyExchangeCommand extends Command {
 
         String[] parts = args.trim().split("\\s+");
         if (parts.length < 2) {
-            ctx.reply(I18n.t("economy.hbe6f07f0"));
+            ctx.reply(I18n.t("economy.usage_7"));
             return;
         }
 
@@ -56,11 +56,11 @@ public class CurrencyExchangeCommand extends Command {
         try {
             amount = Long.parseLong(parts[1]);
         } catch (NumberFormatException e) {
-            ctx.reply(I18n.t("economy.h8c313f70"));
+            ctx.reply(I18n.t("economy.quantity_must_be_a_positive"));
             return;
         }
         if (amount <= 0) {
-            ctx.reply(I18n.t("economy.h893a9a8c"));
+            ctx.reply(I18n.t("economy.quantity_must_be_greater_than_2"));
             return;
         }
 
@@ -71,7 +71,7 @@ public class CurrencyExchangeCommand extends Command {
         } else if ("灵石".equals(direction) || "stone".equalsIgnoreCase(direction) || "stones".equalsIgnoreCase(direction)) {
             result = economyService.exchangeStonesToGold(p.getId(), amount);
         } else {
-            ctx.reply(I18n.t("economy.h610cfa8c"));
+            ctx.reply(I18n.t("economy.direction_must_be_either"));
             return;
         }
 

@@ -38,7 +38,7 @@ public class MarketPriceCommand extends Command {
 
         String arg = ctx.getArg() == null ? "" : ctx.getArg().trim();
         if (arg.isEmpty()) {
-            ctx.reply(I18n.t("market.h5a2a41c0"));
+            ctx.reply(I18n.t("market.usage_3"));
             return;
         }
 
@@ -56,7 +56,7 @@ public class MarketPriceCommand extends Command {
             }
         }
         if (itemKey.isEmpty()) {
-            ctx.reply(I18n.t("market.h71c082aa"));
+            ctx.reply(I18n.t("market.please_specify_an_item_name"));
             return;
         }
 
@@ -99,7 +99,7 @@ public class MarketPriceCommand extends Command {
             if (itemKey == null || itemKey.isBlank()) {
                 result.addProperty("code", 400);
                 result.addProperty("success", false);
-                result.addProperty("message", I18n.t("market.h4011186c"));
+                result.addProperty("message", I18n.t("market.please_provide_the_itemkey_query"));
                 return result;
             }
             int days = 0;
@@ -124,7 +124,7 @@ public class MarketPriceCommand extends Command {
         } catch (Exception e) {
             result.addProperty("code", 500);
             result.addProperty("success", false);
-            result.addProperty("message", I18n.t("market.hf186bd38", e.getMessage()));
+            result.addProperty("message", I18n.t("market.server_error", e.getMessage()));
         }
         return result;
     }

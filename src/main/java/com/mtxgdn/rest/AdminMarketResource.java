@@ -96,7 +96,7 @@ public class AdminMarketResource {
             out.add("data", data);
         } catch (Exception e) {
             out.addProperty("code", 500);
-            out.addProperty("message", I18n.t("admin.hcf0f4f60", e.getMessage()));
+            out.addProperty("message", I18n.t("admin.failed_to_fetch_market_listings", e.getMessage()));
         }
         return Response.ok(gson.toJson(out)).build();
     }
@@ -118,7 +118,7 @@ public class AdminMarketResource {
         String key = (itemKey != null && !itemKey.isBlank()) ? itemKey : item;
         if (key == null || key.isBlank()) {
             out.addProperty("code", 400);
-            out.addProperty("message", I18n.t("admin.h4011186c"));
+            out.addProperty("message", I18n.t("admin.please_provide_the_itemkey_query"));
             return Response.ok(gson.toJson(out)).build();
         }
         int days = 0;
@@ -145,7 +145,7 @@ public class AdminMarketResource {
             out.add("data", data);
         } catch (Exception e) {
             out.addProperty("code", 500);
-            out.addProperty("message", I18n.t("admin.hba8bd75f", e.getMessage()));
+            out.addProperty("message", I18n.t("admin.failed_to_query_market_prices", e.getMessage()));
         }
         return Response.ok(gson.toJson(out)).build();
     }

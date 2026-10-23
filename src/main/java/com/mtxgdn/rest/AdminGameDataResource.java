@@ -239,12 +239,12 @@ public class AdminGameDataResource {
 
             JsonObject result = new JsonObject();
             result.addProperty("code", 200);
-            result.addProperty("message", I18n.t("admin.ha9c62e68"));
+            result.addProperty("message", I18n.t("admin.newcomer_reward_configuration_saved"));
             return Response.ok(gson.toJson(result)).build();
         } catch (Exception e) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 500);
-            err.addProperty("message", I18n.t("admin.hb3585ce8", e.getMessage()));
+            err.addProperty("message", I18n.t("admin.save_failed", e.getMessage()));
             return Response.ok(gson.toJson(err)).build();
         }
     }
@@ -401,7 +401,7 @@ public class AdminGameDataResource {
         } catch (Exception e) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 400);
-            err.addProperty("message", I18n.t("admin.hdb599e78", e.getMessage()));
+            err.addProperty("message", I18n.t("admin.failed_to_update_oauth2_configuration", e.getMessage()));
             return Response.ok(gson.toJson(err)).build();
         }
     }

@@ -35,11 +35,11 @@ public class DebugCommand extends Command {
     public void execute(CommandContext ctx) {
         QqBinding b = ctx.resolveBoundBinding();
         if (b == null) {
-            ctx.reply(I18n.t("admin.hd852a51e"));
+            ctx.reply(I18n.t("admin.please_bind_your_account_first_2"));
             return;
         }
         if (!PermissionService.hasPermission(b.getUserId(), "admin.debug")) {
-            ctx.reply(I18n.t("admin.ha43d576a"));
+            ctx.reply(I18n.t("admin.insufficient_permission_3"));
             return;
         }
 
@@ -63,7 +63,7 @@ public class DebugCommand extends Command {
                 showHelp(ctx);
                 break;
             default:
-                ctx.reply(I18n.t("admin.hcba4cf7b", sub));
+                ctx.reply(I18n.t("admin.unknown_subcommand", sub));
         }
     }
 
@@ -103,7 +103,7 @@ public class DebugCommand extends Command {
 
     private void testCommand(CommandContext ctx, String args) {
         if (args == null || args.isBlank()) {
-            ctx.reply(I18n.t("admin.ha5a93f5d"));
+            ctx.reply(I18n.t("admin.usage_3"));
             return;
         }
 
@@ -116,25 +116,25 @@ public class DebugCommand extends Command {
 
         Command targetCmd = CommandRegistry.get(cmdName);
         if (targetCmd == null) {
-            ctx.reply(I18n.t("admin.h1eb8a8fc", cmdName));
+            ctx.reply(I18n.t("admin.command_not_found", cmdName));
             return;
         }
 
-        ctx.reply(I18n.t("admin.hf579788c", cmdName));
+        ctx.reply(I18n.t("admin.testing_command", cmdName));
         // "(无)" 是给用户看的空值占位，不是一个键名，所以走 I18n.t("debug.no_args")
         ctx.reply(I18n.t("debug.args", cmdArgs.isEmpty() ? I18n.t("debug.no_args") : cmdArgs));
-        ctx.reply(I18n.t("admin.h3bcc1334"));
+        ctx.reply(I18n.t("admin.note"));
 
         try {
             QqBinding b = ctx.resolveBoundBinding();
             if (b == null) {
-                ctx.reply(I18n.t("admin.h32b669a4"));
+                ctx.reply(I18n.t("admin.test_failed"));
                 return;
             }
 
             PlayerInfo player = com.mtxgdn.common.service.ServiceRegistry.getPlayerService().getPlayerByUserId(b.getUserId());
             if (player == null) {
-                ctx.reply(I18n.t("admin.h61120d94"));
+                ctx.reply(I18n.t("admin.test_failed_2"));
                 return;
             }
 
@@ -149,7 +149,7 @@ public class DebugCommand extends Command {
             // 成本远高于收益。这里选择诚实地直接执行，并把提示文案改成"会真实生效"。
             targetCmd.execute(debugCtx);
 
-            ctx.reply(I18n.t("admin.hdbaa383c"));
+            ctx.reply(I18n.t("admin.command_test_complete_2"));
         } catch (Exception e) {
             StringBuilder sb = new StringBuilder();
             sb.append("指令测试异常:\n");
@@ -255,7 +255,7 @@ public class DebugCommand extends Command {
 
             if (cmdName == null || cmdName.isBlank()) {
                 result.addProperty("code", 400);
-                result.addProperty("message", I18n.t("admin.hcb640ff0"));
+                result.addProperty("message", I18n.t("admin.the_command_parameter_cannot"));
                 return result;
             }
 
@@ -266,21 +266,21 @@ public class DebugCommand extends Command {
             Command targetCmd = CommandRegistry.get(cmdName);
             if (targetCmd == null) {
                 result.addProperty("code", 404);
-                result.addProperty("message", I18n.t("admin.hd86857f4", cmdName));
+                result.addProperty("message", I18n.t("admin.command_not_found_2", cmdName));
                 return result;
             }
 
             long userId = ctx.userId();
             if (userId == 0) {
                 result.addProperty("code", 400);
-                result.addProperty("message", I18n.t("admin.h5af66540"));
+                result.addProperty("message", I18n.t("admin.you_must_be_logged"));
                 return result;
             }
 
             PlayerInfo player = com.mtxgdn.common.service.ServiceRegistry.getPlayerService().getPlayerByUserId(userId);
             if (player == null) {
                 result.addProperty("code", 400);
-                result.addProperty("message", I18n.t("admin.h963c8950"));
+                result.addProperty("message", I18n.t("admin.player_character_not_found"));
                 return result;
             }
 
@@ -299,14 +299,14 @@ public class DebugCommand extends Command {
             targetCmd.execute(debugCtx);
 
             result.addProperty("code", 200);
-            result.addProperty("message", I18n.t("admin.h3284ab10"));
+            result.addProperty("message", I18n.t("admin.command_test_complete"));
             result.addProperty("command", cmdName);
             result.addProperty("args", cmdArgs);
             result.addProperty("output", output.toString().trim());
 
         } catch (Exception e) {
             result.addProperty("code", 500);
-            result.addProperty("message", I18n.t("admin.h2872f774", e.getMessage()));
+            result.addProperty("message", I18n.t("admin.command_test_error", e.getMessage()));
 
             StringBuilder stackTrace = new StringBuilder();
             for (StackTraceElement ste : e.getStackTrace()) {

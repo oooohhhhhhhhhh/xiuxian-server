@@ -362,7 +362,7 @@ public class PlayerService {
         Player player = getPlayerById(playerId);
         if (player == null) {
             result.put("success", false);
-            result.put("message", I18n.t("player.h59a76b2c"));
+            result.put("message", I18n.t("player.character_not_found"));
             return result;
         }
         if (player.isCultivating()) {
@@ -373,14 +373,14 @@ public class PlayerService {
             // 直接以当前时间重新开始，顺带把脏数据自愈掉。
             if (player.getCultivationStartTime() > 0) {
                 result.put("success", false);
-                result.put("message", I18n.t("player.h7a0f95e1"));
+                result.put("message", I18n.t("player.you_are_already_in_cultivation"));
                 return result;
             }
             LOG.info("检测到无起始时间的闭关脏数据，已按重新闭关自愈: playerId=" + playerId);
         }
         if (player.getHp() <= 0) {
             result.put("success", false);
-            result.put("message", I18n.t("player.h05d87a90"));
+            result.put("message", I18n.t("player.you_are_gravely_wounded"));
             return result;
         }
 
@@ -396,7 +396,7 @@ public class PlayerService {
         result.put("locationId", player.getCurrentLocationId());
         result.put("locationName", ServiceRegistry.getMapService().getLocationName(player.getCurrentLocationId()));
         result.put("locationMultiplier", ServiceRegistry.getMapService().getCultivationBonus(player.getCurrentLocationId()));
-        result.put("message", I18n.t("player.h2a0575e8"));
+        result.put("message", I18n.t("player.begin_seclusion"));
         return result;
     }
 
@@ -408,12 +408,12 @@ public class PlayerService {
         Player player = getPlayerById(playerId);
         if (player == null) {
             result.put("success", false);
-            result.put("message", I18n.t("player.h59a76b2c"));
+            result.put("message", I18n.t("player.character_not_found"));
             return result;
         }
         if (!player.isCultivating()) {
             result.put("success", false);
-            result.put("message", I18n.t("player.hafb562c8"));
+            result.put("message", I18n.t("player.you_are_not_in_cultivation"));
             return result;
         }
 
@@ -422,7 +422,7 @@ public class PlayerService {
         // 原子认领停止操作：并发多次停止时只有第一次成功，防止经验重复发放
         if (!stopCultivation(playerId)) {
             result.put("success", false);
-            result.put("message", I18n.t("player.hf5581950"));
+            result.put("message", I18n.t("player.your_cultivation_results_are_still"));
             return result;
         }
 
@@ -440,7 +440,7 @@ public class PlayerService {
         result.put("locationId", player.getCurrentLocationId());
         result.put("locationName", ServiceRegistry.getMapService().getLocationName(player.getCurrentLocationId()));
         result.put("locationMultiplier", locationMultiplier);
-        result.put("message", I18n.t("player.h00836942"));
+        result.put("message", I18n.t("player.end_seclusion"));
         return result;
     }
 
@@ -508,12 +508,12 @@ public class PlayerService {
         Player player = getPlayerById(playerId);
         if (player == null) {
             result.put("success", false);
-            result.put("message", I18n.t("player.h59a76b2c"));
+            result.put("message", I18n.t("player.character_not_found"));
             return result;
         }
         if (player.getHp() >= player.getMaxHp()) {
             result.put("success", true);
-            result.put("message", I18n.t("player.hc5d64260"));
+            result.put("message", I18n.t("player.your_hp_is_already_full"));
             return result;
         }
 
@@ -522,7 +522,7 @@ public class PlayerService {
 
         if (currentStones < cost) {
             result.put("success", false);
-            result.put("message", I18n.t("player.he7f02870", cost, currentStones));
+            result.put("message", I18n.t("player.not_enough_spirit_stones", cost, currentStones));
             result.put("cost", cost);
             result.put("currentStones", currentStones);
             return result;
@@ -530,7 +530,7 @@ public class PlayerService {
 
         if (!ServiceRegistry.getItemService().removeSpiritStones(playerId, cost)) {
             result.put("success", false);
-            result.put("message", I18n.t("player.hdb66b7ae"));
+            result.put("message", I18n.t("player.failed_to_deduct_spirit_stones"));
             return result;
         }
 
@@ -541,7 +541,7 @@ public class PlayerService {
         result.put("hpBefore", hpBefore);
         result.put("hpAfter", player.getMaxHp());
         result.put("cost", cost);
-        result.put("message", I18n.t("player.h07c721cc", cost, hpBefore, player.getMaxHp()));
+        result.put("message", I18n.t("player.spent_spirit_stones", cost, hpBefore, player.getMaxHp()));
         return result;
     }
 

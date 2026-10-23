@@ -827,16 +827,16 @@ public class MapService {
 
         MapLocation target = getLocation(targetLocationId);
         if (target == null) {
-            return createResult(false, I18n.t("map.h88947944"));
+            return createResult(false, I18n.t("map.that_location_does_not_exist"));
         }
 
         Player player = playerService.getPlayerById(playerId);
         if (player == null) {
-            return createResult(false, I18n.t("map.h796f4b70"));
+            return createResult(false, I18n.t("map.player_not_found"));
         }
 
         if (!checkRealm(player, target)) {
-            return createResult(false, I18n.t("map.h636ed554", target.getName(), getRealmName(target.getMinRealm()), getRealmName(player.getRealm())));
+            return createResult(false, I18n.t("map.realm_too_low", target.getName(), getRealmName(target.getMinRealm()), getRealmName(player.getRealm())));
         }
 
         RawPosition position = readRawPosition(playerId);
@@ -844,12 +844,12 @@ public class MapService {
         long lastTravel = position.lastTravelTime();
 
         if (currentLocId == targetLocationId) {
-            return createResult(false, I18n.t("map.he9a170b8", target.getName()));
+            return createResult(false, I18n.t("map.you_are_already", target.getName()));
         }
 
         MapLocation current = getLocation(currentLocId);
         if (current == null) {
-            return createResult(false, I18n.t("map.h41614d08"));
+            return createResult(false, I18n.t("map.your_current_location_is_invalid"));
         }
 
         if (!isConnected(current, targetLocationId)) {
@@ -863,16 +863,16 @@ public class MapService {
         long now = System.currentTimeMillis() / 1000;
         if ((now - lastTravel) < cooldownSeconds) {
             long remaining = cooldownSeconds - (now - lastTravel);
-            return createResult(false, I18n.t("map.h25e197d4", Math.max(0, remaining)));
+            return createResult(false, I18n.t("map.you_have_just_finished", Math.max(0, remaining)));
         }
 
         int updated = compareAndSetTravel(playerId, position, targetLocationId, now);
         if (updated == 0) {
             // 并发竞争：校验期间位置或冷却已被另一个请求改写，本次移动作废
             if (getPlayerLocationId(playerId) == targetLocationId) {
-                return createResult(false, I18n.t("map.he9a170b8", target.getName()));
+                return createResult(false, I18n.t("map.you_are_already", target.getName()));
             }
-            return createResult(false, I18n.t("map.heb20a82a"));
+            return createResult(false, I18n.t("map.your_position_was_just_changed_2"));
         }
 
         Map<String, Object> result = createResult(true,
@@ -954,22 +954,22 @@ public class MapService {
 
         MapLocation target = getLocation(targetLocationId);
         if (target == null) {
-            return createResult(false, I18n.t("map.h88947944"));
+            return createResult(false, I18n.t("map.that_location_does_not_exist"));
         }
 
         Player player = playerService.getPlayerById(playerId);
         if (player == null) {
-            return createResult(false, I18n.t("map.h796f4b70"));
+            return createResult(false, I18n.t("map.player_not_found"));
         }
 
         if (player.getRealm() < target.getMinRealm()) {
-            return createResult(false, I18n.t("map.h636ed554", target.getName(), getRealmName(target.getMinRealm()), getRealmName(player.getRealm())));
+            return createResult(false, I18n.t("map.realm_too_low", target.getName(), getRealmName(target.getMinRealm()), getRealmName(player.getRealm())));
         }
 
         executeTravel(playerId, targetLocationId);
         String firstVisit = recordFirstVisit(playerId, targetLocationId);
         Map<String, Object> result = createResult(true,
-                I18n.t("map.h6967c9a8", target.getName()));
+                I18n.t("map.the_talisman_turns_into", target.getName()));
         if (firstVisit != null) {
             result.put("message", result.get("message") + "\n" + firstVisit);
             result.put("firstVisit", true);
@@ -1001,7 +1001,7 @@ public class MapService {
             locId = DEFAULT_LOCATION_ID;
         }
         if (current == null) {
-            return createResult(false, I18n.t("map.hcf096c23"));
+            return createResult(false, I18n.t("map.map_data_is_not_ready"));
         }
 
         Map<String, Object> result = new LinkedHashMap<>();
@@ -1377,39 +1377,39 @@ public class MapService {
         ensureInitialized();
         WildernessMapConfig.Teleport cfg = WildernessMapConfig.get().getTeleport();
         if (!cfg.isEnabled()) {
-            return createResult(false, I18n.t("map.h574940a0"));
+            return createResult(false, I18n.t("map.teleportation_is_currently_disabled"));
         }
 
         MapLocation target = getLocation(targetLocationId);
         if (target == null) {
-            return createResult(false, I18n.t("map.h88947944"));
+            return createResult(false, I18n.t("map.that_location_does_not_exist"));
         }
         Player player = playerService.getPlayerById(playerId);
         if (player == null) {
-            return createResult(false, I18n.t("map.h796f4b70"));
+            return createResult(false, I18n.t("map.player_not_found"));
         }
         if (!checkRealm(player, target)) {
-            return createResult(false, I18n.t("map.h636ed554", target.getName(), getRealmName(target.getMinRealm()), getRealmName(player.getRealm())));
+            return createResult(false, I18n.t("map.realm_too_low", target.getName(), getRealmName(target.getMinRealm()), getRealmName(player.getRealm())));
         }
         if (!isExplored(playerId, targetLocationId)) {
-            return createResult(false, I18n.t("map.ha50dacf8", target.getName()));
+            return createResult(false, I18n.t("map.you_have_never_been", target.getName()));
         }
 
         RawPosition position = readRawPosition(playerId);
         long currentLocId = resolveLocationId(position.rawLocationId(), position.locationNull(), playerId);
         if (currentLocId == targetLocationId) {
-            return createResult(false, I18n.t("map.he9a170b8", target.getName()));
+            return createResult(false, I18n.t("map.you_are_already", target.getName()));
         }
 
         long cost = getTeleportCost(currentLocId, targetLocationId);
         long balance = ServiceRegistry.getItemService().getSpiritStoneCount(playerId);
         if (balance < cost) {
-            return createResult(false, I18n.t("map.hce4606f4", cost, balance));
+            return createResult(false, I18n.t("map.teleporting_costs_spirit_stones_but", cost, balance));
         }
 
         // 先扣费再落库位置：扣费失败直接返回，避免"免费传送"
         if (!ServiceRegistry.getItemService().removeSpiritStones(playerId, cost)) {
-            return createResult(false, I18n.t("map.he3affb16"));
+            return createResult(false, I18n.t("map.failed_to_deduct_spirit_stones"));
         }
 
         long now = System.currentTimeMillis() / 1000;
@@ -1418,13 +1418,13 @@ public class MapService {
             // 位置在扣费与写回之间被改动：把灵石退回去，不能既收钱又不办事
             ServiceRegistry.getItemService().addSpiritStones(playerId, cost);
             if (getPlayerLocationId(playerId) == targetLocationId) {
-                return createResult(false, I18n.t("map.he9a170b8", target.getName()));
+                return createResult(false, I18n.t("map.you_are_already", target.getName()));
             }
-            return createResult(false, I18n.t("map.he04326c4"));
+            return createResult(false, I18n.t("map.your_position_was_just_changed"));
         }
 
         Map<String, Object> result = createResult(true,
-                I18n.t("map.h654a09b8", target.getName(), cost, target.getDescription()));
+                I18n.t("map.teleported_to_consuming_spirit_stones", target.getName(), cost, target.getDescription()));
         result.put("to", target.getName());
         result.put("toRegion", target.getRegion());
         result.put("cost", cost);
@@ -1786,20 +1786,20 @@ public class MapService {
         ensureInitialized();
         WildernessMapConfig config = WildernessMapConfig.get();
         if (!config.isEnabled()) {
-            return createResult(false, I18n.t("map.hb37f0c87"));
+            return createResult(false, I18n.t("map.the_wilderness_feature_is_disabled"));
         }
 
         Player player = playerService.getPlayerById(playerId);
         if (player == null) {
-            return createResult(false, I18n.t("map.h796f4b70"));
+            return createResult(false, I18n.t("map.player_not_found"));
         }
         long locationId = getPlayerLocationId(playerId);
         if (!WildernessTerrain.isWildernessId(locationId)) {
-            return createResult(false, I18n.t("map.h7f1cf394"));
+            return createResult(false, I18n.t("map.this_is_not_the_wilderness"));
         }
         MapLocation loc = getLocation(locationId);
         if (loc == null) {
-            return createResult(false, I18n.t("map.h41614d08"));
+            return createResult(false, I18n.t("map.your_current_location_is_invalid"));
         }
 
         long now = System.currentTimeMillis() / 1000;
@@ -1807,7 +1807,7 @@ public class MapService {
         long lastGather = readLastGatherTime(playerId);
         if (cooldown > 0 && (now - lastGather) < cooldown) {
             long remaining = cooldown - (now - lastGather);
-            return createResult(false, I18n.t("map.hdf5bd533", Math.max(0, remaining)));
+            return createResult(false, I18n.t("map.you_have_just_gathered", Math.max(0, remaining)));
         }
 
         int chunkX = WildernessTerrain.chunkXOfNode(locationId);
@@ -1817,17 +1817,17 @@ public class MapService {
 
         Map<String, Integer> available = chunk.remainingOf(slot);
         if (available.isEmpty()) {
-            return createResult(false, I18n.t("map.h775899f0"));
+            return createResult(false, I18n.t("map.the_resources_here_have_been"));
         }
         String itemKey = available.keySet().iterator().next();
         int take = Math.min(config.getGather().getMaxPerGather(), available.get(itemKey));
         if (take < 1) {
-            return createResult(false, I18n.t("map.h775899f0"));
+            return createResult(false, I18n.t("map.the_resources_here_have_been"));
         }
 
         int taken = chunk.consume(slot, itemKey, take);
         if (taken <= 0) {
-            return createResult(false, I18n.t("map.h0ce2a85a"));
+            return createResult(false, I18n.t("map.too_slow_the_resources_here"));
         }
         chunk.lastActiveAt = now;
         chunkStore.save(chunk);
@@ -1837,7 +1837,7 @@ public class MapService {
             if (!granted) {
                 chunk.refund(slot, itemKey, taken);
                 chunkStore.save(chunk);
-                return createResult(false, I18n.t("map.h9a627ec0"));
+                return createResult(false, I18n.t("map.gathering_failed_2"));
             }
             try (PreparedStatement ps = conn.prepareStatement(
                     "UPDATE players SET last_gather_time = ? WHERE id = ?")) {
@@ -1849,13 +1849,13 @@ public class MapService {
             chunk.refund(slot, itemKey, taken);
             chunkStore.save(chunk);
             LOG.error("采集失败 player=" + playerId, e);
-            return createResult(false, I18n.t("map.h6b113628", e.getMessage()));
+            return createResult(false, I18n.t("map.gathering_failed", e.getMessage()));
         }
 
         int left = chunk.remainingOf(slot).getOrDefault(itemKey, 0);
         String itemName = resolveItemName(itemKey);
         Map<String, Object> result = createResult(true,
-                I18n.t("map.h444e9d6e", loc.getName(), itemName, taken, left));
+                I18n.t("map.gathered", loc.getName(), itemName, taken, left));
         result.put("itemKey", itemKey);
         result.put("itemName", itemName);
         result.put("quantity", taken);

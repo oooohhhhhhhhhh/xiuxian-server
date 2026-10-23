@@ -31,7 +31,7 @@ public class StoneExchangeCommand extends Command {
         Long userId = ctx.requireBinding();
         if (userId == null) return;
         PlayerInfo p = ctx.requirePlayer(userId);
-        if (p == null) { ctx.reply(I18n.t("economy.hde5e9ffe")); return; }
+        if (p == null) { ctx.reply(I18n.t("economy.please_create_a_character_first")); return; }
 
         String args = ctx.getArg();
         if (args == null || args.trim().isEmpty()) {
@@ -41,7 +41,7 @@ public class StoneExchangeCommand extends Command {
 
         String[] parts = args.trim().split("\\s+");
         if (parts.length < 3) {
-            ctx.reply(I18n.t("economy.h2380a39c"));
+            ctx.reply(I18n.t("economy.usage_2"));
             return;
         }
 
@@ -49,7 +49,7 @@ public class StoneExchangeCommand extends Command {
         try {
             amount = Long.parseLong(parts[0]);
         } catch (NumberFormatException e) {
-            ctx.reply(I18n.t("economy.hd8c78f9c"));
+            ctx.reply(I18n.t("economy.quantity_must_be_a_number"));
             return;
         }
 
@@ -57,11 +57,11 @@ public class StoneExchangeCommand extends Command {
         int toGrade = parseGrade(parts[2]);
 
         if (fromGrade < 0) {
-            ctx.reply(I18n.t("economy.hf4059260", parts[1]));
+            ctx.reply(I18n.t("economy.invalid_source_spirit_stone_grade", parts[1]));
             return;
         }
         if (toGrade < 0) {
-            ctx.reply(I18n.t("economy.h1cb52ee3", parts[2]));
+            ctx.reply(I18n.t("economy.invalid_target_spirit_stone_grade", parts[2]));
             return;
         }
 

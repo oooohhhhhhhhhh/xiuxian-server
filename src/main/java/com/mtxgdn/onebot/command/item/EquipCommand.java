@@ -22,7 +22,7 @@ public class EquipCommand extends Command {
 
         String[] parts = splitArgs(ctx.getArg(), 2);
         if (!CommandUtils.hasEnoughArgs(parts, 2) || CommandUtils.isBlank(parts[0]) || CommandUtils.isBlank(parts[1])) {
-            ctx.reply(I18n.t("equip.h738097b6"));
+            ctx.reply(I18n.t("equip.usage"));
             return;
         }
 

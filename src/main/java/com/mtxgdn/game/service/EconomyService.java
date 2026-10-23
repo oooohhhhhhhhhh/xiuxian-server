@@ -92,14 +92,14 @@ public class EconomyService {
         com.mtxgdn.playerdata.PlayerDataService.markDirty(playerId);
         Map<String, Object> result = new LinkedHashMap<>();
         Player player = playerService.getPlayerById(playerId);
-        if (player == null) { result.put("success", false); result.put("message", I18n.t("economy.h59a76b2c")); return result; }
+        if (player == null) { result.put("success", false); result.put("message", I18n.t("economy.character_not_found")); return result; }
 
         SignInRecord rec = getSignInRecord(playerId);
         String today = java.time.LocalDate.now().toString();
 
         if (rec.lastSignIn != null && rec.lastSignIn.equals(today)) {
             result.put("success", false);
-            result.put("message", I18n.t("economy.ha74a96f8"));
+            result.put("message", I18n.t("economy.you_have_already_checked"));
             return result;
         }
 
@@ -128,7 +128,7 @@ public class EconomyService {
                     try (ResultSet rs = ps.executeQuery()) {
                         if (rs.next() && today.equals(rs.getString("last_sign_in"))) {
                             txResult.put("success", false);
-                            txResult.put("message", I18n.t("economy.ha74a96f8"));
+                            txResult.put("message", I18n.t("economy.you_have_already_checked"));
                             return txResult;
                         }
                     }
@@ -146,10 +146,10 @@ public class EconomyService {
                 txResult.put("day", newStreak);
                 txResult.put("streak", newStreak);
                 txResult.put("reward", reward[0]);
-                txResult.put("message", I18n.t("economy.h98e31334", newStreak, reward[0]));
+                txResult.put("message", I18n.t("economy.check_in_successful", newStreak, reward[0]));
             } catch (SQLException e) {
                 txResult.put("success", false);
-                txResult.put("message", I18n.t("economy.h03a352a8", e.getMessage()));
+                txResult.put("message", I18n.t("economy.check_in_failed", e.getMessage()));
             }
             return txResult;
         });
@@ -168,19 +168,19 @@ public class EconomyService {
         Map<String, Object> result = new LinkedHashMap<>();
 
         var item = com.mtxgdn.game.item.ItemRegistry.resolve(itemKey);
-        if (item == null) { result.put("success", false); result.put("message", I18n.t("economy.hadf213b8")); return result; }
+        if (item == null) { result.put("success", false); result.put("message", I18n.t("economy.item_not_found_5")); return result; }
 
         String fullKey = item.getFullKey();
         if (fullKey.startsWith("mtxgdn:spirit_stone")) {
-            result.put("success", false); result.put("message", I18n.t("economy.he4b7991c")); return result;
+            result.put("success", false); result.put("message", I18n.t("economy.spirit_stones_are_already_currency")); return result;
         }
         if (!item.isTradeable()) {
-            result.put("success", false); result.put("message", I18n.t("economy.h75e3b260")); return result;
+            result.put("success", false); result.put("message", I18n.t("economy.this_item_cannot_be_traded")); return result;
         }
 
         long owned = itemService.getItemCount(playerId, fullKey);
         if (owned < quantity) {
-            result.put("success", false); result.put("message", I18n.t("economy.h7e6004f8", owned, item.getName())); return result;
+            result.put("success", false); result.put("message", I18n.t("economy.your_backpack", owned, item.getName())); return result;
         }
 
         int basePrice = item.getPrice();
@@ -197,7 +197,7 @@ public class EconomyService {
         result.put("success", true);
         result.put("recycled", item.getName() + " x" + quantity);
         result.put("stonesGained", recycleValue);
-        result.put("message", I18n.t("economy.h81793984", item.getName(), quantity, recycleValue));
+        result.put("message", I18n.t("economy.recycled_x_and_received_low", item.getName(), quantity, recycleValue));
         return result;
     }
 
@@ -230,7 +230,7 @@ public class EconomyService {
         com.mtxgdn.playerdata.PlayerDataService.markDirty(playerId);
         Map<String, Object> result = new LinkedHashMap<>();
         if (shopIndex < 1 || shopIndex > SHOP_ITEMS.length) {
-            result.put("success", false); result.put("message", I18n.t("economy.h27ff9b16", SHOP_ITEMS.length)); return result;
+            result.put("success", false); result.put("message", I18n.t("economy.item_does_not_exist", SHOP_ITEMS.length)); return result;
         }
 
         String[] entry = SHOP_ITEMS[shopIndex - 1];
@@ -241,7 +241,7 @@ public class EconomyService {
         long stones = itemService.getSpiritStoneCount(playerId);
         if (stones < price) {
             result.put("success", false);
-            result.put("message", I18n.t("economy.h6afbd278", price, stones));
+            result.put("message", I18n.t("economy.not_enough_spirit_stones_2", price, stones));
             return result;
         }
 
@@ -271,17 +271,17 @@ public class EconomyService {
         Map<String, Object> result = new LinkedHashMap<>();
 
         Player player = playerService.getPlayerById(playerId);
-        if (player == null) { result.put("success", false); result.put("message", I18n.t("economy.h59a76b2c")); return result; }
+        if (player == null) { result.put("success", false); result.put("message", I18n.t("economy.character_not_found")); return result; }
         if (!player.isCultivating()) {
-            result.put("success", false); result.put("message", I18n.t("economy.haf3ab8d8")); return result;
+            result.put("success", false); result.put("message", I18n.t("economy.start_cultivation_first_before_using")); return result;
         }
         if (stonesToBurn < STONES_PER_BOOST) {
-            result.put("success", false); result.put("message", I18n.t("economy.h48de4f00", STONES_PER_BOOST)); return result;
+            result.put("success", false); result.put("message", I18n.t("economy.at_least_low_grade_spirit", STONES_PER_BOOST)); return result;
         }
 
         long currentStones = itemService.getSpiritStoneCount(playerId);
         if (currentStones < stonesToBurn) {
-            result.put("success", false); result.put("message", I18n.t("economy.h7728e214", stonesToBurn, currentStones)); return result;
+            result.put("success", false); result.put("message", I18n.t("economy.not_enough_spirit_stones_3", stonesToBurn, currentStones)); return result;
         }
 
         int boostHours = stonesToBurn / STONES_PER_BOOST;
@@ -305,7 +305,7 @@ public class EconomyService {
         result.put("stonesSpent", stonesToBurn);
         result.put("boostHours", boostHours);
         result.put("bonusExp", bonusExp);
-        result.put("message", I18n.t("economy.hf228e2c0", stonesToBurn, boostHours, BOOST_MULTIPLIER, bonusExp));
+        result.put("message", I18n.t("economy.you_burn_low_grade_spirit", stonesToBurn, boostHours, BOOST_MULTIPLIER, bonusExp));
         return result;
     }
 
@@ -318,12 +318,12 @@ public class EconomyService {
         com.mtxgdn.playerdata.PlayerDataService.markDirty(playerId);
         Map<String, Object> result = new LinkedHashMap<>();
         Player player = playerService.getPlayerById(playerId);
-        if (player == null) { result.put("success", false); result.put("message", I18n.t("economy.h59a76b2c")); return result; }
+        if (player == null) { result.put("success", false); result.put("message", I18n.t("economy.character_not_found")); return result; }
         if (goldAmount < GOLD_TO_STONE_RATE) {
-            result.put("success", false); result.put("message", I18n.t("economy.h4fb619b4", GOLD_TO_STONE_RATE)); return result;
+            result.put("success", false); result.put("message", I18n.t("economy.at_least_gold_is_required", GOLD_TO_STONE_RATE)); return result;
         }
         if (player.getGold() < goldAmount) {
-            result.put("success", false); result.put("message", I18n.t("economy.h36bd686c", goldAmount, player.getGold())); return result;
+            result.put("success", false); result.put("message", I18n.t("economy.not_enough_gold", goldAmount, player.getGold())); return result;
         }
 
         long stones = goldAmount / GOLD_TO_STONE_RATE;
@@ -336,7 +336,7 @@ public class EconomyService {
         result.put("success", true);
         result.put("goldSpent", goldAmount);
         result.put("stonesGained", stones);
-        result.put("message", I18n.t("economy.ha506767c", goldAmount, stones));
+        result.put("message", I18n.t("economy.exchange_successful_2", goldAmount, stones));
         return result;
     }
 
@@ -345,10 +345,10 @@ public class EconomyService {
         Map<String, Object> result = new LinkedHashMap<>();
         long currentStones = itemService.getSpiritStoneCount(playerId);
         if (stoneAmount < 1) {
-            result.put("success", false); result.put("message", I18n.t("economy.h1198f420")); return result;
+            result.put("success", false); result.put("message", I18n.t("economy.at_least_1_low_grade")); return result;
         }
         if (currentStones < stoneAmount) {
-            result.put("success", false); result.put("message", I18n.t("economy.h32413280", stoneAmount, currentStones)); return result;
+            result.put("success", false); result.put("message", I18n.t("economy.not_enough_spirit_stones", stoneAmount, currentStones)); return result;
         }
 
         long gold = stoneAmount * STONE_TO_GOLD_RATE;
@@ -361,7 +361,7 @@ public class EconomyService {
         result.put("success", true);
         result.put("stonesSpent", stoneAmount);
         result.put("goldGained", gold);
-        result.put("message", I18n.t("economy.hc504e1eb", stoneAmount, gold));
+        result.put("message", I18n.t("economy.exchange_successful_4", stoneAmount, gold));
         return result;
     }
 
@@ -380,13 +380,13 @@ public class EconomyService {
         com.mtxgdn.playerdata.PlayerDataService.markDirty(playerId);
         Map<String, Object> result = new LinkedHashMap<>();
         Player player = playerService.getPlayerById(playerId);
-        if (player == null) { result.put("success", false); result.put("message", I18n.t("economy.h59a76b2c")); return result; }
+        if (player == null) { result.put("success", false); result.put("message", I18n.t("economy.character_not_found")); return result; }
 
         long currentStones = itemService.getSpiritStoneCount(playerId);
         if (currentStones < amount) {
-            result.put("success", false); result.put("message", I18n.t("economy.h7728e214", amount, currentStones)); return result;
+            result.put("success", false); result.put("message", I18n.t("economy.not_enough_spirit_stones_3", amount, currentStones)); return result;
         }
-        if (amount < 100) { result.put("success", false); result.put("message", I18n.t("economy.h329d76f0")); return result; }
+        if (amount < 100) { result.put("success", false); result.put("message", I18n.t("economy.spirit_bank_deposits_start")); return result; }
 
         double rate;
         int days = 0;
@@ -402,7 +402,7 @@ public class EconomyService {
                 case "fixed_7" -> 0; case "fixed_30" -> 1; case "fixed_90" -> 2;
                 default -> -1;
             };
-            if (planIdx < 0) { result.put("success", false); result.put("message", I18n.t("economy.he85510f8", type)); return result; }
+            if (planIdx < 0) { result.put("success", false); result.put("message", I18n.t("economy.unknown_deposit_type", type)); return result; }
 
             Object[] plan = FIXED_DEPOSIT_PLANS[planIdx];
             days = (int) plan[0];
@@ -444,7 +444,7 @@ public class EconomyService {
                     String.format("%.1f", rate * 100), depositId));
         } else {
             long expectedInterest = (long)(amount * rate);
-            result.put("message", I18n.t("economy.h36cdeb17", amount, typeName, days, expectedInterest, depositId));
+            result.put("message", I18n.t("economy.deposited_low_grade_spirit_stones", amount, typeName, days, expectedInterest, depositId));
         }
         result.put("principal", amount);
         result.put("depositType", type);
@@ -458,10 +458,10 @@ public class EconomyService {
 
         BankDeposit dep = getBankDeposit(depositId);
         if (dep == null || dep.playerId != playerId) {
-            result.put("success", false); result.put("message", I18n.t("economy.h680f40ec")); return result;
+            result.put("success", false); result.put("message", I18n.t("economy.that_deposit_does_not_exist")); return result;
         }
         if (!"active".equals(dep.status)) {
-            result.put("success", false); result.put("message", I18n.t("economy.h6a5dc11e")); return result;
+            result.put("success", false); result.put("message", I18n.t("economy.that_deposit_has_already_been_2")); return result;
         }
 
         boolean isCurrent = "current".equals(dep.depositType);
@@ -496,7 +496,7 @@ public class EconomyService {
         } catch (Exception e) {
             if (e.getMessage() != null && e.getMessage().contains("存款已被取出")) {
                 result.put("success", false);
-                result.put("message", I18n.t("economy.h11c4d3b4"));
+                result.put("message", I18n.t("economy.that_deposit_has_already_been"));
                 return result;
             }
             throw new RuntimeException("取款失败", e);
@@ -652,12 +652,12 @@ public class EconomyService {
         com.mtxgdn.playerdata.PlayerDataService.markDirty(playerId);
         Map<String, Object> result = new LinkedHashMap<>();
         var item = com.mtxgdn.game.item.ItemRegistry.resolve(itemKey);
-        if (item == null) { result.put("success", false); result.put("message", I18n.t("economy.hadf213b8")); return result; }
-        if (quantity <= 0 || startPrice <= 0) { result.put("success", false); result.put("message", I18n.t("economy.h098a1c50")); return result; }
+        if (item == null) { result.put("success", false); result.put("message", I18n.t("economy.item_not_found_5")); return result; }
+        if (quantity <= 0 || startPrice <= 0) { result.put("success", false); result.put("message", I18n.t("economy.quantity_and_starting_bid_must")); return result; }
 
         String fullKey = item.getFullKey();
         if (!itemService.hasItem(playerId, fullKey, quantity)) {
-            result.put("success", false); result.put("message", I18n.t("economy.h1bcd3d44", item.getName())); return result;
+            result.put("success", false); result.put("message", I18n.t("economy.not_enough_in_your_backpack", item.getName())); return result;
         }
 
         int realHours = Math.min(Math.max(hours, 1), 72);
@@ -684,7 +684,7 @@ public class EconomyService {
         }
 
         result.put("success", true);
-        result.put("message", I18n.t("economy.h661fca34", item.getName(), quantity, startPrice, realHours));
+        result.put("message", I18n.t("economy.listed_on_the_auction_house", item.getName(), quantity, startPrice, realHours));
         return result;
     }
 
@@ -693,7 +693,7 @@ public class EconomyService {
         Map<String, Object> result = new LinkedHashMap<>();
         if (amount <= 0) {
             result.put("success", false);
-            result.put("message", I18n.t("economy.hbeb35148"));
+            result.put("message", I18n.t("economy.the_bid_must_be_greater"));
             return result;
         }
 
@@ -745,12 +745,12 @@ public class EconomyService {
             });
         } catch (Exception e) {
             result.put("success", false);
-            result.put("message", I18n.t("economy.hc8527800", rootMessage(e)));
+            result.put("message", I18n.t("economy.bid_failed", rootMessage(e)));
             return result;
         }
 
         result.put("success", true);
-        result.put("message", I18n.t("economy.h22e5bc62", amount, listingId));
+        result.put("message", I18n.t("economy.bid_placed", amount, listingId));
         return result;
     }
 
@@ -919,12 +919,12 @@ public class EconomyService {
         Player player = playerService.getPlayerById(playerId);
         if (player == null) {
             result.put("success", false);
-            result.put("message", I18n.t("economy.h59a76b2c"));
+            result.put("message", I18n.t("economy.character_not_found"));
             return result;
         }
         if (grade < 0 || grade > 2) {
             result.put("success", false);
-            result.put("message", I18n.t("economy.h79438c15"));
+            result.put("message", I18n.t("economy.invalid_spirit_stone_grade"));
             return result;
         }
 
@@ -939,7 +939,7 @@ public class EconomyService {
             String requiredName = GameConfigLoader.getRealmConfig(PURIFY_REALM[grade], 0) != null
                     ? GameConfigLoader.getRealmConfig(PURIFY_REALM[grade], 0).getFullName() : "未知境界";
             result.put("success", false);
-            result.put("message", I18n.t("economy.he64ec888", targetName, requiredName, realmName));
+            result.put("message", I18n.t("economy.realm_too_low", targetName, requiredName, realmName));
             return result;
         }
 
@@ -958,12 +958,12 @@ public class EconomyService {
         Cave cave = caveService.getCaveByPlayerId(playerId);
         if (cave == null) {
             result.put("success", false);
-            result.put("message", I18n.t("economy.h994336a4"));
+            result.put("message", I18n.t("economy.refining_spirit_stones_requires_cave"));
             return result;
         }
         if (cave.getSpiritEnergy() < auraCost) {
             result.put("success", false);
-            result.put("message", I18n.t("economy.h7a43ff68", targetName, auraCost, cave.getSpiritEnergy()));
+            result.put("message", I18n.t("economy.not_enough_cave_dwelling_spiritual", targetName, auraCost, cave.getSpiritEnergy()));
             return result;
         }
 
@@ -1008,9 +1008,9 @@ public class EconomyService {
         result.put("stoneCost", PURIFY_STONE_COST);
         result.put("successRate", finalRate);
         if (success) {
-            result.put("message", I18n.t("economy.h2e5471a8", PURIFY_STONE_COST, sourceName, auraCost, targetName, ratePercent));
+            result.put("message", I18n.t("economy.refine_successful", PURIFY_STONE_COST, sourceName, auraCost, targetName, ratePercent));
         } else {
-            result.put("message", I18n.t("economy.h3daf58e3", PURIFY_STONE_COST, sourceName, auraCost, ratePercent));
+            result.put("message", I18n.t("economy.refine_failed", PURIFY_STONE_COST, sourceName, auraCost, ratePercent));
         }
         return result;
     }

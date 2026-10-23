@@ -26,17 +26,17 @@ public class PlayerDetailCommand extends Command {
     public void execute(CommandContext ctx) {
         QqBinding b = ctx.resolveBoundBinding();
         if (b == null) {
-            ctx.reply(I18n.t("admin.hd852a51e"));
+            ctx.reply(I18n.t("admin.please_bind_your_account_first_2"));
             return;
         }
         if (!PermissionService.hasPermission(b.getUserId(), "admin.status")) {
-            ctx.reply(I18n.t("admin.ha43d576a"));
+            ctx.reply(I18n.t("admin.insufficient_permission_3"));
             return;
         }
 
         String arg = ctx.getArg();
         if (arg == null || arg.isBlank()) {
-            ctx.reply(I18n.t("admin.h7a4c9c12"));
+            ctx.reply(I18n.t("admin.usage_2"));
             return;
         }
 
@@ -50,7 +50,7 @@ public class PlayerDetailCommand extends Command {
         } catch (NumberFormatException e) {
             var players = playerService.searchPlayersByName(arg.trim(), 1, 0);
             if (players.isEmpty()) {
-                ctx.reply(I18n.t("admin.h57d9d167", arg));
+                ctx.reply(I18n.t("admin.player_not_found", arg));
                 return;
             }
             PlayerInfo found = players.get(0);
@@ -58,7 +58,7 @@ public class PlayerDetailCommand extends Command {
         }
 
         if (p == null) {
-            ctx.reply(I18n.t("admin.h57d9d167", arg));
+            ctx.reply(I18n.t("admin.player_not_found", arg));
             return;
         }
 

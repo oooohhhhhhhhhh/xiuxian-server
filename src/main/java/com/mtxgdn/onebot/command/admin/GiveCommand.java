@@ -27,29 +27,29 @@ public class GiveCommand extends Command {
     public void execute(CommandContext ctx) {
         QqBinding b = ctx.resolveBoundBinding();
         if (b == null) {
-            ctx.reply(I18n.t("admin.hd852a51e"));
+            ctx.reply(I18n.t("admin.please_bind_your_account_first_2"));
             return;
         }
         if (!PermissionService.hasPermission(b.getUserId(), "admin.items.give")) {
-            ctx.reply(I18n.t("admin.ha43d576a"));
+            ctx.reply(I18n.t("admin.insufficient_permission_3"));
             return;
         }
 
         String arg = ctx.getArg();
         if (CommandUtils.isBlank(arg)) {
-            ctx.reply(I18n.t("admin.h55cf8430"));
+            ctx.reply(I18n.t("admin.usage"));
             return;
         }
 
         String[] parts = CommandUtils.split(arg);
         if (!CommandUtils.hasEnoughArgs(parts, 2)) {
-            ctx.reply(I18n.t("admin.h66f05890"));
+            ctx.reply(I18n.t("admin.missing_arguments_3"));
             return;
         }
 
         Long playerId = CommandUtils.parseLong(parts[0], null);
         if (playerId == null) {
-            ctx.reply(I18n.t("admin.haed2b682"));
+            ctx.reply(I18n.t("admin.player_id_must"));
             return;
         }
 
@@ -57,7 +57,7 @@ public class GiveCommand extends Command {
         ItemService itemService = ServiceRegistry.getItemService();
         var p = playerService.getPlayerById(playerId);
         if (p == null) {
-            ctx.reply(I18n.t("admin.h4b69b8e4", playerId));
+            ctx.reply(I18n.t("admin.player_not_found_id", playerId));
             return;
         }
 

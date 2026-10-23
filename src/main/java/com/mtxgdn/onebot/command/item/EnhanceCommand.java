@@ -30,7 +30,7 @@ public class EnhanceCommand extends Command {
 
         String arg = ctx.getArg();
         if (arg == null || arg.trim().isEmpty()) {
-            ctx.reply(I18n.t("enhance.h4c614190"));
+            ctx.reply(I18n.t("enhance.usage"));
             return;
         }
 
@@ -41,7 +41,7 @@ public class EnhanceCommand extends Command {
             if (s.equals(slot)) { valid = true; break; }
         }
         if (!valid) {
-            ctx.reply(I18n.t("enhance.hb40e94f0", slot));
+            ctx.reply(I18n.t("enhance.invalid_equipment_slot", slot));
             return;
         }
 

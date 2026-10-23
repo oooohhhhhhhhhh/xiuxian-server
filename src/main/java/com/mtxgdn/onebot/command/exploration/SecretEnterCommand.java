@@ -33,7 +33,7 @@ public class SecretEnterCommand extends Command {
 
         String areaName = ctx.getArg().trim();
         if (areaName.isEmpty()) {
-            ctx.reply(I18n.t("exploration.h2b83a10c"));
+            ctx.reply(I18n.t("exploration.usage"));
             return;
         }
 

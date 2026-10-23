@@ -33,15 +33,15 @@ public class RestartCommand extends Command {
     public void execute(CommandContext ctx) {
         QqBinding b = ctx.resolveBoundBinding();
         if (b == null) {
-            ctx.reply(I18n.t("admin.hd852a51e"));
+            ctx.reply(I18n.t("admin.please_bind_your_account_first_2"));
             return;
         }
         String highestRole = PermissionService.getHighestRole(b.getUserId());
         if (!"SUPER_ADMIN".equals(highestRole)) {
-            ctx.reply(I18n.t("admin.hea8fd688"));
+            ctx.reply(I18n.t("admin.insufficient_permission_only_super_admin"));
             return;
         }
-        ctx.reply(I18n.t("admin.h3059219c"));
+        ctx.reply(I18n.t("admin.server_is_restarting"));
         Thread restartThread = new Thread(() -> {
             try {
                 // 留出时间把上面的回复发出去，再走统一的重启流程

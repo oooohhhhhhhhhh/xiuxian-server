@@ -91,7 +91,7 @@ public class DailyService {
         Player player = playerService.getPlayerById(playerId);
         if (player == null) {
             result.put("success", false);
-            result.put("message", I18n.t("daily.h59a76b2c"));
+            result.put("message", I18n.t("daily.character_not_found"));
             return result;
         }
 
@@ -101,14 +101,14 @@ public class DailyService {
         int hour = LocalTime.now().getHour();
         if (hour < 5 || hour >= 11) {
             result.put("success", false);
-            result.put("message", I18n.t("daily.h0e0dc5c8", hour));
+            result.put("message", I18n.t("daily.morning_cultivation_must_be_performed", hour));
             return result;
         }
 
         PlayerDaily daily = getOrCreateDaily(playerId);
         if (daily.lastMorningCultivation != null && daily.lastMorningCultivation.equals(todayStr)) {
             result.put("success", false);
-            result.put("message", I18n.t("daily.h131eebf4"));
+            result.put("message", I18n.t("daily.you_have_already_done_morning"));
             return result;
         }
 

@@ -44,7 +44,7 @@ public class SpiritualRootCommand extends Command {
     private void showRoot(CommandContext ctx, PlayerInfo p) {
         SpiritualRoot root = p.getSpiritualRoot();
         if (root == null) {
-            ctx.reply(I18n.t("player.hcf171b6a"));
+            ctx.reply(I18n.t("player.you_have_not_yet_awakened"));
             return;
         }
 
@@ -78,19 +78,19 @@ public class SpiritualRootCommand extends Command {
     private void doRecast(CommandContext ctx, PlayerInfo p, String[] parts) {
         int realm = p.getRealm();
         if (realm < 3) {
-            ctx.reply(I18n.t("player.h1a5cbaf8"));
+            ctx.reply(I18n.t("player.reforging_your_spiritual_root_requires"));
             return;
         }
 
         var itemService = ServiceRegistry.getItemService();
         if (!itemService.hasItem(p.getId(), QIANKUN_DAN_KEY, 1)) {
-            ctx.reply(I18n.t("player.haeeb08e0"));
+            ctx.reply(I18n.t("player.reforging_your_spiritual_root_requires_2"));
             return;
         }
 
         long spiritStones = itemService.getSpiritStoneCount(p.getId());
         if (spiritStones < RECAST_SPIRIT_STONE_COST) {
-            ctx.reply(I18n.t("player.he2a723ac", RECAST_SPIRIT_STONE_COST, spiritStones));
+            ctx.reply(I18n.t("player.reforging_your_spiritual_root_costs", RECAST_SPIRIT_STONE_COST, spiritStones));
             return;
         }
 

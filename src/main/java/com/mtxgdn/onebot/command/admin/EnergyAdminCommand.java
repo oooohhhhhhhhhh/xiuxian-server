@@ -39,15 +39,15 @@ public class EnergyAdminCommand extends Command {
     public void execute(CommandContext ctx) {
         QqBinding b = ctx.resolveBoundBinding();
         if (b == null) {
-            ctx.reply(I18n.t("admin.hd852a51e"));
+            ctx.reply(I18n.t("admin.please_bind_your_account_first_2"));
             return;
         }
         if (!PermissionService.hasPermission(b.getUserId(), "admin.status")) {
-            ctx.reply(I18n.t("admin.ha43d576a"));
+            ctx.reply(I18n.t("admin.insufficient_permission_3"));
             return;
         }
         if (!BuiltInPluginRegistry.isModuleEnabled(ENERGY_EXCHANGE_PLUGIN)) {
-            ctx.reply(I18n.t("admin.ha5fc6272"));
+            ctx.reply(I18n.t("admin.the_energy_conversion_system_2"));
             return;
         }
 
@@ -59,7 +59,7 @@ public class EnergyAdminCommand extends Command {
 
         String[] parts = arg.trim().split("\\s+");
         if (parts.length < 2) {
-            ctx.reply(I18n.t("admin.h16c07754"));
+            ctx.reply(I18n.t("admin.missing_arguments"));
             return;
         }
 
@@ -67,14 +67,14 @@ public class EnergyAdminCommand extends Command {
         try {
             playerId = Long.parseLong(parts[0]);
         } catch (NumberFormatException e) {
-            ctx.reply(I18n.t("admin.haed2b682"));
+            ctx.reply(I18n.t("admin.player_id_must"));
             return;
         }
 
         PlayerService playerService = ServiceRegistry.getPlayerService();
         var p = playerService.getPlayerById(playerId);
         if (p == null) {
-            ctx.reply(I18n.t("admin.h4b69b8e4", playerId));
+            ctx.reply(I18n.t("admin.player_not_found_id", playerId));
             return;
         }
 
@@ -86,7 +86,7 @@ public class EnergyAdminCommand extends Command {
         // MODERATOR 组（默认持有 admin.status）就能任意增删玩家能量。
         if (isWriteAction(action)
                 && !PermissionService.hasPermission(b.getUserId(), "admin.users.manage")) {
-            ctx.reply(I18n.t("admin.h204cc940"));
+            ctx.reply(I18n.t("admin.insufficient_permission_2"));
             return;
         }
 
@@ -94,79 +94,79 @@ public class EnergyAdminCommand extends Command {
             case "查看":
             case "view":
                 long energy = energyService.getEnergy(playerId);
-                ctx.reply(I18n.t("admin.h0537abec", p.getName(), playerId, energy));
+                ctx.reply(I18n.t("admin.player_current_energy", p.getName(), playerId, energy));
                 break;
 
             case "设置":
             case "set":
                 if (parts.length < 3) {
-                    ctx.reply(I18n.t("admin.h809f86d2", playerId));
+                    ctx.reply(I18n.t("admin.please_provide_the_energy_amount_2", playerId));
                     return;
                 }
                 long setValue;
                 try {
                     setValue = Long.parseLong(parts[2]);
                 } catch (NumberFormatException e) {
-                    ctx.reply(I18n.t("admin.h31437f0c"));
+                    ctx.reply(I18n.t("admin.the_value_must"));
                     return;
                 }
                 if (setValue < 0) {
-                    ctx.reply(I18n.t("admin.hd16507e2"));
+                    ctx.reply(I18n.t("admin.energy_cannot_be_negative_2"));
                     return;
                 }
                 energyService.setEnergy(playerId, setValue);
-                ctx.reply(I18n.t("admin.hbea6f978", p.getName(), playerId, setValue));
+                ctx.reply(I18n.t("admin.set_the_energy_of_player", p.getName(), playerId, setValue));
                 break;
 
             case "增加":
             case "add":
                 if (parts.length < 3) {
-                    ctx.reply(I18n.t("admin.hef432d0a", playerId));
+                    ctx.reply(I18n.t("admin.please_provide_the_energy_amount_3", playerId));
                     return;
                 }
                 long addValue;
                 try {
                     addValue = Long.parseLong(parts[2]);
                 } catch (NumberFormatException e) {
-                    ctx.reply(I18n.t("admin.h31437f0c"));
+                    ctx.reply(I18n.t("admin.the_value_must"));
                     return;
                 }
                 if (addValue <= 0) {
-                    ctx.reply(I18n.t("admin.hde258710"));
+                    ctx.reply(I18n.t("admin.the_increase_amount_must_2"));
                     return;
                 }
                 energyService.addEnergy(playerId, addValue);
-                ctx.reply(I18n.t("admin.h83709cb4", p.getName(), playerId, addValue, energyService.getEnergy(playerId)));
+                ctx.reply(I18n.t("admin.added_energy_to_player_ncurrent", p.getName(), playerId, addValue, energyService.getEnergy(playerId)));
                 break;
 
             case "减少":
             case "remove":
                 if (parts.length < 3) {
-                    ctx.reply(I18n.t("admin.h7ff733a0", playerId));
+                    ctx.reply(I18n.t("admin.please_provide_the_energy_amount", playerId));
                     return;
                 }
                 long removeValue;
                 try {
                     removeValue = Long.parseLong(parts[2]);
                 } catch (NumberFormatException e) {
-                    ctx.reply(I18n.t("admin.h31437f0c"));
+                    ctx.reply(I18n.t("admin.the_value_must"));
                     return;
                 }
                 if (removeValue <= 0) {
-                    ctx.reply(I18n.t("admin.hbf23b840"));
+                    ctx.reply(I18n.t("admin.the_reduction_amount_must_2"));
                     return;
                 }
                 long current = energyService.getEnergy(playerId);
                 if (current < removeValue) {
-                    ctx.reply(I18n.t("admin.hcd0c9fac", current, removeValue));
+                    ctx.reply(I18n.t("admin.not_enough_energy_to_reduce", current, removeValue));
                     return;
                 }
                 energyService.removeEnergy(playerId, removeValue);
-                ctx.reply(I18n.t("admin.h8bde915f", p.getName(), playerId, removeValue, energyService.getEnergy(playerId)));
+                ctx.reply(I18n.t("admin.reduced_energy_from_player_ncurrent", p.getName(), playerId, removeValue, energyService.getEnergy(playerId)));
                 break;
 
             default:
-                ctx.reply(I18n.t("admin.h3fc9ac5f", action));
+                ctx.reply(I18n.t("admin.unknown_operation", action));
                 break;
         }
     }
@@ -185,7 +185,7 @@ public class EnergyAdminCommand extends Command {
         JsonObject result = new JsonObject();
         if (!BuiltInPluginRegistry.isModuleEnabled(ENERGY_EXCHANGE_PLUGIN)) {
             result.addProperty("code", 403);
-            result.addProperty("message", I18n.t("admin.h4aa0a0f2"));
+            result.addProperty("message", I18n.t("admin.the_energy_conversion_system"));
         }
         return result;
     }
@@ -204,7 +204,7 @@ public class EnergyAdminCommand extends Command {
             var p = playerService.getPlayerById(playerId);
             if (p == null) {
                 result.addProperty("code", 404);
-                result.addProperty("message", I18n.t("admin.hc014f818", playerId));
+                result.addProperty("message", I18n.t("admin.player_not_found_2", playerId));
                 return result;
             }
 
@@ -217,7 +217,7 @@ public class EnergyAdminCommand extends Command {
             result.addProperty("energy", energy);
         } catch (Exception e) {
             result.addProperty("code", 500);
-            result.addProperty("message", I18n.t("admin.hf186bd38", e.getMessage()));
+            result.addProperty("message", I18n.t("admin.server_error", e.getMessage()));
         }
         return result;
     }
@@ -237,7 +237,7 @@ public class EnergyAdminCommand extends Command {
 
             if (energy < 0) {
                 result.addProperty("code", 400);
-                result.addProperty("message", I18n.t("admin.h35fbfdd4"));
+                result.addProperty("message", I18n.t("admin.energy_cannot_be_negative"));
                 return result;
             }
 
@@ -245,7 +245,7 @@ public class EnergyAdminCommand extends Command {
             var p = playerService.getPlayerById(playerId);
             if (p == null) {
                 result.addProperty("code", 404);
-                result.addProperty("message", I18n.t("admin.hc014f818", playerId));
+                result.addProperty("message", I18n.t("admin.player_not_found_2", playerId));
                 return result;
             }
 
@@ -253,13 +253,13 @@ public class EnergyAdminCommand extends Command {
             energyService.setEnergy(playerId, energy);
 
             result.addProperty("code", 200);
-            result.addProperty("message", I18n.t("admin.h34ac6234"));
+            result.addProperty("message", I18n.t("admin.set_successfully"));
             result.addProperty("playerId", playerId);
             result.addProperty("playerName", p.getName());
             result.addProperty("energy", energy);
         } catch (Exception e) {
             result.addProperty("code", 500);
-            result.addProperty("message", I18n.t("admin.hf186bd38", e.getMessage()));
+            result.addProperty("message", I18n.t("admin.server_error", e.getMessage()));
         }
         return result;
     }
@@ -279,7 +279,7 @@ public class EnergyAdminCommand extends Command {
 
             if (amount <= 0) {
                 result.addProperty("code", 400);
-                result.addProperty("message", I18n.t("admin.hab204d78"));
+                result.addProperty("message", I18n.t("admin.the_increase_amount_must"));
                 return result;
             }
 
@@ -287,7 +287,7 @@ public class EnergyAdminCommand extends Command {
             var p = playerService.getPlayerById(playerId);
             if (p == null) {
                 result.addProperty("code", 404);
-                result.addProperty("message", I18n.t("admin.hc014f818", playerId));
+                result.addProperty("message", I18n.t("admin.player_not_found_2", playerId));
                 return result;
             }
 
@@ -295,14 +295,14 @@ public class EnergyAdminCommand extends Command {
             energyService.addEnergy(playerId, amount);
 
             result.addProperty("code", 200);
-            result.addProperty("message", I18n.t("admin.h308c401c"));
+            result.addProperty("message", I18n.t("admin.added_successfully"));
             result.addProperty("playerId", playerId);
             result.addProperty("playerName", p.getName());
             result.addProperty("added", amount);
             result.addProperty("currentEnergy", energyService.getEnergy(playerId));
         } catch (Exception e) {
             result.addProperty("code", 500);
-            result.addProperty("message", I18n.t("admin.hf186bd38", e.getMessage()));
+            result.addProperty("message", I18n.t("admin.server_error", e.getMessage()));
         }
         return result;
     }
@@ -322,7 +322,7 @@ public class EnergyAdminCommand extends Command {
 
             if (amount <= 0) {
                 result.addProperty("code", 400);
-                result.addProperty("message", I18n.t("admin.h53593588"));
+                result.addProperty("message", I18n.t("admin.the_reduction_amount_must"));
                 return result;
             }
 
@@ -330,7 +330,7 @@ public class EnergyAdminCommand extends Command {
             var p = playerService.getPlayerById(playerId);
             if (p == null) {
                 result.addProperty("code", 404);
-                result.addProperty("message", I18n.t("admin.hc014f818", playerId));
+                result.addProperty("message", I18n.t("admin.player_not_found_2", playerId));
                 return result;
             }
 
@@ -338,21 +338,21 @@ public class EnergyAdminCommand extends Command {
             long current = energyService.getEnergy(playerId);
             if (current < amount) {
                 result.addProperty("code", 400);
-                result.addProperty("message", I18n.t("admin.h574f89a8", current, amount));
+                result.addProperty("message", I18n.t("admin.not_enough_energy", current, amount));
                 return result;
             }
 
             energyService.removeEnergy(playerId, amount);
 
             result.addProperty("code", 200);
-            result.addProperty("message", I18n.t("admin.h6e950058"));
+            result.addProperty("message", I18n.t("admin.reduced_successfully"));
             result.addProperty("playerId", playerId);
             result.addProperty("playerName", p.getName());
             result.addProperty("removed", amount);
             result.addProperty("currentEnergy", energyService.getEnergy(playerId));
         } catch (Exception e) {
             result.addProperty("code", 500);
-            result.addProperty("message", I18n.t("admin.hf186bd38", e.getMessage()));
+            result.addProperty("message", I18n.t("admin.server_error", e.getMessage()));
         }
         return result;
     }

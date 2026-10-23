@@ -33,12 +33,12 @@ public class PrivateMessageCommand extends Command {
 
         String arg = ctx.getArg();
         if (arg == null || arg.isBlank()) {
-            ctx.reply(I18n.t("social.h3eb53952"));
+            ctx.reply(I18n.t("social.usage_4"));
             return;
         }
         String[] parts = arg.split("\\s+", 2);
         if (parts.length < 2 || parts[0].isBlank() || parts[1].isBlank()) {
-            ctx.reply(I18n.t("social.h3eb53952"));
+            ctx.reply(I18n.t("social.usage_4"));
             return;
         }
 
@@ -48,18 +48,18 @@ public class PrivateMessageCommand extends Command {
         var playerService = ServiceRegistry.getPlayerService();
         List<PlayerInfo> targets = playerService.searchPlayersByName(targetName, 1, 0);
         if (targets.isEmpty()) {
-            ctx.reply(I18n.t("social.h7e37bde8", targetName));
+            ctx.reply(I18n.t("social.player_not_found", targetName));
             return;
         }
         PlayerInfo target = targets.get(0);
 
         if (target.getId() == p.getId()) {
-            ctx.reply(I18n.t("social.hb61ed708"));
+            ctx.reply(I18n.t("social.you_cannot_send_a_private"));
             return;
         }
 
         ServiceRegistry.getChatService().sendPrivateMessage(p.getId(), p.getName(), target.getId(), content);
         PlayerActionLogger.getInstance().logChat(userId, p.getName(), "[私聊→" + target.getName() + "] " + content);
-        ctx.reply(I18n.t("social.h5c322cf4", target.getName()));
+        ctx.reply(I18n.t("social.private_message_sent", target.getName()));
     }
 }

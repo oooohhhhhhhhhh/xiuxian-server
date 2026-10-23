@@ -19,20 +19,20 @@ public class FixEquipmentCommand extends Command {
     public void execute(CommandContext ctx) {
         QqBinding b = ctx.resolveBoundBinding();
         if (b == null) {
-            ctx.reply(I18n.t("admin.hd852a51e"));
+            ctx.reply(I18n.t("admin.please_bind_your_account_first_2"));
             return;
         }
         if (!PermissionService.hasPermission(b.getUserId(), "admin.fix.equipment")) {
-            ctx.reply(I18n.t("admin.ha43d576a"));
+            ctx.reply(I18n.t("admin.insufficient_permission_3"));
             return;
         }
 
-        ctx.reply(I18n.t("admin.h5c19d9d2"));
+        ctx.reply(I18n.t("admin.checking_and_repairing_equipment_data"));
         
         // 注意：这里必须走 forceCheck，否则启动时已经跑过一次的自检会让这条指令变成空操作
         EquipmentDataChecker checker = new EquipmentDataChecker();
         checker.forceCheckEquipmentData();
         
-        ctx.reply(I18n.t("admin.h9ff0b1e0"));
+        ctx.reply(I18n.t("admin.equipment_data_repair_complete"));
     }
 }

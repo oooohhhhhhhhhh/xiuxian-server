@@ -121,7 +121,7 @@ class I18nTest {
     @DisplayName("raw: 不传语言时按 I18nContext 当前语言取")
     void rawUsesContextLanguage() {
         I18nManager.load();
-        String key = "sect.hefebafae";
+        String key = "sect.sect_names_must_be_2";
         I18nContext.set(GameLanguage.ZH_CN);
         assertEquals(I18nManager.raw(key, GameLanguage.ZH_CN), I18nManager.raw(key));
         I18nContext.set(GameLanguage.EN_US);
@@ -160,7 +160,7 @@ class I18nTest {
     @DisplayName("I18n.t: 不带语言参数时读 I18nContext，与显式传语言结果一致")
     void ITUsesContext() {
         I18nManager.load();
-        String key = "sect.hefebafae";
+        String key = "sect.sect_names_must_be_2";
         I18nContext.set(GameLanguage.EN_US);
         assertEquals(I18n.t(key, GameLanguage.EN_US), I18n.t(key));
     }
@@ -228,14 +228,14 @@ class I18nTest {
     @DisplayName("mergeFromStream: 插件可覆盖同名内置 key，且只增不删")
     void mergeOverridesButDoesNotRemove() {
         I18nManager.load();
-        String key = "sect.hefebafae";
+        String key = "sect.sect_names_must_be_2";
         String original = I18nManager.raw(key, GameLanguage.ZH_CN);
 
         I18nManager.mergeFromStream(GameLanguage.ZH_CN, json(key, "插件改写后的文案"));
         assertEquals("插件改写后的文案", I18nManager.raw(key, GameLanguage.ZH_CN));
 
         // 另一个内置 key 必须还在：合并不能把整包换掉
-        assertNotNull(I18nManager.raw("sect.hefebafae", GameLanguage.ZH_CN));
+        assertNotNull(I18nManager.raw("sect.sect_names_must_be_2", GameLanguage.ZH_CN));
         assertNotEquals(original, I18nManager.raw(key, GameLanguage.ZH_CN));
     }
 
@@ -253,7 +253,7 @@ class I18nTest {
     @DisplayName("reload: 外部改动应能被丢弃并回到 classpath 基线")
     void reloadDiscardsMergedEntries() {
         I18nManager.load();
-        String key = "sect.hefebafae";
+        String key = "sect.sect_names_must_be_2";
         String baseline = I18nManager.raw(key, GameLanguage.ZH_CN);
 
         I18nManager.mergeFromStream(GameLanguage.ZH_CN, json(key, "临时覆盖"));
@@ -288,7 +288,7 @@ class I18nTest {
         String json = I18nManager.exportJson(GameLanguage.ZH_CN);
         assertNotNull(json);
         assertFalse(json.isBlank());
-        assertTrue(json.contains("sect.hefebafae"), "导出应含已知 key");
+        assertTrue(json.contains("sect.sect_names_must_be_2"), "导出应含已知 key");
     }
 
     @Test

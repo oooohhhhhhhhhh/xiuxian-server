@@ -201,7 +201,7 @@ public class OAuthResource {
                               @QueryParam("scope") String scope) {
         JsonObject data = new JsonObject();
         data.addProperty("code", 501);
-        data.addProperty("message", I18n.t("oauth.h6419f8f8"));
+        data.addProperty("message", I18n.t("oauth.the_authorization_code_flow"));
         data.addProperty("note", "用法：POST /api/auth/oauth/token 拿 token → 携带 Authorization: Bearer <token> 访问 /api/auth/oauth/me 或 /api/auth/oauth/protected/*");
         data.addProperty("received", (responseType == null ? "" : responseType) + "|" +
                 (clientId == null ? "" : clientId) + "|" +

@@ -185,14 +185,14 @@ public class AdminPluginsResource {
         if (jarName == null || jarName.isBlank()) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 400);
-            err.addProperty("message", I18n.t("admin.h460e03c8"));
+            err.addProperty("message", I18n.t("admin.jarname_cannot_be_empty"));
             return Response.ok(gson.toJson(err)).build();
         }
         if (jarName.contains("..") || jarName.contains("/") || jarName.contains("\\")
                 || jarName.contains("\0") || !jarName.toLowerCase().endsWith(".jar")) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 400);
-            err.addProperty("message", I18n.t("admin.hf651e4d3"));
+            err.addProperty("message", I18n.t("admin.illegal_plugin_filename"));
             return Response.ok(gson.toJson(err)).build();
         }
         File pluginsDir = new File("plugins").getAbsoluteFile();
@@ -203,19 +203,19 @@ public class AdminPluginsResource {
                     && !jarFile.getCanonicalPath().equals(pluginsDir.getCanonicalPath())) {
                 JsonObject err = new JsonObject();
                 err.addProperty("code", 400);
-                err.addProperty("message", I18n.t("admin.hf05cf8ec"));
+                err.addProperty("message", I18n.t("admin.illegal_plugin_path"));
                 return Response.ok(gson.toJson(err)).build();
             }
         } catch (Exception e) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 400);
-            err.addProperty("message", I18n.t("admin.hbe2acdf0"));
+            err.addProperty("message", I18n.t("admin.path_resolution_failed"));
             return Response.ok(gson.toJson(err)).build();
         }
         if (!jarFile.exists()) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 404);
-            err.addProperty("message", I18n.t("admin.h6ae3c6ea", jarName));
+            err.addProperty("message", I18n.t("admin.plugin_file_not_found", jarName));
             return Response.ok(gson.toJson(err)).build();
         }
         boolean ok = com.mtxgdn.plugin.PluginManager.getInstance().loadPlugin(jarFile);
@@ -233,7 +233,7 @@ public class AdminPluginsResource {
         com.mtxgdn.plugin.PluginManager.getInstance().startFileWatcher();
         JsonObject result = new JsonObject();
         result.addProperty("code", 200);
-        result.addProperty("message", I18n.t("admin.h1237ba08"));
+        result.addProperty("message", I18n.t("admin.file_watcher_started"));
         return Response.ok(gson.toJson(result)).build();
     }
 
@@ -245,7 +245,7 @@ public class AdminPluginsResource {
         com.mtxgdn.plugin.PluginManager.getInstance().stopFileWatcher();
         JsonObject result = new JsonObject();
         result.addProperty("code", 200);
-        result.addProperty("message", I18n.t("admin.hc44dbf28"));
+        result.addProperty("message", I18n.t("admin.file_watcher_stopped"));
         return Response.ok(gson.toJson(result)).build();
     }
 }

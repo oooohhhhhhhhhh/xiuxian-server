@@ -140,24 +140,24 @@ public class TechniqueService {
         Map<String, Object> result = new LinkedHashMap<>();
         Technique technique = getTechniqueById(techniqueId);
         if (technique == null) {
-            result.put("success", false); result.put("message", I18n.t("technique.ha59e2658")); return result;
+            result.put("success", false); result.put("message", I18n.t("technique.technique_does_not_exist")); return result;
         }
         if (hasTechnique(playerId, techniqueId)) {
-            result.put("success", false); result.put("message", I18n.t("technique.h013e2d0b", technique.getName())); return result;
+            result.put("success", false); result.put("message", I18n.t("technique.you_have_already_learned", technique.getName())); return result;
         }
         Player player = playerService.getPlayerById(playerId);
         if (player == null) {
-            result.put("success", false); result.put("message", I18n.t("technique.h59a76b2c")); return result;
+            result.put("success", false); result.put("message", I18n.t("technique.character_does_not_exist")); return result;
         }
         if (player.getRealm() < technique.getRequiredRealm()) {
-            result.put("success", false); result.put("message", I18n.t("technique.h3215dc94", technique.getName())); return result;
+            result.put("success", false); result.put("message", I18n.t("technique.your_realm_is_too_low", technique.getName())); return result;
         }
         if (player.getGold() < technique.getLearnCostGold()) {
-            result.put("success", false); result.put("message", I18n.t("technique.ha28ab727", technique.getLearnCostGold())); return result;
+            result.put("success", false); result.put("message", I18n.t("technique.not_enough_gold", technique.getLearnCostGold())); return result;
         }
         long ssCount = itemService.getSpiritStoneCount(playerId);
         if (ssCount < technique.getLearnCostSpiritStones()) {
-            result.put("success", false); result.put("message", I18n.t("technique.h0aad1a38", technique.getLearnCostSpiritStones())); return result;
+            result.put("success", false); result.put("message", I18n.t("technique.not_enough_spirit_stones", technique.getLearnCostSpiritStones())); return result;
         }
 
         try {
@@ -177,14 +177,14 @@ public class TechniqueService {
             });
         } catch (Exception e) {
             result.put("success", false);
-            result.put("message", I18n.t("technique.h67eca6dc", e.getMessage()));
+            result.put("message", I18n.t("technique.failed_to_learn_the_technique", e.getMessage()));
             return result;
         }
 
         // 学习不直接加属性；属性只在「装备」时生效（避免重复叠加）
 
         result.put("success", true);
-        result.put("message", I18n.t("technique.h021d2cec", technique.getName()));
+        result.put("message", I18n.t("technique.successfully_learned_the_technique", technique.getName()));
         result.put("technique", technique);
         return result;
     }
@@ -192,15 +192,15 @@ public class TechniqueService {
     public Map<String, Object> equipTechnique(long playerId, long techniqueId) {
         Map<String, Object> result = new LinkedHashMap<>();
         if (!hasTechnique(playerId, techniqueId)) {
-            result.put("success", false); result.put("message", I18n.t("technique.hec1e8dc4")); return result;
+            result.put("success", false); result.put("message", I18n.t("technique.you_have_not_learned")); return result;
         }
         Technique tech = getPlayerTechniqueDetail(playerId, techniqueId);
         if (tech.isEquipped()) {
-            result.put("success", false); result.put("message", I18n.t("technique.hb769477b", tech.getName())); return result;
+            result.put("success", false); result.put("message", I18n.t("technique.is_already_being_circulated", tech.getName())); return result;
         }
         int equipped = countEquipped(playerId);
         if (equipped >= MAX_EQUIPPED) {
-            result.put("success", false); result.put("message", I18n.t("technique.hc6a9b2dc", MAX_EQUIPPED)); return result;
+            result.put("success", false); result.put("message", I18n.t("technique.you_can_circulate_at_most", MAX_EQUIPPED)); return result;
         }
         String sql = "UPDATE players_techniques SET is_equipped = 1 WHERE player_id = ? AND technique_id = ?";
         try (Connection conn = DatabaseManager.getConnection();
@@ -215,18 +215,18 @@ public class TechniqueService {
         playerService.updatePlayer(playerId, player);
 
         result.put("success", true);
-        result.put("message", I18n.t("technique.h6dd6706f", tech.getName()));
+        result.put("message", I18n.t("technique.started_circulating_the_technique", tech.getName()));
         return result;
     }
 
     public Map<String, Object> unequipTechnique(long playerId, long techniqueId) {
         Map<String, Object> result = new LinkedHashMap<>();
         if (!hasTechnique(playerId, techniqueId)) {
-            result.put("success", false); result.put("message", I18n.t("technique.hec1e8dc4")); return result;
+            result.put("success", false); result.put("message", I18n.t("technique.you_have_not_learned")); return result;
         }
         Technique tech = getPlayerTechniqueDetail(playerId, techniqueId);
         if (!tech.isEquipped()) {
-            result.put("success", false); result.put("message", I18n.t("technique.h98bb7ad4", tech.getName())); return result;
+            result.put("success", false); result.put("message", I18n.t("technique.is_not_being_circulated", tech.getName())); return result;
         }
         String sql = "UPDATE players_techniques SET is_equipped = 0 WHERE player_id = ? AND technique_id = ?";
         try (Connection conn = DatabaseManager.getConnection();
@@ -242,18 +242,18 @@ public class TechniqueService {
         playerService.updatePlayer(playerId, player);
 
         result.put("success", true);
-        result.put("message", I18n.t("technique.h16bd4a40", tech.getName()));
+        result.put("message", I18n.t("technique.stopped_circulating_the_technique", tech.getName()));
         return result;
     }
 
     public Map<String, Object> upgradeTechnique(long playerId, long techniqueId) {
         Map<String, Object> result = new LinkedHashMap<>();
         if (!hasTechnique(playerId, techniqueId)) {
-            result.put("success", false); result.put("message", I18n.t("technique.hec1e8dc4")); return result;
+            result.put("success", false); result.put("message", I18n.t("technique.you_have_not_learned")); return result;
         }
         Technique tech = getPlayerTechniqueDetail(playerId, techniqueId);
         if (tech.getLevel() >= tech.getMaxLevel()) {
-            result.put("success", false); result.put("message", I18n.t("technique.hdf5811f9", tech.getName())); return result;
+            result.put("success", false); result.put("message", I18n.t("technique.has_reached_its_maximum_level", tech.getName())); return result;
         }
 
         int costGold = tech.getUpgradeBaseCostGold() * tech.getLevel();
@@ -261,11 +261,11 @@ public class TechniqueService {
 
         Player player = playerService.getPlayerById(playerId);
         if (player.getGold() < costGold) {
-            result.put("success", false); result.put("message", I18n.t("technique.hbafa0757", costGold)); return result;
+            result.put("success", false); result.put("message", I18n.t("technique.not_enough_gold_2", costGold)); return result;
         }
         long ssCount = itemService.getSpiritStoneCount(playerId);
         if (ssCount < costSS) {
-            result.put("success", false); result.put("message", I18n.t("technique.h9e908e81", costSS)); return result;
+            result.put("success", false); result.put("message", I18n.t("technique.not_enough_spirit_stones_2", costSS)); return result;
         }
 
         try {
@@ -285,7 +285,7 @@ public class TechniqueService {
             });
         } catch (Exception e) {
             result.put("success", false);
-            result.put("message", I18n.t("technique.h771cdb74", e.getMessage()));
+            result.put("message", I18n.t("technique.failed_to_upgrade_the_technique", e.getMessage()));
             return result;
         }
 

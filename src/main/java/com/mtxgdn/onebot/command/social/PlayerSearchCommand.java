@@ -34,7 +34,7 @@ public class PlayerSearchCommand extends Command {
 
         String keyword = ctx.getArg().trim();
         if (keyword.isEmpty()) {
-            ctx.reply(I18n.t("social.h27f35dd8"));
+            ctx.reply(I18n.t("social.usage_3"));
             return;
         }
 
@@ -42,7 +42,7 @@ public class PlayerSearchCommand extends Command {
         List<PlayerInfo> results = playerService.searchPlayersByName(keyword, MAX_RESULTS, 0);
 
         if (results.isEmpty()) {
-            ctx.reply(I18n.t("social.h58d33788", keyword));
+            ctx.reply(I18n.t("social.no_player_found", keyword));
             return;
         }
 

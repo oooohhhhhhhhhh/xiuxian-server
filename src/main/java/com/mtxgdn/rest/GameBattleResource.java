@@ -72,7 +72,7 @@ public class GameBattleResource {
 
         if (areas.isEmpty()) {
             JsonObject data = new JsonObject();
-            data.addProperty("message", I18n.t("game.hde5e9ffe"));
+            data.addProperty("message", I18n.t("game.please_create_a_character_first"));
             return Response.ok(GameMessage.restOk(I18n.t("common.rest.ok"), data).toString()).build();
         }
 

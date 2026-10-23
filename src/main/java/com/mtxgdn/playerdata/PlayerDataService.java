@@ -169,7 +169,7 @@ public class PlayerDataService {
         Map<String, Object> result = new LinkedHashMap<>();
         if (!ENABLED) {
             result.put("success", false);
-            result.put("message", I18n.t("playerdata.h9573c3bc"));
+            result.put("message", I18n.t("playerdata.file_based_player_data"));
             return result;
         }
 
@@ -185,7 +185,7 @@ public class PlayerDataService {
         }
         if (data == null) {
             result.put("success", false);
-            result.put("message", I18n.t("playerdata.hc014f818", playerId));
+            result.put("message", I18n.t("playerdata.player_not_found", playerId));
             return result;
         }
 
@@ -251,13 +251,13 @@ public class PlayerDataService {
         } catch (IOException e) {
             recordExportFailure("玩家 " + playerId + " 快照落盘失败: " + e.getMessage());
             result.put("success", false);
-            result.put("message", I18n.t("playerdata.heb291fb8", e.getMessage()));
+            result.put("message", I18n.t("playerdata.failed_to_write_the_player", e.getMessage()));
             return result;
         }
 
         EXPORT_OK.incrementAndGet();
         result.put("success", true);
-        result.put("message", I18n.t("playerdata.h31da32fc", data.playerName, playerId, filePath(playerId)));
+        result.put("message", I18n.t("playerdata.data_for_player_has_been", data.playerName, playerId, filePath(playerId)));
         result.put("filePath", filePath(playerId));
         result.put("exportedAt", data.exportedAt);
         result.put("rowCount", data.rowCount);
@@ -538,7 +538,7 @@ public class PlayerDataService {
         Map<String, Object> result = new LinkedHashMap<>();
         if (!ENABLED) {
             result.put("success", false);
-            result.put("message", I18n.t("playerdata.h9573c3bc"));
+            result.put("message", I18n.t("playerdata.file_based_player_data"));
             return result;
         }
         PlayerData data;
@@ -547,17 +547,17 @@ public class PlayerDataService {
         } catch (Exception e) {
             recordRestoreFailure("解析玩家 " + playerId + " 数据失败: " + e.getMessage());
             result.put("success", false);
-            result.put("message", I18n.t("playerdata.h16464a5c", e.getMessage()));
+            result.put("message", I18n.t("playerdata.failed_to_parse_the_player", e.getMessage()));
             return result;
         }
         if (data == null || data.tables == null || data.tables.isEmpty()) {
             result.put("success", false);
-            result.put("message", I18n.t("playerdata.haaee0960"));
+            result.put("message", I18n.t("playerdata.the_player_data_is_empty"));
             return result;
         }
         if (data.playerId != playerId) {
             result.put("success", false);
-            result.put("message", I18n.t("playerdata.ha165961c", data.playerId, playerId));
+            result.put("message", I18n.t("playerdata.the_player_in_the_data", data.playerId, playerId));
             return result;
         }
 
@@ -594,7 +594,7 @@ public class PlayerDataService {
         if (invalidStructure != null) {
             recordRestoreFailure("玩家 " + playerId + " 数据文件结构非法: " + invalidStructure);
             result.put("success", false);
-            result.put("message", I18n.t("playerdata.h0a551337", invalidStructure));
+            result.put("message", I18n.t("playerdata.restore_failed", invalidStructure));
             return result;
         }
 
@@ -633,20 +633,20 @@ public class PlayerDataService {
                 conn.rollback();
                 recordRestoreFailure("玩家 " + playerId + " 数据还原失败: " + e.getMessage());
                 result.put("success", false);
-                result.put("message", I18n.t("playerdata.h30cace6c", e.getMessage()));
+                result.put("message", I18n.t("playerdata.restore_failed_and_was_rolled", e.getMessage()));
                 return result;
             }
         } catch (SQLException e) {
             recordRestoreFailure("玩家 " + playerId + " 数据还原失败: " + e.getMessage());
             result.put("success", false);
-            result.put("message", I18n.t("playerdata.h0a551337", e.getMessage()));
+            result.put("message", I18n.t("playerdata.restore_failed", e.getMessage()));
             return result;
         }
 
         RESTORE_OK.incrementAndGet();
         result.put("success", true);
         result.put("restored", restored);
-        result.put("message", I18n.t("playerdata.ha130304a", playerId, restored));
+        result.put("message", I18n.t("playerdata.player_data_restored_successfully", playerId, restored));
         return result;
     }
 
@@ -690,7 +690,7 @@ public class PlayerDataService {
         Path file = DATA_DIR.resolve(playerId + (useBackup ? ".json.bak" : ".json"));
         if (!Files.exists(file)) {
             result.put("success", false);
-            result.put("message", I18n.t("playerdata.h6fec2084", file.toAbsolutePath()));
+            result.put("message", I18n.t("playerdata.the_player_data_file_does", file.toAbsolutePath()));
             return result;
         }
         try {
@@ -699,7 +699,7 @@ public class PlayerDataService {
         } catch (IOException e) {
             recordRestoreFailure("读取玩家 " + playerId + " 数据文件失败: " + e.getMessage());
             result.put("success", false);
-            result.put("message", I18n.t("playerdata.h092cb197", e.getMessage()));
+            result.put("message", I18n.t("playerdata.failed_to_read_the_player", e.getMessage()));
             return result;
         }
     }
@@ -712,7 +712,7 @@ public class PlayerDataService {
         Path file = DATA_DIR.resolve(playerId + ".json");
         if (!Files.exists(file)) {
             result.put("success", false);
-            result.put("message", I18n.t("playerdata.h6fec2084", file.toAbsolutePath()));
+            result.put("message", I18n.t("playerdata.the_player_data_file_does", file.toAbsolutePath()));
             return result;
         }
         try {
@@ -738,7 +738,7 @@ public class PlayerDataService {
             return result;
         } catch (IOException e) {
             result.put("success", false);
-            result.put("message", I18n.t("playerdata.h092cb197", e.getMessage()));
+            result.put("message", I18n.t("playerdata.failed_to_read_the_player", e.getMessage()));
             return result;
         }
     }

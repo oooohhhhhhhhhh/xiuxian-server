@@ -35,9 +35,9 @@ public class PvpCommand extends Command {
             var combatService = ServiceRegistry.getCombatService();
             String challengerName = combatService.rejectChallenge(p.getId());
             if (challengerName == null) {
-                ctx.reply(I18n.t("combat.h22695b44"));
+                ctx.reply(I18n.t("combat.no_pending_challenges"));
             } else {
-                ctx.reply(I18n.t("combat.h6a592ae4", challengerName));
+                ctx.reply(I18n.t("combat.you_declined_the_sparring_challenge", challengerName));
             }
         });
     }
@@ -50,7 +50,7 @@ public class PvpCommand extends Command {
         String arg = ctx.getArg();
         if (CommandUtils.isBlank(arg)) {
             String tactic = getTacticDisplay(p);
-            ctx.reply(I18n.t("combat.h169d1898", tactic));
+            ctx.reply(I18n.t("combat.usage_2", tactic));
             return;
         }
 
@@ -64,9 +64,9 @@ public class PvpCommand extends Command {
         String targetName = arg.trim();
         var playerService = ServiceRegistry.getPlayerService();
         List<PlayerInfo> targets = playerService.searchPlayersByName(targetName, 1, 0);
-        if (targets.isEmpty()) { ctx.reply(I18n.t("combat.h7e37bde8", targetName)); return; }
+        if (targets.isEmpty()) { ctx.reply(I18n.t("combat.player_not_found", targetName)); return; }
         PlayerInfo target = targets.get(0);
-        if (target.getId() == p.getId()) { ctx.reply(I18n.t("combat.h96cde842")); return; }
+        if (target.getId() == p.getId()) { ctx.reply(I18n.t("combat.you_cannot_challenge_yourself")); return; }
 
         var combatService = ServiceRegistry.getCombatService();
         var challengeResult = combatService.createChallenge(p.getId(), target.getId());
@@ -78,7 +78,7 @@ public class PvpCommand extends Command {
 
         // 通知挑战者
         String challengerTactic = getTacticDisplay(p);
-        ctx.reply(I18n.t("combat.h78015670", target.getName(), challengerTactic));
+        ctx.reply(I18n.t("combat.you_challenged_to_a_sparring", target.getName(), challengerTactic));
 
         // 通知被挑战者
         notifyTarget(ctx, target, p.getName());

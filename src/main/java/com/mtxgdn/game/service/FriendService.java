@@ -186,19 +186,19 @@ public class FriendService {
         Map<String, Object> result = new java.util.LinkedHashMap<>();
         if (playerId == friendPlayerId) {
             result.put("success", false);
-            result.put("message", I18n.t("friend.hc7efe258"));
+            result.put("message", I18n.t("friend.you_cannot_visit_yourself"));
             return result;
         }
         if (!areFriends(playerId, friendPlayerId)) {
             result.put("success", false);
-            result.put("message", I18n.t("friend.hc0ed9cb8"));
+            result.put("message", I18n.t("friend.you_are_not_friends_so"));
             return result;
         }
         ensureVisitDate();
         java.util.Set<Long> visited = DAILY_VISITS.computeIfAbsent(playerId, k -> java.util.concurrent.ConcurrentHashMap.newKeySet());
         if (!visited.add(friendPlayerId)) {
             result.put("success", false);
-            result.put("message", I18n.t("friend.hd893e16c"));
+            result.put("message", I18n.t("friend.you_have_already_visited"));
             return result;
         }
 
@@ -206,7 +206,7 @@ public class FriendService {
         Player friend = playerService.getPlayerById(friendPlayerId);
         if (me == null || friend == null) {
             result.put("success", false);
-            result.put("message", I18n.t("friend.h5fca123a"));
+            result.put("message", I18n.t("friend.player_data_error"));
             return result;
         }
 
@@ -223,7 +223,7 @@ public class FriendService {
         itemService.addSpiritStones(friendPlayerId, friendStones);
 
         result.put("success", true);
-        result.put("message", I18n.t("friend.hbcde7c40", friend.getName(), myExp, myStones, friend.getName(), friendExp, friendStones));
+        result.put("message", I18n.t("friend.you_visited_and_discussed", friend.getName(), myExp, myStones, friend.getName(), friendExp, friendStones));
         return result;
     }
 

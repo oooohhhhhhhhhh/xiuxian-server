@@ -39,7 +39,7 @@ public class PurifyCommand extends Command {
         Long userId = ctx.requireBinding();
         if (userId == null) return;
         PlayerInfo p = ctx.requirePlayer(userId);
-        if (p == null) { ctx.reply(I18n.t("economy.hde5e9ffe")); return; }
+        if (p == null) { ctx.reply(I18n.t("economy.please_create_a_character_first")); return; }
 
         String args = ctx.getArg();
         if (args == null || args.trim().isEmpty()) {
@@ -50,7 +50,7 @@ public class PurifyCommand extends Command {
         String gradeName = args.trim().split("\\s+")[0];
         int grade = parseGrade(gradeName);
         if (grade < 0) {
-            ctx.reply(I18n.t("economy.hdf2641a0", gradeName, economyService().getPurifyHelp(p.getId())));
+            ctx.reply(I18n.t("economy.invalid_spirit_stone_grade_2", gradeName, economyService().getPurifyHelp(p.getId())));
             return;
         }
 
@@ -77,7 +77,7 @@ public class PurifyCommand extends Command {
             int grade = req.has("grade") ? req.get("grade").getAsInt() : -1;
             if (grade < 0 || grade > 2) {
                 result.addProperty("code", 400);
-                result.addProperty("message", I18n.t("economy.h41e94abc"));
+                result.addProperty("message", I18n.t("economy.please_provide_a_valid_grade"));
                 return result;
             }
             Map<String, Object> data = ServiceRegistry.getEconomyService().purifySpiritStone(ctx.playerId(), grade);
@@ -92,7 +92,7 @@ public class PurifyCommand extends Command {
             }
         } catch (Exception e) {
             result.addProperty("code", 500);
-            result.addProperty("message", I18n.t("economy.hf186bd38", e.getMessage()));
+            result.addProperty("message", I18n.t("economy.server_error", e.getMessage()));
         }
         return result;
     }

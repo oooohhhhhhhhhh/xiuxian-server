@@ -105,17 +105,17 @@ public class EnhanceService {
 
         String itemKey = getEquippedItemKey(playerId, slot);
         if (itemKey == null) {
-            return createResult(false, I18n.t("enhance.h81c08460"));
+            return createResult(false, I18n.t("enhance.there_is_no_equipment"));
         }
 
         Item item = ItemRegistry.get(itemKey);
         if (item == null) {
-            return createResult(false, I18n.t("enhance.had7a5178"));
+            return createResult(false, I18n.t("enhance.equipment_data_error"));
         }
 
         int currentLevel = getEnhanceLevel(playerId, slot);
         if (currentLevel >= MAX_ENHANCE_LEVEL) {
-            return createResult(false, I18n.t("enhance.hf074b7a0", MAX_ENHANCE_LEVEL));
+            return createResult(false, I18n.t("enhance.this_equipment_is_already", MAX_ENHANCE_LEVEL));
         }
 
         int goldCost = ENHANCE_GOLD_COST[currentLevel];
@@ -123,15 +123,15 @@ public class EnhanceService {
 
         Player player = playerService.getPlayerById(playerId);
         if (player == null) {
-            return createResult(false, I18n.t("enhance.h59a76b2c"));
+            return createResult(false, I18n.t("enhance.character_not_found"));
         }
 
         if (!checkGold(player, goldCost)) {
-            return createResult(false, I18n.t("enhance.h2ce55323", goldCost, player.getGold()));
+            return createResult(false, I18n.t("enhance.not_enough_gold", goldCost, player.getGold()));
         }
 
         if (!itemService.hasItem(playerId, "mtxgdn:enhance_stone", stoneCost)) {
-            return createResult(false, I18n.t("enhance.h34c30e0c", stoneCost));
+            return createResult(false, I18n.t("enhance.not_enough_enhance_stones", stoneCost));
         }
 
         int successRate = ENHANCE_SUCCESS_RATE[currentLevel];
@@ -189,7 +189,7 @@ public class EnhanceService {
         } catch (Exception e) {
             result.put("success", false);
             result.put("enhanceSuccess", false);
-            result.put("message", I18n.t("enhance.h2ec9218b", e.getMessage()));
+            result.put("message", I18n.t("enhance.enhancement_failed_due", e.getMessage()));
             return result;
         }
     }
@@ -229,13 +229,13 @@ public class EnhanceService {
                 result.put("enhanceSuccess", false);
                 result.put("broken", true);
                 result.put("brokenItem", itemName);
-                result.put("message", I18n.t("enhance.h7b917290", itemName));
+                result.put("message", I18n.t("enhance.enhancement_failed_2", itemName));
             }
             case "protected" -> {
                 result.put("success", false);
                 result.put("enhanceSuccess", false);
                 result.put("protected", true);
-                result.put("message", I18n.t("enhance.h9a90a2a4"));
+                result.put("message", I18n.t("enhance.enhancement_failed_3"));
             }
             case "degrade" -> {
                 result.put("success", false);
@@ -247,7 +247,7 @@ public class EnhanceService {
             default -> {
                 result.put("success", false);
                 result.put("enhanceSuccess", false);
-                result.put("message", I18n.t("enhance.h0b13308c"));
+                result.put("message", I18n.t("enhance.enhancement_failed"));
             }
         }
         return result;

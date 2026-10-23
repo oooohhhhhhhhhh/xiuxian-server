@@ -17,7 +17,7 @@ public class MyListingsCommand extends Command {
         Long userId = ctx.requireBinding(); if (userId == null) return;
         PlayerInfo p = ctx.requirePlayer(userId); if (p == null) return;
         var listings = ServiceRegistry.getTradeService().getPlayerListings(p.getId());
-        if (listings.isEmpty()) { ctx.reply(I18n.t("market.h42513430")); return; }
+        if (listings.isEmpty()) { ctx.reply(I18n.t("market.my_listings_nyou")); return; }
         StringBuilder sb = new StringBuilder(); sb.append("===== 我的挂单 =====\n");
         for (var l : listings) {
             Item item = ItemRegistry.get(l.itemKey);

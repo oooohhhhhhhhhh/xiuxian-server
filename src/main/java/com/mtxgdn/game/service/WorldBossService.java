@@ -380,36 +380,36 @@ public class WorldBossService {
         WorldBoss boss = selectBoss(getPool(key, now), query);
         if (boss == null) {
             result.put("success", false);
-            result.put("message", I18n.t("world_boss.ha32bc604"));
+            result.put("message", I18n.t("world_boss.world_boss_not_found"));
             return result;
         }
         if (boss.isDead()) {
             result.put("success", false);
-            result.put("message", I18n.t("world_boss.ha9ccbcf0", boss.getName(), formatTime(boss.getExpiresAt())));
+            result.put("message", I18n.t("world_boss.has_been_slain", boss.getName(), formatTime(boss.getExpiresAt())));
             return result;
         }
 
         Player player = playerService.getPlayerById(playerId);
         if (player == null) {
             result.put("success", false);
-            result.put("message", I18n.t("world_boss.h59a76b2c"));
+            result.put("message", I18n.t("world_boss.character_does_not_exist"));
             return result;
         }
         if (player.getHp() <= 0) {
             result.put("success", false);
-            result.put("message", I18n.t("world_boss.h95538220"));
+            result.put("message", I18n.t("world_boss.your_health_is_too_low"));
             return result;
         }
         if (player.isCultivating()) {
             result.put("success", false);
-            result.put("message", I18n.t("world_boss.hfd4aae38"));
+            result.put("message", I18n.t("world_boss.you_cannot_challenge_the_world"));
             return result;
         }
 
         int stageGap = Math.abs(player.getRealmStage() - boss.getRealm() * 3);
         if (stageGap >= maxStageGap()) {
             result.put("success", false);
-            result.put("message", I18n.t("world_boss.h126829d8", maxStageGap(), stageGap));
+            result.put("message", I18n.t("world_boss.the_realm_gap_is_too", maxStageGap(), stageGap));
             return result;
         }
 
@@ -417,12 +417,12 @@ public class WorldBossService {
         WorldBossDamage ledger = getDamage(boss.getId(), playerId);
         if (ledger != null && !ledger.isReady(now, cooldownMs)) {
             result.put("success", false);
-            result.put("message", I18n.t("world_boss.hcbd9e508", formatDuration(ledger.remainingCooldownMs(now, cooldownMs))));
+            result.put("message", I18n.t("world_boss.challenge_on_cooldown_2", formatDuration(ledger.remainingCooldownMs(now, cooldownMs))));
             return result;
         }
         if (!claimChallengeSlot(boss.getId(), playerId, now, cooldownMs)) {
             result.put("success", false);
-            result.put("message", I18n.t("world_boss.h0803df94"));
+            result.put("message", I18n.t("world_boss.challenge_on_cooldown"));
             return result;
         }
 

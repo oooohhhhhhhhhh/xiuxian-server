@@ -46,12 +46,12 @@ public class ReincarnateCommand extends Command {
         PlayerService playerService = ServiceRegistry.getPlayerService();
         Player player = playerService.getPlayerByUserIdRaw(userId);
         if (player == null) {
-            ctx.reply(I18n.t("cultivation.h59a76b2c"));
+            ctx.reply(I18n.t("cultivation.character_not_found"));
             return;
         }
 
         if (player.getRealm() < MAX_REALM) {
-            ctx.reply(I18n.t("cultivation.hcacade64"));
+            ctx.reply(I18n.t("cultivation.reincarnation_is_only_possible_after"));
             return;
         }
 
@@ -92,7 +92,7 @@ public class ReincarnateCommand extends Command {
                 return null;
             });
         } catch (Exception e) {
-            ctx.reply(I18n.t("cultivation.hdba9eaae"));
+            ctx.reply(I18n.t("cultivation.reincarnation_failed"));
             return;
         }
 
@@ -102,6 +102,6 @@ public class ReincarnateCommand extends Command {
         } catch (Exception ignored) {
         }
 
-        ctx.reply(I18n.t("cultivation.hd255f2bc", Math.max(1, (int)(attack * KEEP_STAT_RATIO)), Math.max(1, (int)(defense * KEEP_STAT_RATIO)), Math.max(1, (int)(speed * KEEP_STAT_RATIO)), Math.max(1, (int)(spirit * KEEP_STAT_RATIO))));
+        ctx.reply(I18n.t("cultivation.reincarnation_nyou_shatter_your_own", Math.max(1, (int)(attack * KEEP_STAT_RATIO)), Math.max(1, (int)(defense * KEEP_STAT_RATIO)), Math.max(1, (int)(speed * KEEP_STAT_RATIO)), Math.max(1, (int)(spirit * KEEP_STAT_RATIO))));
     }
 }

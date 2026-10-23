@@ -19,7 +19,7 @@ public class MarketCommand extends Command {
         var guideService = ServiceRegistry.getGuideService();
         var listings = tradeService.getActiveListings();
         if (listings.isEmpty()) {
-            ctx.reply(I18n.t("market.h7e9a27ac")); return;
+            ctx.reply(I18n.t("market.market_nthe_market_is_empty")); return;
         }
         StringBuilder sb = new StringBuilder(); sb.append("===== 坊市 =====\n");
         int shown = 0;

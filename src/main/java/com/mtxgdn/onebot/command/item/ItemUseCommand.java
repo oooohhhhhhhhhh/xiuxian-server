@@ -24,7 +24,7 @@ public class ItemUseCommand extends Command {
         Long userId = p.getUserId();
         String itemKey = ctx.getArg();
         if (CommandUtils.isBlank(itemKey)) {
-            ctx.reply(I18n.t("item_use.he8eb5bf0"));
+            ctx.reply(I18n.t("item_use.usage"));
             return;
         }
         var itemService = ServiceRegistry.getItemService();

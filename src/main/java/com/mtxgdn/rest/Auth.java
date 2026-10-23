@@ -184,7 +184,7 @@ public class Auth {
         if (email == null || email.trim().isEmpty()) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 400);
-            err.addProperty("message", I18n.t("auth.h45338de2"));
+            err.addProperty("message", I18n.t("auth.email_cannot_be_empty"));
             return Response.status(400).entity(err.toString()).build();
         }
 
@@ -192,7 +192,7 @@ public class Auth {
         if (!isValidEmail(trimmedEmail)) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 400);
-            err.addProperty("message", I18n.t("auth.h21c46d78"));
+            err.addProperty("message", I18n.t("auth.invalid_email_format"));
             return Response.status(400).entity(err.toString()).build();
         }
 
@@ -207,19 +207,19 @@ public class Auth {
             EmailService.sendVerificationCode(trimmedEmail, verificationCode);
 
             JsonObject data = new JsonObject();
-            data.addProperty("message", I18n.t("auth.h70c7a34a"));
+            data.addProperty("message", I18n.t("auth.verification_code_sent"));
             return Response.ok(data.toString()).build();
         } catch (MessagingException e) {
             System.err.println("[Auth] 发送邮件失败: " + e.getMessage());
             JsonObject err = new JsonObject();
             err.addProperty("code", 500);
-            err.addProperty("message", I18n.t("auth.hd2e81c54"));
+            err.addProperty("message", I18n.t("auth.failed_to_send_verification_code_2"));
             return Response.status(500).entity(err.toString()).build();
         } catch (RuntimeException e) {
             System.err.println("[Auth] 验证码服务异常: " + e.getMessage());
             JsonObject err = new JsonObject();
             err.addProperty("code", 500);
-            err.addProperty("message", I18n.t("auth.hb2935caf", e.getMessage()));
+            err.addProperty("message", I18n.t("auth.failed_to_send_verification_code", e.getMessage()));
             return Response.status(500).entity(err.toString()).build();
         }
     }
@@ -248,7 +248,7 @@ public class Auth {
         if (!RateLimiter.allow("login_ip:" + clientBucket(grizzlyReq), 20, 60)) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 429);
-            err.addProperty("message", I18n.t("auth.h9c54f628"));
+            err.addProperty("message", I18n.t("auth.too_many_login_attempts"));
             return Response.status(429).entity(err.toString()).build();
         }
 
@@ -257,7 +257,7 @@ public class Auth {
             if (!RateLimiter.allow(rateLimitKey, 5, 60)) {
                 JsonObject err = new JsonObject();
                 err.addProperty("code", 429);
-                err.addProperty("message", I18n.t("auth.h9c54f628"));
+                err.addProperty("message", I18n.t("auth.too_many_login_attempts"));
                 return Response.status(429).entity(err.toString()).build();
             }
         }
@@ -276,7 +276,7 @@ public class Auth {
         if (userId == null) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 401);
-            err.addProperty("message", I18n.t("auth.he5c24b00"));
+            err.addProperty("message", I18n.t("auth.please_log_in_first"));
             return Response.status(401).entity(err.toString()).build();
         }
 
@@ -298,7 +298,7 @@ public class Auth {
         }
 
         JsonObject data = new JsonObject();
-        data.addProperty("message", I18n.t("auth.hb273bcee"));
+        data.addProperty("message", I18n.t("auth.logged_out_safely"));
         return Response.ok(data.toString()).build();
     }
 
@@ -314,7 +314,7 @@ public class Auth {
         if (email == null || email.trim().isEmpty()) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 400);
-            err.addProperty("message", I18n.t("auth.h45338de2"));
+            err.addProperty("message", I18n.t("auth.email_cannot_be_empty"));
             return Response.status(400).entity(err.toString()).build();
         }
 
@@ -322,7 +322,7 @@ public class Auth {
         if (!isValidEmail(trimmedEmail)) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 400);
-            err.addProperty("message", I18n.t("auth.h21c46d78"));
+            err.addProperty("message", I18n.t("auth.invalid_email_format"));
             return Response.status(400).entity(err.toString()).build();
         }
 
@@ -337,19 +337,19 @@ public class Auth {
             EmailService.sendVerificationCode(trimmedEmail, verificationCode);
 
             JsonObject data = new JsonObject();
-            data.addProperty("message", I18n.t("auth.h70c7a34a"));
+            data.addProperty("message", I18n.t("auth.verification_code_sent"));
             return Response.ok(data.toString()).build();
         } catch (MessagingException e) {
             System.err.println("[Auth] 发送邮件失败: " + e.getMessage());
             JsonObject err = new JsonObject();
             err.addProperty("code", 500);
-            err.addProperty("message", I18n.t("auth.hd2e81c54"));
+            err.addProperty("message", I18n.t("auth.failed_to_send_verification_code_2"));
             return Response.status(500).entity(err.toString()).build();
         } catch (RuntimeException e) {
             System.err.println("[Auth] 验证码服务异常: " + e.getMessage());
             JsonObject err = new JsonObject();
             err.addProperty("code", 500);
-            err.addProperty("message", I18n.t("auth.hb2935caf", e.getMessage()));
+            err.addProperty("message", I18n.t("auth.failed_to_send_verification_code", e.getMessage()));
             return Response.status(500).entity(err.toString()).build();
         }
     }
@@ -367,21 +367,21 @@ public class Auth {
         if (email == null || email.trim().isEmpty()) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 400);
-            err.addProperty("message", I18n.t("auth.h45338de2"));
+            err.addProperty("message", I18n.t("auth.email_cannot_be_empty"));
             return Response.status(400).entity(err.toString()).build();
         }
 
         if (code == null || code.trim().isEmpty()) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 400);
-            err.addProperty("message", I18n.t("auth.hd8155b98"));
+            err.addProperty("message", I18n.t("auth.verification_code_cannot_be_empty"));
             return Response.status(400).entity(err.toString()).build();
         }
 
         if (newPassword == null || newPassword.length() < 6) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 400);
-            err.addProperty("message", I18n.t("auth.hfbe8536f"));
+            err.addProperty("message", I18n.t("auth.the_new_password_must"));
             return Response.status(400).entity(err.toString()).build();
         }
 
@@ -389,13 +389,13 @@ public class Auth {
         if (verificationCodeService.isVerifyLocked(trimmedEmail)) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 429);
-            err.addProperty("message", I18n.t("auth.ha9aa782f"));
+            err.addProperty("message", I18n.t("auth.too_many_incorrect_verification_code"));
             return Response.status(429).entity(err.toString()).build();
         }
         if (!verificationCodeService.verifyCode(trimmedEmail, code.trim())) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 400);
-            err.addProperty("message", I18n.t("auth.h88dedbd9"));
+            err.addProperty("message", I18n.t("auth.incorrect_or_expired_verification_code"));
             return Response.status(400).entity(err.toString()).build();
         }
 
@@ -412,7 +412,7 @@ public class Auth {
         if (userId == null) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 401);
-            err.addProperty("message", I18n.t("auth.he5c24b00"));
+            err.addProperty("message", I18n.t("auth.please_log_in_first"));
             return Response.status(401).entity(err.toString()).build();
         }
 
@@ -434,14 +434,14 @@ public class Auth {
         if (password == null || password.isEmpty()) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 400);
-            err.addProperty("message", I18n.t("auth.hb543df00"));
+            err.addProperty("message", I18n.t("auth.account_deletion_cannot_be_undone"));
             return Response.status(400).entity(err.toString()).build();
         }
 
         if (!userService.verifyPassword(userId, password)) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 403);
-            err.addProperty("message", I18n.t("auth.hdb26d337"));
+            err.addProperty("message", I18n.t("auth.incorrect_password_deletion_refused"));
             return Response.status(403).entity(err.toString()).build();
         }
 

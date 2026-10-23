@@ -46,10 +46,10 @@ public class WildernessCommand extends Command {
         Long userId = ctx.requireBinding();
         if (userId == null) return;
         PlayerInfo p = ctx.requirePlayer(userId);
-        if (p == null) { ctx.reply(I18n.t("map.hde5e9ffe")); return; }
+        if (p == null) { ctx.reply(I18n.t("map.please_create_a_character_first")); return; }
 
         if (!mapService.isWildernessEnabled()) {
-            ctx.reply(I18n.t("map.h9a54ad7b"));
+            ctx.reply(I18n.t("map.the_wilderness_map_is_currently"));
             return;
         }
 
@@ -80,7 +80,7 @@ public class WildernessCommand extends Command {
 
         List<MapLocation> nodes = mapService.getChunkNodes(chunk[0], chunk[1]);
         if (nodes.isEmpty()) {
-            ctx.reply(I18n.t("map.hbef067da"));
+            ctx.reply(I18n.t("map.your_position_is_now_outside"));
             return;
         }
 
@@ -195,7 +195,7 @@ public class WildernessCommand extends Command {
             out.addProperty("code", 403);
             out.addProperty("success", false);
             out.addProperty("enabled", false);
-            out.addProperty("message", I18n.t("map.h9a54ad7b"));
+            out.addProperty("message", I18n.t("map.the_wilderness_map_is_currently"));
             return out;
         }
 
@@ -203,7 +203,7 @@ public class WildernessCommand extends Command {
         if (player == null) {
             out.addProperty("code", 404);
             out.addProperty("success", false);
-            out.addProperty("message", I18n.t("map.h59a76b2c"));
+            out.addProperty("message", I18n.t("map.character_not_found"));
             return out;
         }
 
@@ -239,7 +239,7 @@ public class WildernessCommand extends Command {
                 gateways.add(g);
             }
             out.add("gateways", gateways);
-            out.addProperty("message", I18n.t("map.hd682f747"));
+            out.addProperty("message", I18n.t("map.you_are_standing"));
             return out;
         }
 
@@ -247,7 +247,7 @@ public class WildernessCommand extends Command {
         if (nodes.isEmpty()) {
             out.addProperty("code", 404);
             out.addProperty("success", false);
-            out.addProperty("message", I18n.t("map.hbef067da"));
+            out.addProperty("message", I18n.t("map.your_position_is_now_outside"));
             return out;
         }
 
@@ -309,7 +309,7 @@ public class WildernessCommand extends Command {
             nodesJson.add(n);
         }
         out.add("nodes", nodesJson);
-        out.addProperty("message", I18n.t("map.h4ee257a2"));
+        out.addProperty("message", I18n.t("map.use_post_api_game_map"));
         return out;
     }
 }

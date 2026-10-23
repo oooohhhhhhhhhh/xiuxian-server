@@ -15,10 +15,10 @@ public class CancelListingCommand extends Command {
     public void execute(CommandContext ctx) {
         Long userId = ctx.requireBinding(); if (userId == null) return;
         PlayerInfo p = ctx.requirePlayer(userId); if (p == null) return;
-        if (ctx.getArg().trim().isEmpty()) { ctx.reply(I18n.t("market.h0beb331c")); return; }
+        if (ctx.getArg().trim().isEmpty()) { ctx.reply(I18n.t("market.usage")); return; }
         long listingId;
         try { listingId = Long.parseLong(ctx.getArg().trim()); }
-        catch (NumberFormatException e) { ctx.reply(I18n.t("market.h6e25fb8c")); return; }
+        catch (NumberFormatException e) { ctx.reply(I18n.t("market.the_listing_id_must_2")); return; }
         Map<String, Object> result = ServiceRegistry.getTradeService().cancelListing(p.getId(), listingId);
         ctx.reply((String) result.getOrDefault("message", I18n.t("trade.cancel_failed")));
     }

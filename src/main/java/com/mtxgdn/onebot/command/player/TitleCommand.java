@@ -106,7 +106,7 @@ public class TitleCommand extends Command {
             name = arg.trim().replaceFirst("^装备\\s*", "").replaceFirst("^equip\\s*", "");
         }
         if (name.isEmpty()) {
-            ctx.reply(I18n.t("player.h1a736b70"));
+            ctx.reply(I18n.t("player.usage"));
             return;
         }
 
@@ -124,7 +124,7 @@ public class TitleCommand extends Command {
         }
 
         if (matchedKey == null) {
-            ctx.reply(I18n.t("player.hd1d1f9ec", name));
+            ctx.reply(I18n.t("player.title_not_found", name));
             return;
         }
 

@@ -234,7 +234,7 @@ public class GameEconomyResource {
             default -> {
                 Map<String, Object> err = new HashMap<>();
                 err.put("success", false);
-                err.put("message", I18n.t("game.ha2b13c10"));
+                err.put("message", I18n.t("game.type_must_be_either_goldtostones"));
                 result = err;
             }
         }

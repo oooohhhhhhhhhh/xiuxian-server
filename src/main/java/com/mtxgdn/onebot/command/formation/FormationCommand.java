@@ -50,7 +50,7 @@ public class FormationCommand extends Command {
             if (f == null) {
                 result.addProperty("code", 404);
                 result.addProperty("success", false);
-                result.addProperty("message", I18n.t("formation.hcd888a30"));
+                result.addProperty("message", I18n.t("formation.you_have_not_set_up"));
                 result.addProperty("hasFormation", false);
                 return result;
             }
@@ -69,7 +69,7 @@ public class FormationCommand extends Command {
         } catch (Exception e) {
             result.addProperty("code", 500);
             result.addProperty("success", false);
-            result.addProperty("message", I18n.t("formation.hf186bd38", e.getMessage()));
+            result.addProperty("message", I18n.t("formation.server_error", e.getMessage()));
         }
         return result;
     }
@@ -103,7 +103,7 @@ public class FormationCommand extends Command {
         } catch (Exception e) {
             result.addProperty("code", 500);
             result.addProperty("success", false);
-            result.addProperty("message", I18n.t("formation.hf186bd38", e.getMessage()));
+            result.addProperty("message", I18n.t("formation.server_error", e.getMessage()));
         }
         return result;
     }
@@ -132,7 +132,7 @@ public class FormationCommand extends Command {
                 if (level < 1 || level > Formation.MAX_LEVEL) {
                     result.addProperty("code", 400);
                     result.addProperty("success", false);
-                    result.addProperty("message", I18n.t("formation.h567eb358", Formation.MAX_LEVEL));
+                    result.addProperty("message", I18n.t("formation.the_formation_level_must", Formation.MAX_LEVEL));
                     return result;
                 }
             }
@@ -145,7 +145,7 @@ public class FormationCommand extends Command {
         } catch (Exception e) {
             result.addProperty("code", 500);
             result.addProperty("success", false);
-            result.addProperty("message", I18n.t("formation.hf186bd38", e.getMessage()));
+            result.addProperty("message", I18n.t("formation.server_error", e.getMessage()));
         }
         return result;
     }
@@ -163,7 +163,7 @@ public class FormationCommand extends Command {
         } catch (Exception e) {
             result.addProperty("code", 500);
             result.addProperty("success", false);
-            result.addProperty("message", I18n.t("formation.hf186bd38", e.getMessage()));
+            result.addProperty("message", I18n.t("formation.server_error", e.getMessage()));
         }
         return result;
     }
@@ -179,7 +179,7 @@ public class FormationCommand extends Command {
         } catch (Exception e) {
             result.addProperty("code", 500);
             result.addProperty("success", false);
-            result.addProperty("message", I18n.t("formation.hf186bd38", e.getMessage()));
+            result.addProperty("message", I18n.t("formation.server_error", e.getMessage()));
         }
         return result;
     }
@@ -200,14 +200,14 @@ public class FormationCommand extends Command {
 
     private void handlePlace(CommandContext ctx, PlayerInfo p, String[] parts) {
         if (parts.length < 2) {
-            ctx.reply(I18n.t("formation.h169acfb8"));
+            ctx.reply(I18n.t("formation.please_specify_a_formation_name"));
             return;
         }
 
         String formationName = parts[1];
         String formationKey = getKeyByName(formationName);
         if (formationKey == null) {
-            ctx.reply(I18n.t("formation.hf213bc30", formationName));
+            ctx.reply(I18n.t("formation.unknown_formation", formationName));
             return;
         }
 
@@ -216,11 +216,11 @@ public class FormationCommand extends Command {
             try {
                 level = Integer.parseInt(parts[2]);
                 if (level < 1 || level > Formation.MAX_LEVEL) {
-                    ctx.reply(I18n.t("formation.h567eb358", Formation.MAX_LEVEL));
+                    ctx.reply(I18n.t("formation.the_formation_level_must", Formation.MAX_LEVEL));
                     return;
                 }
             } catch (NumberFormatException e) {
-                ctx.reply(I18n.t("formation.h5522cfdc"));
+                ctx.reply(I18n.t("formation.invalid_level"));
                 return;
             }
         }
@@ -232,7 +232,7 @@ public class FormationCommand extends Command {
     private void handleInfo(CommandContext ctx, PlayerInfo p, String[] parts) {
         Formation f = formationService.getActiveFormation(p.getId());
         if (f == null) {
-            ctx.reply(I18n.t("formation.hcd888a30"));
+            ctx.reply(I18n.t("formation.you_have_not_set_up"));
             return;
         }
 

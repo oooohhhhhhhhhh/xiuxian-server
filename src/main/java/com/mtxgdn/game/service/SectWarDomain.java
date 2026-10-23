@@ -55,30 +55,30 @@ final class SectWarDomain {
         // 实验性插件门控：宗门战停用后，REST / WebSocket / 指令三个入口统一拒绝
         if (!com.mtxgdn.plugin.BuiltInPluginRegistry.getInstance().isEnabledOrUnknown(SECT_WAR_PLUGIN)) {
             result.put("success", false);
-            result.put("message", I18n.t("sect.hfe4ed1bc"));
+            result.put("message", I18n.t("sect.sect_war_is_experimental_content"));
             return result;
         }
         SectMember attackerMember = queryDomain.getPlayerMember(attackerPlayerId);
         if (attackerMember == null || !attackerMember.isLeader()) {
-            result.put("success", false); result.put("message", I18n.t("sect.h07a48c10")); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.only_the_sect_leader_2")); return result;
         }
 
         Sect attackerSect = queryDomain.getSectById(attackerMember.getSectId());
         if (attackerSect == null) {
-            result.put("success", false); result.put("message", I18n.t("sect.ha5ef1b70")); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.your_sect_does_not_exist")); return result;
         }
         if (attackerSect.getId() == defenderSectId) {
-            result.put("success", false); result.put("message", I18n.t("sect.h12f51fdc")); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.you_cannot_declare_war")); return result;
         }
 
         Sect defenderSect = queryDomain.getSectById(defenderSectId);
         if (defenderSect == null) {
-            result.put("success", false); result.put("message", I18n.t("sect.h091dc05c")); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.the_target_sect_does")); return result;
         }
 
         List<SectMember> defenderMembers = queryDomain.getSectMembers(defenderSectId);
         if (defenderMembers.isEmpty()) {
-            result.put("success", false); result.put("message", I18n.t("sect.h50602204")); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.the_target_sect")); return result;
         }
 
         // 宗门战冷却：同一防守方 24 小时内只能被宣战一次，防止无休止骚扰
@@ -93,7 +93,7 @@ final class SectWarDomain {
                     long remaining = warCooldownMs - (System.currentTimeMillis() - lastWarTime);
                     if (remaining > 0) {
                         result.put("success", false);
-                        result.put("message", I18n.t("sect.hb6f9926c", Math.max(1, remaining / 3600000)));
+                        result.put("message", I18n.t("sect.the_target_sect_just_fought", Math.max(1, remaining / 3600000)));
                         return result;
                     }
                 }
@@ -102,14 +102,14 @@ final class SectWarDomain {
 
         if (attackerSect.getPrestige() < Sect.DECLARE_WAR_PRESTIGE_COST) {
             result.put("success", false);
-            result.put("message", I18n.t("sect.h72ced260", Sect.DECLARE_WAR_PRESTIGE_COST, attackerSect.getPrestige()));
+            result.put("message", I18n.t("sect.the_sect_lacks_prestige", Sect.DECLARE_WAR_PRESTIGE_COST, attackerSect.getPrestige()));
             return result;
         }
 
         long spiritStones = itemService.getSpiritStoneCount(attackerPlayerId);
         if (spiritStones < Sect.DECLARE_WAR_SPIRIT_STONE_COST) {
             result.put("success", false);
-            result.put("message", I18n.t("sect.h1009eea4", Sect.DECLARE_WAR_SPIRIT_STONE_COST, spiritStones));
+            result.put("message", I18n.t("sect.not_enough_spirit_stones", Sect.DECLARE_WAR_SPIRIT_STONE_COST, spiritStones));
             return result;
         }
         // 扣除灵石和声望（事务包裹）
@@ -128,7 +128,7 @@ final class SectWarDomain {
             });
         } catch (Exception e) {
             result.put("success", false);
-            result.put("message", I18n.t("sect.hfda59a4f", e.getMessage()));
+            result.put("message", I18n.t("sect.failed_to_declare_war", e.getMessage()));
             return result;
         }
 

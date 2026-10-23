@@ -83,7 +83,7 @@ public class WorldBossCommand extends Command {
     private void handleChallenge(CommandContext ctx, PlayerInfo p, String[] parts) {
         String query = parts.length > 1 ? parts[1].trim() : "";
         if (query.isEmpty()) {
-            ctx.reply(I18n.t("worldboss.hb2977150"));
+            ctx.reply(I18n.t("worldboss.usage"));
             return;
         }
         Map<String, Object> result = worldBossService.challenge(
@@ -108,7 +108,7 @@ public class WorldBossCommand extends Command {
         List<WorldBoss> pool = worldBossService.getPool(WorldBossService.scope(), System.currentTimeMillis());
         WorldBoss boss = pickByIndex(pool, query);
         if (boss == null) {
-            ctx.reply(I18n.t("worldboss.h535cf9d3"));
+            ctx.reply(I18n.t("worldboss.world_boss_not_found"));
             return;
         }
         ctx.reply(buildLeaderboard(boss));
@@ -119,7 +119,7 @@ public class WorldBossCommand extends Command {
             return;
         }
         List<WorldBoss> pool = worldBossService.refreshPool(WorldBossService.scope(), System.currentTimeMillis());
-        ctx.reply(I18n.t("worldboss.h49971702", pool.size(), describePool(pool, null)));
+        ctx.reply(I18n.t("worldboss.world_boss_pool_rebuilt", pool.size(), describePool(pool, null)));
     }
 
     // ==================== 文案 ====================

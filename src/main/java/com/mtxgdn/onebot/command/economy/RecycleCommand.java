@@ -31,7 +31,7 @@ public class RecycleCommand extends Command {
 
         String[] parts = ctx.getArg().trim().split("\\s+", 2);
         if (parts[0].isEmpty()) {
-            ctx.reply(I18n.t("economy.h91157bd0"));
+            ctx.reply(I18n.t("economy.usage_5"));
             return;
         }
 
@@ -39,13 +39,13 @@ public class RecycleCommand extends Command {
         int quantity = 1;
         if (parts.length > 1) {
             try { quantity = Integer.parseInt(parts[1]); } catch (NumberFormatException e) {
-                ctx.reply(I18n.t("economy.he44ee76c")); return;
+                ctx.reply(I18n.t("economy.invalid_quantity")); return;
             }
         }
-        if (quantity <= 0) { ctx.reply(I18n.t("economy.h893a9a8c")); return; }
+        if (quantity <= 0) { ctx.reply(I18n.t("economy.quantity_must_be_greater_than_2")); return; }
 
         var item = ItemRegistry.resolve(itemName);
-        if (item == null) { ctx.reply(I18n.t("economy.h3cf7f1c0")); return; }
+        if (item == null) { ctx.reply(I18n.t("economy.item_not_found_3")); return; }
 
         var eco = ServiceRegistry.getEconomyService();
         var result = eco.recycleItem(p.getId(), itemName, quantity);
@@ -63,19 +63,19 @@ public class RecycleCommand extends Command {
 
             if (itemKey.isBlank()) {
                 result.addProperty("code", 400);
-                result.addProperty("message", I18n.t("economy.he3b69f3c"));
+                result.addProperty("message", I18n.t("economy.please_provide_an_item_key"));
                 return result;
             }
             if (quantity <= 0) {
                 result.addProperty("code", 400);
-                result.addProperty("message", I18n.t("economy.h893a9a8c"));
+                result.addProperty("message", I18n.t("economy.quantity_must_be_greater_than_2"));
                 return result;
             }
 
             var item = ItemRegistry.resolve(itemKey);
             if (item == null) {
                 result.addProperty("code", 404);
-                result.addProperty("message", I18n.t("economy.h3c2a9282", itemKey));
+                result.addProperty("message", I18n.t("economy.item_not_found_2", itemKey));
                 return result;
             }
 
@@ -89,7 +89,7 @@ public class RecycleCommand extends Command {
             if (data.containsKey("recycled")) result.addProperty("recycled", String.valueOf(data.get("recycled")));
         } catch (Exception e) {
             result.addProperty("code", 500);
-            result.addProperty("message", I18n.t("economy.hf186bd38", e.getMessage()));
+            result.addProperty("message", I18n.t("economy.server_error", e.getMessage()));
         }
         return result;
     }

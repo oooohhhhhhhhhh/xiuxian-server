@@ -49,7 +49,7 @@ public class ShopCommand extends Command {
             }
             ctx.reply(sb.toString());
         } catch (NumberFormatException e) {
-            ctx.reply(I18n.t("economy.h2ce09654"));
+            ctx.reply(I18n.t("economy.please_enter_an_item_number"));
         }
     }
 
@@ -93,7 +93,7 @@ public class ShopCommand extends Command {
             if (!body.has("id")) {
                 result.addProperty("code", 400);
                 result.addProperty("success", false);
-                result.addProperty("message", I18n.t("economy.hb69140ac"));
+                result.addProperty("message", I18n.t("economy.missing_item_id"));
                 return result;
             }
             int index = body.get("id").getAsInt();
@@ -105,7 +105,7 @@ public class ShopCommand extends Command {
         } catch (Exception e) {
             result.addProperty("code", 500);
             result.addProperty("success", false);
-            result.addProperty("message", I18n.t("economy.h429191c6"));
+            result.addProperty("message", I18n.t("economy.purchase_failed"));
         }
         return result;
     }

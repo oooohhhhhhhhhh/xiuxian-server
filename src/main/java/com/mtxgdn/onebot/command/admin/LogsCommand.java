@@ -25,11 +25,11 @@ public class LogsCommand extends Command {
     public void execute(CommandContext ctx) {
         QqBinding b = ctx.resolveBoundBinding();
         if (b == null) {
-            ctx.reply(I18n.t("admin.hd852a51e"));
+            ctx.reply(I18n.t("admin.please_bind_your_account_first_2"));
             return;
         }
         if (!PermissionService.hasPermission(b.getUserId(), "admin.logs.view")) {
-            ctx.reply(I18n.t("admin.ha43d576a"));
+            ctx.reply(I18n.t("admin.insufficient_permission_3"));
             return;
         }
 
@@ -51,7 +51,7 @@ public class LogsCommand extends Command {
         }
 
         if (entries.isEmpty()) {
-            ctx.reply(I18n.t("admin.hbcdb26c6"));
+            ctx.reply(I18n.t("admin.no_logs_yet"));
             return;
         }
 

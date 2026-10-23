@@ -51,85 +51,85 @@ public class FriendCommand extends Command {
         switch (sub) {
             case "add" -> {
                 if (param == null || param.isBlank()) {
-                    ctx.reply(I18n.t("social.h93f88000"));
+                    ctx.reply(I18n.t("social.usage_7"));
                     return;
                 }
                 List<PlayerInfo> targets = playerService.searchPlayersByName(param.trim(), 1, 0);
                 if (targets.isEmpty()) {
-                    ctx.reply(I18n.t("social.h8da85e34", param));
+                    ctx.reply(I18n.t("social.player_does_not_exist", param));
                     return;
                 }
                 PlayerInfo target = targets.get(0);
                 if (target.getId() == p.getId()) {
-                    ctx.reply(I18n.t("social.hdc5c17d4"));
+                    ctx.reply(I18n.t("social.you_cannot_add_yourself"));
                     return;
                 }
                 try {
                     friendService.sendRequest(p.getId(), target.getId());
-                    ctx.reply(I18n.t("social.h31c9c08c", target.getName()));
+                    ctx.reply(I18n.t("social.friend_request_sent", target.getName()));
                 } catch (RuntimeException e) {
-                    ctx.reply(I18n.t("social.h5ac73c67", e.getMessage()));
+                    ctx.reply(I18n.t("social.add_failed", e.getMessage()));
                 }
             }
             case "accept" -> {
                 if (param == null || param.isBlank()) {
-                    ctx.reply(I18n.t("social.h6ac102f8"));
+                    ctx.reply(I18n.t("social.usage_6"));
                     return;
                 }
                 List<PlayerInfo> targets = playerService.searchPlayersByName(param.trim(), 1, 0);
                 if (targets.isEmpty()) {
-                    ctx.reply(I18n.t("social.h8da85e34", param));
+                    ctx.reply(I18n.t("social.player_does_not_exist", param));
                     return;
                 }
                 PlayerInfo target = targets.get(0);
                 if (friendService.acceptRequest(p.getId(), target.getId())) {
-                    ctx.reply(I18n.t("social.hefa45764", target.getName()));
+                    ctx.reply(I18n.t("social.you_and_are_now_friends", target.getName()));
                 } else {
-                    ctx.reply(I18n.t("social.h25b52960"));
+                    ctx.reply(I18n.t("social.accept_failed"));
                 }
             }
             case "reject" -> {
                 if (param == null || param.isBlank()) {
-                    ctx.reply(I18n.t("social.h204e35c0"));
+                    ctx.reply(I18n.t("social.usage_2"));
                     return;
                 }
                 List<PlayerInfo> targets = playerService.searchPlayersByName(param.trim(), 1, 0);
                 if (targets.isEmpty()) {
-                    ctx.reply(I18n.t("social.h8da85e34", param));
+                    ctx.reply(I18n.t("social.player_does_not_exist", param));
                     return;
                 }
                 PlayerInfo target = targets.get(0);
                 if (friendService.rejectRequest(p.getId(), target.getId())) {
-                    ctx.reply(I18n.t("social.hc331b9c2", target.getName()));
+                    ctx.reply(I18n.t("social.rejected_the_friend_request", target.getName()));
                 } else {
-                    ctx.reply(I18n.t("social.h91fac865"));
+                    ctx.reply(I18n.t("social.reject_failed"));
                 }
             }
             case "remove" -> {
                 if (param == null || param.isBlank()) {
-                    ctx.reply(I18n.t("social.h567a54ef"));
+                    ctx.reply(I18n.t("social.usage_5"));
                     return;
                 }
                 List<PlayerInfo> targets = playerService.searchPlayersByName(param.trim(), 1, 0);
                 if (targets.isEmpty()) {
-                    ctx.reply(I18n.t("social.h8da85e34", param));
+                    ctx.reply(I18n.t("social.player_does_not_exist", param));
                     return;
                 }
                 PlayerInfo target = targets.get(0);
                 if (friendService.removeFriend(p.getId(), target.getId())) {
-                    ctx.reply(I18n.t("social.hc9fc2ebc", target.getName()));
+                    ctx.reply(I18n.t("social.removed_friend", target.getName()));
                 } else {
-                    ctx.reply(I18n.t("social.h5693bf98"));
+                    ctx.reply(I18n.t("social.delete_failed"));
                 }
             }
             case "visit" -> {
                 if (param == null || param.isBlank()) {
-                    ctx.reply(I18n.t("social.h025df9b0"));
+                    ctx.reply(I18n.t("social.usage"));
                     return;
                 }
                 List<PlayerInfo> targets = playerService.searchPlayersByName(param.trim(), 1, 0);
                 if (targets.isEmpty()) {
-                    ctx.reply(I18n.t("social.h8da85e34", param));
+                    ctx.reply(I18n.t("social.player_does_not_exist", param));
                     return;
                 }
                 PlayerInfo target = targets.get(0);
@@ -143,7 +143,7 @@ public class FriendCommand extends Command {
             case "list" -> {
                 List<Friend> friends = friendService.getFriends(p.getId());
                 if (friends.isEmpty()) {
-                    ctx.reply(I18n.t("social.hdd0adaaa"));
+                    ctx.reply(I18n.t("social.you_have_no_friends_yet"));
                     return;
                 }
                 StringBuilder sb = new StringBuilder("👥 我的好友（" + friends.size() + "）\n");
@@ -157,7 +157,7 @@ public class FriendCommand extends Command {
             case "pending" -> {
                 List<Friend> pending = friendService.getPendingRequests(p.getId());
                 if (pending.isEmpty()) {
-                    ctx.reply(I18n.t("social.hae604775"));
+                    ctx.reply(I18n.t("social.there_are_no_pending_friend"));
                     return;
                 }
                 StringBuilder sb = new StringBuilder("📨 待处理的好友申请\n");

@@ -50,13 +50,13 @@ public class AdminWildernessResource {
         try {
             int chunks = ServiceRegistry.getMapService().restockWilderness();
             out.addProperty("code", 200);
-            out.addProperty("message", I18n.t("admin.h684c40fb", chunks));
+            out.addProperty("message", I18n.t("admin.restocked_wilderness_shard_in_place", chunks));
             JsonObject data = new JsonObject();
             data.addProperty("restockedChunks", chunks);
             out.add("data", data);
         } catch (Exception e) {
             out.addProperty("code", 500);
-            out.addProperty("message", I18n.t("admin.h2dc0de88", e.getMessage()));
+            out.addProperty("message", I18n.t("admin.wilderness_restock_failed", e.getMessage()));
         }
         return Response.ok(gson.toJson(out)).build();
     }
@@ -104,7 +104,7 @@ public class AdminWildernessResource {
             out.add("data", data);
         } catch (Exception e) {
             out.addProperty("code", 500);
-            out.addProperty("message", I18n.t("admin.he469f508", e.getMessage()));
+            out.addProperty("message", I18n.t("admin.failed_to_read_wilderness_shard", e.getMessage()));
         }
         return Response.ok(gson.toJson(out)).build();
     }

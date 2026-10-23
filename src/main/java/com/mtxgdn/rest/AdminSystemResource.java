@@ -122,7 +122,7 @@ public class AdminSystemResource {
         shutdownThread.start();
 
         JsonObject result = new JsonObject();
-        result.addProperty("message", I18n.t("admin.h8cce6bb4"));
+        result.addProperty("message", I18n.t("admin.server_is_shutting_down"));
         return Response.ok(gson.toJson(result)).build();
     }
 
@@ -201,7 +201,7 @@ public class AdminSystemResource {
         if (text.isBlank()) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 400);
-            err.addProperty("message", I18n.t("admin.h3ab62198"));
+            err.addProperty("message", I18n.t("admin.announcement_content_cannot_be_empty"));
             return Response.ok(gson.toJson(err)).build();
         }
 
@@ -213,7 +213,7 @@ public class AdminSystemResource {
 
         JsonObject result = new JsonObject();
         result.addProperty("code", 200);
-        result.addProperty("message", I18n.t("admin.h5f4d6aa0"));
+        result.addProperty("message", I18n.t("admin.announcement_sent"));
         return Response.ok(gson.toJson(result)).build();
     }
 
@@ -230,7 +230,7 @@ public class AdminSystemResource {
         if (userIdStr.isBlank() || level.isBlank()) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 400);
-            err.addProperty("message", I18n.t("admin.h7c8dde64"));
+            err.addProperty("message", I18n.t("admin.qq_number_and_permission_level"));
             return Response.ok(gson.toJson(err)).build();
         }
 
@@ -240,7 +240,7 @@ public class AdminSystemResource {
         } catch (NumberFormatException e) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 400);
-            err.addProperty("message", I18n.t("admin.ha80419fc"));
+            err.addProperty("message", I18n.t("admin.invalid_qq_number"));
             return Response.ok(gson.toJson(err)).build();
         }
 
@@ -248,12 +248,12 @@ public class AdminSystemResource {
             PermissionService.assignRole(userId, level);
             JsonObject result = new JsonObject();
             result.addProperty("code", 200);
-            result.addProperty("message", I18n.t("admin.h7d2e5a9c"));
+            result.addProperty("message", I18n.t("admin.permission_set_successfully"));
             return Response.ok(gson.toJson(result)).build();
         } catch (Exception e) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 500);
-            err.addProperty("message", I18n.t("admin.had48208c", e.getMessage()));
+            err.addProperty("message", I18n.t("admin.set_failed", e.getMessage()));
             return Response.ok(gson.toJson(err)).build();
         }
     }
@@ -328,7 +328,7 @@ public class AdminSystemResource {
         if (days < 1 || days > 30) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 400);
-            err.addProperty("message", I18n.t("admin.hc5532e10"));
+            err.addProperty("message", I18n.t("admin.mute_duration_must_be_between"));
             return Response.status(400).entity(gson.toJson(err)).build();
         }
 
@@ -337,7 +337,7 @@ public class AdminSystemResource {
 
         JsonObject result = new JsonObject();
         result.addProperty("code", 200);
-        result.addProperty("message", I18n.t("admin.h4ae1db23", days));
+        result.addProperty("message", I18n.t("admin.mute_duration_set_to_day", days));
         return Response.ok(gson.toJson(result)).build();
     }
 
@@ -351,7 +351,7 @@ public class AdminSystemResource {
             configService.deleteConfig(groupId);
             JsonObject result = new JsonObject();
             result.addProperty("code", 200);
-            result.addProperty("message", I18n.t("admin.hd952c78c"));
+            result.addProperty("message", I18n.t("admin.group_configuration_deleted"));
             return Response.ok(gson.toJson(result)).build();
         } catch (RuntimeException e) {
             JsonObject err = new JsonObject();
@@ -408,7 +408,7 @@ public class AdminSystemResource {
             if (newConfig == null || newConfig.getAdapters() == null) {
                 JsonObject err = new JsonObject();
                 err.addProperty("code", 400);
-                err.addProperty("message", I18n.t("admin.h0865fea7"));
+                err.addProperty("message", I18n.t("admin.invalid_adapter_configuration"));
                 return Response.ok(gson.toJson(err)).build();
             }
 
@@ -419,12 +419,12 @@ public class AdminSystemResource {
 
             JsonObject result = new JsonObject();
             result.addProperty("code", 200);
-            result.addProperty("message", I18n.t("admin.hed9893a3"));
+            result.addProperty("message", I18n.t("admin.adapter_configuration_updated_and_reloaded"));
             return Response.ok(gson.toJson(result)).build();
         } catch (Exception e) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 500);
-            err.addProperty("message", I18n.t("admin.hae754cdb", e.getMessage()));
+            err.addProperty("message", I18n.t("admin.update_failed", e.getMessage()));
             return Response.ok(gson.toJson(err)).build();
         }
     }
@@ -438,12 +438,12 @@ public class AdminSystemResource {
             AdapterManager.reloadAll();
             JsonObject result = new JsonObject();
             result.addProperty("code", 200);
-            result.addProperty("message", I18n.t("admin.hf7bba770"));
+            result.addProperty("message", I18n.t("admin.adapter_configuration_reloaded"));
             return Response.ok(gson.toJson(result)).build();
         } catch (Exception e) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 500);
-            err.addProperty("message", I18n.t("admin.h67beaa9c", e.getMessage()));
+            err.addProperty("message", I18n.t("admin.reload_failed", e.getMessage()));
             return Response.ok(gson.toJson(err)).build();
         }
     }

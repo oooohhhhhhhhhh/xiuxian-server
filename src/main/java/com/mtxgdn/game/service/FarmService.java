@@ -148,22 +148,22 @@ public class FarmService {
         com.mtxgdn.playerdata.PlayerDataService.markDirty(playerId);
         CropConfig config = CropConfig.get(seedKey);
         if (config == null) {
-            return createResult(false, I18n.t("farm.hb16af8bc"));
+            return createResult(false, I18n.t("farm.unknown_seed"));
         }
 
         return DatabaseManager.runTransaction(conn -> {
             // 先结算：地块可能在这段时间里已经枯萎，必须先落到最新状态再校验
             settlePlayerPlots(conn, playerId, System.currentTimeMillis());
             if (itemService.getItemCount(conn, playerId, seedKey) < 1) {
-                return createResult(false, I18n.t("farm.h41355438", getItemName(seedKey)));
+                return createResult(false, I18n.t("farm.not_enough_seeds", getItemName(seedKey)));
             }
 
             FarmPlot plot = getPlotForUpdate(conn, playerId, plotIndex);
             if (plot == null) {
-                return createResult(false, I18n.t("farm.hd8a8fe7c"));
+                return createResult(false, I18n.t("farm.plot_not_found"));
             }
             if (plot.getState() != FarmPlot.PlotState.EMPTY) {
-                return createResult(false, I18n.t("farm.h920b6224"));
+                return createResult(false, I18n.t("farm.that_plot_is_already_occupied"));
             }
 
             itemService.removeItem(conn, playerId, seedKey, 1);
@@ -199,11 +199,11 @@ public class FarmService {
             settlePlayerPlots(conn, playerId, System.currentTimeMillis());
             FarmPlot plot = getPlotForUpdate(conn, playerId, plotIndex);
             if (plot == null) {
-                return createResult(false, I18n.t("farm.hd8a8fe7c"));
+                return createResult(false, I18n.t("farm.plot_not_found"));
             }
 
             if (plot.getState() == FarmPlot.PlotState.EMPTY) {
-                return createResult(false, I18n.t("farm.h915aaf14"));
+                return createResult(false, I18n.t("farm.an_empty_plot_does"));
             }
 
             if (plot.getState() == FarmPlot.PlotState.WILTED) {
@@ -211,20 +211,20 @@ public class FarmService {
             }
 
             if (plot.getWaterLevel() >= WATER_MAX) {
-                return createResult(false, I18n.t("farm.hbd6a293c"));
+                return createResult(false, I18n.t("farm.moisture_is_already_sufficient"));
             }
 
             int newWater = Math.min(WATER_MAX, plot.getWaterLevel() + 30);
             updateWaterLevel(conn, playerId, plotIndex, newWater);
 
-            return createResult(true, I18n.t("farm.haf577243", newWater));
+            return createResult(true, I18n.t("farm.watering_successful_2", newWater));
         });
     }
 
     private Map<String, Object> handleWiltedPlotWatering(Connection conn, FarmPlot plot, int plotIndex) {
         long now = System.currentTimeMillis();
         if (plot.getWiltedTime() > 0 && (now - plot.getWiltedTime()) / 1000 > WILTED_DEAD_SECONDS) {
-            return createResult(false, I18n.t("farm.h5433c430"));
+            return createResult(false, I18n.t("farm.the_crop_has_been_withered"));
         }
         String updateSql = "UPDATE farm_plots SET state = ?, water_level = ?, wilted_time = ? WHERE id = ?";
         try (PreparedStatement ps = conn.prepareStatement(updateSql)) {
@@ -234,9 +234,9 @@ public class FarmService {
             ps.setLong(4, plot.getId());
             ps.executeUpdate();
         } catch (SQLException e) {
-            return createResult(false, I18n.t("farm.h0c3d0718"));
+            return createResult(false, I18n.t("farm.failed_to_restore_the_crop"));
         }
-        return createResult(true, I18n.t("farm.h88221924"));
+        return createResult(true, I18n.t("farm.watering_successful"));
     }
 
     public Map<String, Object> fertilize(long playerId, int plotIndex) {
@@ -248,26 +248,26 @@ public class FarmService {
         com.mtxgdn.playerdata.PlayerDataService.markDirty(playerId);
         int bonusAmount = getFertilizerBonus(fertilizerKey);
         if (bonusAmount == 0) {
-            return createResult(false, I18n.t("farm.h634a5aa8"));
+            return createResult(false, I18n.t("farm.invalid_fertilizer_type"));
         }
 
         if (itemService.getItemCount(playerId, fertilizerKey) < 1) {
-            return createResult(false, I18n.t("farm.hbf7381d4", getItemName(fertilizerKey)));
+            return createResult(false, I18n.t("farm.not_enough_fertilizer", getItemName(fertilizerKey)));
         }
 
         return DatabaseManager.runTransaction(conn -> {
             settlePlayerPlots(conn, playerId, System.currentTimeMillis());
             FarmPlot plot = getPlotForUpdate(conn, playerId, plotIndex);
             if (plot == null) {
-                return createResult(false, I18n.t("farm.hd8a8fe7c"));
+                return createResult(false, I18n.t("farm.plot_not_found"));
             }
 
             if (plot.getState() == FarmPlot.PlotState.EMPTY) {
-                return createResult(false, I18n.t("farm.he9f89b8c"));
+                return createResult(false, I18n.t("farm.an_empty_plot_does_2"));
             }
 
             if (plot.getFertilizerLevel() >= FERTILIZER_MAX) {
-                return createResult(false, I18n.t("farm.hf20b7301"));
+                return createResult(false, I18n.t("farm.fertility_is_already_sufficient"));
             }
 
             itemService.removeItem(conn, playerId, fertilizerKey, 1);
@@ -275,7 +275,7 @@ public class FarmService {
             int newFertilizer = Math.min(FERTILIZER_MAX, plot.getFertilizerLevel() + bonusAmount);
             updateFertilizerLevel(conn, playerId, plotIndex, newFertilizer);
 
-            return createResult(true, I18n.t("farm.h86b7984d", getItemName(fertilizerKey), newFertilizer));
+            return createResult(true, I18n.t("farm.fertilizing_successful", getItemName(fertilizerKey), newFertilizer));
         });
     }
 
@@ -294,16 +294,16 @@ public class FarmService {
             settlePlayerPlots(conn, playerId, System.currentTimeMillis());
             FarmPlot plot = getPlotForUpdate(conn, playerId, plotIndex);
             if (plot == null) {
-                return createResult(false, I18n.t("farm.hd8a8fe7c"));
+                return createResult(false, I18n.t("farm.plot_not_found"));
             }
 
             if (plot.getState() != FarmPlot.PlotState.READY) {
-                return createResult(false, I18n.t("farm.h10de2898"));
+                return createResult(false, I18n.t("farm.the_crop_is_not_ripe"));
             }
 
             CropConfig config = CropConfig.get(plot.getSeedKey());
             if (config == null) {
-                return createResult(false, I18n.t("farm.h4b6fa38c"));
+                return createResult(false, I18n.t("farm.unknown_crop"));
             }
 
             int yield = calculateYield(plot, config);
@@ -353,39 +353,39 @@ public class FarmService {
             settlePlayerPlots(conn, playerId, System.currentTimeMillis());
             FarmPlot plot = getPlotForUpdate(conn, playerId, plotIndex);
             if (plot == null) {
-                return createResult(false, I18n.t("farm.hd8a8fe7c"));
+                return createResult(false, I18n.t("farm.plot_not_found"));
             }
 
             if (plot.getState() == FarmPlot.PlotState.EMPTY) {
-                return createResult(false, I18n.t("farm.h1cca0008"));
+                return createResult(false, I18n.t("farm.that_plot_is_already_empty"));
             }
 
             resetPlot(conn, playerId, plotIndex);
-            return createResult(true, I18n.t("farm.h21e7e68c"));
+            return createResult(true, I18n.t("farm.plot_cleared"));
         });
     }
 
     public Map<String, Object> usePesticide(long playerId, int plotIndex) {
         com.mtxgdn.playerdata.PlayerDataService.markDirty(playerId);
         if (itemService.getItemCount(playerId, "mtxgdn:pesticide") < 1) {
-            return createResult(false, I18n.t("farm.h36b84c89"));
+            return createResult(false, I18n.t("farm.not_enough_pesticide"));
         }
 
         return DatabaseManager.runTransaction(conn -> {
             settlePlayerPlots(conn, playerId, System.currentTimeMillis());
             FarmPlot plot = getPlotForUpdate(conn, playerId, plotIndex);
             if (plot == null) {
-                return createResult(false, I18n.t("farm.hd8a8fe7c"));
+                return createResult(false, I18n.t("farm.plot_not_found"));
             }
 
             if (plot.getPestState() == FarmPlot.PestState.CLEAN) {
-                return createResult(false, I18n.t("farm.h49d89808"));
+                return createResult(false, I18n.t("farm.that_plot_has_no_pests"));
             }
 
             itemService.removeItem(conn, playerId, "mtxgdn:pesticide", 1);
             clearPestState(conn, playerId, plotIndex);
 
-            return createResult(true, I18n.t("farm.h95625008"));
+            return createResult(true, I18n.t("farm.pesticide_applied"));
         });
     }
 
@@ -394,13 +394,13 @@ public class FarmService {
         int currentCount = countPlayerPlots(playerId);
 
         if (currentCount >= MAX_PLOTS) {
-            return createResult(false, I18n.t("farm.hf5b0e6f0"));
+            return createResult(false, I18n.t("farm.the_maximum_number_of_plots"));
         }
 
         long cost = calculateExpandCost(currentCount);
         com.mtxgdn.entity.Player player = playerService.getPlayerById(playerId);
         if (player == null || player.getGold() < cost) {
-            return createResult(false, I18n.t("farm.ha28ab727", cost));
+            return createResult(false, I18n.t("farm.not_enough_gold", cost));
         }
 
         final int plotIndex = currentCount;
@@ -409,7 +409,7 @@ public class FarmService {
         return DatabaseManager.runTransaction(conn -> {
             playerService.addGold(conn, playerId, -finalCost);
             createNewPlot(conn, playerId, plotIndex);
-            return createResult(true, I18n.t("farm.hac3f3c60", finalCost));
+            return createResult(true, I18n.t("farm.expansion_successful", finalCost));
         });
     }
 
@@ -447,7 +447,7 @@ public class FarmService {
                     }
                 }
             } catch (SQLException e) {
-                return createResult(false, I18n.t("farm.he10fe06e"));
+                return createResult(false, I18n.t("farm.watering_failed"));
             }
 
             StringBuilder msg = new StringBuilder();
@@ -460,7 +460,7 @@ public class FarmService {
             if (msg.length() > 0) {
                 return createResult(true, msg.toString());
             } else {
-                return createResult(false, I18n.t("farm.h9778e920"));
+                return createResult(false, I18n.t("farm.no_plots_need_watering"));
             }
         });
     }
@@ -474,7 +474,7 @@ public class FarmService {
         com.mtxgdn.playerdata.PlayerDataService.markDirty(playerId);
         int bonusAmount = getFertilizerBonus(fertilizerKey);
         if (bonusAmount == 0) {
-            return createResult(false, I18n.t("farm.h634a5aa8"));
+            return createResult(false, I18n.t("farm.invalid_fertilizer_type"));
         }
 
         return DatabaseManager.runTransaction(conn -> {
@@ -492,11 +492,11 @@ public class FarmService {
                     }
                 }
             } catch (SQLException e) {
-                return createResult(false, I18n.t("farm.h47064598"));
+                return createResult(false, I18n.t("farm.failed_to_query_the_plots"));
             }
 
             if (plotsToFertilize.isEmpty()) {
-                return createResult(false, I18n.t("farm.h231f62ed"));
+                return createResult(false, I18n.t("farm.no_plots_need_fertilizing"));
             }
 
             long fertilizerCount = itemService.getItemCount(playerId, fertilizerKey);
@@ -522,10 +522,10 @@ public class FarmService {
                     fertilizedCount++;
                 }
             } catch (SQLException e) {
-                return createResult(false, I18n.t("farm.h121b7308"));
+                return createResult(false, I18n.t("farm.fertilizing_failed"));
             }
 
-            return createResult(true, I18n.t("farm.h0ff61159", fertilizedCount, getItemName(fertilizerKey), fertilizedCount));
+            return createResult(true, I18n.t("farm.fertilized_plots_consuming_x", fertilizedCount, getItemName(fertilizerKey), fertilizedCount));
         });
     }
 
@@ -554,11 +554,11 @@ public class FarmService {
                     }
                 }
             } catch (SQLException e) {
-                return createResult(false, I18n.t("farm.h24d616f8"));
+                return createResult(false, I18n.t("farm.harvest_failed"));
             }
 
             if (harvestedCount == 0) {
-                return createResult(false, I18n.t("farm.h88a44f1f"));
+                return createResult(false, I18n.t("farm.there_are_no_crops"));
             }
 
             StringBuilder msg = new StringBuilder("收获成功！获得：");

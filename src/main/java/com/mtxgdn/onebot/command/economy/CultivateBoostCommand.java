@@ -30,21 +30,21 @@ public class CultivateBoostCommand extends Command {
         String arg = ctx.getArg().trim();
         if (arg.isEmpty()) {
             long stones = ServiceRegistry.getItemService().getSpiritStoneCount(p.getId());
-            ctx.reply(I18n.t("economy.hc6b261e0", stones));
+            ctx.reply(I18n.t("economy.spirit_stone_cultivation_boost_nevery", stones));
             return;
         }
 
         try {
             int stonesToBurn = Integer.parseInt(arg);
             if (stonesToBurn <= 0) {
-                ctx.reply(I18n.t("economy.h8cde9058"));
+                ctx.reply(I18n.t("economy.the_amount_of_spirit_stones"));
                 return;
             }
             var eco = ServiceRegistry.getEconomyService();
             var result = eco.boostCultivation(p.getId(), stonesToBurn);
             ctx.reply((String) result.get("message"));
         } catch (NumberFormatException e) {
-            ctx.reply(I18n.t("economy.h85187339"));
+            ctx.reply(I18n.t("economy.please_enter_a_valid_number"));
         }
     }
 
@@ -57,7 +57,7 @@ public class CultivateBoostCommand extends Command {
             int stonesToBurn = req.has("stones") ? req.get("stones").getAsInt() : 0;
             if (stonesToBurn <= 0) {
                 result.addProperty("code", 400);
-                result.addProperty("message", I18n.t("economy.h648cf5ac"));
+                result.addProperty("message", I18n.t("economy.please_provide_a_valid_number"));
                 return result;
             }
             var eco = ServiceRegistry.getEconomyService();
@@ -67,7 +67,7 @@ public class CultivateBoostCommand extends Command {
             result.addProperty("message", (String) data.get("message"));
         } catch (Exception e) {
             result.addProperty("code", 500);
-            result.addProperty("message", I18n.t("economy.hf186bd38", e.getMessage()));
+            result.addProperty("message", I18n.t("economy.server_error", e.getMessage()));
         }
         return result;
     }

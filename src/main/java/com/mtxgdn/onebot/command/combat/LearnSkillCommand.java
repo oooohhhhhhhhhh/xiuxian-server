@@ -23,7 +23,7 @@ public class LearnSkillCommand extends Command {
         if (p == null) return;
         if (!ctx.checkPermission("game.skill.learn")) return;
         String arg = ctx.getArg();
-        if (arg == null || arg.trim().isEmpty()) { ctx.reply(I18n.t("combat.h04cb7f2a")); return; }
+        if (arg == null || arg.trim().isEmpty()) { ctx.reply(I18n.t("combat.usage")); return; }
         long skillId;
         var skillService = ServiceRegistry.getSkillService();
         try {
@@ -32,7 +32,7 @@ public class LearnSkillCommand extends Command {
         catch (NumberFormatException e) {
             Skill found = skillService.findSkillByName(arg.trim());
             if (found == null) {
-                ctx.reply(I18n.t("combat.h009389d2", arg.trim()));
+                ctx.reply(I18n.t("combat.skill_not_found", arg.trim()));
                 return;
             }
             skillId = found.getId();
@@ -42,7 +42,7 @@ public class LearnSkillCommand extends Command {
         if (success) {
             Skill skill = (Skill) learnResult.get("skill");
             String skillName = skill != null ? skill.getName() : "技能ID:" + skillId;
-            ctx.reply(I18n.t("combat.h81af9623", skillName));
+            ctx.reply(I18n.t("combat.learned_successfully", skillName));
         } else {
             // 服务端已经给出了本地化的失败原因，这里只套一个前后缀；
             // 服务端消息本身也走 I18n，所以整句仍是当前语言

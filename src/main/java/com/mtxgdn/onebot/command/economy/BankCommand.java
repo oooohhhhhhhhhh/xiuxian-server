@@ -92,7 +92,7 @@ public class BankCommand extends Command {
 
     private void doDeposit(CommandContext ctx, PlayerInfo p, String[] parts) {
         if (parts.length < 3) {
-            ctx.reply(I18n.t("economy.ha8696148"));
+            ctx.reply(I18n.t("economy.usage_6"));
             return;
         }
 
@@ -104,13 +104,13 @@ public class BankCommand extends Command {
             default -> null;
         };
         if (type == null) {
-            ctx.reply(I18n.t("economy.h35568224"));
+            ctx.reply(I18n.t("economy.deposit_types"));
             return;
         }
 
         long amount;
         try { amount = Long.parseLong(parts[2]); } catch (NumberFormatException e) {
-            ctx.reply(I18n.t("economy.he44ee76c")); return;
+            ctx.reply(I18n.t("economy.invalid_quantity")); return;
         }
 
         var eco = ServiceRegistry.getEconomyService();
@@ -120,13 +120,13 @@ public class BankCommand extends Command {
 
     private void doWithdraw(CommandContext ctx, PlayerInfo p, String[] parts) {
         if (parts.length < 2) {
-            ctx.reply(I18n.t("economy.h14554240"));
+            ctx.reply(I18n.t("economy.usage"));
             return;
         }
 
         long depositId;
         try { depositId = Long.parseLong(parts[1]); } catch (NumberFormatException e) {
-            ctx.reply(I18n.t("economy.h843c9af0")); return;
+            ctx.reply(I18n.t("economy.invalid_id")); return;
         }
 
         var eco = ServiceRegistry.getEconomyService();
@@ -181,7 +181,7 @@ public class BankCommand extends Command {
             result.add("deposits", arr);
         } catch (Exception e) {
             result.addProperty("code", 500);
-            result.addProperty("message", I18n.t("economy.hf186bd38", e.getMessage()));
+            result.addProperty("message", I18n.t("economy.server_error", e.getMessage()));
         }
         return result;
     }
@@ -194,7 +194,7 @@ public class BankCommand extends Command {
             long amount = req.has("amount") ? req.get("amount").getAsLong() : 0;
             if (type.isBlank() || amount <= 0) {
                 result.addProperty("code", 400);
-                result.addProperty("message", I18n.t("economy.h84ddfb30"));
+                result.addProperty("message", I18n.t("economy.please_provide_a_deposit_type"));
                 return result;
             }
             var eco = ServiceRegistry.getEconomyService();
@@ -204,7 +204,7 @@ public class BankCommand extends Command {
             result.addProperty("message", (String) data.get("message"));
         } catch (Exception e) {
             result.addProperty("code", 500);
-            result.addProperty("message", I18n.t("economy.hf186bd38", e.getMessage()));
+            result.addProperty("message", I18n.t("economy.server_error", e.getMessage()));
         }
         return result;
     }
@@ -216,7 +216,7 @@ public class BankCommand extends Command {
             long depositId = req.has("depositId") ? req.get("depositId").getAsLong() : 0;
             if (depositId <= 0) {
                 result.addProperty("code", 400);
-                result.addProperty("message", I18n.t("economy.h9498536c"));
+                result.addProperty("message", I18n.t("economy.please_provide_a_valid_deposit"));
                 return result;
             }
             var eco = ServiceRegistry.getEconomyService();
@@ -228,7 +228,7 @@ public class BankCommand extends Command {
             if (data.containsKey("principal")) result.addProperty("principal", (long) data.get("principal"));
         } catch (Exception e) {
             result.addProperty("code", 500);
-            result.addProperty("message", I18n.t("economy.hf186bd38", e.getMessage()));
+            result.addProperty("message", I18n.t("economy.server_error", e.getMessage()));
         }
         return result;
     }

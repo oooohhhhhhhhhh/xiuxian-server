@@ -57,7 +57,7 @@ public class AdminAuthResource {
         if (!RateLimiter.allow("admin_login_global", 20, 60)) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 429);
-            err.addProperty("message", I18n.t("admin.h9c54f628"));
+            err.addProperty("message", I18n.t("admin.too_many_login_attempts_2"));
             return Response.status(429).entity(gson.toJson(err)).build();
         }
         JsonObject req = com.google.gson.JsonParser.parseString(body).getAsJsonObject();
@@ -68,7 +68,7 @@ public class AdminAuthResource {
         if (username.isBlank() || password.isBlank()) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 401);
-            err.addProperty("message", I18n.t("admin.h34f00dc0"));
+            err.addProperty("message", I18n.t("admin.username_and_password_cannot"));
             return Response.status(401).entity(gson.toJson(err)).build();
         }
 
@@ -76,7 +76,7 @@ public class AdminAuthResource {
         if (!RateLimiter.allow("admin_login:" + username, 5, 60)) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 429);
-            err.addProperty("message", I18n.t("admin.h90e20fd8"));
+            err.addProperty("message", I18n.t("admin.too_many_login_attempts"));
             return Response.status(429).entity(gson.toJson(err)).build();
         }
 
@@ -122,14 +122,14 @@ public class AdminAuthResource {
         if (user == null) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 401);
-            err.addProperty("message", I18n.t("admin.hda558f5c"));
+            err.addProperty("message", I18n.t("admin.incorrect_username_or_password"));
             return Response.status(401).entity(gson.toJson(err)).build();
         }
 
         if (!PermissionService.hasPermission(user.getId(), PermissionCode.ADMIN_LOGIN.getCode())) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 403);
-            err.addProperty("message", I18n.t("admin.h00567a14"));
+            err.addProperty("message", I18n.t("admin.no_admin_backend_permission"));
             return Response.status(403).entity(gson.toJson(err)).build();
         }
 
@@ -159,7 +159,7 @@ public class AdminAuthResource {
         if (user == null) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 401);
-            err.addProperty("message", I18n.t("admin.hda558f5c"));
+            err.addProperty("message", I18n.t("admin.incorrect_username_or_password"));
             return Response.status(401).entity(gson.toJson(err)).build();
         }
 
@@ -192,7 +192,7 @@ public class AdminAuthResource {
             String authHeader = authHeaders != null && !authHeaders.isEmpty() ? authHeaders.get(0) : null;
             if (authHeader == null || !authHeader.startsWith("Bearer ")) {
                 result.addProperty("code", 401);
-                result.addProperty("message", I18n.t("admin.hbaa88444"));
+                result.addProperty("message", I18n.t("admin.not_logged"));
                 return Response.ok(gson.toJson(result)).build();
             }
             String token = authHeader.substring("Bearer ".length()).trim();
@@ -235,12 +235,12 @@ public class AdminAuthResource {
             }
         } catch (Exception e) {
             result.addProperty("code", 500);
-            result.addProperty("message", I18n.t("admin.h6e816fc4"));
+            result.addProperty("message", I18n.t("admin.failed_to_fetch_user_info"));
             return Response.ok(gson.toJson(result)).build();
         }
 
         result.addProperty("code", 401);
-        result.addProperty("message", I18n.t("admin.hbaa88444"));
+        result.addProperty("message", I18n.t("admin.not_logged"));
         return Response.ok(gson.toJson(result)).build();
     }
 
@@ -254,7 +254,7 @@ public class AdminAuthResource {
             String authHeader = authHeaders != null && !authHeaders.isEmpty() ? authHeaders.get(0) : null;
             if (authHeader == null || !authHeader.startsWith("Bearer ")) {
                 result.addProperty("code", 401);
-                result.addProperty("message", I18n.t("admin.hbaa88444"));
+                result.addProperty("message", I18n.t("admin.not_logged"));
                 return Response.ok(gson.toJson(result)).build();
             }
             String token = authHeader.substring("Bearer ".length()).trim();
@@ -278,14 +278,14 @@ public class AdminAuthResource {
 
             if (userId == null) {
                 result.addProperty("code", 401);
-                result.addProperty("message", I18n.t("admin.hbaa88444"));
+                result.addProperty("message", I18n.t("admin.not_logged"));
                 return Response.ok(gson.toJson(result)).build();
             }
 
             var player = playerService.getPlayerByUserId(userId);
             if (player == null) {
                 result.addProperty("code", 404);
-                result.addProperty("message", I18n.t("admin.hb05a7090"));
+                result.addProperty("message", I18n.t("admin.player_character_does_not_exist"));
                 return Response.ok(gson.toJson(result)).build();
             }
 
@@ -329,7 +329,7 @@ public class AdminAuthResource {
             return Response.ok(gson.toJson(result)).build();
         } catch (Exception e) {
             result.addProperty("code", 500);
-            result.addProperty("message", I18n.t("admin.h883fd7a8", e.getMessage()));
+            result.addProperty("message", I18n.t("admin.failed_to_fetch_player_info", e.getMessage()));
             return Response.ok(gson.toJson(result)).build();
         }
     }

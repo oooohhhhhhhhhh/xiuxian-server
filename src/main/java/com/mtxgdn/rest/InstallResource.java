@@ -227,7 +227,7 @@ public class InstallResource {
         if (isInstalled()) {
             result.addProperty("code", 403);
             result.addProperty("success", false);
-            result.addProperty("message", I18n.t("install.h034956c0"));
+            result.addProperty("message", I18n.t("install.the_server_installation_is_complete"));
             return Response.status(403).entity(result.toString()).build();
         }
 
@@ -355,7 +355,7 @@ public class InstallResource {
             }
             result.addProperty("code", 200);
             result.addProperty("success", true);
-            result.addProperty("message", I18n.t("install.hddbe5808"));
+            result.addProperty("message", I18n.t("install.configuration_cleared"));
             result.addProperty("restartRequired", true);
 
             // 异步重启
@@ -385,7 +385,7 @@ public class InstallResource {
 
         result.addProperty("code", 200);
         result.addProperty("success", true);
-        result.addProperty("message", I18n.t("install.ha8545a2c"));
+        result.addProperty("message", I18n.t("install.the_server_is_restarting"));
         com.mtxgdn.Main.restartServer();
         return Response.ok(result.toString()).build();
     }

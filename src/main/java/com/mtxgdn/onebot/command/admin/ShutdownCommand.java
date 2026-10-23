@@ -21,15 +21,15 @@ public class ShutdownCommand extends Command {
     public void execute(CommandContext ctx) {
         QqBinding b = ctx.resolveBoundBinding();
         if (b == null) {
-            ctx.reply(I18n.t("admin.hd852a51e"));
+            ctx.reply(I18n.t("admin.please_bind_your_account_first_2"));
             return;
         }
         String highestRole = PermissionService.getHighestRole(b.getUserId());
         if (!"SUPER_ADMIN".equals(highestRole)) {
-            ctx.reply(I18n.t("admin.hea8fd688"));
+            ctx.reply(I18n.t("admin.insufficient_permission_only_super_admin"));
             return;
         }
-        ctx.reply(I18n.t("admin.h8cce6bb4"));
+        ctx.reply(I18n.t("admin.server_is_shutting_down"));
         Thread shutdownThread = new Thread(() -> {
             try {
                 Thread.sleep(500);

@@ -48,23 +48,23 @@ final class SectMembershipDomain {
 
         Player player = playerService.getPlayerById(playerId);
         if (player == null) {
-            result.put("success", false); result.put("message", I18n.t("sect.h59a76b2c")); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.character_does_not_exist")); return result;
         }
 
         Sect sect = queryDomain.getSectById(sectId);
         if (sect == null) {
-            result.put("success", false); result.put("message", I18n.t("sect.hbffa2528")); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.sect_does_not_exist")); return result;
         }
 
         if (queryDomain.getPlayerSect(playerId) != null) {
-            result.put("success", false); result.put("message", I18n.t("sect.h6052ac88")); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.you_already_belong")); return result;
         }
 
         List<SectMember> members = queryDomain.getSectMembers(sectId);
         int maxMembers = Sect.getMaxMembersForLevel(sect.getLevel());
         if (members.size() >= maxMembers) {
             result.put("success", false);
-            result.put("message", I18n.t("sect.h853e85aa", sect.getName(), members.size(), maxMembers));
+            result.put("message", I18n.t("sect.is_full", sect.getName(), members.size(), maxMembers));
             return result;
         }
 
@@ -76,7 +76,7 @@ final class SectMembershipDomain {
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
                     result.put("success", false);
-                    result.put("message", I18n.t("sect.h0c4f82a8"));
+                    result.put("message", I18n.t("sect.you_have_already_applied"));
                     return result;
                 }
             }
@@ -92,7 +92,7 @@ final class SectMembershipDomain {
         } catch (SQLException e) { throw new RuntimeException("提交申请失败", e); }
 
         result.put("success", true);
-        result.put("message", I18n.t("sect.h7189800c", sect.getName()));
+        result.put("message", I18n.t("sect.applied_to_join", sect.getName()));
         return result;
     }
 
@@ -115,17 +115,17 @@ final class SectMembershipDomain {
 
         SectApplication app = getApplicationById(applicationId);
         if (app == null || !"pending".equals(app.getStatus())) {
-            result.put("success", false); result.put("message", I18n.t("sect.h71d5bb28")); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.the_application_does_not_exist")); return result;
         }
 
         Sect sect = queryDomain.getSectById(app.getSectId());
         if (sect == null) {
-            result.put("success", false); result.put("message", I18n.t("sect.hbffa2528")); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.sect_does_not_exist")); return result;
         }
 
         SectMember approver = queryDomain.getMember(sect.getId(), approverPlayerId);
         if (approver == null || !approver.canManage()) {
-            result.put("success", false); result.put("message", I18n.t("sect.h33d54619")); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.you_are_not_allowed")); return result;
         }
 
         String status;
@@ -135,7 +135,7 @@ final class SectMembershipDomain {
             int maxMembers = Sect.getMaxMembersForLevel(sect.getLevel());
             if (members.size() >= maxMembers) {
                 result.put("success", false);
-                result.put("message", I18n.t("sect.h084db6a4")); return result;
+                result.put("message", I18n.t("sect.the_sect_is_full")); return result;
             }
             status = "accepted";
             msg = "已通过玩家【" + app.getPlayerName() + "】的加入申请";
@@ -192,12 +192,12 @@ final class SectMembershipDomain {
         Map<String, Object> result = new LinkedHashMap<>();
         SectMember member = queryDomain.getPlayerMember(playerId);
         if (member == null) {
-            result.put("success", false); result.put("message", I18n.t("sect.h6b4e3074")); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.you_have_not_joined_any")); return result;
         }
 
         Sect sect = queryDomain.getSectById(member.getSectId());
         if (sect == null) {
-            result.put("success", false); result.put("message", I18n.t("sect.hbffa2528")); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.sect_does_not_exist")); return result;
         }
 
         if (member.isLeader()) {
@@ -237,7 +237,7 @@ final class SectMembershipDomain {
                 return null;
             });
             result.put("success", true);
-            result.put("message", I18n.t("sect.he5e40358", sect.getName()));
+            result.put("message", I18n.t("sect.you_disbanded_the_sect", sect.getName()));
         } else {
             result.put("success", true);
             result.put("message", I18n.t("sect.member_left", playerName, sect.getName()));
@@ -249,29 +249,29 @@ final class SectMembershipDomain {
         Map<String, Object> result = new LinkedHashMap<>();
         SectMember kicker = queryDomain.getPlayerMember(kickerPlayerId);
         if (kicker == null) {
-            result.put("success", false); result.put("message", I18n.t("sect.h6b4e3074")); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.you_have_not_joined_any")); return result;
         }
         if (!kicker.canManage()) {
-            result.put("success", false); result.put("message", I18n.t("sect.hcbedcf90")); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.only_the_sect_leader_vice_3")); return result;
         }
 
         SectMember target = queryDomain.getMember(kicker.getSectId(), targetPlayerId);
         if (target == null) {
-            result.put("success", false); result.put("message", I18n.t("sect.h32acc4f3")); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.that_player")); return result;
         }
         if (target.isLeader()) {
-            result.put("success", false); result.put("message", I18n.t("sect.h587f8ffc")); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.you_cannot_remove_the_sect")); return result;
         }
         if (target.isViceLeader() && !kicker.isLeader()) {
-            result.put("success", false); result.put("message", I18n.t("sect.h30ecd258")); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.only_the_sect_leader_4")); return result;
         }
         if (!kicker.canKickOrAppoint(target)) {
-            result.put("success", false); result.put("message", I18n.t("sect.hb01e0fa0")); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.you_cannot_remove_members")); return result;
         }
 
         deleteMember(kicker.getSectId(), targetPlayerId);
         result.put("success", true);
-        result.put("message", I18n.t("sect.h6bc422a4", target.getPlayerName()));
+        result.put("message", I18n.t("sect.expelled_from_the_sect", target.getPlayerName()));
         return result;
     }
 
@@ -279,7 +279,7 @@ final class SectMembershipDomain {
         Map<String, Object> result = new LinkedHashMap<>();
         SectMember appointer = queryDomain.getPlayerMember(appointerPlayerId);
         if (appointer == null || !appointer.canManage()) {
-            result.put("success", false); result.put("message", I18n.t("sect.haa4398a4")); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.only_the_sect_leader_vice_2")); return result;
         }
 
         // 先解析目标角色
@@ -291,7 +291,7 @@ final class SectMembershipDomain {
             case "外门", "外门弟子", "outer", "outer_member": role = SectMember.ROLE_OUTER_MEMBER; break;
             default:
                 result.put("success", false);
-                result.put("message", I18n.t("sect.hda58b418"));
+                result.put("message", I18n.t("sect.invalid_position"));
                 return result;
         }
 
@@ -299,26 +299,26 @@ final class SectMembershipDomain {
         if (appointer.isElder()) {
             if (!role.equals(SectMember.ROLE_INNER_MEMBER) && !role.equals(SectMember.ROLE_OUTER_MEMBER)) {
                 result.put("success", false);
-                result.put("message", I18n.t("sect.h5e1d7370")); return result;
+                result.put("message", I18n.t("sect.elders_can_only_appoint_inner")); return result;
             }
         }
         if (appointer.isViceLeader() && role.equals(SectMember.ROLE_VICE_LEADER)) {
             result.put("success", false);
-            result.put("message", I18n.t("sect.hd5b6e8a8")); return result;
+            result.put("message", I18n.t("sect.the_vice_leader_cannot_appoint")); return result;
         }
 
         SectMember target = queryDomain.getMember(appointer.getSectId(), targetPlayerId);
         if (target == null) {
-            result.put("success", false); result.put("message", I18n.t("sect.h32acc4f3")); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.that_player")); return result;
         }
         if (target.isLeader()) {
-            result.put("success", false); result.put("message", I18n.t("sect.h53eadc4b")); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.you_cannot_change_the_sect")); return result;
         }
         if (target.isViceLeader() && !appointer.isLeader()) {
-            result.put("success", false); result.put("message", I18n.t("sect.h20bb459f")); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.only_the_sect_leader_3")); return result;
         }
         if (target.isElder() && appointer.isElder()) {
-            result.put("success", false); result.put("message", I18n.t("sect.h8ebfac78")); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.elders_cannot_act_on_members")); return result;
         }
 
         if (role.equals(target.getRole())) {
@@ -337,7 +337,7 @@ final class SectMembershipDomain {
         } catch (SQLException e) { throw new RuntimeException("任命失败", e); }
 
         result.put("success", true);
-        result.put("message", I18n.t("sect.h1ad74e30", target.getPlayerName(), SectMember.getRoleDisplayName(role), SectMember.getRoleDisplayName(target.getRole())));
+        result.put("message", I18n.t("sect.appointed", target.getPlayerName(), SectMember.getRoleDisplayName(role), SectMember.getRoleDisplayName(target.getRole())));
         return result;
     }
 
@@ -372,10 +372,10 @@ final class SectMembershipDomain {
                     }
                 }
                 result.put("success", true);
-                result.put("message", I18n.t("sect.h582e9a70"));
+                result.put("message", I18n.t("sect.contribution_updated"));
             } else {
                 result.put("success", false);
-                result.put("message", I18n.t("sect.h5378f0dc"));
+                result.put("message", I18n.t("sect.update_failed"));
             }
         } catch (SQLException e) { throw new RuntimeException("更新贡献值失败", e); }
         return result;

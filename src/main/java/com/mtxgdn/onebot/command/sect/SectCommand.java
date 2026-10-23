@@ -88,16 +88,16 @@ public class SectCommand extends Command {
     private void handleCreate(CommandContext ctx, PlayerInfo p, String[] parts) {
         String name = parts.length > 1 ? parts[1].trim() : "";
         String desc = parts.length > 2 ? parts[2].trim() : "";
-        if (name.isEmpty()) { ctx.reply(I18n.t("sect.hcd7ddb74")); return; }
+        if (name.isEmpty()) { ctx.reply(I18n.t("sect.usage_11")); return; }
         var result = sectService.createSect(p.getId(), name, desc);
         ctx.reply((String) result.get("message"));
     }
 
     private void handleJoin(CommandContext ctx, PlayerInfo p, String[] parts) {
         String name = parts.length > 1 ? parts[1].trim() : "";
-        if (name.isEmpty()) { ctx.reply(I18n.t("sect.h3fa32bc8")); return; }
+        if (name.isEmpty()) { ctx.reply(I18n.t("sect.usage_4")); return; }
         Sect sect = sectService.getSectByName(name);
-        if (sect == null) { ctx.reply(I18n.t("sect.h15ebd920", name)); return; }
+        if (sect == null) { ctx.reply(I18n.t("sect.sect_not_found", name)); return; }
         String msg = parts.length > 2 ? parts[2] : "";
         var result = sectService.applyToSect(p.getId(), sect.getId(), msg);
         ctx.reply((String) result.get("message"));
@@ -105,7 +105,7 @@ public class SectCommand extends Command {
 
     private void handleList(CommandContext ctx, PlayerInfo p, String[] parts) {
         List<Sect> sects = sectService.getAllSects();
-        if (sects.isEmpty()) { ctx.reply(I18n.t("sect.h25643d07")); return; }
+        if (sects.isEmpty()) { ctx.reply(I18n.t("sect.there_are_no_sects")); return; }
         StringBuilder sb = new StringBuilder("===== 宗门列表（共 ").append(sects.size()).append(" 个）=====\n");
         int rank = 1;
         for (Sect s : sects) {
@@ -123,7 +123,7 @@ public class SectCommand extends Command {
         } else {
             sect = sectService.getPlayerSect(p.getId());
         }
-        if (sect == null) { ctx.reply(I18n.t("sect.hfb3213ac")); return; }
+        if (sect == null) { ctx.reply(I18n.t("sect.the_sect_does_not_exist")); return; }
 
         SectMember me = sectService.getMember(sect.getId(), p.getId());
         StringBuilder sb = new StringBuilder();
@@ -149,7 +149,7 @@ public class SectCommand extends Command {
 
     private void handleMembers(CommandContext ctx, PlayerInfo p, String[] parts) {
         Sect sect = sectService.getPlayerSect(p.getId());
-        if (sect == null) { ctx.reply(I18n.t("sect.hd3fd3ad4")); return; }
+        if (sect == null) { ctx.reply(I18n.t("sect.you_have_not_joined")); return; }
 
         List<SectMember> members = sectService.getSectMembers(sect.getId());
         StringBuilder sb = new StringBuilder();
@@ -169,20 +169,20 @@ public class SectCommand extends Command {
 
     private void handleApply(CommandContext ctx, PlayerInfo p, String[] parts) {
         String name = parts.length > 1 ? parts[1].trim() : "";
-        if (name.isEmpty()) { ctx.reply(I18n.t("sect.haf25efcc")); return; }
+        if (name.isEmpty()) { ctx.reply(I18n.t("sect.usage_10")); return; }
         Sect sect = sectService.getSectByName(name);
-        if (sect == null) { ctx.reply(I18n.t("sect.h15ebd920", name)); return; }
+        if (sect == null) { ctx.reply(I18n.t("sect.sect_not_found", name)); return; }
         var result = sectService.applyToSect(p.getId(), sect.getId(), "");
         ctx.reply((String) result.get("message"));
     }
 
     private void handlePendingList(CommandContext ctx, PlayerInfo p, String[] parts) {
         SectMember member = sectService.getPlayerMember(p.getId());
-        if (member == null) { ctx.reply(I18n.t("sect.hd3fd3ad4")); return; }
-        if (!member.canManage()) { ctx.reply(I18n.t("sect.h000a7f98")); return; }
+        if (member == null) { ctx.reply(I18n.t("sect.you_have_not_joined")); return; }
+        if (!member.canManage()) { ctx.reply(I18n.t("sect.only_the_sect_leader_vice")); return; }
 
         List<SectApplication> apps = sectService.getPendingApplications(member.getSectId());
-        if (apps.isEmpty()) { ctx.reply(I18n.t("sect.h46187c66")); return; }
+        if (apps.isEmpty()) { ctx.reply(I18n.t("sect.there_are_no_pending_join")); return; }
         StringBuilder sb = new StringBuilder("===== 待处理的入宗申请 =====\n");
         for (int i = 0; i < apps.size(); i++) {
             SectApplication a = apps.get(i);
@@ -195,32 +195,32 @@ public class SectCommand extends Command {
 
     private void handleApprove(CommandContext ctx, PlayerInfo p, String[] parts) {
         String targetName = parts.length > 1 ? parts[1].trim() : "";
-        if (targetName.isEmpty()) { ctx.reply(I18n.t("sect.h25a87ba0")); return; }
+        if (targetName.isEmpty()) { ctx.reply(I18n.t("sect.usage_2")); return; }
         SectMember me = sectService.getPlayerMember(p.getId());
-        if (me == null) { ctx.reply(I18n.t("sect.hd3fd3ad4")); return; }
+        if (me == null) { ctx.reply(I18n.t("sect.you_have_not_joined")); return; }
 
         List<SectApplication> apps = sectService.getPendingApplications(me.getSectId());
         SectApplication target = null;
         for (SectApplication a : apps) {
             if (a.getPlayerName().equals(targetName)) { target = a; break; }
         }
-        if (target == null) { ctx.reply(I18n.t("sect.h79a8291c", targetName)); return; }
+        if (target == null) { ctx.reply(I18n.t("sect.no_application_found_from_player_2", targetName)); return; }
         var result = sectService.approveApplication(p.getId(), target.getId(), true);
         ctx.reply((String) result.get("message"));
     }
 
     private void handleReject(CommandContext ctx, PlayerInfo p, String[] parts) {
         String targetName = parts.length > 1 ? parts[1].trim() : "";
-        if (targetName.isEmpty()) { ctx.reply(I18n.t("sect.h06c1312a")); return; }
+        if (targetName.isEmpty()) { ctx.reply(I18n.t("sect.usage")); return; }
         SectMember me = sectService.getPlayerMember(p.getId());
-        if (me == null) { ctx.reply(I18n.t("sect.hd3fd3ad4")); return; }
+        if (me == null) { ctx.reply(I18n.t("sect.you_have_not_joined")); return; }
 
         List<SectApplication> apps = sectService.getPendingApplications(me.getSectId());
         SectApplication target = null;
         for (SectApplication a : apps) {
             if (a.getPlayerName().equals(targetName)) { target = a; break; }
         }
-        if (target == null) { ctx.reply(I18n.t("sect.h7330823f", targetName)); return; }
+        if (target == null) { ctx.reply(I18n.t("sect.no_application_found_from_player", targetName)); return; }
         var result = sectService.approveApplication(p.getId(), target.getId(), false);
         ctx.reply((String) result.get("message"));
     }
@@ -232,36 +232,36 @@ public class SectCommand extends Command {
 
     private void handleKick(CommandContext ctx, PlayerInfo p, String[] parts) {
         String targetName = parts.length > 1 ? parts[1].trim() : "";
-        if (targetName.isEmpty()) { ctx.reply(I18n.t("sect.h712473e0")); return; }
+        if (targetName.isEmpty()) { ctx.reply(I18n.t("sect.usage_8")); return; }
 
         SectMember me = sectService.getPlayerMember(p.getId());
-        if (me == null) { ctx.reply(I18n.t("sect.hd3fd3ad4")); return; }
+        if (me == null) { ctx.reply(I18n.t("sect.you_have_not_joined")); return; }
 
         List<SectMember> members = sectService.getSectMembers(me.getSectId());
         SectMember target = null;
         for (SectMember m : members) {
             if (m.getPlayerName().equals(targetName)) { target = m; break; }
         }
-        if (target == null) { ctx.reply(I18n.t("sect.hea987933", targetName)); return; }
+        if (target == null) { ctx.reply(I18n.t("sect.player_not_found", targetName)); return; }
 
         var result = sectService.kickMember(p.getId(), target.getPlayerId());
         ctx.reply((String) result.get("message"));
     }
 
     private void handleAppoint(CommandContext ctx, PlayerInfo p, String[] parts) {
-        if (parts.length < 3) { ctx.reply(I18n.t("sect.h630f6478")); return; }
+        if (parts.length < 3) { ctx.reply(I18n.t("sect.usage_7")); return; }
         String targetName = parts[1].trim();
         String role = parts[2].trim();
 
         SectMember me = sectService.getPlayerMember(p.getId());
-        if (me == null) { ctx.reply(I18n.t("sect.hd3fd3ad4")); return; }
+        if (me == null) { ctx.reply(I18n.t("sect.you_have_not_joined")); return; }
 
         List<SectMember> members = sectService.getSectMembers(me.getSectId());
         SectMember target = null;
         for (SectMember m : members) {
             if (m.getPlayerName().equals(targetName)) { target = m; break; }
         }
-        if (target == null) { ctx.reply(I18n.t("sect.hea987933", targetName)); return; }
+        if (target == null) { ctx.reply(I18n.t("sect.player_not_found", targetName)); return; }
 
         var result = sectService.appointMember(p.getId(), target.getPlayerId(), role);
         ctx.reply((String) result.get("message"));
@@ -269,13 +269,13 @@ public class SectCommand extends Command {
 
     private void handleDonate(CommandContext ctx, PlayerInfo p, String[] parts) {
         SectMember me = sectService.getPlayerMember(p.getId());
-        if (me == null) { ctx.reply(I18n.t("sect.hd3fd3ad4")); return; }
+        if (me == null) { ctx.reply(I18n.t("sect.you_have_not_joined")); return; }
 
-        if (parts.length < 3) { ctx.reply(I18n.t("sect.h7dcc0998")); return; }
+        if (parts.length < 3) { ctx.reply(I18n.t("sect.usage_9")); return; }
         String itemKey = parts[1].trim();
         int quantity;
         try { quantity = Integer.parseInt(parts[2].trim()); } catch (NumberFormatException e) {
-            ctx.reply(I18n.t("sect.hd8c78f9c")); return;
+            ctx.reply(I18n.t("sect.the_amount_must")); return;
         }
 
         var result = sectService.donateToWarehouse(p.getId(), me.getSectId(), itemKey, quantity);
@@ -316,10 +316,10 @@ public class SectCommand extends Command {
     }
 
     private void handleWarehouse(CommandContext ctx, PlayerInfo p, String[] parts) {        SectMember me = sectService.getPlayerMember(p.getId());
-        if (me == null) { ctx.reply(I18n.t("sect.hd3fd3ad4")); return; }
+        if (me == null) { ctx.reply(I18n.t("sect.you_have_not_joined")); return; }
 
         List<SectWarehouseItem> items = sectService.getWarehouse(me.getSectId());
-        if (items.isEmpty()) { ctx.reply(I18n.t("sect.hc958bfb8")); return; }
+        if (items.isEmpty()) { ctx.reply(I18n.t("sect.the_sect_warehouse_is_empty")); return; }
         StringBuilder sb = new StringBuilder("===== 宗门仓库 =====\n");
         if (!me.canManage()) {
             sb.append("提示：你取出物品需要消耗贡献值\n\n");
@@ -346,13 +346,13 @@ public class SectCommand extends Command {
 
     private void handleTake(CommandContext ctx, PlayerInfo p, String[] parts) {
         SectMember me = sectService.getPlayerMember(p.getId());
-        if (me == null) { ctx.reply(I18n.t("sect.hd3fd3ad4")); return; }
+        if (me == null) { ctx.reply(I18n.t("sect.you_have_not_joined")); return; }
 
-        if (parts.length < 3) { ctx.reply(I18n.t("sect.h2be532b2")); return; }
+        if (parts.length < 3) { ctx.reply(I18n.t("sect.usage_3")); return; }
         String itemKey = parts[1].trim();
         int quantity;
         try { quantity = Integer.parseInt(parts[2].trim()); } catch (NumberFormatException e) {
-            ctx.reply(I18n.t("sect.hd8c78f9c")); return;
+            ctx.reply(I18n.t("sect.the_amount_must")); return;
         }
         var result = sectService.withdrawFromWarehouse(p.getId(), me.getSectId(), itemKey, quantity);
         ctx.reply((String) result.get("message"));
@@ -365,7 +365,7 @@ public class SectCommand extends Command {
 
     private void handleTop(CommandContext ctx, PlayerInfo p, String[] parts) {
         List<Sect> sects = sectService.getTopSects(10);
-        if (sects.isEmpty()) { ctx.reply(I18n.t("sect.h61277cc0")); return; }
+        if (sects.isEmpty()) { ctx.reply(I18n.t("sect.there_are_no_sect_rankings")); return; }
         StringBuilder sb = new StringBuilder("===== 宗门声望排行 =====\n");
         for (int i = 0; i < sects.size(); i++) {
             Sect s = sects.get(i);
@@ -383,17 +383,17 @@ public class SectCommand extends Command {
 
     private void handleTransfer(CommandContext ctx, PlayerInfo p, String[] parts) {
         String targetName = parts.length > 1 ? parts[1].trim() : "";
-        if (targetName.isEmpty()) { ctx.reply(I18n.t("sect.h55a1ebe4")); return; }
+        if (targetName.isEmpty()) { ctx.reply(I18n.t("sect.usage_5")); return; }
 
         SectMember me = sectService.getPlayerMember(p.getId());
-        if (me == null) { ctx.reply(I18n.t("sect.hd3fd3ad4")); return; }
+        if (me == null) { ctx.reply(I18n.t("sect.you_have_not_joined")); return; }
 
         List<SectMember> members = sectService.getSectMembers(me.getSectId());
         SectMember target = null;
         for (SectMember m : members) {
             if (m.getPlayerName().equals(targetName)) { target = m; break; }
         }
-        if (target == null) { ctx.reply(I18n.t("sect.hea987933", targetName)); return; }
+        if (target == null) { ctx.reply(I18n.t("sect.player_not_found", targetName)); return; }
 
         var result = sectService.transferLeader(p.getId(), target.getPlayerId());
         ctx.reply((String) result.get("message"));
@@ -435,9 +435,9 @@ public class SectCommand extends Command {
 
     private void handleWar(CommandContext ctx, PlayerInfo p, String[] parts) {
         String targetName = parts.length > 1 ? parts[1].trim() : "";
-        if (targetName.isEmpty()) { ctx.reply(I18n.t("sect.h5a172b5a")); return; }
+        if (targetName.isEmpty()) { ctx.reply(I18n.t("sect.usage_6")); return; }
         Sect targetSect = sectService.getSectByName(targetName);
-        if (targetSect == null) { ctx.reply(I18n.t("sect.h15ebd920", targetName)); return; }
+        if (targetSect == null) { ctx.reply(I18n.t("sect.sect_not_found", targetName)); return; }
         var result = sectService.declareWar(p.getId(), targetSect.getId());
         if ((boolean) result.get("success")) {
             ctx.reply((String) result.get("message") + "\n\n" + result.get("battleLog"));

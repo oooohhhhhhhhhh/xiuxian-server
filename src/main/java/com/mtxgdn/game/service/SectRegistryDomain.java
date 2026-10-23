@@ -49,20 +49,20 @@ final class SectRegistryDomain {
         Map<String, Object> result = new LinkedHashMap<>();
         if (sectName == null || sectName.trim().isEmpty() || sectName.trim().length() < 2 || sectName.trim().length() > 8) {
             result.put("success", false);
-            result.put("message", I18n.t("sect.hefebafae"));
+            result.put("message", I18n.t("sect.sect_names_must_be_2"));
             return result;
         }
         final String name = sectName.trim();
         if (description != null && description.length() > 100) {
             result.put("success", false);
-            result.put("message", I18n.t("sect.h490fc096"));
+            result.put("message", I18n.t("sect.the_sect_description"));
             return result;
         }
 
         Player player = playerService.getPlayerById(playerId);
         if (player == null) {
             result.put("success", false);
-            result.put("message", I18n.t("sect.h59a76b2c"));
+            result.put("message", I18n.t("sect.character_does_not_exist"));
             return result;
         }
 
@@ -70,26 +70,26 @@ final class SectRegistryDomain {
             String realmName = GameConfigLoader.getRealmConfig(player.getRealm(), 0) != null
                     ? GameConfigLoader.getRealmConfig(player.getRealm(), 0).getFullName() : "凡人";
             result.put("success", false);
-            result.put("message", I18n.t("sect.hf3a1ea6c", realmName));
+            result.put("message", I18n.t("sect.your_realm_is_too_low", realmName));
             return result;
         }
 
         if (queryDomain.getPlayerSect(playerId) != null) {
             result.put("success", false);
-            result.put("message", I18n.t("sect.h616b0664"));
+            result.put("message", I18n.t("sect.you_already_belong_2"));
             return result;
         }
 
         if (queryDomain.getSectByName(name) != null) {
             result.put("success", false);
-            result.put("message", I18n.t("sect.hf52ad26c", name));
+            result.put("message", I18n.t("sect.the_sect_name_is_already", name));
             return result;
         }
 
         long spiritStones = itemService.getSpiritStoneCount(playerId);
         if (spiritStones < Sect.CREATE_COST_SPIRIT_STONES) {
             result.put("success", false);
-            result.put("message", I18n.t("sect.h97fb485c", Sect.CREATE_COST_SPIRIT_STONES, spiritStones));
+            result.put("message", I18n.t("sect.not_enough_spirit_stones_3", Sect.CREATE_COST_SPIRIT_STONES, spiritStones));
             return result;
         }
 
@@ -138,11 +138,11 @@ final class SectRegistryDomain {
             } catch (Exception ignored) {
             }
             result.put("success", true);
-            result.put("message", I18n.t("sect.ha1d9a2dc", player.getName(), name, Sect.CREATE_COST_SPIRIT_STONES));
+            result.put("message", I18n.t("sect.congratulations_to_on_founding", player.getName(), name, Sect.CREATE_COST_SPIRIT_STONES));
             result.put("sect", sect);
         } else {
             result.put("success", false);
-            result.put("message", I18n.t("sect.h96ac1870"));
+            result.put("message", I18n.t("sect.failed_to_found_the_sect"));
         }
         return result;
     }
@@ -153,22 +153,22 @@ final class SectRegistryDomain {
         Map<String, Object> result = new LinkedHashMap<>();
         SectMember member = queryDomain.getPlayerMember(playerId);
         if (member == null || !member.isLeader()) {
-            result.put("success", false); result.put("message", I18n.t("sect.hf951c000")); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.only_the_sect_leader_7")); return result;
         }
 
         Sect sect = queryDomain.getSectById(member.getSectId());
         if (sect == null) {
-            result.put("success", false); result.put("message", I18n.t("sect.hbffa2528")); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.sect_does_not_exist")); return result;
         }
         if (sect.getLevel() >= Sect.MAX_LEVEL) {
             result.put("success", false);
-            result.put("message", I18n.t("sect.h3168868c", Sect.MAX_LEVEL)); return result;
+            result.put("message", I18n.t("sect.the_sect_has_already_reached", Sect.MAX_LEVEL)); return result;
         }
 
         long cost = Sect.getLevelUpCost(sect.getLevel());
         if (sect.getPrestige() < cost) {
             result.put("success", false);
-            result.put("message", I18n.t("sect.h21c77ff4", cost, sect.getPrestige()));
+            result.put("message", I18n.t("sect.not_enough_prestige", cost, sect.getPrestige()));
             return result;
         }
 
@@ -185,7 +185,7 @@ final class SectRegistryDomain {
         } catch (SQLException e) { throw new RuntimeException("宗门升级失败", e); }
 
         result.put("success", true);
-        result.put("message", I18n.t("sect.hc068d71a", sect.getName(), newLevel, cost, newMaxMembers));
+        result.put("message", I18n.t("sect.sect_advanced_to_level", sect.getName(), newLevel, cost, newMaxMembers));
         return result;
     }
 
@@ -195,38 +195,38 @@ final class SectRegistryDomain {
         Map<String, Object> result = new LinkedHashMap<>();
         SectMember fromMember = queryDomain.getPlayerMember(fromPlayerId);
         if (fromMember == null || !fromMember.isLeader()) {
-            result.put("success", false); result.put("message", I18n.t("sect.h72d25ae4")); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.only_the_sect_leader_5")); return result;
         }
 
         Sect sect = queryDomain.getSectById(fromMember.getSectId());
         if (sect == null) {
-            result.put("success", false); result.put("message", I18n.t("sect.hbffa2528")); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.sect_does_not_exist")); return result;
         }
 
         SectMember toMember = queryDomain.getMember(sect.getId(), toPlayerId);
         if (toMember == null) {
-            result.put("success", false); result.put("message", I18n.t("sect.h6ee9c207")); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.that_player_2")); return result;
         }
         if (toMember.isLeader()) {
-            result.put("success", false); result.put("message", I18n.t("sect.hb527d929")); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.that_player_is_already")); return result;
         }
 
         Player toPlayer = playerService.getPlayerById(toPlayerId);
         if (toPlayer == null) {
-            result.put("success", false); result.put("message", I18n.t("sect.ha2ad4da4")); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.the_recipient_s_character_does")); return result;
         }
         if (toPlayer.getRealm() < Sect.MIN_LEVEL_CREATE) {
             String realmName = GameConfigLoader.getRealmConfig(toPlayer.getRealm(), 0) != null
                     ? GameConfigLoader.getRealmConfig(toPlayer.getRealm(), 0).getFullName() : "凡人";
             result.put("success", false);
-            result.put("message", I18n.t("sect.h062ede40", realmName));
+            result.put("message", I18n.t("sect.the_recipient_s_realm", realmName));
             return result;
         }
 
         long spiritStones = itemService.getSpiritStoneCount(fromPlayerId);
         if (spiritStones < Sect.TRANSFER_COST_SPIRIT_STONES) {
             result.put("success", false);
-            result.put("message", I18n.t("sect.h6c450565", Sect.TRANSFER_COST_SPIRIT_STONES, spiritStones));
+            result.put("message", I18n.t("sect.not_enough_spirit_stones_2", Sect.TRANSFER_COST_SPIRIT_STONES, spiritStones));
             return result;
         }
         DatabaseManager.runTransaction(conn -> {
@@ -269,12 +269,12 @@ final class SectRegistryDomain {
         Map<String, Object> result = new LinkedHashMap<>();
         SectMember member = queryDomain.getPlayerMember(playerId);
         if (member == null || !member.isLeader()) {
-            result.put("success", false); result.put("message", I18n.t("sect.he343e014")); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.only_the_sect_leader_6")); return result;
         }
 
         Sect sect = queryDomain.getSectById(member.getSectId());
         if (sect == null) {
-            result.put("success", false); result.put("message", I18n.t("sect.hbffa2528")); return result;
+            result.put("success", false); result.put("message", I18n.t("sect.sect_does_not_exist")); return result;
         }
 
         DatabaseManager.runTransaction(conn -> {
@@ -294,7 +294,7 @@ final class SectRegistryDomain {
         });
 
         result.put("success", true);
-        result.put("message", I18n.t("sect.ha42a16cc", sect.getName()));
+        result.put("message", I18n.t("sect.sect_has_been_disbanded", sect.getName()));
         return result;
     }
 }

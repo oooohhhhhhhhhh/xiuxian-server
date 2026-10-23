@@ -36,13 +36,13 @@ public class ItemGiveCommand extends Command {
 
         String arg = ctx.getArg().trim();
         if (arg.isEmpty()) {
-            ctx.reply(I18n.t("item_give.hb795d1ec"));
+            ctx.reply(I18n.t("item_give.usage"));
             return;
         }
 
         String[] parts = arg.split("\\s+", 3);
         if (parts.length < 2) {
-            ctx.reply(I18n.t("item_give.he94b4574"));
+            ctx.reply(I18n.t("item_give.not_enough_arguments"));
             return;
         }
 
@@ -53,12 +53,12 @@ public class ItemGiveCommand extends Command {
             try {
                 quantity = Integer.parseInt(parts[2]);
             } catch (NumberFormatException e) {
-                ctx.reply(I18n.t("item_give.he44ee76c"));
+                ctx.reply(I18n.t("item_give.invalid_amount"));
                 return;
             }
         }
         if (quantity <= 0) {
-            ctx.reply(I18n.t("item_give.h893a9a8c"));
+            ctx.reply(I18n.t("item_give.the_amount_must_be_greater"));
             return;
         }
 
@@ -66,7 +66,7 @@ public class ItemGiveCommand extends Command {
         var playerService = ServiceRegistry.getPlayerService();
         List<PlayerInfo> found = playerService.searchPlayersByName(targetName, 1, 0);
         if (found.isEmpty()) {
-            ctx.reply(I18n.t("item_give.h57d9d167", targetName));
+            ctx.reply(I18n.t("item_give.player_not_found", targetName));
             return;
         }
         PlayerInfo target = found.get(0);
@@ -74,7 +74,7 @@ public class ItemGiveCommand extends Command {
         // 校验物品
         Item item = ItemRegistry.resolve(itemKey);
         if (item == null) {
-            ctx.reply(I18n.t("item_give.h5126e848", itemKey));
+            ctx.reply(I18n.t("item_give.item_not_found_2", itemKey));
             return;
         }
 
@@ -82,7 +82,7 @@ public class ItemGiveCommand extends Command {
         var itemService = ServiceRegistry.getItemService();
         itemService.addItem(target.getId(), item.getFullKey(), quantity);
 
-        ctx.reply(I18n.t("item_give.h32dd771c", target.getName(), item.getName(), quantity));
+        ctx.reply(I18n.t("item_give.issued", target.getName(), item.getName(), quantity));
     }
 
     // ==================== REST API ====================
@@ -97,12 +97,12 @@ public class ItemGiveCommand extends Command {
 
             if (targetName.isBlank() || itemKey.isBlank()) {
                 result.addProperty("code", 400);
-                result.addProperty("message", I18n.t("item_give.hb22bfab6"));
+                result.addProperty("message", I18n.t("item_give.please_provide_the_player_name"));
                 return result;
             }
             if (quantity <= 0) {
                 result.addProperty("code", 400);
-                result.addProperty("message", I18n.t("item_give.hc0d8a9c4"));
+                result.addProperty("message", I18n.t("item_give.the_amount_must_be_greater_2"));
                 return result;
             }
 
@@ -111,7 +111,7 @@ public class ItemGiveCommand extends Command {
             List<PlayerInfo> found = playerService.searchPlayersByName(targetName, 1, 0);
             if (found.isEmpty()) {
                 result.addProperty("code", 404);
-                result.addProperty("message", I18n.t("item_give.h57d9d167", targetName));
+                result.addProperty("message", I18n.t("item_give.player_not_found", targetName));
                 return result;
             }
             target = found.get(0);
@@ -119,7 +119,7 @@ public class ItemGiveCommand extends Command {
             Item item = ItemRegistry.resolve(itemKey);
             if (item == null) {
                 result.addProperty("code", 404);
-                result.addProperty("message", I18n.t("item_give.h3c2a9282", itemKey));
+                result.addProperty("message", I18n.t("item_give.item_not_found", itemKey));
                 return result;
             }
 
@@ -127,13 +127,13 @@ public class ItemGiveCommand extends Command {
             itemService.addItem(target.getId(), item.getFullKey(), quantity);
 
             result.addProperty("code", 200);
-            result.addProperty("message", I18n.t("item_give.hed2fcf9b", targetName, item.getName(), quantity));
+            result.addProperty("message", I18n.t("item_give.successfully_issued", targetName, item.getName(), quantity));
             result.addProperty("itemName", item.getName());
             result.addProperty("itemKey", item.getFullKey());
             result.addProperty("quantity", quantity);
         } catch (Exception e) {
             result.addProperty("code", 500);
-            result.addProperty("message", I18n.t("item_give.hf186bd38", e.getMessage()));
+            result.addProperty("message", I18n.t("item_give.server_error", e.getMessage()));
         }
         return result;
     }

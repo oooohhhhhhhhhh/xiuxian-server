@@ -118,7 +118,7 @@ public class AdminPlayersResource {
         if (p == null) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 404);
-            err.addProperty("message", I18n.t("admin.h796f4b70"));
+            err.addProperty("message", I18n.t("admin.player_does_not_exist"));
             return Response.ok(gson.toJson(err)).build();
         }
 
@@ -174,7 +174,7 @@ public class AdminPlayersResource {
         if (p == null) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 404);
-            err.addProperty("message", I18n.t("admin.h796f4b70"));
+            err.addProperty("message", I18n.t("admin.player_does_not_exist"));
             return Response.ok(gson.toJson(err)).build();
         }
 
@@ -223,7 +223,7 @@ public class AdminPlayersResource {
         if (p == null) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 404);
-            err.addProperty("message", I18n.t("admin.h796f4b70"));
+            err.addProperty("message", I18n.t("admin.player_does_not_exist"));
             return Response.ok(gson.toJson(err)).build();
         }
 
@@ -247,7 +247,7 @@ public class AdminPlayersResource {
 
         JsonObject result = new JsonObject();
         result.addProperty("code", 200);
-        result.addProperty("message", I18n.t("admin.h09fd94fc"));
+        result.addProperty("message", I18n.t("admin.edit_successful"));
         return Response.ok(gson.toJson(result)).build();
     }
 
@@ -260,7 +260,7 @@ public class AdminPlayersResource {
         if (p == null) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 404);
-            err.addProperty("message", I18n.t("admin.h796f4b70"));
+            err.addProperty("message", I18n.t("admin.player_does_not_exist"));
             return Response.ok(gson.toJson(err)).build();
         }
 
@@ -268,12 +268,12 @@ public class AdminPlayersResource {
         if (success) {
             JsonObject result = new JsonObject();
             result.addProperty("code", 200);
-            result.addProperty("message", I18n.t("admin.h7e7ba6b0"));
+            result.addProperty("message", I18n.t("admin.deleted_successfully"));
             return Response.ok(gson.toJson(result)).build();
         } else {
             JsonObject err = new JsonObject();
             err.addProperty("code", 500);
-            err.addProperty("message", I18n.t("admin.h1a6a52b8"));
+            err.addProperty("message", I18n.t("admin.delete_failed"));
             return Response.ok(gson.toJson(err)).build();
         }
     }
@@ -288,7 +288,7 @@ public class AdminPlayersResource {
         if (p == null) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 404);
-            err.addProperty("message", I18n.t("admin.h796f4b70"));
+            err.addProperty("message", I18n.t("admin.player_does_not_exist"));
             return Response.ok(gson.toJson(err)).build();
         }
 
@@ -298,7 +298,7 @@ public class AdminPlayersResource {
         if (newName == null || newName.trim().isEmpty()) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 400);
-            err.addProperty("message", I18n.t("admin.hbb03c877"));
+            err.addProperty("message", I18n.t("admin.name_cannot_be_empty"));
             return Response.ok(gson.toJson(err)).build();
         }
 
@@ -308,14 +308,14 @@ public class AdminPlayersResource {
         if (success) {
             JsonObject result = new JsonObject();
             result.addProperty("code", 200);
-            result.addProperty("message", I18n.t("admin.h3cc04960"));
+            result.addProperty("message", I18n.t("admin.name_changed_successfully"));
             result.addProperty("oldName", oldName);
             result.addProperty("newName", newName);
             return Response.ok(gson.toJson(result)).build();
         } else {
             JsonObject err = new JsonObject();
             err.addProperty("code", 500);
-            err.addProperty("message", I18n.t("admin.h8768d477"));
+            err.addProperty("message", I18n.t("admin.modification_failed"));
             return Response.ok(gson.toJson(err)).build();
         }
     }
@@ -330,7 +330,7 @@ public class AdminPlayersResource {
         if (p == null) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 404);
-            err.addProperty("message", I18n.t("admin.h796f4b70"));
+            err.addProperty("message", I18n.t("admin.player_does_not_exist"));
             return Response.ok(gson.toJson(err)).build();
         }
 
@@ -339,7 +339,7 @@ public class AdminPlayersResource {
         if (rootName == null || rootName.isBlank()) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 400);
-            err.addProperty("message", I18n.t("admin.h1a5ea364"));
+            err.addProperty("message", I18n.t("admin.please_provide_a_spiritual_root"));
             return Response.ok(gson.toJson(err)).build();
         }
 
@@ -350,7 +350,7 @@ public class AdminPlayersResource {
 
             JsonObject result = new JsonObject();
             result.addProperty("code", 200);
-            result.addProperty("message", I18n.t("admin.hb6f60f7b", root.getDisplayName(), root.getTier().getDisplayName()));
+            result.addProperty("message", I18n.t("admin.spiritual_root_changed", root.getDisplayName(), root.getTier().getDisplayName()));
             return Response.ok(gson.toJson(result)).build();
         } catch (IllegalArgumentException e) {
             JsonObject err = new JsonObject();
@@ -373,7 +373,7 @@ public class AdminPlayersResource {
         if (p == null) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 404);
-            err.addProperty("message", I18n.t("admin.h796f4b70"));
+            err.addProperty("message", I18n.t("admin.player_does_not_exist"));
             return Response.ok(gson.toJson(err)).build();
         }
 
@@ -407,7 +407,7 @@ public class AdminPlayersResource {
         if (p == null) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 404);
-            err.addProperty("message", I18n.t("admin.h796f4b70"));
+            err.addProperty("message", I18n.t("admin.player_does_not_exist"));
             return Response.ok(gson.toJson(err)).build();
         }
 
@@ -417,7 +417,7 @@ public class AdminPlayersResource {
         if (titleKey == null || titleKey.isBlank()) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 400);
-            err.addProperty("message", I18n.t("admin.he8f4ef00"));
+            err.addProperty("message", I18n.t("admin.the_title_key_cannot"));
             return Response.ok(gson.toJson(err)).build();
         }
 
@@ -495,7 +495,7 @@ public class AdminPlayersResource {
         if (titleKey.isBlank()) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 400);
-            err.addProperty("message", I18n.t("admin.hd7921d08"));
+            err.addProperty("message", I18n.t("admin.please_provide_a_title_key"));
             return Response.ok(gson.toJson(err)).build();
         }
         var ts = ServiceRegistry.getTitleService();

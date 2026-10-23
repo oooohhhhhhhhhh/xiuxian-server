@@ -94,13 +94,13 @@ public class CraftCommand extends Command {
     }
 
     private void listRecipesWithCategory(CommandContext ctx, PlayerInfo p, String[] parts) {
-        if (parts.length < 2) { ctx.reply(I18n.t("crafting.h573a2304")); return; }
+        if (parts.length < 2) { ctx.reply(I18n.t("crafting.usage")); return; }
         String cat = parts[1].toUpperCase();
         Recipe.Category category;
         try {
             category = Recipe.Category.valueOf(cat);
         } catch (IllegalArgumentException e) {
-            ctx.reply(I18n.t("crafting.h8480fd84", cat));
+            ctx.reply(I18n.t("crafting.invalid_category", cat));
             return;
         }
 
@@ -122,9 +122,9 @@ public class CraftCommand extends Command {
     }
 
     private void doCraft(CommandContext ctx, PlayerInfo p, String[] parts) {
-        if (parts.length < 2) { ctx.reply(I18n.t("crafting.h706b5630")); return; }
+        if (parts.length < 2) { ctx.reply(I18n.t("crafting.usage_2")); return; }
         long recipeId;
-        try { recipeId = Long.parseLong(parts[1]); } catch (NumberFormatException e) { ctx.reply(I18n.t("crafting.h033e510c")); return; }
+        try { recipeId = Long.parseLong(parts[1]); } catch (NumberFormatException e) { ctx.reply(I18n.t("crafting.invalid_recipe_id")); return; }
 
         var service = ServiceRegistry.getCraftingService();
         Map<String, Object> result = service.craft(p.getId(), recipeId);
@@ -180,7 +180,7 @@ public class CraftCommand extends Command {
                     recipes = service.getRecipesByCategory(cat);
                 } catch (IllegalArgumentException e) {
                     result.addProperty("code", 400);
-                    result.addProperty("message", I18n.t("crafting.h0a94b2ac", category));
+                    result.addProperty("message", I18n.t("crafting.invalid_recipe_category", category));
                     return result;
                 }
             } else {
@@ -211,7 +211,7 @@ public class CraftCommand extends Command {
             result.add("recipes", arr);
         } catch (Exception e) {
             result.addProperty("code", 500);
-            result.addProperty("message", I18n.t("crafting.hf186bd38", e.getMessage()));
+            result.addProperty("message", I18n.t("crafting.server_error", e.getMessage()));
         }
         return result;
     }
@@ -223,7 +223,7 @@ public class CraftCommand extends Command {
             long recipeId = req.has("recipeId") ? req.get("recipeId").getAsLong() : 0;
             if (recipeId <= 0) {
                 result.addProperty("code", 400);
-                result.addProperty("message", I18n.t("crafting.ha0a6b46c"));
+                result.addProperty("message", I18n.t("crafting.please_provide_a_valid_recipe"));
                 return result;
             }
             var service = ServiceRegistry.getCraftingService();
@@ -237,7 +237,7 @@ public class CraftCommand extends Command {
             if (data.containsKey("itemQuantity")) result.addProperty("itemQuantity", ((Number) data.get("itemQuantity")).intValue());
         } catch (Exception e) {
             result.addProperty("code", 500);
-            result.addProperty("message", I18n.t("crafting.hf186bd38", e.getMessage()));
+            result.addProperty("message", I18n.t("crafting.server_error", e.getMessage()));
         }
         return result;
     }

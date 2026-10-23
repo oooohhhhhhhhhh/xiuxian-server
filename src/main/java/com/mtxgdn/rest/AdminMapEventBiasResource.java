@@ -90,14 +90,14 @@ public class AdminMapEventBiasResource {
             data.addProperty("eventKey", eventKey);
             data.addProperty("multiplier", multiplier);
             out.addProperty("code", 200);
-            out.addProperty("message", I18n.t("admin.h77706204"));
+            out.addProperty("message", I18n.t("admin.event_bias_saved"));
             out.add("data", data);
         } catch (IllegalArgumentException e) {
             out.addProperty("code", 400);
             out.addProperty("message", e.getMessage());
         } catch (Exception e) {
             out.addProperty("code", 500);
-            out.addProperty("message", I18n.t("admin.hd7073d40", e.getMessage()));
+            out.addProperty("message", I18n.t("admin.failed_to_save_event_bias", e.getMessage()));
         }
         return Response.ok(gson.toJson(out)).build();
     }
@@ -124,7 +124,7 @@ public class AdminMapEventBiasResource {
             }
             if (affected == 0) {
                 out.addProperty("code", 404);
-                out.addProperty("message", I18n.t("admin.hfc3d7aa4"));
+                out.addProperty("message", I18n.t("admin.this_location_has_no_such"));
                 return Response.ok(gson.toJson(out)).build();
             }
 
@@ -133,14 +133,14 @@ public class AdminMapEventBiasResource {
             JsonObject data = new JsonObject();
             data.addProperty("deleted", affected);
             out.addProperty("code", 200);
-            out.addProperty("message", I18n.t("admin.h05227a8c"));
+            out.addProperty("message", I18n.t("admin.event_bias_deleted"));
             out.add("data", data);
         } catch (IllegalArgumentException e) {
             out.addProperty("code", 400);
             out.addProperty("message", e.getMessage());
         } catch (Exception e) {
             out.addProperty("code", 500);
-            out.addProperty("message", I18n.t("admin.h76c11ee3", e.getMessage()));
+            out.addProperty("message", I18n.t("admin.failed_to_delete_event_bias", e.getMessage()));
         }
         return Response.ok(gson.toJson(out)).build();
     }

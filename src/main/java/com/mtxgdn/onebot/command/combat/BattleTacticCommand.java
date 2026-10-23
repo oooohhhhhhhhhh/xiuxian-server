@@ -36,7 +36,7 @@ public class BattleTacticCommand extends Command {
 
         String tactic = resolveTactic(arg);
         if (tactic == null) {
-            ctx.reply(I18n.t("combat.hbcd08f60", arg));
+            ctx.reply(I18n.t("combat.unknown_strategy", arg));
             return;
         }
 
@@ -48,7 +48,7 @@ public class BattleTacticCommand extends Command {
             case "defensive" -> "🛡 防守 — 保留一半法力，稳扎稳打";
             default -> "⚖ 均衡 — 不偏不倚，见招拆招";
         };
-        ctx.reply(I18n.t("combat.h48e22b10", display));
+        ctx.reply(I18n.t("combat.combat_strategy_changed", display));
     }
 
     private void showCurrent(CommandContext ctx, PlayerInfo p) {
@@ -62,7 +62,7 @@ public class BattleTacticCommand extends Command {
             case "defensive" -> "🛡 防守 — 保留一半法力，稳扎稳打";
             default -> "⚖ 均衡 — 不偏不倚，见招拆招";
         };
-        ctx.reply(I18n.t("combat.h4e19b0c2", display));
+        ctx.reply(I18n.t("combat.current_combat_strategy", display));
     }
 
     private String resolveTactic(String input) {

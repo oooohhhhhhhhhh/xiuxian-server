@@ -15,7 +15,7 @@ public class ItemMapCommand extends Command {
     @Override
     public void execute(CommandContext ctx) {
         Collection<Item> allItems = ItemRegistry.getAll();
-        if (allItems.isEmpty()) { ctx.reply(I18n.t("item_map.h0e294c36")); return; }
+        if (allItems.isEmpty()) { ctx.reply(I18n.t("item_map.the_item_list_is_empty")); return; }
         Map<String, List<Item>> byType = new LinkedHashMap<>();
         for (Item item : allItems) {
             byType.computeIfAbsent(item.getType().getDisplayName(), k -> new ArrayList<>()).add(item);

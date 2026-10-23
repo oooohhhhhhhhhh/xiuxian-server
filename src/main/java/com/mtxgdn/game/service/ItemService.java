@@ -552,24 +552,24 @@ public class ItemService {
         Map<String, Object> result = new LinkedHashMap<>();
         if (fromGrade < 0 || fromGrade > 3 || toGrade < 0 || toGrade > 3) {
             result.put("success", false);
-            result.put("message", I18n.t("item.ha68b3ef0"));
+            result.put("message", I18n.t("item.invalid_spirit_stone_grade"));
             return result;
         }
         if (fromGrade <= toGrade) {
             result.put("success", false);
-            result.put("message", I18n.t("item.hc1802354"));
+            result.put("message", I18n.t("item.higher_grade_spirit_stones"));
             return result;
         }
         if (amount <= 0) {
             result.put("success", false);
-            result.put("message", I18n.t("item.h855d6fe8"));
+            result.put("message", I18n.t("item.the_exchange_amount_must"));
             return result;
         }
 
         String fromKey = CurrencyEffect.getStoneKey(fromGrade);
         if (getItemCount(playerId, fromKey) < amount) {
             result.put("success", false);
-            result.put("message", I18n.t("item.hf663041d"));
+            result.put("message", I18n.t("item.not_enough_spirit_stones"));
             return result;
         }
 
@@ -593,7 +593,7 @@ public class ItemService {
                         amount, getStoneName(fromGrade), targetAmount, getStoneName(toGrade)));
             } catch (SQLException e) {
                 innerResult.put("success", false);
-                innerResult.put("message", I18n.t("item.h35c6c480", e.getMessage()));
+                innerResult.put("message", I18n.t("item.exchange_failed", e.getMessage()));
             }
             return innerResult;
         });
@@ -619,7 +619,7 @@ public class ItemService {
         Item item = ItemRegistry.resolve(itemKey);
         if (item == null) {
             result.put("success", false);
-            result.put("message", I18n.t("item.ha1976553"));
+            result.put("message", I18n.t("item.item_not_found"));
             return result;
         }
         String fullKey = item.getFullKey();
@@ -630,14 +630,14 @@ public class ItemService {
 
                 if (getItemCount(conn, playerId, fullKey) < 1) {
                     innerResult.put("success", false);
-                    innerResult.put("message", I18n.t("item.h275bc0df"));
+                    innerResult.put("message", I18n.t("item.that_item"));
                     return innerResult;
                 }
 
                 String occupied = getEquippedItem(conn, playerId, slot);
                 if (occupied != null && occupied.equals(fullKey)) {
                     innerResult.put("success", false);
-                    innerResult.put("message", I18n.t("item.h058f56b2"));
+                    innerResult.put("message", I18n.t("item.that_item_is_already_equipped"));
                     return innerResult;
                 }
 
@@ -717,7 +717,7 @@ public class ItemService {
             });
         } catch (Exception e) {
             result.put("success", false);
-            result.put("message", I18n.t("item.hcb33d7f8", e.getMessage()));
+            result.put("message", I18n.t("item.equip_failed", e.getMessage()));
             return result;
         }
     }
@@ -735,13 +735,13 @@ public class ItemService {
                 String itemKey = getEquippedItem(conn, playerId, slot);
                 if (itemKey == null) {
                     innerResult.put("success", false);
-                    innerResult.put("message", I18n.t("item.h3b242f48"));
+                    innerResult.put("message", I18n.t("item.that_equipment_slot_is_empty"));
                     return innerResult;
                 }
                 Item item = ItemRegistry.get(itemKey);
                 if (item == null) {
                     innerResult.put("success", false);
-                    innerResult.put("message", I18n.t("item.h7132a04c"));
+                    innerResult.put("message", I18n.t("item.item_data_is_corrupted"));
                     return innerResult;
                 }
 
@@ -805,7 +805,7 @@ public class ItemService {
             });
         } catch (Exception e) {
             result.put("success", false);
-            result.put("message", I18n.t("item.h45b8f447", e.getMessage()));
+            result.put("message", I18n.t("item.failed_to_unequip", e.getMessage()));
             return result;
         }
     }
@@ -860,7 +860,7 @@ public class ItemService {
         Item item = ItemRegistry.resolve(itemKey);
         if (item == null) {
             result.put("success", false);
-            result.put("message", I18n.t("item.hadf213b8"));
+            result.put("message", I18n.t("item.item_not_found_2"));
             return result;
         }
         String fullKey = item.getFullKey();
@@ -884,7 +884,7 @@ public class ItemService {
                     try (java.sql.ResultSet rs = ps.executeQuery()) {
                         if (!rs.next() || rs.getLong("quantity") < 1) {
                             innerResult.put("success", false);
-                            innerResult.put("message", I18n.t("item.h275bc0df"));
+                            innerResult.put("message", I18n.t("item.that_item"));
                             return innerResult;
                         }
                     }
@@ -937,7 +937,7 @@ public class ItemService {
             });
         } catch (Exception e) {
             result.put("success", false);
-            result.put("message", I18n.t("item.h0510fbe7", e.getMessage()));
+            result.put("message", I18n.t("item.failed_to_use_item", e.getMessage()));
             return result;
         }
     }

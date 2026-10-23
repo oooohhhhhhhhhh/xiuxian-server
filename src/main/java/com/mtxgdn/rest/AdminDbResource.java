@@ -57,7 +57,7 @@ public class AdminDbResource {
 
         JsonObject result = new JsonObject();
         result.addProperty("code", 200);
-        result.addProperty("message", I18n.t("admin.hd6ef4b84"));
+        result.addProperty("message", I18n.t("admin.player_data_cleared"));
         result.addProperty("totalDeleted", total);
 
         JsonObject detail = new JsonObject();
@@ -85,7 +85,7 @@ public class AdminDbResource {
 
         JsonObject result = new JsonObject();
         result.addProperty("code", 200);
-        result.addProperty("message", I18n.t("admin.he0c1aa7c"));
+        result.addProperty("message", I18n.t("admin.all_data_reset_and_default"));
         result.addProperty("totalDeleted", total);
 
         JsonObject detail = new JsonObject();
@@ -124,7 +124,7 @@ public class AdminDbResource {
         } catch (Exception e) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 500);
-            err.addProperty("message", I18n.t("admin.hc24ff258", e.getMessage()));
+            err.addProperty("message", I18n.t("admin.failed_to_fetch_table_list", e.getMessage()));
             return Response.ok(gson.toJson(err)).build();
         }
     }
@@ -184,7 +184,7 @@ public class AdminDbResource {
         } catch (Exception e) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 500);
-            err.addProperty("message", I18n.t("admin.h12619b1f", e.getMessage()));
+            err.addProperty("message", I18n.t("admin.query_failed", e.getMessage()));
             return Response.ok(gson.toJson(err)).build();
         }
     }
@@ -201,7 +201,7 @@ public class AdminDbResource {
             if (row == null) {
                 JsonObject err = new JsonObject();
                 err.addProperty("code", 404);
-                err.addProperty("message", I18n.t("admin.h2d6880bc"));
+                err.addProperty("message", I18n.t("admin.record_not_found"));
                 return Response.ok(gson.toJson(err)).build();
             }
 
@@ -231,7 +231,7 @@ public class AdminDbResource {
         } catch (Exception e) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 500);
-            err.addProperty("message", I18n.t("admin.h12619b1f", e.getMessage()));
+            err.addProperty("message", I18n.t("admin.query_failed", e.getMessage()));
             return Response.ok(gson.toJson(err)).build();
         }
     }
@@ -265,7 +265,7 @@ public class AdminDbResource {
 
             JsonObject result = new JsonObject();
             result.addProperty("code", 200);
-            result.addProperty("message", I18n.t("admin.h34edd3d4"));
+            result.addProperty("message", I18n.t("admin.created_successfully"));
             result.addProperty("id", newId);
             return Response.ok(gson.toJson(result)).build();
         } catch (IllegalArgumentException e) {
@@ -276,7 +276,7 @@ public class AdminDbResource {
         } catch (Exception e) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 500);
-            err.addProperty("message", I18n.t("admin.h00199ba0", e.getMessage()));
+            err.addProperty("message", I18n.t("admin.create_failed", e.getMessage()));
             return Response.ok(gson.toJson(err)).build();
         }
     }
@@ -314,10 +314,10 @@ public class AdminDbResource {
             JsonObject result = new JsonObject();
             if (updated > 0) {
                 result.addProperty("code", 200);
-                result.addProperty("message", I18n.t("admin.h49113c80"));
+                result.addProperty("message", I18n.t("admin.updated_successfully"));
             } else {
                 result.addProperty("code", 404);
-                result.addProperty("message", I18n.t("admin.hd2524528"));
+                result.addProperty("message", I18n.t("admin.record_not_found_or_unchanged"));
             }
             return Response.ok(gson.toJson(result)).build();
         } catch (IllegalArgumentException e) {
@@ -328,7 +328,7 @@ public class AdminDbResource {
         } catch (Exception e) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 500);
-            err.addProperty("message", I18n.t("admin.hae754cdb", e.getMessage()));
+            err.addProperty("message", I18n.t("admin.update_failed", e.getMessage()));
             return Response.ok(gson.toJson(err)).build();
         }
     }
@@ -349,10 +349,10 @@ public class AdminDbResource {
             JsonObject result = new JsonObject();
             if (deleted > 0) {
                 result.addProperty("code", 200);
-                result.addProperty("message", I18n.t("admin.h7e7ba6b0"));
+                result.addProperty("message", I18n.t("admin.deleted_successfully"));
             } else {
                 result.addProperty("code", 404);
-                result.addProperty("message", I18n.t("admin.h2d6880bc"));
+                result.addProperty("message", I18n.t("admin.record_not_found"));
             }
             return Response.ok(gson.toJson(result)).build();
         } catch (IllegalArgumentException e) {
@@ -363,7 +363,7 @@ public class AdminDbResource {
         } catch (Exception e) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 500);
-            err.addProperty("message", I18n.t("admin.h4360d4cc", e.getMessage()));
+            err.addProperty("message", I18n.t("admin.delete_failed_2", e.getMessage()));
             return Response.ok(gson.toJson(err)).build();
         }
     }
@@ -384,7 +384,7 @@ public class AdminDbResource {
         } catch (Exception e) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 500);
-            err.addProperty("message", I18n.t("admin.h04e20937", e.getMessage()));
+            err.addProperty("message", I18n.t("admin.backup_failed", e.getMessage()));
             return Response.ok(gson.toJson(err)).build();
         }
     }
@@ -405,7 +405,7 @@ public class AdminDbResource {
 
             JsonObject result = new JsonObject();
             result.addProperty("code", 200);
-            result.addProperty("message", I18n.t("admin.h7503790c"));
+            result.addProperty("message", I18n.t("admin.data_imported_successfully"));
 
             int total = 0;
             JsonObject detail = new JsonObject();
@@ -422,7 +422,7 @@ public class AdminDbResource {
         } catch (Exception e) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 500);
-            err.addProperty("message", I18n.t("admin.h6f8a2d18", e.getMessage()));
+            err.addProperty("message", I18n.t("admin.import_failed", e.getMessage()));
             return Response.ok(gson.toJson(err)).build();
         }
     }

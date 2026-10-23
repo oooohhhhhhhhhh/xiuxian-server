@@ -181,7 +181,7 @@ public class AdminUserResource {
         if (name == null || name.isBlank()) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 400);
-            err.addProperty("message", I18n.t("admin.hbd4d9090"));
+            err.addProperty("message", I18n.t("admin.permission_group_name_cannot"));
             return Response.status(400).entity(gson.toJson(err)).build();
         }
 
@@ -189,7 +189,7 @@ public class AdminUserResource {
             PermissionService.createGroup(name, displayName, level);
             JsonObject result = new JsonObject();
             result.addProperty("code", 200);
-            result.addProperty("message", I18n.t("admin.h0d43f684"));
+            result.addProperty("message", I18n.t("admin.permission_group_created"));
             return Response.ok(gson.toJson(result)).build();
         } catch (Exception e) {
             JsonObject err = new JsonObject();
@@ -218,7 +218,7 @@ public class AdminUserResource {
             PermissionService.updateGroup(groupName, displayName, level);
             JsonObject result = new JsonObject();
             result.addProperty("code", 200);
-            result.addProperty("message", I18n.t("admin.h2df30215"));
+            result.addProperty("message", I18n.t("admin.permission_group_updated"));
             return Response.ok(gson.toJson(result)).build();
         } catch (Exception e) {
             JsonObject err = new JsonObject();
@@ -237,7 +237,7 @@ public class AdminUserResource {
             PermissionService.deleteGroup(groupName);
             JsonObject result = new JsonObject();
             result.addProperty("code", 200);
-            result.addProperty("message", I18n.t("admin.h04a3a43c"));
+            result.addProperty("message", I18n.t("admin.permission_group_deleted"));
             return Response.ok(gson.toJson(result)).build();
         } catch (Exception e) {
             JsonObject err = new JsonObject();
@@ -259,7 +259,7 @@ public class AdminUserResource {
         if (permissionCode == null || permissionCode.isBlank()) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 400);
-            err.addProperty("message", I18n.t("admin.h49c7b7c8"));
+            err.addProperty("message", I18n.t("admin.permission_code_cannot_be_empty"));
             return Response.status(400).entity(gson.toJson(err)).build();
         }
 
@@ -267,7 +267,7 @@ public class AdminUserResource {
             PermissionService.addGroupPermission(groupName, permissionCode);
             JsonObject result = new JsonObject();
             result.addProperty("code", 200);
-            result.addProperty("message", I18n.t("admin.h0ba3ecc8"));
+            result.addProperty("message", I18n.t("admin.permission_added_to_the_group"));
             return Response.ok(gson.toJson(result)).build();
         } catch (Exception e) {
             JsonObject err = new JsonObject();
@@ -288,7 +288,7 @@ public class AdminUserResource {
             PermissionService.removeGroupPermission(groupName, permissionCode);
             JsonObject result = new JsonObject();
             result.addProperty("code", 200);
-            result.addProperty("message", I18n.t("admin.h6a8f4654"));
+            result.addProperty("message", I18n.t("admin.permission_removed_from_the_group"));
             return Response.ok(gson.toJson(result)).build();
         } catch (Exception e) {
             JsonObject err = new JsonObject();
@@ -316,7 +316,7 @@ public class AdminUserResource {
             PermissionService.setGroupPermissions(groupName, permissionCodes);
             JsonObject result = new JsonObject();
             result.addProperty("code", 200);
-            result.addProperty("message", I18n.t("admin.he27be784"));
+            result.addProperty("message", I18n.t("admin.permission_group_permissions_updated"));
             return Response.ok(gson.toJson(result)).build();
         } catch (Exception e) {
             JsonObject err = new JsonObject();
@@ -384,7 +384,7 @@ public class AdminUserResource {
         if (roleName == null || !PermissionService.getRoleNames().contains(roleName)) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 400);
-            err.addProperty("message", I18n.t("admin.h0eba6300"));
+            err.addProperty("message", I18n.t("admin.invalid_role_name"));
             return Response.status(400).entity(gson.toJson(err)).build();
         }
 
@@ -392,7 +392,7 @@ public class AdminUserResource {
 
         JsonObject result = new JsonObject();
         result.addProperty("code", 200);
-        result.addProperty("message", I18n.t("admin.h514bf7e1"));
+        result.addProperty("message", I18n.t("admin.role_assigned_successfully"));
         return Response.ok(gson.toJson(result)).build();
     }
 
@@ -404,7 +404,7 @@ public class AdminUserResource {
         if (!PermissionService.getRoleNames().contains(roleName)) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 400);
-            err.addProperty("message", I18n.t("admin.h0eba6300"));
+            err.addProperty("message", I18n.t("admin.invalid_role_name"));
             return Response.status(400).entity(gson.toJson(err)).build();
         }
 
@@ -428,7 +428,7 @@ public class AdminUserResource {
 
         JsonObject result = new JsonObject();
         result.addProperty("code", 200);
-        result.addProperty("message", I18n.t("admin.h89776548"));
+        result.addProperty("message", I18n.t("admin.role_removed_successfully"));
         return Response.ok(gson.toJson(result)).build();
     }
 
@@ -446,19 +446,19 @@ public class AdminUserResource {
         if (username.isBlank()) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 400);
-            err.addProperty("message", I18n.t("admin.h564bba40"));
+            err.addProperty("message", I18n.t("admin.username_cannot_be_empty"));
             return Response.status(400).entity(gson.toJson(err)).build();
         }
         if (password.length() < 6) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 400);
-            err.addProperty("message", I18n.t("admin.h5df85b3d"));
+            err.addProperty("message", I18n.t("admin.password_must_be_at_least"));
             return Response.status(400).entity(gson.toJson(err)).build();
         }
         if (!PermissionService.getRoleNames().contains(role)) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 400);
-            err.addProperty("message", I18n.t("admin.h0eba6300"));
+            err.addProperty("message", I18n.t("admin.invalid_role_name"));
             return Response.status(400).entity(gson.toJson(err)).build();
         }
 
@@ -470,7 +470,7 @@ public class AdminUserResource {
                 if (rs.next()) {
                     JsonObject err = new JsonObject();
                     err.addProperty("code", 409);
-                    err.addProperty("message", I18n.t("admin.hdd8fbc40"));
+                    err.addProperty("message", I18n.t("admin.username_already_exists"));
                     return Response.status(409).entity(gson.toJson(err)).build();
                 }
             }
@@ -489,7 +489,7 @@ public class AdminUserResource {
 
                         JsonObject result = new JsonObject();
                         result.addProperty("code", 200);
-                        result.addProperty("message", I18n.t("admin.h58665cac"));
+                        result.addProperty("message", I18n.t("admin.admin_account_created"));
                         result.addProperty("userId", userId);
                         result.addProperty("username", username);
                         result.addProperty("role", role);
@@ -500,13 +500,13 @@ public class AdminUserResource {
         } catch (SQLException e) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 500);
-            err.addProperty("message", I18n.t("admin.hacdab49b", e.getMessage()));
+            err.addProperty("message", I18n.t("admin.creation_failed_2", e.getMessage()));
             return Response.status(500).entity(gson.toJson(err)).build();
         }
 
         JsonObject err = new JsonObject();
         err.addProperty("code", 500);
-        err.addProperty("message", I18n.t("admin.h9b99bb43"));
+        err.addProperty("message", I18n.t("admin.creation_failed"));
         return Response.status(500).entity(gson.toJson(err)).build();
     }
 
@@ -522,7 +522,7 @@ public class AdminUserResource {
         if (newPassword.length() < 6) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 400);
-            err.addProperty("message", I18n.t("admin.h5df85b3d"));
+            err.addProperty("message", I18n.t("admin.password_must_be_at_least"));
             return Response.status(400).entity(gson.toJson(err)).build();
         }
 
@@ -536,18 +536,18 @@ public class AdminUserResource {
             if (affected == 0) {
                 JsonObject err = new JsonObject();
                 err.addProperty("code", 404);
-                err.addProperty("message", I18n.t("admin.hab63e3d4"));
+                err.addProperty("message", I18n.t("admin.user_does_not_exist"));
                 return Response.status(404).entity(gson.toJson(err)).build();
             }
 
             JsonObject result = new JsonObject();
             result.addProperty("code", 200);
-            result.addProperty("message", I18n.t("admin.hd0c6ad88"));
+            result.addProperty("message", I18n.t("admin.password_changed_successfully"));
             return Response.ok(gson.toJson(result)).build();
         } catch (SQLException e) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 500);
-            err.addProperty("message", I18n.t("admin.h8d21b010", e.getMessage()));
+            err.addProperty("message", I18n.t("admin.modification_failed_2", e.getMessage()));
             return Response.status(500).entity(gson.toJson(err)).build();
         }
     }
@@ -576,7 +576,7 @@ public class AdminUserResource {
                         conn.rollback();
                         JsonObject err = new JsonObject();
                         err.addProperty("code", 404);
-                        err.addProperty("message", I18n.t("admin.hab63e3d4"));
+                        err.addProperty("message", I18n.t("admin.user_does_not_exist"));
                         return Response.status(404).entity(gson.toJson(err)).build();
                     }
                 }
@@ -584,7 +584,7 @@ public class AdminUserResource {
 
                 JsonObject result = new JsonObject();
                 result.addProperty("code", 200);
-                result.addProperty("message", I18n.t("admin.h5f4782cc"));
+                result.addProperty("message", I18n.t("admin.user_deleted"));
                 return Response.ok(gson.toJson(result)).build();
             } catch (Exception e) {
                 conn.rollback();
@@ -595,7 +595,7 @@ public class AdminUserResource {
         } catch (SQLException e) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 500);
-            err.addProperty("message", I18n.t("admin.h4360d4cc", e.getMessage()));
+            err.addProperty("message", I18n.t("admin.delete_failed_2", e.getMessage()));
             return Response.status(500).entity(gson.toJson(err)).build();
         }
     }
@@ -639,14 +639,14 @@ public class AdminUserResource {
         if (permissionCode == null || permissionCode.isBlank()) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 400);
-            err.addProperty("message", I18n.t("admin.h49c7b7c8"));
+            err.addProperty("message", I18n.t("admin.permission_code_cannot_be_empty"));
             return Response.status(400).entity(gson.toJson(err)).build();
         }
 
         if (!PermissionService.isValidPermissionCode(permissionCode)) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 400);
-            err.addProperty("message", I18n.t("admin.hfb044040", permissionCode));
+            err.addProperty("message", I18n.t("admin.invalid_permission_code", permissionCode));
             return Response.status(400).entity(gson.toJson(err)).build();
         }
 
@@ -654,12 +654,12 @@ public class AdminUserResource {
             PermissionService.assignPermission(userId, permissionCode);
             JsonObject result = new JsonObject();
             result.addProperty("code", 200);
-            result.addProperty("message", I18n.t("admin.h9d7e3c90"));
+            result.addProperty("message", I18n.t("admin.permission_assigned_successfully"));
             return Response.ok(gson.toJson(result)).build();
         } catch (Exception e) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 500);
-            err.addProperty("message", I18n.t("admin.h4eb875d4", e.getMessage()));
+            err.addProperty("message", I18n.t("admin.assignment_failed", e.getMessage()));
             return Response.status(500).entity(gson.toJson(err)).build();
         }
     }
@@ -673,12 +673,12 @@ public class AdminUserResource {
             PermissionService.removePermission(userId, permissionCode);
             JsonObject result = new JsonObject();
             result.addProperty("code", 200);
-            result.addProperty("message", I18n.t("admin.he43121b0"));
+            result.addProperty("message", I18n.t("admin.permission_removed_successfully"));
             return Response.ok(gson.toJson(result)).build();
         } catch (Exception e) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 500);
-            err.addProperty("message", I18n.t("admin.h9d0342fc", e.getMessage()));
+            err.addProperty("message", I18n.t("admin.removal_failed", e.getMessage()));
             return Response.status(500).entity(gson.toJson(err)).build();
         }
     }

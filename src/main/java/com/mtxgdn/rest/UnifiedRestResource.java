@@ -161,7 +161,7 @@ public class UnifiedRestResource {
                 System.err.println("[UnifiedRest] 处理路由异常 " + httpMethod + " " + path + ": " + e);
                 JsonObject err = new JsonObject();
                 err.addProperty("code", 500);
-                err.addProperty("message", I18n.t("unified_rest.h2177df77"));
+                err.addProperty("message", I18n.t("unified_rest.internal_server_error"));
                 return Response.status(500).entity(gson.toJson(err)).build();
             }
         }
