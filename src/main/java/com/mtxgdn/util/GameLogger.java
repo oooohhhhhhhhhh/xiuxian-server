@@ -122,9 +122,48 @@ public class GameLogger {
             // 显式 UTF-8：避免中文 Windows 默认 GBK 导致日志乱码
             sharedFileWriter = new PrintWriter(new java.io.OutputStreamWriter(
                     new java.io.FileOutputStream(logFile.toFile(), true), java.nio.charset.StandardCharsets.UTF_8), true);
+            pruneOldLogFiles(logDirPath);
         } catch (IOException e) {
             System.err.println("[GameLogger] 无法创建日志文件: " + e.getMessage());
             sharedFileWriter = null;
+        }
+    }
+
+    /**
+     * 保留最近 {@code logging.max_files} 个日志文件，更旧的删掉。
+     *
+     * <p><b>为什么需要</b>：日志文件名带启动时间戳（{@code server-yyyyMMdd-HHmmss.log}），
+     * 每次启动新建一个，而<b>从来不删旧的</b>。默认日志级别还是 DEBUG，
+     * 于是每重启一次就多一个几十 MB 的文件，{@code log/} 目录只增不减 ——
+     * 长时间运维的服务器最终会被日志撑满磁盘，而磁盘满又会连带数据库写失败。</p>
+     *
+     * <p>文件名里的时间戳是 {@code yyyyMMdd-HHmmss}，字典序即时间序，
+     * 因此直接按文件名排序删最旧的即可，不需要读文件属性。
+     * {@code logging.max_files <= 0} 表示不清理（保留全部）。</p>
+     */
+    private static void pruneOldLogFiles(Path logDirPath) {
+        int keep = AppConfig.getInt("logging.max_files", 10);
+        if (keep <= 0) {
+            return;
+        }
+        try (java.util.stream.Stream<Path> stream = Files.list(logDirPath)) {
+            java.util.List<Path> files = stream
+                    .filter(p -> {
+                        String n = p.getFileName().toString();
+                        return n.startsWith("server-") && n.endsWith(".log");
+                    })
+                    .sorted(java.util.Comparator.comparing(p -> p.getFileName().toString()))
+                    .collect(java.util.stream.Collectors.toList());
+            int toDelete = files.size() - keep;
+            for (int i = 0; i < toDelete; i++) {
+                try {
+                    Files.deleteIfExists(files.get(i));
+                } catch (IOException ignored) {
+                    // 单个文件删不掉（被占用等）不影响启动
+                }
+            }
+        } catch (IOException ignored) {
+            // 清理失败不影响日志功能本身
         }
     }
 

@@ -185,9 +185,15 @@ minecraft:
 # │ 14. 日志                                                      │
 # └──────────────────────────────────────────────────────────────┘
 logging:
-  level: DEBUG                 # 日志级别：TRACE/DEBUG/INFO/WARN/ERROR
+  level: INFO                  # 日志级别：TRACE/DEBUG/INFO/WARN/ERROR
+                               # 默认 INFO：原来默认 DEBUG，正常运行时每秒都会写大量调试行，
+                               # 日志文件迅速膨胀、真正的问题被淹没。排查问题时临时改成 DEBUG。
   dir: log                     # 日志文件输出目录
   color: true                  # 控制台日志是否着色
+  max_files: 10                # 保留最近多少个日志文件（每次启动新建一个 server-*.log）
+                               # 原来只新建、从不删除，log/ 目录只增不减，
+                               # 长时间运维最终会把磁盘撑满（磁盘满会连带数据库写失败）。
+                               # 设为 0 或负数表示不清理。
   action_log_retention_days: 90 # 玩家操作日志（player_action_logs 表）保留天数
                                # 该表只增不删（每条指令/每次登录都会写一行），没有回收途径
                                # 就会一直膨胀：管理后台翻页变慢、备份文件变大。
