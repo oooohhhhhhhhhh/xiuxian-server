@@ -74,6 +74,20 @@ public class RealmService {
     /** 渡劫成功率的硬下限：凝实与各种减益叠加后也不至于归零。 */
     private static final double MIN_SUCCESS_RATE = 1.0;
 
+    /**
+     * 渡劫丹提供的渡劫成功率加成（百分点）。
+     *
+     * <p><b>为什么要有这个常量</b>：这个数字原来散在三处且互不一致 ——
+     * 实现里硬编码 {@code 10.0}、{@code TribulationPillEffect} 的提示文案写 +10%、
+     * 商店描述写 +10%，而语言包里的物品描述写的是 <b>+20%</b>，
+     * 另外还有一个从来没人调用的 {@code RealmBreakEffect} 也写 +20%。
+     * 玩家看到的是 +20%、实际拿到的是 +10%，属于直接对玩家撒谎。</p>
+     *
+     * <p>现在实现、提示文案、物品描述都以这里为唯一口径，
+     * 回归测试 {@code TribulationPillConsistencyTest} 会校验语言包与常量一致。</p>
+     */
+    public static final double TRIBULATION_PILL_BONUS = 10.0;
+
     public RealmService(PlayerService playerService) {
         this.playerService = playerService;
     }
@@ -444,7 +458,7 @@ public class RealmService {
         double pillBonus = 0;
         if (hasItemWithLock(conn, player.getId(), "mtxgdn:tribulation_pill", 1)) {
             removeItemWithConn(conn, player.getId(), "mtxgdn:tribulation_pill", 1);
-            pillBonus = 10.0;
+            pillBonus = TRIBULATION_PILL_BONUS;
             result.setTribulationItemUsed("tribulation_pill");
             result.addTribulationLog("你服下渡劫丹，体内灵力暴涨，对抗天劫的把握大增！");
         }
