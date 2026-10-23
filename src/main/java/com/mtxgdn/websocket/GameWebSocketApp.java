@@ -308,6 +308,9 @@ public class GameWebSocketApp extends WebSocketApplication {
 
         switch (type) {
             case "chat":
+                // 世界聊天此前是唯一没有权限检查的聊天动作（chat_private / chat_history /
+                // rank 都有），被禁用 game.chat.world 的角色照样能往世界频道发言。
+                if (!checkWsPermission(socket, msgId, userId, "game.chat.world")) break;
                 handleChat(socket, msgId, userId, data);
                 break;
             case "chat_private":
@@ -560,17 +563,25 @@ public class GameWebSocketApp extends WebSocketApplication {
             return;
         }
 
+        // 广播/回执必须用 ChatService 处理过的那份内容，不能用客户端原始字符串。
+        // ChatService 会做 TextSanitizer 清洗并截断到 500 字，而原来这里把原始 content
+        // 原样广播给所有在线玩家：
+        //   1) 清洗白做了 —— 客户端收到的是未清洗的原文；
+        //   2) 长度没上限 —— 一条 10MB 的发言会被复制给每个在线连接，
+        //      一次请求即可放大成 N 份，典型的放大式 DoS。
+        String safeContent = msg.getContent();
+
         JsonObject chatData = new JsonObject();
         chatData.addProperty("senderPlayerId", player.getId());
         chatData.addProperty("senderName", name);
-        chatData.addProperty("content", content);
+        chatData.addProperty("content", safeContent);
         chatData.addProperty("timestamp", System.currentTimeMillis());
 
         GameMessage chatMessage = GameMessage.ok(0, "chat", chatData);
         broadcast(chatMessage);
 
         socket.send(GameMessage.ok(msgId, "chat", "发送成功", chatData).toJson());
-        actionLog.logChat(userId, name, content);
+        actionLog.logChat(userId, name, safeContent);
     }
 
     private void handlePrivateChat(WebSocket socket, long msgId, Long userId, JsonObject data) {
@@ -599,8 +610,11 @@ public class GameWebSocketApp extends WebSocketApplication {
             return;
         }
 
-        chatService.sendPrivateMessage(player.getId(), player.getName(), targetId, content);
-        actionLog.logChat(userId, player.getName(), "[私聊→" + target.getName() + "] " + content);
+        // 同世界频道：转发给收件人的内容必须是 ChatService 清洗+截断后的那份，
+        // 否则未清洗原文会直接落到对方客户端，且长度不受限（还会写进操作日志）。
+        ChatMessage sent = chatService.sendPrivateMessage(player.getId(), player.getName(), targetId, content);
+        String safeContent = sent != null ? sent.getContent() : content;
+        actionLog.logChat(userId, player.getName(), "[私聊→" + target.getName() + "] " + safeContent);
 
         JsonObject chatData = new JsonObject();
         chatData.addProperty("fromUserId", userId);
@@ -608,7 +622,7 @@ public class GameWebSocketApp extends WebSocketApplication {
         chatData.addProperty("senderName", player.getName());
         chatData.addProperty("receiverPlayerId", targetId);
         chatData.addProperty("receiverName", target.getName());
-        chatData.addProperty("content", content);
+        chatData.addProperty("content", safeContent);
         chatData.addProperty("timestamp", System.currentTimeMillis());
 
         GameMessage chatMessage = GameMessage.ok(0, "chat_private", chatData);
@@ -639,7 +653,12 @@ public class GameWebSocketApp extends WebSocketApplication {
 
     private void handleRanking(WebSocket socket, long msgId, JsonObject data) {
         String type = data != null && data.has("type") ? data.get("type").getAsString() : "realm";
-        int limit = data != null && data.has("limit") ? data.get("limit").getAsInt() : 20;
+        // limit 直接来自客户端并被拼进 SQL 的 LIMIT ?：原来不做任何校验，
+        // 传 2000000000 就会让数据库把整张 players 表全查出来再逐个建对象
+        // （负数在 SQLite 里等价于"不限条数"，同样是全表）。
+        // 排行榜本来就只有前几十名有意义，这里夹到 [1, MAX_RANKING_LIMIT]。
+        int limit = clampLimit(data != null && data.has("limit") ? data.get("limit").getAsInt() : 20,
+                DEFAULT_RANKING_LIMIT, MAX_RANKING_LIMIT);
 
         List<PlayerInfo> players;
         switch (type) {
@@ -868,6 +887,26 @@ public class GameWebSocketApp extends WebSocketApplication {
             return false;
         }
         return true;
+    }
+
+    /** 排行榜默认返回条数。 */
+    static final int DEFAULT_RANKING_LIMIT = 20;
+
+    /** 排行榜返回条数上限：再多也没有展示意义，只会被用来打数据库。 */
+    static final int MAX_RANKING_LIMIT = 100;
+
+    /**
+     * 把客户端传来的条数夹进 [{@code 1}, {@code max}]。
+     *
+     * <p>这些数字会直接进 SQL 的 {@code LIMIT ?}：传 2,000,000,000 会让数据库把整张表
+     * 查出来再逐个构造对象；传负数在 SQLite 里等价于"不限条数"，同样是全表。
+     * 因此边界必须在入口处夹死，而不是指望调用方自觉。</p>
+     */
+    static int clampLimit(int value, int defaultValue, int max) {
+        if (value <= 0) {
+            return defaultValue;
+        }
+        return Math.min(value, max);
     }
 
     private void handlePlayerInfo(WebSocket socket, long msgId, Long userId) {
