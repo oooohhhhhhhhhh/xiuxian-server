@@ -14,6 +14,9 @@ import com.mtxgdn.i18n.I18n;
 
 public class RedeemCommand extends Command {
 
+    private static final com.mtxgdn.util.GameLogger LOG =
+            com.mtxgdn.util.GameLogger.getLogger(RedeemCommand.class);
+
     private static final RedeemCodeService redeemCodeService = ServiceRegistry.getRedeemCodeService();
     private static final PlayerService playerService = ServiceRegistry.getPlayerService();
 
@@ -44,8 +47,8 @@ public class RedeemCommand extends Command {
             doExecute(ctx);
         } catch (Exception e) {
             ctx.reply(I18n.t("redeem.h4943b29e"));
-            System.err.println("[RedeemCommand] 执行异常: " + e.getMessage());
-            e.printStackTrace();
+            LOG.error("兑换指令执行异常: " + e.getMessage(), e);
+            // 不再 printStackTrace：异常要进日志文件，也不能把堆栈刷到控制台
         }
     }
 

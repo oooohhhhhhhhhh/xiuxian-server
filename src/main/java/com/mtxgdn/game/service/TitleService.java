@@ -12,6 +12,9 @@ import com.mtxgdn.i18n.I18n;
 
 public class TitleService {
 
+    private static final com.mtxgdn.util.GameLogger LOG =
+            com.mtxgdn.util.GameLogger.getLogger(TitleService.class);
+
     private final PlayerService playerService = ServiceRegistry.getPlayerService();
 
     public TitleService() {
@@ -169,7 +172,7 @@ public class TitleService {
                 }
             }
         } catch (SQLException e) {
-            e.printStackTrace();
+            LOG.error("查询玩家称号列表失败", e);
         }
         return list;
     }
@@ -187,7 +190,7 @@ public class TitleService {
                 }
             }
         } catch (SQLException e) {
-            e.printStackTrace();
+            LOG.error("查询当前装备称号失败", e);
         }
         return null;
     }

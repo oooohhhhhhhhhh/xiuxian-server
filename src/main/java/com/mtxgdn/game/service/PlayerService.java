@@ -1168,7 +1168,7 @@ public class PlayerService {
                 }
             }
         } catch (SQLException e) {
-            e.printStackTrace();
+            LOG.error("查询玩家称号失败", e);
         }
         return null;
     }
