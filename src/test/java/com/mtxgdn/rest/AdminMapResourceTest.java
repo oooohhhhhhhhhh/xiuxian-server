@@ -29,7 +29,7 @@ class AdminMapResourceTest extends TestBase {
     private static final long QINGYUN_VILLAGE = 1L;
     private static final long WENDAO_PEAK = 10L;
 
-    private final AdminResource resource = new AdminResource();
+    private final AdminMapResource resource = new AdminMapResource();
 
     @BeforeEach
     void setUp() throws SQLException {

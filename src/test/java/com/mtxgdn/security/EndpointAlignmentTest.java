@@ -5,7 +5,6 @@ import com.mtxgdn.common.command.CommandRegistry;
 import com.mtxgdn.common.command.CommandScanner;
 import com.mtxgdn.common.command.RouteDefinition;
 import com.mtxgdn.permission.RequirePermission;
-import com.mtxgdn.rest.AdminResource;
 import org.glassfish.jersey.server.ResourceConfig;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
@@ -216,9 +215,8 @@ class EndpointAlignmentTest {
         ResourceConfig config = new ResourceConfig().packages("com.mtxgdn.rest");
         Set<String> found = new HashSet<>();
         for (Class<?> cls : config.getClasses()) {
-            if (!AdminResource.class.isAssignableFrom(cls)) continue;
+            if (!isAdminResource(cls)) continue;
             // 类级 @Path("/admin") + 方法级 @Path("/market/...")
-            if (cls.getAnnotation(jakarta.ws.rs.Path.class) == null) continue;
             for (java.lang.reflect.Method m : cls.getDeclaredMethods()) {
                 jakarta.ws.rs.Path p = m.getAnnotation(jakarta.ws.rs.Path.class);
                 if (p == null) continue;
@@ -290,8 +288,7 @@ class EndpointAlignmentTest {
         // 旧写法"每个同 path 的方法都必须是 GET"会把这个合法组合误判为违规。
         Map<String, Set<String>> methodsByPath = new HashMap<>();
         for (Class<?> cls : config.getClasses()) {
-            if (!AdminResource.class.isAssignableFrom(cls)) continue;
-            if (cls.getAnnotation(jakarta.ws.rs.Path.class) == null) continue;
+            if (!isAdminResource(cls)) continue;
             for (java.lang.reflect.Method m : cls.getDeclaredMethods()) {
                 jakarta.ws.rs.Path p = m.getAnnotation(jakarta.ws.rs.Path.class);
                 if (p == null) continue;
@@ -326,6 +323,19 @@ class EndpointAlignmentTest {
         assertTrue(found.contains("/map/event-bias"), "缺少事件偏置编辑接口 /admin/map/event-bias");
         assertTrue(found.contains("/map/wilderness"), "缺少野外分片总览接口 /admin/map/wilderness");
         assertTrue(found.contains("/map/wilderness/restock"), "缺少野外补货接口 /admin/map/wilderness/restock");
+    }
+
+    /**
+     * 是否是管理台资源类。
+     *
+     * <p>管理台原来只有一个 {@code AdminResource}，现在已按"路径前缀 + 依赖集合"
+     * 拆成 {@code AdminPlayersResource}、{@code AdminUserResource}、{@code AdminMapResource}
+     * 等多个类 —— 因此不能再用 {@code AdminResource.class.isAssignableFrom} 过滤，
+     * 否则拆出去的那些类的端点会全部漏检。这里改判"类级 @Path 以 /admin 开头"。</p>
+     */
+    private static boolean isAdminResource(Class<?> cls) {
+        jakarta.ws.rs.Path classPath = cls.getAnnotation(jakarta.ws.rs.Path.class);
+        return classPath != null && classPath.value().startsWith("/admin");
     }
 
     /** 取方法上的 HTTP 动词注解；本测试只关心地图接口用到的这几种。 */

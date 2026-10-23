@@ -622,7 +622,7 @@ public class PermissionService {
      * <p>而且这里根本没有"操作者"参数 —— 授权判断本来就该由调用方的
      * {@code @RequirePermission} 负责，服务层不该拿目标用户自己的等级去猜权限。
      * 因此删掉这道守卫，让本方法成为纯数据操作；"用户是否真的有这个角色""能不能移除默认角色"
-     * 由 {@code AdminResource} 显式检查并给出诚实的响应。</p>
+     * 由 {@code AdminUserResource} 显式检查并给出诚实的响应。</p>
      */
     public static void removeRole(long userId, String roleName) {
         ensureLoaded();

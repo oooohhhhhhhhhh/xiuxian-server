@@ -2,7 +2,7 @@ package com.mtxgdn.permission;
 
 import com.mtxgdn.TestBase;
 import com.mtxgdn.db.DatabaseManager;
-import com.mtxgdn.rest.AdminResource;
+import com.mtxgdn.rest.AdminUserResource;
 import jakarta.ws.rs.core.Response;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -20,7 +20,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
 /**
  * 移除角色必须真正生效，且接口要给出诚实的响应。
  *
- * <p><b>缺陷形态</b>：{@code AdminResource.removeRole} 与
+ * <p><b>缺陷形态</b>：{@code AdminUserResource.removeRole} 与
  * {@code PermissionService.removeRole} 里都有同一道方向反了的判断：</p>
  *
  * <pre>{@code
@@ -49,7 +49,7 @@ class AdminRemoveRoleTest extends TestBase {
         PermissionService.assignRole(userId, "MODERATOR");   // 50，要摘掉的是它
         assertTrue(PermissionService.getUserRoles(userId).contains("MODERATOR"), "前置条件：角色已分配");
 
-        Response response = new AdminResource().removeRole(userId, "MODERATOR");
+        Response response = new AdminUserResource().removeRole(userId, "MODERATOR");
 
         assertEquals(200, response.getStatus());
         assertFalse(PermissionService.getUserRoles(userId).contains("MODERATOR"),
@@ -65,7 +65,7 @@ class AdminRemoveRoleTest extends TestBase {
         long userId = createUser("role_missing_" + SEQ.incrementAndGet());
         PermissionService.assignRole(userId, "PLAYER");
 
-        Response response = new AdminResource().removeRole(userId, "MODERATOR");
+        Response response = new AdminUserResource().removeRole(userId, "MODERATOR");
 
         assertEquals(404, response.getStatus(),
                 "用户本来就没有 MODERATOR，应明确告知，而不是回 200 让管理员以为删掉了");
@@ -78,7 +78,7 @@ class AdminRemoveRoleTest extends TestBase {
         String defaultRole = PermissionService.getDefaultRoleName();
         PermissionService.assignRole(userId, defaultRole);
 
-        Response response = new AdminResource().removeRole(userId, defaultRole);
+        Response response = new AdminUserResource().removeRole(userId, defaultRole);
 
         assertEquals(400, response.getStatus(), "移除默认角色应被明确拒绝");
         assertTrue(PermissionService.getUserRoles(userId).contains(defaultRole),
@@ -89,7 +89,7 @@ class AdminRemoveRoleTest extends TestBase {
     @DisplayName("无效角色名仍然返回 400")
     void rejectsUnknownRoleName() throws SQLException {
         long userId = createUser("role_unknown_" + SEQ.incrementAndGet());
-        Response response = new AdminResource().removeRole(userId, "NOT_A_ROLE_" + SEQ.incrementAndGet());
+        Response response = new AdminUserResource().removeRole(userId, "NOT_A_ROLE_" + SEQ.incrementAndGet());
         assertEquals(400, response.getStatus());
     }
 

@@ -20,10 +20,11 @@ import java.util.Map;
 /**
  * 管理台 · 玩家数据文件（一人一个 JSON 快照）接口。
  *
- * <p>从 {@link AdminResource} 里拆出来的第一块：那个类已经 4000+ 行，
- * 改任何一处都得在几屏无关代码之间找位置。拆分只按"路径前缀 + 依赖集合"切，
- * 不夹带任何行为改动 —— 路径、权限码、返回结构全部保持原样，
- * 前端 {@code /api/admin/player-data/*} 不受影响。</p>
+ * <p>从原来那个 4000+ 行的 {@code AdminResource} 里拆出来的第一块（该类的其余
+ * 端点后来也按同一套规则拆到了 {@code AdminPlayersResource}、{@code AdminDbResource}
+ * 等资源类里）：一个类装 100+ 个端点，改任何一处都得在几屏无关代码之间找位置。
+ * 拆分只按"路径前缀 + 依赖集合"切，不夹带任何行为改动 —— 路径、权限码、
+ * 返回结构全部保持原样，前端 {@code /api/admin/player-data/*} 不受影响。</p>
  *
  * <p>类级路径 {@code /admin/player-data} + 方法级 {@code /export/{playerId}}
  * 拼出来的地址与拆分前逐字一致（Jersey 的路径拼接规则）。</p>

@@ -6,7 +6,7 @@ import com.mtxgdn.common.command.CommandScanner;
 import com.mtxgdn.common.command.RouteDefinition;
 import com.mtxgdn.permission.PermissionCode;
 import com.mtxgdn.permission.RequirePermission;
-import com.mtxgdn.rest.AdminResource;
+import com.mtxgdn.rest.AdminSystemResource;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -70,9 +70,10 @@ class AdminWritePermissionTest {
      * 管理台资源里带 @Path 的方法（含 HTTP 方法注解与权限注解）。
      *
      * <p>刻意<b>扫描整个 {@code com.mtxgdn.rest} 包里所有类级 @Path 以 /admin 开头的资源</b>，
-     * 而不是只反射 {@link AdminResource}：管理台资源已经开始按路径前缀拆分
-     * （如 {@code AdminPlayerDataResource}），写死一个类会让拆出去的那部分端点
-     * 悄悄脱离本测试的覆盖，而这类"权限码被降级"的问题正是本测试要防的。</p>
+     * 而不是只反射某一个类：管理台资源已按路径前缀拆成
+     * {@code AdminPlayersResource}、{@code AdminUserResource}、{@code AdminDbResource} 等
+     * 多个类，写死一个类会让拆出去的那部分端点悄悄脱离本测试的覆盖，
+     * 而这类"权限码被降级"的问题正是本测试要防的。</p>
      */
     private static List<Method> adminEndpoints() {
         List<Method> result = new ArrayList<>();
@@ -98,8 +99,9 @@ class AdminWritePermissionTest {
             }
         }
         if (result.isEmpty()) {
-            // 包扫描失效时至少要覆盖主资源类，不能因为扫描器抽风就变成"零端点全通过"
-            result.add(AdminResource.class);
+            // 包扫描失效时必须<b>硬失败</b>，不能退化成"零端点全通过"
+            throw new IllegalStateException(
+                    "没有扫描到任何 /admin 资源类 —— 包扫描失效会让本测试变成零端点全通过");
         }
         return result;
     }
@@ -251,7 +253,7 @@ class AdminWritePermissionTest {
         assertNotNull(PermissionCode.fromCode("admin.announce"),
                 "admin.announce 必须登记在 PermissionCode 枚举中，否则无法在角色编辑页授权");
 
-        Method announce = AdminResource.class.getDeclaredMethod("sendAnnounce", String.class);
+        Method announce = AdminSystemResource.class.getDeclaredMethod("sendAnnounce", String.class);
         RequirePermission rp = announce.getAnnotation(RequirePermission.class);
         assertNotNull(rp, "/admin/announce 必须声明 @RequirePermission");
         assertEquals("admin.announce", rp.value(),
