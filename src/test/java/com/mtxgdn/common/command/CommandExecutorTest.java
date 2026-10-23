@@ -12,6 +12,7 @@ import java.util.concurrent.CountDownLatch;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertNotNull;
@@ -85,7 +86,7 @@ class CommandExecutorTest {
     void dispatchSitesUseExecutor() throws IOException {
         // 异步通道：结果通过 socket/sender 回发，可以离开调用线程
         assertUsesExecutor("src/main/java/com/mtxgdn/onebot/OneBotWebSocketServer.java");
-        assertUsesExecutor("src/main/java/com/mtxgdn/qq/QqOfficialAdapter.java");
+        assertQqPackageUsesExecutor();
         assertUsesExecutor("src/main/java/com/mtxgdn/minecraft/adapter/MinecraftAdapter.java");
         assertUsesExecutor("src/main/java/com/mtxgdn/minecraft/adapter/MinecraftPlayerAdapter.java");
 
@@ -122,6 +123,28 @@ class CommandExecutorTest {
                 file + " 的指令分发必须走 CommandExecutor，否则仍会阻塞 Grizzly worker 线程");
         assertTrue(code.contains("服务器繁忙"),
                 file + " 在线程池拒绝时应该明确告知玩家，而不是假装成功");
+    }
+
+    /**
+     * QQ 官方通道的指令分发断言。
+     *
+     * <p>{@code QqOfficialAdapter} 已按职责拆成门面 + 多个协作类（{@code QqMessageRouter}
+     * 等），{@code CommandExecutor.submit} 与"服务器繁忙"回执跟着 {@code dispatchCommand}
+     * 搬到了路由域。断言的本意是"这个通道的指令必须离开 worker 线程、拒绝时要明确告知玩家"，
+     * 与具体在哪个文件无关，因此这里对整个 {@code com.mtxgdn.qq} 包做文本断言。</p>
+     */
+    private static void assertQqPackageUsesExecutor() throws IOException {
+        StringBuilder sb = new StringBuilder();
+        try (Stream<Path> files = Files.list(Paths.get("src/main/java/com/mtxgdn/qq"))) {
+            for (Path file : files.filter(p -> p.toString().endsWith(".java")).sorted().toList()) {
+                sb.append(stripComments(Files.readString(file))).append('\n');
+            }
+        }
+        String code = sb.toString();
+        assertTrue(code.contains("CommandExecutor.submit"),
+                "QQ 官方通道的指令分发必须走 CommandExecutor，否则仍会阻塞 Grizzly worker 线程");
+        assertTrue(code.contains("服务器繁忙"),
+                "QQ 官方通道在线程池拒绝时应该明确告知玩家，而不是假装成功");
     }
 
     private static String read(String relative) throws IOException {

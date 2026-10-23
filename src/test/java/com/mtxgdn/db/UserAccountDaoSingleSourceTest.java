@@ -12,7 +12,10 @@ import java.nio.file.Paths;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
+import java.util.stream.Stream;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
@@ -44,9 +47,8 @@ class UserAccountDaoSingleSourceTest extends TestBase {
     @Test
     @DisplayName("两个适配器都不再自己声明这些方法")
     void adaptersDelegateInsteadOfDuplicating() throws IOException {
-        for (String file : new String[]{
-                "src/main/java/com/mtxgdn/onebot/OneBotWebSocketServer.java",
-                "src/main/java/com/mtxgdn/qq/QqOfficialAdapter.java"}) {
+        // 逐文件：任何一处都不许再出现这些方法的私有实现
+        for (String file : channelSources()) {
             String code = stripComments(read(file));
             for (String method : SHARED_METHODS) {
                 assertFalse(code.contains("private boolean " + method + "(")
@@ -56,9 +58,18 @@ class UserAccountDaoSingleSourceTest extends TestBase {
                         file + " 里又出现了 " + method + " 的私有实现 —— 账号读写必须只有一份，"
                                 + "请改为调用 UserAccountDAO");
             }
-            assertTrue(code.contains("UserAccountDAO."),
-                    file + " 应该通过 UserAccountDAO 访问 users 表");
         }
+        // 按通道：该通道必须真的通过 UserAccountDAO 访问 users 表。
+        // QQ 官方通道已拆成多个协作类，账号读写落在 QqAccountFlow，因此按整包检查。
+        assertTrue(stripComments(read("src/main/java/com/mtxgdn/onebot/OneBotWebSocketServer.java"))
+                        .contains("UserAccountDAO."),
+                "OneBot 通道应该通过 UserAccountDAO 访问 users 表");
+        StringBuilder qq = new StringBuilder();
+        for (String file : qqPackageSources()) {
+            qq.append(stripComments(read(file))).append('\n');
+        }
+        assertTrue(qq.toString().contains("UserAccountDAO."),
+                "QQ 官方通道应该通过 UserAccountDAO 访问 users 表（拆包后账号读写在各协作类里）");
     }
 
     @Test
@@ -95,6 +106,32 @@ class UserAccountDaoSingleSourceTest extends TestBase {
     }
 
     // ==================== 夹具 ====================
+
+    /**
+     * 两个通道的源码文件清单。
+     *
+     * <p>QQ 官方通道已按职责拆成门面 + 多个协作类（{@code QqOfficialAdapter} 现在只是门面，
+     * 账号读写搬到了 {@code QqAccountFlow}），因此这里列出整个 {@code com.mtxgdn.qq} 包，
+     * 而不是只盯一个文件。断言的本意是"任何一处都不许再自己写一份账号读写" ——
+     * 拆包之后这个本意必须跟着覆盖到新文件，否则新类里再复制一份就查不出来了。</p>
+     */
+    private static List<String> channelSources() throws IOException {
+        List<String> sources = new ArrayList<>();
+        sources.add("src/main/java/com/mtxgdn/onebot/OneBotWebSocketServer.java");
+        sources.addAll(qqPackageSources());
+        return sources;
+    }
+
+    /** {@code com.mtxgdn.qq} 包的全部源码文件（门面 + 各协作类）。 */
+    private static List<String> qqPackageSources() throws IOException {
+        List<String> sources = new ArrayList<>();
+        try (Stream<Path> files = Files.list(Paths.get("src/main/java/com/mtxgdn/qq"))) {
+            files.filter(p -> p.toString().endsWith(".java"))
+                    .sorted()
+                    .forEach(p -> sources.add(p.toString().replace('\\', '/')));
+        }
+        return sources;
+    }
 
     private static String readPassword(long userId) throws Exception {
         try (Connection conn = DatabaseManager.getConnection();
