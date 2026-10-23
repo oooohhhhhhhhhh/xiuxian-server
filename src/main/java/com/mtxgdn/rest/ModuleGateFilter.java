@@ -76,6 +76,18 @@ public class ModuleGateFilter implements ContainerRequestFilter {
     private static final String EXPERIMENTAL_DISABLED_BODY =
             "{\"code\":403,\"message\":\"该实验性功能未开放，暂时无法使用\"}";
 
+    /**
+     * 供测试断言用：/game/ 首段 → 内置模块名的映射。
+     *
+     * <p>这张表是"手写的第二份真相"：新增一个 /game/xxx 接口时如果忘了在这里登记，
+     * 该接口就<b>永远不会</b>被模块开关拦住 —— 停用玩法后它照样能用，而且没有任何报错。
+     * 所以需要一个测试把"表里的模块名必须真实存在"和
+     * "GameResource 里的 /game/xxx 必须被登记"这两件事钉死。</p>
+     */
+    static Map<String, String> moduleByFirstSegment() {
+        return MODULE_BY_FIRST_SEGMENT;
+    }
+
     @Override
     public void filter(ContainerRequestContext requestContext) {
         String path = requestContext.getUriInfo().getPath();
