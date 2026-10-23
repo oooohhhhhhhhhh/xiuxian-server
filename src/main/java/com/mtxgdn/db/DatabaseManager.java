@@ -297,6 +297,14 @@ public class DatabaseManager {
             createIndexQuietly(stmt, DatabaseSchema.createTradeListingsSellerStatusIndex());
             createIndexQuietly(stmt, DatabaseSchema.createPlayerBuffsExpireIndex());
             createIndexQuietly(stmt, DatabaseSchema.createWorldBossesScopeIndex());
+            // 聊天记录与操作日志：这两张表的索引原本只写在 CREATE TABLE 里、
+            // 且只有 MySQL 会执行（SQLite 上一条索引都没有），而 SQLite 是默认数据库。
+            createIndexQuietly(stmt, DatabaseSchema.createChatMessagesChannelIndex());
+            createIndexQuietly(stmt, DatabaseSchema.createChatMessagesReceiverIndex());
+            createIndexQuietly(stmt, DatabaseSchema.createPlayerActionLogsTimeIndex());
+            createIndexQuietly(stmt, DatabaseSchema.createPlayerActionLogsUserIndex());
+            createIndexQuietly(stmt, DatabaseSchema.createPlayerActionLogsQqIndex());
+            createIndexQuietly(stmt, DatabaseSchema.createPlayerItemDurabilityPlayerIndex());
 
             logger.info("所有数据库表创建完成");
         } catch (SQLException e) {
@@ -320,21 +328,30 @@ public class DatabaseManager {
         }
     }
 
+    /**
+     * 「清除玩家数据」要清空的表（保留 users / 绑定关系等账号信息）。
+     *
+     * <p>抽成包内可见的常量是为了能被测试直接断言：这张清单曾经漏掉
+     * {@code player_item_durability}，导致清空玩家后耐久行成为孤儿，
+     * 而 SQLite 的 {@code INTEGER PRIMARY KEY} 会复用被删掉的最大 id，
+     * 新玩家于是可能"继承"上一个玩家的装备耐久。</p>
+     */
+    static final String[] CLEAR_PLAYER_TABLES = {
+            "players_skills", "players_techniques", "players_items", "players_equipment",
+            "player_daily", "trade_listings", "chat_messages", "friends", "player_action_logs",
+            "sect_members", "sect_applications", "sect_warehouse", "sects", "player_energy",
+            "players", "player_buffs", "farm_plots", "player_economy", "player_bank",
+            "auction_listings", "auction_bids", "player_titles", "caves", "formations",
+            "redeemed_codes", "sect_wars", "player_item_durability"
+    };
+
     public static Map<String, Integer> clearPlayerData() {
         Map<String, Integer> result = new LinkedHashMap<>();
-        String[] tables = {
-                "players_skills", "players_techniques", "players_items", "players_equipment",
-                "player_daily", "trade_listings", "chat_messages", "friends", "player_action_logs",
-                "sect_members", "sect_applications", "sect_warehouse", "sects", "player_energy",
-                "players", "player_buffs", "farm_plots", "player_economy", "player_bank",
-                "auction_listings", "auction_bids", "player_titles", "caves", "formations",
-                "redeemed_codes", "sect_wars"
-        };
 
         try (Connection conn = getConnection();
              Statement stmt = conn.createStatement()) {
             DIALECT.disableForeignKeyChecks(stmt);
-            for (String table : tables) {
+            for (String table : CLEAR_PLAYER_TABLES) {
                 int count = stmt.executeUpdate("DELETE FROM " + table);
                 result.put(table, count);
             }
@@ -356,7 +373,7 @@ public class DatabaseManager {
                 "roles", "permissions", "verification_codes", "player_buffs", "farm_plots",
                 "player_economy", "player_bank", "auction_listings", "auction_bids",
                 "player_titles", "caves", "formations", "redeemed_codes", "sect_wars",
-                "redeem_codes"
+                "redeem_codes", "player_item_durability"
         };
 
         try (Connection conn = getConnection();
@@ -401,7 +418,16 @@ public class DatabaseManager {
         return names;
     }
 
-    /** 表名白名单：硬编码所有合法表名（安全加固） */
+    /**
+     * 表名白名单：硬编码所有合法表名（安全加固）。
+     *
+     * <p><b>必须与 {@link DatabaseSchema} 实际建的表保持一致</b>。原来少了 5 张：
+     * {@code player_item_durability}、{@code token_blacklist}、{@code trade_price_history}、
+     * {@code world_bosses}、{@code world_boss_damage} —— 都是后来新增的表，加了建表语句却
+     * 忘了同步白名单。后果是这些表在备份/还原、管理后台的通用表操作里被当成"非法表名"直接拒掉，
+     * 表现为"某几张表的数据备份不出来"，而且报错信息看起来像安全拦截，很容易被误判。
+     * 回归测试：{@code DatabaseTableWhitelistTest}。</p>
+     */
     private static final java.util.Set<String> ALLOWED_TABLES = java.util.Set.of(
         "users", "verification_codes", "players", "players_items", "players_equipment",
         "skills", "players_skills", "techniques", "players_techniques", "recipes",
@@ -412,7 +438,13 @@ public class DatabaseManager {
         "map_connections", "map_location_event_bias", "player_map_exploration",
         "map_wilderness_resources", "redeem_codes", "redeemed_codes", "caves", "formations",
         "player_economy", "player_bank", "auction_listings", "auction_bids",
-        "player_energy", "player_titles", "player_buffs", "farm_plots"
+        "player_energy", "player_titles", "player_buffs", "farm_plots",
+        // 以下 5 张是后来新增的表，此前漏登记
+        "player_item_durability", "token_blacklist", "trade_price_history",
+        "world_bosses", "world_boss_damage",
+        // 这两张同样是实测发现漏登记的：user_permissions 由权限模块直接建表
+        // （单条权限授予），schema_migrations 由 DatabaseMigration 建表
+        "user_permissions", "schema_migrations"
     );
 
     /** 表名白名单缓存（避免每次校验都查库） */

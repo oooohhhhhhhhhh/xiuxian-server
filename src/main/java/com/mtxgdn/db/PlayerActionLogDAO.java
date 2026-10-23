@@ -11,6 +11,39 @@ import java.util.Map;
 
 public class PlayerActionLogDAO {
 
+    /**
+     * 删除早于指定天数的操作日志。
+     *
+     * <p><b>为什么需要它</b>：{@code player_action_logs} 只增不删 —— 每条指令、每次登录、
+     * 每次管理操作都会写一行，而全代码库没有任何清理逻辑。跑上几个月就是几十万行，
+     * 管理后台的日志翻页越来越慢，备份文件也越来越大，且永远没有任何回收途径。</p>
+     *
+     * <p>这里按"保留最近 N 天"做定期清理。{@code retentionDays <= 0} 表示不清理
+     * （保留全部），便于需要长期审计的部署关掉该功能。</p>
+     *
+     * @param retentionDays 保留天数；&le;0 时直接返回 0
+     * @return 删除的行数
+     */
+    public int purgeOlderThanDays(int retentionDays) {
+        if (retentionDays <= 0) {
+            return 0;
+        }
+        long cutoffMillis = System.currentTimeMillis() - retentionDays * 24L * 3600 * 1000;
+        // created_at 在不同方言下分别是 DATETIME / TEXT，直接按毫秒数与字符串比较都不可靠，
+        // 因此用方言无关的"按时间戳列自身格式"来比较：
+        // MySQL 的 DATETIME 与 SQLite 的 TEXT 都接受 'YYYY-MM-DD HH:MM:SS' 字面量。
+        String cutoff = new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss")
+                .format(new java.util.Date(cutoffMillis));
+        String sql = "DELETE FROM player_action_logs WHERE created_at < ?";
+        try (Connection conn = DatabaseManager.getConnection();
+             PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, cutoff);
+            return ps.executeUpdate();
+        } catch (SQLException e) {
+            throw new RuntimeException("清理玩家操作日志失败", e);
+        }
+    }
+
     public void insertPlayerActionLog(long userId, String playerName, String action, String detail, String qqNumber) {
         String sql = "INSERT INTO player_action_logs (user_id, player_name, action, detail, qq_number) VALUES (?, ?, ?, ?, ?)";
         try (Connection conn = DatabaseManager.getConnection();

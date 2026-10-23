@@ -301,6 +301,25 @@ public class Main {
             }
         }, 5, 5, java.util.concurrent.TimeUnit.MINUTES);
 
+        // 操作日志保留策略：player_action_logs 只增不删，跑几个月就是几十万行，
+        // 管理后台翻页越来越慢、备份越来越大，且没有任何回收途径。
+        // 默认保留 90 天；配置为 0 或负数表示永久保留（需要长期审计的部署可关掉）。
+        int actionLogRetentionDays = AppConfig.getInt("logging.action_log_retention_days", 90);
+        if (actionLogRetentionDays > 0) {
+            cleanupScheduler.scheduleAtFixedRate(() -> {
+                try {
+                    int deleted = new com.mtxgdn.db.PlayerActionLogDAO()
+                            .purgeOlderThanDays(actionLogRetentionDays);
+                    if (deleted > 0) {
+                        LOG.info("已清理 " + deleted + " 条超过 " + actionLogRetentionDays
+                                + " 天的玩家操作日志");
+                    }
+                } catch (Throwable e) {
+                    LOG.warn("清理玩家操作日志失败: " + e.getMessage());
+                }
+            }, 10, 24 * 60, java.util.concurrent.TimeUnit.MINUTES);
+        }
+
         // 服务端就绪事件（插件可在 onEnable 注册 SERVER_READY 监听器）
         com.mtxgdn.plugin.event.PluginEventManager.fireQuietly(
                 com.mtxgdn.plugin.event.PluginEvent.builder()

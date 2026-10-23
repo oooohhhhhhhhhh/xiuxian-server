@@ -327,6 +327,65 @@ public class DatabaseSchema {
                 + "ON player_buffs (expire_time)";
     }
 
+    /**
+     * 聊天记录的检索索引（按频道、按收件人）。
+     *
+     * <p><b>为什么单独建</b>：这两条索引原本只写在 {@code CREATE TABLE} 里，
+     * 并且被 {@code dialect.supportsIndexInCreateTable()} 包着 —— 只有 MySQL 会执行，
+     * <b>SQLite 上一条索引都没有</b>。而 SQLite 恰恰是默认数据库：聊天记录表越积越大，
+     * 私聊/频道消息查询退化成全表扫描，一个几千条的消息量就能把响应拖到秒级。</p>
+     *
+     * <p>改成独立的 {@code CREATE INDEX IF NOT EXISTS}：两种方言都支持，
+     * 老库启动时也会自动补上。</p>
+     */
+    public static String createChatMessagesChannelIndex() {
+        return "CREATE INDEX IF NOT EXISTS idx_chat_channel "
+                + "ON chat_messages (channel)";
+    }
+
+    /** 见 {@link #createChatMessagesChannelIndex()}。 */
+    public static String createChatMessagesReceiverIndex() {
+        return "CREATE INDEX IF NOT EXISTS idx_chat_receiver "
+                + "ON chat_messages (receiver_player_id)";
+    }
+
+    /**
+     * 玩家操作日志的检索索引。
+     *
+     * <p>该表<b>原来一条索引都没有</b>，而管理后台的日志查询同时支持
+     * {@code user_id} / {@code qq_number} 精确匹配与 {@code created_at} 区间过滤，
+     * 全部走全表扫描。日志表只增不删，几个月后翻一页要扫几十万行。</p>
+     */
+    public static String createPlayerActionLogsTimeIndex() {
+        return "CREATE INDEX IF NOT EXISTS idx_player_action_logs_created "
+                + "ON player_action_logs (created_at)";
+    }
+
+    /** 见 {@link #createPlayerActionLogsTimeIndex()}。 */
+    public static String createPlayerActionLogsUserIndex() {
+        return "CREATE INDEX IF NOT EXISTS idx_player_action_logs_user "
+                + "ON player_action_logs (user_id, created_at)";
+    }
+
+    /** 见 {@link #createPlayerActionLogsTimeIndex()}。 */
+    public static String createPlayerActionLogsQqIndex() {
+        return "CREATE INDEX IF NOT EXISTS idx_player_action_logs_qq "
+                + "ON player_action_logs (qq_number)";
+    }
+
+    /**
+     * 装备耐久表的玩家索引。
+     *
+     * <p>{@code player_item_durability} 的主键是 (player_id, item_key)，
+     * 主键索引覆盖了 {@code WHERE player_id = ? AND item_key = ?}；
+     * 但 {@code DurabilityService} 里还有按 {@code player_id} 单独批量读取的场景，
+     * 主键前缀虽可用，显式索引能让"只按玩家查"的路径走更窄的索引。</p>
+     */
+    public static String createPlayerItemDurabilityPlayerIndex() {
+        return "CREATE INDEX IF NOT EXISTS idx_player_item_durability_player "
+                + "ON player_item_durability (player_id)";
+    }
+
     public static String createPlayerDailyTable(String pk, String tsDefault, DatabaseDialect dialect) {
         return "CREATE TABLE IF NOT EXISTS player_daily (" +
                 "player_id BIGINT PRIMARY KEY, " +
