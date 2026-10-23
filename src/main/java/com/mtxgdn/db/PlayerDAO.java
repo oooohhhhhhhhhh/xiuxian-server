@@ -79,16 +79,33 @@ public class PlayerDAO {
     private static final int BASE_SPIRIT = 5;
 
     /**
-     * 删除角色时要先清空的从表（按 {@code player_id} 外键关联）。
+     * 删除角色时要先清空的从表（这些表的列名就是 {@code player_id}）。
      *
-     * <p>清单与删除语句都保持原样：{@code friends} 的列名是 {@code friend_player_id}
-     * 而不是 {@code friend_id}（S11 修复），因此它不在本数组里、单独处理。</p>
+     * <p>{@code friends} 的列名是 {@code friend_player_id} 而不是 {@code friend_id}
+     * （S11 修复），因此它不在本数组里、单独处理。</p>
      */
     private static final String[] PLAYER_DEPENDENT_TABLES = {
             "players_items", "players_equipment", "players_skills", "players_techniques",
             "player_daily", "player_economy", "player_bank", "player_titles", "player_energy",
-            "sect_members", "sect_applications", "auction_listings", "auction_bids",
-            "trade_listings", "redeemed_codes", "chat_messages", "player_action_logs"
+            "player_buffs", "player_map_exploration", "player_item_durability",
+            "world_boss_damage", "farm_plots", "caves", "formations",
+            "sect_members", "sect_applications", "redeemed_codes"
+    };
+
+    /**
+     * 列名<b>不是</b> {@code player_id} 的从表：{表名, 列名}。
+     *
+     * <p>这些表以前被塞进上面那个数组里、统一按 {@code WHERE player_id = ?} 删，
+     * 结果 DELETE 直接报 {@code no such column: player_id}，整笔事务回滚 ——
+     * 也就是说"注销账号 / 后台删角色"从来就没有成功过，用户侧看到的是
+     * 「删除玩家失败」。表名与列名必须以 {@link DatabaseSchema} 为准，
+     * 不能靠命名猜测。</p>
+     */
+    private static final String[][] PLAYER_DEPENDENT_TABLES_BY_OTHER_COLUMN = {
+            {"auction_listings", "seller_player_id"},
+            {"auction_bids", "bidder_player_id"},
+            {"trade_listings", "seller_player_id"},
+            {"chat_messages", "sender_player_id"}
     };
 
     /**
@@ -1081,6 +1098,22 @@ public class PlayerDAO {
                     }
                 }
 
+                // 拍卖：先把**别人挂单上**属于他的出价清掉，再删他自己的出价与挂单。
+                // 顺序反了会留下指向不存在挂单的孤儿出价（挂单被删、出价还在）。
+                deleteByLong(conn, "DELETE FROM auction_bids WHERE listing_id IN "
+                        + "(SELECT id FROM auction_listings WHERE seller_player_id = ?)", playerId);
+
+                // 列名不是 player_id 的那几张表
+                for (String[] pair : PLAYER_DEPENDENT_TABLES_BY_OTHER_COLUMN) {
+                    deleteByLong(conn, "DELETE FROM " + pair[0] + " WHERE " + pair[1] + " = ?", playerId);
+                }
+                // 私聊消息：收件人是他也要删（发件人在上面已经删过）
+                deleteByLong(conn, "DELETE FROM chat_messages WHERE receiver_player_id = ?", playerId);
+
+                // 行为日志按 user_id 关联（这张表没有 player_id 列），
+                // 必须在删掉 players 行之前取到 user_id
+                deleteActionLogsOfPlayer(conn, playerId);
+
                 // S11 修复：friends 表列名是 friend_player_id，不是 friend_id
                 String deleteFriendSql = "DELETE FROM friends WHERE player_id = ? OR friend_player_id = ?";
                 try (PreparedStatement ps = conn.prepareStatement(deleteFriendSql)) {
@@ -1108,6 +1141,45 @@ public class PlayerDAO {
         } catch (SQLException e) {
             throw new RuntimeException("删除玩家失败", e);
         }
+    }
+
+    /**
+     * 执行一条"单个 long 参数"的删除语句，复用调用方的事务连接。
+     *
+     * @param conn 事务连接，不能是 null
+     */
+    private static void deleteByLong(Connection conn, String sql, long value) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setLong(1, value);
+            ps.executeUpdate();
+        }
+    }
+
+    /**
+     * 删除该玩家的行为日志。
+     *
+     * <p>{@code player_action_logs} 没有 {@code player_id} 列，它是按
+     * {@code user_id}（账号维度）关联的 —— 一个账号可以有多个角色，
+     * 所以这里删的是整个账号的日志。必须在删除 {@code players} 行<b>之前</b>
+     * 取到 {@code user_id}，删完就查不到了。</p>
+     */
+    private static void deleteActionLogsOfPlayer(Connection conn, long playerId) throws SQLException {
+        Long userId = null;
+        try (PreparedStatement ps = conn.prepareStatement("SELECT user_id FROM players WHERE id = ?")) {
+            ps.setLong(1, playerId);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    long v = rs.getLong("user_id");
+                    if (!rs.wasNull()) {
+                        userId = v;
+                    }
+                }
+            }
+        }
+        if (userId == null) {
+            return;
+        }
+        deleteByLong(conn, "DELETE FROM player_action_logs WHERE user_id = ?", userId);
     }
 
     /**
