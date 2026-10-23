@@ -8,6 +8,7 @@ import com.mtxgdn.common.command.Command;
 import com.mtxgdn.common.command.CommandRegistry;
 import com.mtxgdn.common.service.ServiceRegistry;
 import com.mtxgdn.db.DatabaseManager;
+import com.mtxgdn.db.UserAccountDAO;
 import com.mtxgdn.game.entity.PlayerInfo;
 import com.mtxgdn.game.service.NewbieGuideService;
 import com.mtxgdn.game.service.OfflineRewardService;
@@ -1477,7 +1478,7 @@ public class QqOfficialAdapter implements OneBotSession, OneBotMessageSenderClie
             replyToSource(session, selfId, senderQq, sourceGroupId, "角色名不能超过16个字");
             return;
         }
-        if (isUsernameExists(name)) {
+        if (UserAccountDAO.isUsernameExists(name)) {
             replyToSource(session, selfId, senderQq, sourceGroupId, "角色名已被占用，请换一个。");
             return;
         }
@@ -1592,7 +1593,7 @@ public class QqOfficialAdapter implements OneBotSession, OneBotMessageSenderClie
                     sendPrivateMsg(this, selfId, senderQq, "邮箱不能为空，请重新输入：\n(输入 /cancel 取消)");
                     return;
                 }
-                if (!isValidEmail(emailInput)) {
+                if (!UserAccountDAO.isValidEmail(emailInput)) {
                     sendPrivateMsg(this, selfId, senderQq, "邮箱格式不正确，请重新输入：\n(输入 /cancel 取消)");
                     return;
                 }
@@ -1635,7 +1636,7 @@ public class QqOfficialAdapter implements OneBotSession, OneBotMessageSenderClie
             sendPrivateMsg(this, selfId, senderQq, "发生错误，请重新操作。");
             return;
         }
-        String username = getUsernameByUserId(b.getUserId());
+        String username = UserAccountDAO.getUsernameByUserId(b.getUserId());
         if (username == null) {
             pendingSessions.remove(senderQq);
             sendPrivateMsg(this, selfId, senderQq, "发生错误，请重新操作。");
@@ -1663,7 +1664,7 @@ public class QqOfficialAdapter implements OneBotSession, OneBotMessageSenderClie
         }
         try {
             String hashedPassword = BCrypt.hashpw(newPassword, BCrypt.gensalt());
-            updatePassword(b.getUserId(), hashedPassword);
+            UserAccountDAO.updatePassword(b.getUserId(), hashedPassword);
             pendingSessions.remove(senderQq);
             sendPrivateMsg(this, selfId, senderQq, "密码修改成功！");
             actionLog.logCustom(b.getUserId(), "系统", "修改密码", "成功");
@@ -1680,7 +1681,7 @@ public class QqOfficialAdapter implements OneBotSession, OneBotMessageSenderClie
             sendPrivateMsg(this, selfId, senderQq, "发生错误，请重新操作。");
             return;
         }
-        String username = getUsernameByUserId(b.getUserId());
+        String username = UserAccountDAO.getUsernameByUserId(b.getUserId());
         if (username == null) {
             pendingSessions.remove(senderQq);
             sendPrivateMsg(this, selfId, senderQq, "发生错误，请重新操作。");
@@ -1696,7 +1697,7 @@ public class QqOfficialAdapter implements OneBotSession, OneBotMessageSenderClie
             if (player != null) {
                 ServiceRegistry.getPlayerService().deletePlayer(player.getId());
             }
-            deleteUser(check.userId);
+            UserAccountDAO.deleteUser(check.userId);
             bindingService.unbindByQq(senderQq);
             pendingSessions.remove(senderQq);
             sendPrivateMsg(this, selfId, senderQq, "账号已注销。感谢您的陪伴，修仙之路后会有期！");
@@ -1715,7 +1716,7 @@ public class QqOfficialAdapter implements OneBotSession, OneBotMessageSenderClie
      */
     private void doRegisterComplete(String senderQq, PendingSession ps,
                                     String password, String email, String code) {
-        if (isUsernameExists(ps.username)) {
+        if (UserAccountDAO.isUsernameExists(ps.username)) {
             sendPrivateMsg(this, selfId, senderQq,
                     "角色名【" + ps.username + "】已被占用，请重新注册。");
             return;
@@ -1728,7 +1729,7 @@ public class QqOfficialAdapter implements OneBotSession, OneBotMessageSenderClie
         Long userId = null;
         try {
             String hashedPassword = BCrypt.hashpw(password, BCrypt.gensalt());
-            userId = insertUser(ps.username, hashedPassword, email);
+            userId = UserAccountDAO.insertUser(ps.username, hashedPassword, email);
             if (userId == null) {
                 sendPrivateMsg(this, selfId, senderQq, "注册失败，请稍后重试。");
                 return;
@@ -1742,7 +1743,7 @@ public class QqOfficialAdapter implements OneBotSession, OneBotMessageSenderClie
         } catch (RuntimeException e) {
             if (userId != null) {
                 try { bindingService.unbindByQq(senderQq); } catch (Exception ignored) {}
-                try { deleteUser(userId); } catch (Exception ignored) {}
+                try { UserAccountDAO.deleteUser(userId); } catch (Exception ignored) {}
             }
             sendPrivateMsg(this, selfId, senderQq, "注册失败: " + e.getMessage());
         }
@@ -1848,68 +1849,4 @@ public class QqOfficialAdapter implements OneBotSession, OneBotMessageSenderClie
         } catch (SQLException e) { log.error("重置失败次数失败", e); }
     }
 
-    private boolean isUsernameExists(String username) {
-        String sql = "SELECT COUNT(*) FROM users WHERE username = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setString(1, username);
-            try (ResultSet rs = stmt.executeQuery()) {
-                if (rs.next()) return rs.getInt(1) > 0;
-            }
-        } catch (SQLException e) { log.error("查询用户名失败", e); }
-        return false;
-    }
-
-    private Long insertUser(String username, String hashedPassword, String email) {
-        String sql = "INSERT INTO users (username, password, email) VALUES (?, ?, ?)";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-            stmt.setString(1, username);
-            stmt.setString(2, hashedPassword);
-            stmt.setString(3, email);
-            if (stmt.executeUpdate() > 0) {
-                try (ResultSet rs = stmt.getGeneratedKeys()) {
-                    if (rs.next()) return rs.getLong(1);
-                }
-            }
-        } catch (SQLException e) { throw new RuntimeException("用户插入失败", e); }
-        return null;
-    }
-
-    private void deleteUser(long userId) {
-        String sql = "DELETE FROM users WHERE id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setLong(1, userId);
-            stmt.executeUpdate();
-        } catch (SQLException e) { throw new RuntimeException("删除用户失败", e); }
-    }
-
-    private boolean isValidEmail(String email) {
-        return email.matches("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+$");
-    }
-
-    private String getUsernameByUserId(long userId) {
-        String sql = "SELECT username FROM users WHERE id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setLong(1, userId);
-            try (ResultSet rs = stmt.executeQuery()) {
-                if (rs.next()) return rs.getString("username");
-            }
-        } catch (SQLException e) { log.error("查询用户名失败", e); }
-        return null;
-    }
-
-    private void updatePassword(long userId, String hashedPassword) {
-        String sql = "UPDATE users SET password = ? WHERE id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setString(1, hashedPassword);
-            stmt.setLong(2, userId);
-            if (stmt.executeUpdate() == 0) {
-                throw new RuntimeException("用户不存在");
-            }
-        } catch (SQLException e) { throw new RuntimeException("密码更新失败", e); }
-    }
 }
