@@ -678,7 +678,10 @@
 | `EntityBufferFilter.java` | 35 | 请求体缓冲过滤器 |
 | `GenericExceptionMapper.java` | 16 | 通用异常 → 统一错误响应 |
 | `EofExceptionMapper.java` | 14 | `EOFException` → 静默响应（连接中断） |
-| `Test.java` | 14 | `@Path("/test")` 探活端点 |
+
+> 原先这里还有一个 `Test.java`（`@Path("/test")`，返回字符串 `hyw` 的探活端点）。
+> 它没有任何引用、也没有任何鉴权，属于调试残留，已删除。
+> 需要探活请用 `GET /admin/status`（需鉴权，返回真实服务状态）。
 
 ### 4.17 服务器与账号服务
 
@@ -1141,7 +1144,8 @@ HTTP 侧由 `UnifiedRestResource`（`/game/{path:.*}`）把同一批 `RouteDefin
 5. **MC 插件源码不参与主构建**：`com/mtxgdn/minecraft/plugin/**` 被 compiler 排除，必须用 `build-mc-plugin.bat` 单独编译（依赖 `mc_server/server.jar` 提供 Bukkit API）。
 6. **测试用插件开关隔离**：Surefire 通过系统属性 `xiuxian.plugins.config` 指向 `target/test-config/plugins.yml`，改动 `PluginSwitches` 相关逻辑时不要绕过该属性。
 7. **空包目录**：`com/mtxgdn/plugin/api/` 当前无文件，属预留位置。
-8. **无 CI**：`.github/` 下只有 Issue 模板，没有 workflow，构建/测试需本地执行 `run_tests.sh` / `run_tests.bat`。
+8. **CI 已存在**：`.github/workflows/build.yml` 会在推送/PR 时构建并跑测试；本地仍可用 `run_tests.sh` / `run_tests.bat`。
+   （早期版本这里写的是"无 CI，`.github/` 下只有 Issue 模板"，已经过时。）
 9. **`admin.status` 只用于只读接口（已修复，勿回退）**：`admin.status` 的显示名是「查看服务器状态」，但 `PermissionService` 给 `MODERATOR` 组的默认权限里包含它（MODERATOR = PLAYER + `admin.login`、`admin.status`、`admin.logs.view`、`qq.command.admin`、`admin.blacklist.view`）。此前多处以它门控**写操作**，等于版主能随意改玩家数据。现已按「读用 `admin.status`、写用 `admin.users.manage`」划分：
     - `SetRootCommand`（改灵根）、`EditPlayerCommand`（编辑玩家属性）、`UsersRolesCommand`（用户/角色列表）→ `admin.users.manage`（与 REST 侧 `/players/{id}/edit`、`/players/{id}/spiritual-root`、`/users` 一致，该码不在 ADMIN 默认权限内，仅 SUPER_ADMIN 持有）；
     - `EnergyAdminCommand` → 指令级与 GET 路由保持 `admin.status`（版主可「查看」），三个写路由 `admin/energy/set|add|remove` 与指令内 `设置/增加/减少` 分支改用 `admin.users.manage`（`isWriteAction()` 二次校验）；

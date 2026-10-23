@@ -110,39 +110,6 @@ public class DatabaseManager {
 
     private static final long TX_RETRY_BASE_DELAY_MS = 20L;
 
-    public static void executeInTransaction(SQLRunnable runnable) {
-        RuntimeException last = null;
-        for (int attempt = 1; attempt <= TX_MAX_ATTEMPTS; attempt++) {
-            try (Connection conn = getConnection()) {
-                conn.setAutoCommit(false);
-                try {
-                    runnable.run(conn);
-                    conn.commit();
-                    return;
-                } catch (Exception e) {
-                    try {
-                        conn.rollback();
-                    } catch (SQLException ignored) {
-                    }
-                    if (isRetryableConflict(e) && attempt < TX_MAX_ATTEMPTS) {
-                        last = new RuntimeException("事务执行失败: " + e.getMessage(), e);
-                        backoffBeforeRetry(attempt);
-                        continue;
-                    }
-                    throw new RuntimeException("事务执行失败: " + e.getMessage(), e);
-                } finally {
-                    try {
-                        conn.setAutoCommit(true);
-                    } catch (SQLException ignored) {
-                    }
-                }
-            } catch (SQLException e) {
-                throw new RuntimeException("事务执行失败: " + e.getMessage(), e);
-            }
-        }
-        throw last != null ? last : new RuntimeException("事务执行失败");
-    }
-
     public static <T> T runTransaction(SQLFunction<T> function) {
         RuntimeException last = null;
         for (int attempt = 1; attempt <= TX_MAX_ATTEMPTS; attempt++) {
@@ -813,12 +780,6 @@ public class DatabaseManager {
         }
         return el.toString();
     }
-
-    @FunctionalInterface
-    public interface SQLRunnable {
-        void run(Connection conn) throws Exception;
-    }
-
     @FunctionalInterface
     public interface SQLFunction<T> {
         T run(Connection conn) throws Exception;
