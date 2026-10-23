@@ -30,16 +30,33 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *   <li>{@code handleRanking} 的 {@code limit} 不校验就进 {@code LIMIT ?}：
  *       传 2,000,000,000 会把整张表查出来；负数在 SQLite 里等于"不限条数"。</li>
  * </ol>
+ *
+ * <p><b>拆分后的扫描范围</b>：{@code GameWebSocketApp} 已经按 action 域拆成
+ * {@code WsChatHandler} / {@code WsSocialHandler} 等处理器类，处理函数不再全部住在
+ * 入口类里。因此本测试的扫描范围从"一个文件"扩展到"处理器所在的那个文件"：</p>
+ * <ul>
+ *   <li>权限检查仍在分发入口 {@code GameWebSocketApp}（拆分时特意没有下移到处理器，
+ *       否则 53 个 action 的权限门会散到 11 个类里，一眼看不出哪个漏了）；</li>
+ *   <li>{@code handleChat} / {@code handlePrivateChat} 在 {@code WsChatHandler}，
+ *       {@code handleRanking} 在 {@code WsSocialHandler}，
+ *       {@code clampLimit} 与排行榜上限常量在 {@code WsSupport}。</li>
+ * </ul>
+ * <p>断言本身没有放宽：仍然逐条检查"广播内容必须来自 ChatService"、
+ * "limit 必须夹过再进 SQL"、"世界聊天必须检查 game.chat.world"。
+ * 变的只是每个断言去哪个文件里找证据。</p>
  */
 class WebSocketChatBoundaryTest {
 
-    private static final Path WS_SOURCE =
-            Paths.get("src/main/java/com/mtxgdn/websocket/GameWebSocketApp.java");
+    private static final Path WS_DIR = Paths.get("src/main/java/com/mtxgdn/websocket");
+    private static final Path WS_SOURCE = WS_DIR.resolve("GameWebSocketApp.java");
+    private static final Path CHAT_SOURCE = WS_DIR.resolve("WsChatHandler.java");
+    private static final Path SOCIAL_SOURCE = WS_DIR.resolve("WsSocialHandler.java");
+    private static final Path SUPPORT_SOURCE = WS_DIR.resolve("WsSupport.java");
 
     @Test
     @DisplayName("世界聊天必须检查 game.chat.world 权限")
     void worldChatRequiresPermission() throws IOException {
-        String code = stripComments(readSource());
+        String code = stripComments(readSource(WS_SOURCE));
         // 文件里有多处 case "chat"（另有一处是 消息类型→功能模块 的映射表），
         // 这里只看真正调用 handleChat 的那一处。
         int from = 0;
@@ -66,10 +83,10 @@ class WebSocketChatBoundaryTest {
     @Test
     @DisplayName("世界聊天的广播内容必须取自 ChatService 处理后的结果")
     void worldChatBroadcastsSanitizedContent() throws IOException {
-        String code = stripComments(readSource());
-        int start = code.indexOf("private void handleChat(");
-        assertTrue(start >= 0);
-        int end = code.indexOf("private void handlePrivateChat(", start);
+        String code = stripComments(readSource(CHAT_SOURCE));
+        int start = code.indexOf("void handleChat(");
+        assertTrue(start >= 0, "WsChatHandler 里找不到 handleChat");
+        int end = code.indexOf("void handlePrivateChat(", start);
         assertTrue(end > start);
         String body = code.substring(start, end);
 
@@ -84,9 +101,9 @@ class WebSocketChatBoundaryTest {
     @Test
     @DisplayName("私聊转发内容同样必须取自 ChatService")
     void privateChatForwardsSanitizedContent() throws IOException {
-        String code = stripComments(readSource());
-        int start = code.indexOf("private void handlePrivateChat(");
-        int end = code.indexOf("private void handleChatHistory(", start);
+        String code = stripComments(readSource(CHAT_SOURCE));
+        int start = code.indexOf("void handlePrivateChat(");
+        int end = code.indexOf("void handleChatHistory(", start);
         assertTrue(start >= 0 && end > start);
         String body = code.substring(start, end);
 
@@ -99,31 +116,33 @@ class WebSocketChatBoundaryTest {
     @Test
     @DisplayName("clampLimit：越界值被夹住，非法值回落默认")
     void clampLimitBehaves() {
-        assertEquals(20, GameWebSocketApp.clampLimit(20, 20, 100), "合法值原样返回");
-        assertEquals(100, GameWebSocketApp.clampLimit(2_000_000_000, 20, 100), "超大值夹到上限");
-        assertEquals(20, GameWebSocketApp.clampLimit(-1, 20, 100), "负数回落默认（SQLite 的 LIMIT -1 = 不限）");
-        assertEquals(20, GameWebSocketApp.clampLimit(0, 20, 100), "0 回落默认");
-        assertEquals(100, GameWebSocketApp.clampLimit(100, 20, 100), "正好等于上限时保留");
+        assertEquals(20, WsSupport.clampLimit(20, 20, 100), "合法值原样返回");
+        assertEquals(100, WsSupport.clampLimit(2_000_000_000, 20, 100), "超大值夹到上限");
+        assertEquals(20, WsSupport.clampLimit(-1, 20, 100), "负数回落默认（SQLite 的 LIMIT -1 = 不限）");
+        assertEquals(20, WsSupport.clampLimit(0, 20, 100), "0 回落默认");
+        assertEquals(100, WsSupport.clampLimit(100, 20, 100), "正好等于上限时保留");
     }
 
     @Test
     @DisplayName("handleRanking 必须夹过 limit 再进 SQL")
     void rankingClampsLimit() throws IOException {
-        String code = stripComments(readSource());
-        int start = code.indexOf("private void handleRanking(");
-        assertTrue(start >= 0);
+        String code = stripComments(readSource(SOCIAL_SOURCE));
+        int start = code.indexOf("void handleRanking(");
+        assertTrue(start >= 0, "WsSocialHandler 里找不到 handleRanking");
         String window = code.substring(start, Math.min(code.length(), start + 700));
         assertTrue(window.contains("clampLimit("),
                 "handleRanking 的 limit 没有经过 clampLimit，会直接进 LIMIT ?：\n" + window);
-        Matcher m = Pattern.compile("MAX_RANKING_LIMIT\\s*=\\s*(\\d+)").matcher(code);
+        // 上限常量随 clampLimit 一起搬到了 WsSupport：取值仍然要钉住
+        String support = stripComments(readSource(SUPPORT_SOURCE));
+        Matcher m = Pattern.compile("MAX_RANKING_LIMIT\\s*=\\s*(\\d+)").matcher(support);
         assertTrue(m.find(), "缺少 MAX_RANKING_LIMIT 常量");
         assertTrue(Integer.parseInt(m.group(1)) <= 1000,
                 "排行榜上限不该超过 1000，实际: " + m.group(1));
     }
 
-    private static String readSource() throws IOException {
-        assertTrue(Files.exists(WS_SOURCE), "找不到 GameWebSocketApp.java: " + WS_SOURCE.toAbsolutePath());
-        return Files.readString(WS_SOURCE, StandardCharsets.UTF_8);
+    private static String readSource(Path path) throws IOException {
+        assertTrue(Files.exists(path), "找不到文件: " + path.toAbsolutePath());
+        return Files.readString(path, StandardCharsets.UTF_8);
     }
 
     private static String stripComments(String code) {
