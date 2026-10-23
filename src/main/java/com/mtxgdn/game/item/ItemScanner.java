@@ -101,12 +101,12 @@ public class ItemScanner {
     }
 
     private static void findClassesInJar(URL resource, String packagePath, List<Class<?>> classes) throws Exception {
-        String jarPath = resource.getPath();
-        if (jarPath.startsWith("file:")) jarPath = jarPath.substring("file:".length());
-        int sep = jarPath.indexOf("!/");
-        if (sep > 0) jarPath = jarPath.substring(0, sep);
+        // 不能直接用 url.getPath()：它返回未解码的百分号编码形式，
+        // 路径里含空格或中文（Windows 用户名、中文目录）时 new JarFile 会失败，
+        // 而失败又被下面的 catch 吞掉 —— 表现为所有内容凭空消失且无任何报错。
+        java.io.File jarFileOnDisk = com.mtxgdn.util.JarPathResolver.resolveFile(resource);
 
-        try (JarFile jarFile = new JarFile(new File(jarPath))) {
+        try (JarFile jarFile = new JarFile(jarFileOnDisk)) {
             Enumeration<JarEntry> entries = jarFile.entries();
             while (entries.hasMoreElements()) {
                 JarEntry entry = entries.nextElement();

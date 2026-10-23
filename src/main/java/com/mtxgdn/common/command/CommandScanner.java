@@ -99,13 +99,12 @@ public class CommandScanner {
     }
 
     private static void findClassesInJar(URL jarUrl, String packagePath, List<Class<?>> classes) throws Exception {
-        String jarPath = jarUrl.getPath();
-        if (jarPath.contains("!")) {
-            jarPath = jarPath.substring(0, jarPath.indexOf('!'));
-        }
-        jarPath = jarPath.replace("file:", "");
+        // 不能直接用 url.getPath()：它返回未解码的百分号编码形式，
+        // 路径里含空格或中文（Windows 用户名、中文目录）时 new JarFile 会失败，
+        // 而失败又被下面的 catch 吞掉 —— 表现为所有内容凭空消失且无任何报错。
+        java.io.File jarFileOnDisk = com.mtxgdn.util.JarPathResolver.resolveFile(jarUrl);
 
-        try (JarFile jarFile = new JarFile(jarPath)) {
+        try (JarFile jarFile = new JarFile(jarFileOnDisk)) {
             Enumeration<JarEntry> entries = jarFile.entries();
             while (entries.hasMoreElements()) {
                 JarEntry entry = entries.nextElement();
