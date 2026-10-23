@@ -43,6 +43,29 @@ class RequestPathLoggingTest {
     }
 
     @Test
+    @DisplayName("AdminAuthFilter 的鉴权事件必须进日志文件，不能只打 stdout")
+    void adminAuthFilterLogsToFile() throws IOException {
+        Path adminAuth = Paths.get("src/main/java/com/mtxgdn/rest/AdminAuthFilter.java");
+        String code = stripComments(read(adminAuth));
+
+        assertFalse(code.contains("System.out"),
+                "AdminAuthFilter 里还有 System.out —— 管理员登录/锁定这类事件"
+                        + "只到控制台，事后在日志文件里查不到任何痕迹");
+        assertFalse(code.contains("System.err"),
+                "AdminAuthFilter 里还有 System.err（同样不进日志文件）");
+        assertTrue(code.contains("GameLogger"),
+                "AdminAuthFilter 必须改用 GameLogger");
+        // 静态初始化顺序：LOG 必须在 ADMIN_KEY = initAdminKey() 之前声明，
+        // 否则 initAdminKey() 里用到的 LOG 还是 null，类加载直接 NPE。
+        int logIdx = code.indexOf("GameLogger LOG");
+        int keyIdx = code.indexOf("ADMIN_KEY = initAdminKey()");
+        assertTrue(logIdx > 0 && keyIdx > 0, "结构变了，请更新本测试");
+        assertTrue(logIdx < keyIdx,
+                "LOG 必须声明在 ADMIN_KEY = initAdminKey() 之前："
+                        + "静态初始化按声明顺序执行，否则 initAdminKey() 里的 LOG 还是 null");
+    }
+
+    @Test
     @DisplayName("EntityBufferFilter 必须用 GameLogger")
     void entityBufferFilterUsesGameLogger() throws IOException {
         String code = read(ENTITY_BUFFER_FILTER);

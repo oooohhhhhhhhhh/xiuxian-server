@@ -37,6 +37,17 @@ import java.util.concurrent.ConcurrentHashMap;
 @Priority(Priorities.AUTHENTICATION)
 public class AdminAuthFilter implements ContainerRequestFilter {
 
+    /**
+     * 用 GameLogger 而不是 System.out/err。
+     *
+     * <p>这里记录的是<b>管理员鉴权</b>相关事件：密钥来源、明文口令升级、
+     * 连续登录失败锁定、bcrypt 校验失败、数据库校验失败。原来这些全部走
+     * {@code System.out/err} —— 只到控制台、<b>不进日志文件</b>，
+     * 事后排查"谁被锁了/为什么登录不上"时根本找不到任何痕迹。</p>
+     */
+    private static final com.mtxgdn.util.GameLogger LOG =
+            com.mtxgdn.util.GameLogger.getLogger(AdminAuthFilter.class);
+
     /** 管理员密钥：优先 admin.jwt_secret，其次 jwt.secret；均为空则随机生成（重启后 admin token 失效）。 */
     public static final SecretKey ADMIN_KEY = initAdminKey();
     /** 登录失败锁定：连续失败 5 次锁定 15 分钟 */
@@ -70,9 +81,9 @@ public class AdminAuthFilter implements ContainerRequestFilter {
         if (configured != null && !configured.isBlank()) {
             byte[] bytes = configured.getBytes(StandardCharsets.UTF_8);
             if (bytes.length < 32) {
-                System.err.println("[AdminAuth] 警告: admin.jwt_secret 长度不足 32 字节（至少 256 位），已改为按域分离方式派生。");
+                LOG.warn("admin.jwt_secret 长度不足 32 字节（至少 256 位），已改为按域分离方式派生。");
             } else {
-                System.out.println("[AdminAuth] ✓ 管理员 JWT 密钥已从 admin.jwt_secret 加载（与玩家密钥隔离）");
+                LOG.info("✓ 管理员 JWT 密钥已从 admin.jwt_secret 加载（与玩家密钥隔离）");
                 return Keys.hmacShaKeyFor(bytes);
             }
         }
@@ -86,7 +97,7 @@ public class AdminAuthFilter implements ContainerRequestFilter {
                 System.arraycopy(derived, 0, padded, 0, Math.min(derived.length, 32));
                 derived = padded;
             }
-            System.out.println("[AdminAuth] 未配置 admin.jwt_secret，已从 jwt.secret 按域分离派生管理员密钥"
+            LOG.info("未配置 admin.jwt_secret，已从 jwt.secret 按域分离派生管理员密钥"
                     + "（与玩家 token 密钥不同）。建议显式配置 admin.jwt_secret。");
             return Keys.hmacShaKeyFor(derived);
         }
@@ -94,7 +105,7 @@ public class AdminAuthFilter implements ContainerRequestFilter {
         // 3) 玩家密钥也没有（安装向导尚未完成）：随机密钥，重启后管理 token 失效
         byte[] randomBytes = new byte[64];
         new SecureRandom().nextBytes(randomBytes);
-        System.err.println("[AdminAuth] 警告: 既无 admin.jwt_secret 也无 jwt.secret，已生成随机管理员密钥（重启后管理 Token 失效）。");
+        LOG.warn("既无 admin.jwt_secret 也无 jwt.secret，已生成随机管理员密钥（重启后管理 Token 失效）。");
         return Keys.hmacShaKeyFor(randomBytes);
     }
 
@@ -130,7 +141,7 @@ public class AdminAuthFilter implements ContainerRequestFilter {
         if (username != null && !username.isEmpty()) {
             return username;
         }
-        System.err.println("[AdminAuth] 未配置 admin.username，管理后台将使用数据库用户认证。");
+        LOG.info("未配置 admin.username，管理后台将使用数据库用户认证。");
         return "";
     }
 
@@ -149,13 +160,13 @@ public class AdminAuthFilter implements ContainerRequestFilter {
                 map.put("admin.password_hash", generated);
                 map.put("admin.password", null);
                 com.mtxgdn.util.AppConfig.update(map);
-                System.err.println("[AdminAuth] 已将 admin.password (明文) 升级为 admin.password_hash (bcrypt)，请删除旧配置项");
+                LOG.warn("已将 admin.password (明文) 升级为 admin.password_hash (bcrypt)，请删除旧配置项");
             } catch (Exception e) {
-                System.err.println("[AdminAuth] 升级 admin.password 失败: " + e.getMessage());
+                LOG.error("升级 admin.password 失败: " + e.getMessage());
             }
             return generated;
         }
-        System.err.println("[AdminAuth] 未配置 admin.password_hash / admin.password，管理后台将使用数据库用户认证。");
+        LOG.info("未配置 admin.password_hash / admin.password，管理后台将使用数据库用户认证。");
         return "";
     }
 
@@ -168,8 +179,8 @@ public class AdminAuthFilter implements ContainerRequestFilter {
         }
 
         String method = ctx.getMethod();
-        System.out.println("[AdminAuth] " + method + " " + path);
-
+        // 每个管理请求一行：DEBUG 级别，默认 INFO 下不输出（避免刷屏且仍可开启）
+        LOG.debug(method + " " + path);
         if (path.equals("admin/login") && "POST".equalsIgnoreCase(method)) {
             return;
         }
@@ -269,7 +280,7 @@ public class AdminAuthFilter implements ContainerRequestFilter {
         long now = System.currentTimeMillis();
         long[] record = LOGIN_FAILURES.get(username);
         if (record != null && record[1] > now) {
-            System.err.println("[AdminAuth] 账号 " + username + " 因多次登录失败已锁定，拒绝登录");
+            LOG.warn("账号 " + username + " 因多次登录失败已锁定，拒绝登录");
             return false;
         }
         boolean ok;
@@ -282,7 +293,7 @@ public class AdminAuthFilter implements ContainerRequestFilter {
                 try {
                     ok = BCrypt.checkpw(password, ADMIN_PASSWORD_HASH);
                 } catch (Exception e) {
-                    System.err.println("[AdminAuth] bcrypt 校验失败: " + e.getMessage());
+                    LOG.error("bcrypt 校验失败: " + e.getMessage());
                     ok = false;
                 }
             }
@@ -309,7 +320,7 @@ public class AdminAuthFilter implements ContainerRequestFilter {
             if (rec[0] >= MAX_LOGIN_FAILURES) {
                 rec[1] = now + LOCK_DURATION_MS;
                 rec[0] = 0;
-                System.err.println("[AdminAuth] 账号 " + username + " 连续登录失败 " + MAX_LOGIN_FAILURES + " 次，已锁定 15 分钟");
+                LOG.warn("账号 " + username + " 连续登录失败 " + MAX_LOGIN_FAILURES + " 次，已锁定 15 分钟");
             }
             return rec;
         });
@@ -337,7 +348,7 @@ public class AdminAuthFilter implements ContainerRequestFilter {
                 }
             }
         } catch (SQLException e) {
-            System.err.println("[AdminAuth] 数据库验证失败: " + e.getMessage());
+            LOG.error("数据库验证失败: " + e.getMessage());
         }
         return false;
     }
@@ -380,7 +391,7 @@ public class AdminAuthFilter implements ContainerRequestFilter {
                 }
             }
         } catch (SQLException e) {
-            System.err.println("[AdminAuth] 查询用户ID失败: " + e.getMessage());
+            LOG.error("查询用户ID失败: " + e.getMessage());
         }
         return null;
     }
