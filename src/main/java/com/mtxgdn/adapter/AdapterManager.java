@@ -382,6 +382,15 @@ public class AdapterManager {
             } catch (RuntimeException e) {
                 LOG.warn("反注册 OneBot WebSocket 失败: " + e.getMessage());
             }
+            // 再停掉它自己的调度器：OneBotWebSocketServer 构造时会创建一个
+            // 每 12 小时跑一次"黑名单续期禁言"的 ScheduledExecutorService。
+            // 原来这里从不调用 shutdown()，于是每次热重载都泄漏一个调度线程，
+            // 而且旧实例还在继续对已下线的机器人执行禁言续期。
+            try {
+                wsServer.shutdown();
+            } catch (RuntimeException e) {
+                LOG.warn("停止 OneBot 定时任务失败: " + e.getMessage());
+            }
         }
     }
 

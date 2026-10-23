@@ -51,8 +51,18 @@ public class OneBotWebSocketServer extends WebSocketApplication
     private final Map<String, PendingSession> pendingSessions = new ConcurrentHashMap<>();
 
     // 黑名单自动续期禁言定时任务
+    //
+    // 必须是 daemon 线程并且有名字：
+    //  - 非 daemon 会让 JVM 无法退出（关服时卡住，只能强杀）；
+    //  - 匿名线程在 jstack / 线程转储里无法辨认是谁泄漏的。
+    // 另外每个 OneBotWebSocketServer 实例都会创建一个，热重载时若没人调用 shutdown()
+    // 就会一直累积 —— 见 AdapterManager.cleanupOneBotServer() 里显式调用 shutdown()。
     private final java.util.concurrent.ScheduledExecutorService muteRenewalScheduler =
-            java.util.concurrent.Executors.newSingleThreadScheduledExecutor();
+            java.util.concurrent.Executors.newSingleThreadScheduledExecutor(r -> {
+                Thread t = new Thread(r, "onebot-mute-renewal");
+                t.setDaemon(true);
+                return t;
+            });
     private final BlacklistService blacklistService = new BlacklistService();
     private final OneBotGroupConfigService groupConfigService = new OneBotGroupConfigService();
 
