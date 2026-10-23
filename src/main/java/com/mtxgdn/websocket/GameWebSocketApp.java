@@ -52,6 +52,9 @@ import com.mtxgdn.i18n.I18n;
 
 public class GameWebSocketApp extends WebSocketApplication {
 
+    private static final com.mtxgdn.util.GameLogger LOG =
+            com.mtxgdn.util.GameLogger.getLogger(GameWebSocketApp.class);
+
     private static final Gson gson = new Gson();
     private static final PlayerActionLogger actionLog = PlayerActionLogger.getInstance();
     private static final PlayerService playerService = ServiceRegistry.getPlayerService();
@@ -72,9 +75,89 @@ public class GameWebSocketApp extends WebSocketApplication {
     private final Map<Long, WebSocket> userSessions = new ConcurrentHashMap<>();
     private final Map<WebSocket, Boolean> authenticated = new ConcurrentHashMap<>();
 
+    /**
+     * 每条连接最后一次收到消息的时间戳（毫秒）。
+     *
+     * <p><b>为什么需要</b>：{@code network.read_timeout_ms} 只对「请求事务」生效，
+     * 而 WebSocket 一旦升级成功就没有事务了。于是当客户端网络静默断开
+     * （手机切网、笔记本合盖、代理超时）时，服务端<b>永远收不到 close 帧</b>：
+     * 连接对象留在 {@link #sessionUsers} / {@link #userSessions} 里，玩家表现为
+     * "一直在线"，广播/私聊都往一个死连接发，内存与句柄只增不减。</p>
+     *
+     * <p>应用层有 {@code heartbeat} 动作，但那是<b>客户端驱动</b>的（服务端只回 pong）——
+     * 客户端不发或发不出去时，服务端依然察觉不到。所以必须有服务端侧的空闲判定。</p>
+     */
+    private final Map<WebSocket, Long> lastActivity = new ConcurrentHashMap<>();
+
+    /** 空闲多久算死连接（{@code network.ws_idle_timeout_ms}，默认 5 分钟，<=0 关闭该功能）。 */
+    private static final long WS_IDLE_TIMEOUT_MS =
+            Math.max(0, com.mtxgdn.util.AppConfig.getInt("network.ws_idle_timeout_ms", 300_000));
+
+    /** 巡检间隔（秒）：取空闲超时的 1/5，最长 60 秒，最短 10 秒。 */
+    private static final long WS_IDLE_SWEEP_SECONDS = WS_IDLE_TIMEOUT_MS <= 0 ? 0
+            : Math.min(60, Math.max(10, WS_IDLE_TIMEOUT_MS / 5000));
+
+    private static final java.util.concurrent.ScheduledExecutorService WS_IDLE_SWEEPER =
+            java.util.concurrent.Executors.newSingleThreadScheduledExecutor(r -> {
+                Thread t = new Thread(r, "ws-idle-sweeper");
+                t.setDaemon(true);
+                return t;
+            });
+
+    private static volatile boolean idleSweeperStarted;
+
     @Override
     public void onConnect(WebSocket socket) {
         authenticated.put(socket, false);
+        lastActivity.put(socket, System.currentTimeMillis());
+        startIdleSweeperOnce();
+    }
+
+    /**
+     * 首次真正有连接时才启动巡检线程。
+     *
+     * <p>不在静态初始化里启动，是为了让「没有 WebSocket 连接的进程」
+     * （例如单元测试、纯 REST 部署）完全不产生额外线程。</p>
+     */
+    private void startIdleSweeperOnce() {
+        if (idleSweeperStarted || WS_IDLE_TIMEOUT_MS <= 0) {
+            return;
+        }
+        synchronized (GameWebSocketApp.class) {
+            if (idleSweeperStarted) {
+                return;
+            }
+            idleSweeperStarted = true;
+            WS_IDLE_SWEEPER.scheduleAtFixedRate(this::closeIdleSockets,
+                    WS_IDLE_SWEEP_SECONDS, WS_IDLE_SWEEP_SECONDS, java.util.concurrent.TimeUnit.SECONDS);
+            LOG.info("WebSocket 空闲巡检已启动：超过 " + (WS_IDLE_TIMEOUT_MS / 1000)
+                    + " 秒没有任何消息的连接会被断开（network.ws_idle_timeout_ms）");
+        }
+    }
+
+    /**
+     * 断开空闲超时的连接。
+     *
+     * <p>即使 {@code close()} 没有触发 {@link #onClose}（半开连接正是如此），
+     * 也要把本地状态清干净 —— 否则"玩家一直在线"的问题依然存在。</p>
+     */
+    void closeIdleSockets() {
+        long now = System.currentTimeMillis();
+        for (Map.Entry<WebSocket, Long> entry : lastActivity.entrySet()) {
+            WebSocket ws = entry.getKey();
+            long idleMs = now - entry.getValue();
+            if (idleMs <= WS_IDLE_TIMEOUT_MS) {
+                continue;
+            }
+            LOG.info("WebSocket 空闲超时（" + (idleMs / 1000) + " 秒），断开连接");
+            try {
+                ws.close(4001, "空闲超时");
+            } catch (RuntimeException ignored) {
+                // 连接已经烂掉了，close 本身也可能失败
+            }
+            lastActivity.remove(ws, entry.getValue());
+            onClose(ws, null);
+        }
     }
 
     /**
@@ -89,6 +172,8 @@ public class GameWebSocketApp extends WebSocketApplication {
 
     @Override
     public void onMessage(WebSocket socket, String text) {
+        // 任何入站消息都算"活着"：空闲巡检靠这个时间戳判断死连接
+        lastActivity.put(socket, System.currentTimeMillis());
         // V1：超长帧直接断开，不给 Gson/业务代码分配内存的机会
         if (text == null || text.length() > MAX_MESSAGE_CHARS) {
             try {
@@ -230,6 +315,7 @@ public class GameWebSocketApp extends WebSocketApplication {
     public void onClose(WebSocket socket, DataFrame frame) {
         Long userId = sessionUsers.remove(socket);
         authenticated.remove(socket);
+        lastActivity.remove(socket);
         if (userId != null) {
             // 条件删除：仅当映射仍指向本连接时才移除，避免同账号多连接时误删新连接
             userSessions.remove(userId, socket);
