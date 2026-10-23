@@ -462,17 +462,38 @@ public class MySqlLauncher {
         }
     }
 
+    /**
+     * 等待 MySQL 自行退出的宽限时间（秒）。
+     *
+     * <p><b>为什么不能是 5 秒</b>：原来固定等 5 秒就 {@code destroyForcibly()}（SIGKILL）。
+     * 而 mysqld 收到终止信号后要做的事是 <b>刷脏页 + 关 binlog + 释放锁</b>，
+     * InnoDB 的缓冲池越大这一步越久 —— 5 秒对大缓冲池的实例远远不够。
+     * 结果就是每次重启都被 SIGKILL 打断在刷盘中途，下次启动必须跑一遍崩溃恢复
+     * （日志里会出现 "InnoDB: Database was not shut down normally"），
+     * 数据虽然一般不会丢，但启动变慢、且把"正常关闭"变成了"每次都是崩溃恢复"。</p>
+     *
+     * <p>改为默认 30 秒，可用 {@code mysql.shutdown_grace_seconds} 调整；
+     * 真的超时才强制结束，并且明确告警告知"下次启动会走崩溃恢复"。</p>
+     */
+    private static final int SHUTDOWN_GRACE_SECONDS =
+            Math.max(5, AppConfig.getInt("mysql.shutdown_grace_seconds", 30));
+
     private static void killPreviousProcess() {
         if (mysqlProcess != null && mysqlProcess.isAlive()) {
-            LOG.info("正在关闭之前的 MySQL 进程...");
+            LOG.info("正在关闭之前的 MySQL 进程（最多等待 " + SHUTDOWN_GRACE_SECONDS
+                    + " 秒让它刷盘退出）...");
+            // destroy()：Linux 上是 SIGTERM（mysqld 会走正常关闭流程），
+            // Windows 上是 TerminateProcess（无法优雅关闭，但至少不用等）
             mysqlProcess.destroy();
             try {
-                mysqlProcess.waitFor(5, TimeUnit.SECONDS);
+                if (!mysqlProcess.waitFor(SHUTDOWN_GRACE_SECONDS, TimeUnit.SECONDS)) {
+                    LOG.warn("MySQL 在 " + SHUTDOWN_GRACE_SECONDS + " 秒内未退出，强制结束。"
+                            + "未刷盘的改动会在下次启动时由 InnoDB 崩溃恢复处理"
+                            + "（可通过 mysql.shutdown_grace_seconds 调大宽限时间）。");
+                    mysqlProcess.destroyForcibly();
+                }
             } catch (InterruptedException e) {
                 Thread.currentThread().interrupt();
-            }
-            if (mysqlProcess.isAlive()) {
-                mysqlProcess.destroyForcibly();
             }
         }
     }

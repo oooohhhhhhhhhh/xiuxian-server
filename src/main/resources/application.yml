@@ -28,6 +28,12 @@ database:
   password: root               # MySQL 密码（仅 type=mysql 时使用）
   sqlite_path: xiuxian.db      # SQLite 数据库文件路径（仅 type=sqlite 时使用）
   pool_max: 4                  # 连接池最大连接数（SQLite 建议 2~8，MySQL 建议 8~32）
+  mysql:
+    shutdown_grace_seconds: 30 # 关闭内置 MySQL 时，等待它自行刷盘退出的秒数（最小 5）
+                               # 原来固定等 5 秒就 destroyForcibly()（SIGKILL），
+                               # 而 mysqld 关闭时要刷脏页 + 关 binlog，缓冲池越大越久，
+                               # 5 秒远远不够 —— 每次重启都被打断在刷盘中途，
+                               # 下次启动必须跑崩溃恢复（InnoDB: not shut down normally）。
   migration:
     strict: false              # true = 任一结构迁移失败即中断启动。默认 false：失败会记入 schema_migrations
                                # 表并以 ERROR 打印，但服务继续启动（避免一个补列失败就让整个服务起不来）
