@@ -23,8 +23,10 @@ import com.mtxgdn.i18n.I18n;
 /**
  * 指令统一 REST 分发器。
  * <p>
- * 放在 {@code @Path("/game")} 下，和 GameResource 共享路径空间。
- * Jersey 会优先匹配 GameResource 的显式路径，此处只处理 Command 注册的路由。
+ * 放在 {@code @Path("/game")} 下，和玩家侧的一组显式资源类（{@code GamePlayerResource}、
+ * {@code GameInventoryResource}、{@code GameSectResource} 等，都由原来的
+ * {@code GameResource} 按"路径前缀 + 依赖集合"拆出）共享路径空间。
+ * Jersey 会优先匹配那些显式路径，此处只处理 Command 注册的路由。
  * <p>
  * 新模块只需要在 Command 子类中覆写 {@code getRestEndpoints()} 即可同时获得 HTTP API。
  */
@@ -164,7 +166,7 @@ public class UnifiedRestResource {
             }
         }
 
-        // 没有路由匹配——返回 404 让 Jersey 尝试其他资源（如 GameResource）
+        // 没有路由匹配——返回 404 让 Jersey 尝试其他资源（如 Game*Resource 显式端点）
         return null;
     }
 

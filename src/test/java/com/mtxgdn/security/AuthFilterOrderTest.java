@@ -21,7 +21,8 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * {@link PermissionFilter} 读它。JAX-RS 规范规定未标注 {@code @Priority} 的过滤器
  * 按 {@link Priorities#USER}（5000）处理，所以只要有人漏掉 {@code @Priority}，
  * 权限校验就会先于鉴权执行、{@code userId} 恒为 null，导致
- * {@code GameResource} 全部带 {@code @RequirePermission} 的端点恒返回 401。
+ * 玩家侧（{@code /game/*}，由拆分后的 {@code Game*Resource} 系列承载）全部带
+ * {@code @RequirePermission} 的端点恒返回 401。
  * 这个 bug 曾经真实存在于代码里，而当时的测试全是反射/源码级断言，没有任何一个
  * 能发现它——因为问题只在运行时容器里才体现。
  *

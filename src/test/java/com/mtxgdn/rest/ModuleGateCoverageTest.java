@@ -3,22 +3,18 @@ package com.mtxgdn.rest;
 import com.mtxgdn.plugin.BuiltInPlugin;
 import com.mtxgdn.plugin.BuiltInPluginRegistry;
 import com.mtxgdn.plugin.PluginCatalog;
+import jakarta.ws.rs.Path;
+import org.glassfish.jersey.server.ResourceConfig;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
-import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.nio.file.Files;
-import java.nio.file.Path;
-import java.nio.file.Paths;
+import java.lang.reflect.Method;
 import java.util.ArrayList;
 import java.util.LinkedHashSet;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import java.util.TreeSet;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
@@ -37,7 +33,15 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * </ul>
  *
  * <p>本测试把两个方向都钉死：表里的模块名必须来自 {@link PluginCatalog}，
- * 且 {@code GameResource} 里的每个 {@code /game/xxx} 首段都必须被登记或显式豁免。</p>
+ * 且玩家侧每个 {@code /game/xxx} 首段都必须被登记或显式豁免。</p>
+ *
+ * <p><b>为什么不读源码文本</b>：玩家接口原来只有一个 {@code GameResource}，
+ * 现在已按"路径前缀 + 依赖集合"拆成 {@code GamePlayerResource}、
+ * {@code GameInventoryResource}、{@code GameSectResource} 等多个资源类，
+ * 每个类的类级 {@code @Path} 都是 {@code /game}。写死一个文件名（或一个类）会让
+ * 拆出去的那部分端点悄悄脱离本测试的覆盖 —— 那等于把这道门禁关掉。这里改用
+ * {@code ResourceConfig} 的包扫描（与 {@code Main} 注册资源的方式一致）反射读注解，
+ * 新增资源类会被自动纳入，且不会被注释里的文字干扰。</p>
  */
 class ModuleGateCoverageTest {
 
@@ -45,11 +49,10 @@ class ModuleGateCoverageTest {
      * 明确不受模块门控管辖的路径首段。
      *
      * <p>目前只有 {@code i18n}（语言包下载/切换，属于基础设施而非玩法模块）
-     * 与 {@code game}（类级 {@code @Path("/game")} 本身）。新增豁免必须写在这里并说明理由。</p>
+     * 与 {@code game}（类级 {@code @Path("/game")} 本身）。
+     * 新增豁免必须写在这里并说明理由。</p>
      */
     private static final Set<String> EXEMPT_SEGMENTS = Set.of("i18n", "game");
-
-    private static final Pattern PATH_ANNOTATION = Pattern.compile("@Path\\(\"([^\"]*)\"\\)");
 
     @Test
     @DisplayName("表里的模块名必须都是真实注册过的内置插件")
@@ -68,10 +71,10 @@ class ModuleGateCoverageTest {
     }
 
     @Test
-    @DisplayName("GameResource 的每个 /game/xxx 首段都必须被门控表覆盖或显式豁免")
-    void everyGamePathIsGated() throws IOException {
+    @DisplayName("玩家侧每个 /game/xxx 首段都必须被门控表覆盖或显式豁免")
+    void everyGamePathIsGated() {
         Set<String> segments = gameResourceFirstSegments();
-        assertFalse(segments.isEmpty(), "没能从 GameResource 解析出任何 /game 路径");
+        assertFalse(segments.isEmpty(), "没能从 /game 资源类解析出任何 /game 路径");
 
         Map<String, String> gate = ModuleGateFilter.moduleByFirstSegment();
         Set<String> ungated = new TreeSet<>();
@@ -86,6 +89,14 @@ class ModuleGateCoverageTest {
                         + "停用对应玩法后这些接口仍然可用，且不会有任何报错：\n" + ungated
                         + "\n（要么在 ModuleGateFilter.MODULE_BY_FIRST_SEGMENT 里登记，"
                         + "要么在 ModuleGateCoverageTest.EXEMPT_SEGMENTS 里写明豁免理由）");
+    }
+
+    @Test
+    @DisplayName("玩家侧资源类确实被拆成了多个（防止本测试因为只扫到一个类而失去意义）")
+    void gameResourcesAreSplitIntoMultipleClasses() {
+        List<Class<?>> classes = gameResourceClasses();
+        assertTrue(classes.size() > 1,
+                "玩家接口应已按路径前缀拆成多个资源类，实际只发现: " + classes);
     }
 
     @Test
@@ -113,24 +124,56 @@ class ModuleGateCoverageTest {
         return names;
     }
 
-    private static Set<String> gameResourceFirstSegments() throws IOException {
-        Path source = Paths.get("src/main/java/com/mtxgdn/rest/GameResource.java");
-        assertTrue(Files.exists(source), "找不到 GameResource.java: " + source.toAbsolutePath());
-        String code = Files.readString(source, StandardCharsets.UTF_8);
-
+    /**
+     * 反射收集玩家侧所有 {@code /game/xxx} 路径的一级分段。
+     *
+     * <p>{@code UnifiedRestResource} 被排除：它是 Command 路由的动态分发器，
+     * 方法级路径是 {@code {path:.*}} 这种兜底模板，本身不对应任何具体玩法接口。</p>
+     */
+    private static Set<String> gameResourceFirstSegments() {
         Set<String> segments = new TreeSet<>();
-        Matcher m = PATH_ANNOTATION.matcher(code);
-        while (m.find()) {
-            String value = m.group(1);
-            if (!value.startsWith("/")) {
-                continue;
+        for (Class<?> cls : gameResourceClasses()) {
+            for (Method method : cls.getDeclaredMethods()) {
+                Path path = method.getAnnotation(Path.class);
+                if (path == null) {
+                    continue;
+                }
+                String value = path.value();
+                if (!value.startsWith("/")) {
+                    continue;
+                }
+                String[] parts = value.split("/");
+                if (parts.length < 2 || parts[1].isEmpty()) {
+                    continue;
+                }
+                segments.add(parts[1]);
             }
-            String[] parts = value.split("/");
-            if (parts.length < 2 || parts[1].isEmpty()) {
-                continue;
-            }
-            segments.add(parts[1]);
         }
         return segments;
+    }
+
+    /**
+     * {@code com.mtxgdn.rest} 包里类级 {@code @Path} 以 {@code /game} 开头的显式端点资源类。
+     *
+     * <p>只统计顶层类：{@code ResourceConfig.packages(...)} 扫的是 classpath，测试自己在
+     * 同包里定义的嵌套替身也会被扫到，不能把它们当成被测资源类。</p>
+     */
+    private static List<Class<?>> gameResourceClasses() {
+        List<Class<?>> result = new ArrayList<>();
+        ResourceConfig config = new ResourceConfig().packages("com.mtxgdn.rest");
+        for (Class<?> cls : config.getClasses()) {
+            if (cls.getEnclosingClass() != null) {
+                continue;
+            }
+            Path path = cls.getAnnotation(Path.class);
+            if (path == null || !path.value().startsWith("/game")) {
+                continue;
+            }
+            if ("UnifiedRestResource".equals(cls.getSimpleName())) {
+                continue;
+            }
+            result.add(cls);
+        }
+        return result;
     }
 }

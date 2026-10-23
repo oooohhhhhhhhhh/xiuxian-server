@@ -14,7 +14,7 @@ import java.util.Map;
 /**
  * 内置玩法模块的 HTTP 接口门控。
  * <p>
- * 内置插件被 WebUI「插件管理」页停用后，其 REST 接口（GameResource 显式路径
+ * 内置插件被 WebUI「插件管理」页停用后，其 REST 接口（玩家侧的显式资源类
  * 与 UnifiedRestResource 派发的 Command 路由，均在 /game/ 路径空间下）仍可被调用。
  * 本过滤器按路径首段把请求映射到所属内置模块，模块已停用时直接返回 403。
  * <p>
@@ -82,7 +82,10 @@ public class ModuleGateFilter implements ContainerRequestFilter {
      * <p>这张表是"手写的第二份真相"：新增一个 /game/xxx 接口时如果忘了在这里登记，
      * 该接口就<b>永远不会</b>被模块开关拦住 —— 停用玩法后它照样能用，而且没有任何报错。
      * 所以需要一个测试把"表里的模块名必须真实存在"和
-     * "GameResource 里的 /game/xxx 必须被登记"这两件事钉死。</p>
+     * "玩家侧每个 /game/xxx 必须被登记"这两件事钉死。</p>
+     *
+     * <p>这张表按 <b>URL 一级分段</b>匹配，与资源类怎么划分无关：玩家接口从
+     * {@code GameResource} 拆成多个 {@code Game*Resource} 之后，本表一个字都不用改。</p>
      */
     static Map<String, String> moduleByFirstSegment() {
         return MODULE_BY_FIRST_SEGMENT;
