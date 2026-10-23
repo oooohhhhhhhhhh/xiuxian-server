@@ -1,11 +1,10 @@
 package com.mtxgdn.game.service;
 
-import com.mtxgdn.db.DatabaseManager;
+import com.mtxgdn.db.PlayerDAO;
 import com.mtxgdn.entity.Player;
 import com.mtxgdn.game.config.GameConfigLoader;
 import com.mtxgdn.game.config.NewbieRewardConfig;
 import com.mtxgdn.game.entity.PlayerInfo;
-import com.mtxgdn.game.entity.RealmConfig;
 import com.mtxgdn.game.entity.SpiritualRoot;
 import com.mtxgdn.game.entity.Title;
 import com.mtxgdn.game.title.TitleRegistry;
@@ -14,10 +13,7 @@ import com.mtxgdn.common.service.ServiceRegistry;
 import com.mtxgdn.util.GameLogger;
 
 import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -26,9 +22,29 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import com.mtxgdn.i18n.I18n;
 
+/**
+ * 角色（{@code players}）相关的业务逻辑。
+ *
+ * <p><b>本类不写 JDBC</b>：所有 {@code players} 表的读写（含方言差异、行→实体映射、
+ * 级联删除的事务）都在 {@link PlayerDAO} 里。这里只剩三类东西 ——</p>
+ * <ul>
+ *   <li><b>计算</b>：修炼/经验/称号/凝实/强化的加成，以及战力属性汇总；</li>
+ *   <li><b>校验与组装</b>：闭关前置条件、疗伤扣灵石、新手礼包、返回值 Map；</li>
+ *   <li><b>转调其它服务</b>：{@code ItemService}、{@code BuffService}、
+ *       {@code TechniqueService}、{@code FormationService}、{@code MapService}…</li>
+ * </ul>
+ *
+ * <p>需要"在事务里读写角色"的调用方（{@code RealmService}、{@code BuffService}、
+ * {@code TradeService} 等）继续用本类那些收 {@link Connection} 的重载 ——
+ * 它们把连接原样交给 {@link PlayerDAO}，绝不会在事务里另开连接
+ * （SQLite 下那会抛 {@code SQLITE_BUSY_SNAPSHOT} 或读到旧快照）。</p>
+ */
 public class PlayerService {
 
     private static final GameLogger LOG = GameLogger.getLogger(PlayerService.class);
+
+    /** {@code players} 表的读写入口（无状态，可安全共享）。 */
+    private static final PlayerDAO PLAYER_DAO = new PlayerDAO();
 
     private static final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
 
@@ -43,21 +59,11 @@ public class PlayerService {
     }
 
     public PlayerInfo getPlayerByUserId(long userId) {
-        String sql = "SELECT * FROM players WHERE user_id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, userId);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    PlayerInfo info = mapPlayerInfo(rs);
-                    touchActive(info.getId(), info.getLastActiveTime());
-                    return info;
-                }
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("获取玩家信息失败", e);
+        PlayerInfo info = PLAYER_DAO.findInfoByUserId(userId);
+        if (info != null) {
+            touchActive(info.getId(), info.getLastActiveTime());
         }
-        return null;
+        return info;
     }
 
     /**
@@ -68,21 +74,11 @@ public class PlayerService {
      * playerId，应使用本方法。</p>
      */
     public Player getPlayerById(long playerId) {
-        String sql = "SELECT * FROM players WHERE id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    Player player = mapPlayer(rs);
-                    touchActive(player.getId(), player.getLastActiveTime());
-                    return player;
-                }
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("获取玩家信息失败", e);
+        Player player = PLAYER_DAO.findById(playerId);
+        if (player != null) {
+            touchActive(player.getId(), player.getLastActiveTime());
         }
-        return null;
+        return player;
     }
 
     /**
@@ -93,21 +89,11 @@ public class PlayerService {
      * 与 {@link #getPlayerByUserId(long)} 同样会在读取时顺手刷新活跃时间。</p>
      */
     public PlayerInfo getPlayerInfoById(long playerId) {
-        String sql = "SELECT * FROM players WHERE id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    PlayerInfo info = mapPlayerInfo(rs);
-                    touchActive(info.getId(), info.getLastActiveTime());
-                    return info;
-                }
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("获取玩家信息失败", e);
+        PlayerInfo info = PLAYER_DAO.findInfoById(playerId);
+        if (info != null) {
+            touchActive(info.getId(), info.getLastActiveTime());
         }
-        return null;
+        return info;
     }
 
     /**
@@ -123,15 +109,7 @@ public class PlayerService {
         if (language == null) {
             language = "";
         }
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(
-                     "UPDATE players SET lang = ? WHERE id = ?")) {
-            ps.setString(1, language);
-            ps.setLong(2, playerId);
-            return ps.executeUpdate() > 0;
-        } catch (SQLException e) {
-            throw new RuntimeException("更新界面语言失败", e);
-        }
+        return PLAYER_DAO.updateLanguage(playerId, language);
     }
 
     /**
@@ -159,14 +137,7 @@ public class PlayerService {
         if (lastActiveTime > 0 && now - lastActiveTime < ACTIVE_TOUCH_INTERVAL_MS) {
             return;
         }
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement("UPDATE players SET last_active_time = ? WHERE id = ?")) {
-            ps.setLong(1, now);
-            ps.setLong(2, playerId);
-            ps.executeUpdate();
-        } catch (SQLException ignored) {
-            // 活跃时间只用于弃坑判定，写失败不应阻断任何玩法
-        }
+        PLAYER_DAO.touchActiveTime(playerId, now);
     }
 
     /**
@@ -186,19 +157,7 @@ public class PlayerService {
      * @see #getPlayerById(long) 按角色 ID 取玩家
      */
     public Player getPlayerByUserIdRaw(long userId) {
-        String sql = "SELECT * FROM players WHERE user_id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, userId);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    return mapPlayer(rs);
-                }
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("获取玩家信息失败", e);
-        }
-        return null;
+        return PLAYER_DAO.findByUserId(userId);
     }
 
     /** V10：角色名长度上限（与 TextSanitizer.sanitizePlayerName 及各通道校验保持一致）。 */
@@ -229,57 +188,31 @@ public class PlayerService {
         // V10：统一净化 + 长度限制，防止超长名导致 DB 异常或写入危险字符
         String safeName = normalizePlayerName(name);
         SpiritualRoot root = SpiritualRoot.drawRandom(new java.util.Random());
-        String sql = """
-            INSERT INTO players (user_id, name, spiritual_root, level, experience, realm, sub_realm,
-                hp, max_hp, mp, max_mp, attack, defense, speed, spirit,
-                gold, cultivation_progress, is_cultivating, cultivation_start_time, last_secret_realm_time, last_exploration_time, tutorial_step, tutorial_tips, current_location_id)
-            VALUES (?, ?, ?, 1, 0, 0, 0, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, 0, 0, 1, 0, 1)
-            """;
-        long playerId = -1;
-        try (Connection conn = DatabaseManager.getConnection()) {
-            try (PreparedStatement ps = conn.prepareStatement(sql, PreparedStatement.RETURN_GENERATED_KEYS)) {
-                ps.setLong(1, userId);
-                ps.setString(2, safeName);
-                ps.setString(3, root.name());
-                ps.setInt(4, root.applyHpBonus(100));
-                ps.setInt(5, root.applyHpBonus(100));
-                ps.setInt(6, root.applyMpBonus(50));
-                ps.setInt(7, root.applyMpBonus(50));
-                ps.setInt(8, root.applyAttackBonus(10));
-                ps.setInt(9, root.applyDefenseBonus(5));
-                ps.setInt(10, root.applySpeedBonus(5));
-                ps.setInt(11, root.applySpiritBonus(5));
-                ps.executeUpdate();
-                try (ResultSet rs = ps.getGeneratedKeys()) {
-                    if (rs.next()) {
-                        playerId = rs.getLong(1);
-                    }
-                }
-            }
-
+        // 新手礼包与插入共用同一个连接：回调里拿到的就是插入所用的那条连接
+        long playerId = PLAYER_DAO.insertPlayer(userId, safeName, root, (conn, newPlayerId) -> {
             NewbieRewardConfig rewardConfig = GameConfigLoader.getNewbieRewardConfig();
             if (rewardConfig.isEnabled()) {
                 ItemService itemService = ServiceRegistry.getItemService();
 
                 if (rewardConfig.getGoldReward() > 0) {
-                    addGold(conn, playerId, rewardConfig.getGoldReward());
+                    PLAYER_DAO.addGold(conn, newPlayerId, rewardConfig.getGoldReward());
+                    // 与原实现一致：新手金币走的是服务层的 addGold(conn, ...)，它会顺手 markDirty
+                    markDataDirty(newPlayerId);
                 }
 
                 if (rewardConfig.getSpiritStoneReward() > 0) {
-                    itemService.addSpiritStones(conn, playerId, rewardConfig.getSpiritStoneReward(), rewardConfig.getSpiritStoneGrade());
+                    itemService.addSpiritStones(conn, newPlayerId, rewardConfig.getSpiritStoneReward(), rewardConfig.getSpiritStoneGrade());
                 }
 
                 if (rewardConfig.getItems() != null && !rewardConfig.getItems().isEmpty()) {
                     for (NewbieRewardConfig.RewardItem item : rewardConfig.getItems()) {
                         if (item.getItemKey() != null && !item.getItemKey().isBlank() && item.getQuantity() > 0) {
-                            itemService.addItem(conn, playerId, item.getItemKey(), item.getQuantity());
+                            itemService.addItem(conn, newPlayerId, item.getItemKey(), item.getQuantity());
                         }
                     }
                 }
             }
-        } catch (SQLException e) {
-            throw new RuntimeException("创建玩家失败: " + e.getMessage(), e);
-        }
+        });
         PlayerInfo created = getPlayerByUserId(userId);
         // 新玩家自动获得「初入仙途」称号
         if (created != null) {
@@ -301,46 +234,7 @@ public class PlayerService {
     }
 
     public void updatePlayer(long playerId, Player player) {
-        String sql = """
-            UPDATE players SET level = ?, experience = ?, realm = ?, sub_realm = ?,
-                hp = ?, max_hp = ?, mp = ?, max_mp = ?, attack = ?, defense = ?,
-                speed = ?, spirit = ?, gold = ?,
-                cultivation_progress = ?, is_cultivating = ?, cultivation_start_time = ?,
-                last_secret_realm_time = ?, last_exploration_time = ?, last_offline_time = ?,
-                last_breakthrough_time = ?, last_active_time = ?,
-                breakthrough_pity = ?, consolidation = ?
-            WHERE id = ?
-            """;
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, player.getLevel());
-            ps.setLong(2, player.getExperience());
-            ps.setInt(3, player.getRealm());
-            ps.setInt(4, player.getSubRealm());
-            ps.setInt(5, player.getHp());
-            ps.setInt(6, player.getMaxHp());
-            ps.setInt(7, player.getMp());
-            ps.setInt(8, player.getMaxMp());
-            ps.setInt(9, player.getAttack());
-            ps.setInt(10, player.getDefense());
-            ps.setInt(11, player.getSpeed());
-            ps.setInt(12, player.getSpirit());
-            ps.setLong(13, player.getGold());
-            ps.setInt(14, player.getCultivationProgress());
-            ps.setBoolean(15, player.isCultivating());
-            ps.setLong(16, player.getCultivationStartTime());
-            ps.setLong(17, player.getLastSecretRealmTime());
-            ps.setLong(18, player.getLastExplorationTime());
-            ps.setLong(19, player.getLastOfflineTime());
-            ps.setLong(20, player.getLastBreakthroughTime());
-            ps.setLong(21, System.currentTimeMillis()); // last_active_time：落库本身就是一次活跃信号
-            ps.setInt(22, player.getBreakthroughPity());
-            ps.setInt(23, player.getConsolidation());
-            ps.setLong(24, playerId);
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("更新玩家失败", e);
-        }
+        PLAYER_DAO.savePlayer(playerId, player);
         markDataDirty(playerId);
     }
 
@@ -357,30 +251,25 @@ public class PlayerService {
         } catch (IllegalArgumentException e) {
             return false;
         }
-        String sql = "UPDATE players SET name = ? WHERE id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, safeName);
-            ps.setLong(2, playerId);
-            int affected = ps.executeUpdate();
-            if (affected > 0) {
-                markDataDirty(playerId);
-            }
-            return affected > 0;
-        } catch (SQLException e) {
-            throw new RuntimeException("修改玩家名称失败", e);
+        boolean updated = PLAYER_DAO.updateName(playerId, safeName);
+        if (updated) {
+            markDataDirty(playerId);
         }
+        return updated;
     }
 
     public void addExperience(long playerId, long exp) {
-        try (Connection conn = DatabaseManager.getConnection()) {
-            addExperience(conn, playerId, exp);
-        } catch (SQLException e) {
-            throw new RuntimeException("增加经验失败", e);
-        }
+        PLAYER_DAO.addExperience(playerId, experienceGain(playerId, exp));
+        markDataDirty(playerId);
     }
 
     public void addExperience(Connection conn, long playerId, long exp) throws SQLException {
+        PLAYER_DAO.addExperience(conn, playerId, experienceGain(playerId, exp));
+        markDataDirty(playerId);
+    }
+
+    /** 经验加成结算（称号 + 功法 + 经验翻倍丹等 Buff），只算数、不落库。 */
+    private long experienceGain(long playerId, long exp) {
         Player player = getPlayerById(playerId);
         if (player != null) {
             exp = (long) (exp * getFinalExpBonus(player));
@@ -390,25 +279,11 @@ public class PlayerService {
                 exp = (long) (exp * buffMult);
             }
         }
-        String sql = "UPDATE players SET experience = experience + ? WHERE id = ?";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, exp);
-            ps.setLong(2, playerId);
-            ps.executeUpdate();
-        }
-        markDataDirty(playerId);
+        return exp;
     }
 
     public void updateCultivationProgress(long playerId, int progress) {
-        String sql = "UPDATE players SET cultivation_progress = ? WHERE id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, progress);
-            ps.setLong(2, playerId);
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("更新修炼进度失败", e);
-        }
+        PLAYER_DAO.updateCultivationProgress(playerId, progress);
     }
 
     public void setCultivating(long playerId, boolean cultivating) {
@@ -570,16 +445,7 @@ public class PlayerService {
     }
 
     public void startCultivation(long playerId, long startTime) {
-        String sql = "UPDATE players SET is_cultivating = ?, cultivation_start_time = ?, last_offline_time = 0 WHERE id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setBoolean(1, true);
-            ps.setLong(2, startTime);
-            ps.setLong(3, playerId);
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("更新修炼状态失败", e);
-        }
+        PLAYER_DAO.startCultivation(playerId, startTime);
         markDataDirty(playerId);
     }
 
@@ -588,73 +454,27 @@ public class PlayerService {
      * 并发调用下只有第一个请求成功，防止闭关结算被重复发放经验。
      */
     public boolean stopCultivation(long playerId) {
-        String sql = "UPDATE players SET is_cultivating = ?, cultivation_start_time = 0 WHERE id = ? AND is_cultivating = 1";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setBoolean(1, false);
-            ps.setLong(2, playerId);
-            boolean claimed = ps.executeUpdate() > 0;
-            if (claimed) {
-                markDataDirty(playerId);
-            }
-            return claimed;
-        } catch (SQLException e) {
-            throw new RuntimeException("更新修炼状态失败", e);
+        boolean claimed = PLAYER_DAO.stopCultivation(playerId);
+        if (claimed) {
+            markDataDirty(playerId);
         }
+        return claimed;
     }
 
     public void setTutorialStep(long playerId, int step) {
-        String sql = "UPDATE players SET tutorial_step = ? WHERE id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, step);
-            ps.setLong(2, playerId);
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("更新引导步骤失败", e);
-        }
+        PLAYER_DAO.updateTutorialStep(playerId, step);
     }
 
     public void setTutorialTips(long playerId, int tips) {
-        String sql = "UPDATE players SET tutorial_tips = ? WHERE id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, tips);
-            ps.setLong(2, playerId);
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("更新引导提示标记失败", e);
-        }
+        PLAYER_DAO.updateTutorialTips(playerId, tips);
     }
 
     public boolean existsByUserId(long userId) {
-        String sql = "SELECT COUNT(*) FROM players WHERE user_id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, userId);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    return rs.getInt(1) > 0;
-                }
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("检查玩家存在失败", e);
-        }
-        return false;
+        return PLAYER_DAO.existsByUserId(userId);
     }
 
     public void addHp(long playerId, int amount) {
-        String sql = DatabaseManager.isSqlite()
-                ? "UPDATE players SET hp = MIN(hp + ?, max_hp) WHERE id = ?"
-                : "UPDATE players SET hp = LEAST(hp + ?, max_hp) WHERE id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, amount);
-            ps.setLong(2, playerId);
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("恢复生命值失败", e);
-        }
+        PLAYER_DAO.addHp(playerId, amount);
         markDataDirty(playerId);
     }
 
@@ -679,18 +499,7 @@ public class PlayerService {
             return;
         }
         int minHp = Math.max(0, floor);
-        String sql = DatabaseManager.isSqlite()
-                ? "UPDATE players SET hp = MAX(?, hp - ?) WHERE id = ?"
-                : "UPDATE players SET hp = GREATEST(?, hp - ?) WHERE id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, minHp);
-            ps.setInt(2, amount);
-            ps.setLong(3, playerId);
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("扣除生命值失败", e);
-        }
+        PLAYER_DAO.damageHp(playerId, amount, minHp);
         markDataDirty(playerId);
     }
 
@@ -726,14 +535,7 @@ public class PlayerService {
         }
 
         int hpBefore = player.getHp();
-        String sql = "UPDATE players SET hp = max_hp, mp = max_mp WHERE id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("疗伤失败", e);
-        }
+        PLAYER_DAO.restoreFullVitals(playerId);
 
         result.put("success", true);
         result.put("hpBefore", hpBefore);
@@ -744,35 +546,17 @@ public class PlayerService {
     }
 
     public void addMp(long playerId, int amount) {
-        String sql = DatabaseManager.isSqlite()
-                ? "UPDATE players SET mp = MIN(mp + ?, max_mp) WHERE id = ?"
-                : "UPDATE players SET mp = LEAST(mp + ?, max_mp) WHERE id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, amount);
-            ps.setLong(2, playerId);
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("恢复法力失败", e);
-        }
+        PLAYER_DAO.addMp(playerId, amount);
         markDataDirty(playerId);
     }
 
     public void addGold(long playerId, long amount) {
-        try (Connection conn = DatabaseManager.getConnection()) {
-            addGold(conn, playerId, amount);
-        } catch (SQLException e) {
-            throw new RuntimeException("增加金币失败", e);
-        }
+        PLAYER_DAO.addGold(playerId, amount);
+        markDataDirty(playerId);
     }
 
     public void addGold(Connection conn, long playerId, long amount) throws SQLException {
-        String sql = "UPDATE players SET gold = gold + ? WHERE id = ?";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, amount);
-            ps.setLong(2, playerId);
-            ps.executeUpdate();
-        }
+        PLAYER_DAO.addGold(conn, playerId, amount);
         markDataDirty(playerId);
     }
 
@@ -809,20 +593,12 @@ public class PlayerService {
     }
 
     private void addStat(long playerId, String column, int amount, String operationName) {
-        try (Connection conn = DatabaseManager.getConnection()) {
-            addStat(conn, playerId, column, amount);
-        } catch (SQLException e) {
-            throw new RuntimeException(operationName + "失败", e);
-        }
+        PLAYER_DAO.addStat(playerId, column, amount, operationName);
+        markDataDirty(playerId);
     }
 
     private void addStat(Connection conn, long playerId, String column, int amount) throws SQLException {
-        String sql = "UPDATE players SET " + column + " = " + column + " + ? WHERE id = ?";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, amount);
-            ps.setLong(2, playerId);
-            ps.executeUpdate();
-        }
+        PLAYER_DAO.addStat(conn, playerId, column, amount);
         markDataDirty(playerId);
     }
 
@@ -831,76 +607,24 @@ public class PlayerService {
         if (player == null) {
             throw new RuntimeException("玩家不存在: " + playerId);
         }
-
-        int baseHp = 100, baseMp = 50, baseAtk = 10, baseDef = 5, baseSpd = 5, baseSpi = 5;
-        String sql = DatabaseManager.isSqlite()
-                ? "UPDATE players SET spiritual_root = ?, max_hp = ?, hp = MIN(hp, ?), max_mp = ?, mp = MIN(mp, ?), attack = ?, defense = ?, speed = ?, spirit = ? WHERE id = ?"
-                : "UPDATE players SET spiritual_root = ?, max_hp = ?, hp = LEAST(hp, ?), max_mp = ?, mp = LEAST(mp, ?), attack = ?, defense = ?, speed = ?, spirit = ? WHERE id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, newRoot.name());
-            ps.setInt(2, newRoot.applyHpBonus(baseHp));
-            ps.setInt(3, newRoot.applyHpBonus(baseHp));
-            ps.setInt(4, newRoot.applyMpBonus(baseMp));
-            ps.setInt(5, newRoot.applyMpBonus(baseMp));
-            ps.setInt(6, newRoot.applyAttackBonus(baseAtk));
-            ps.setInt(7, newRoot.applyDefenseBonus(baseDef));
-            ps.setInt(8, newRoot.applySpeedBonus(baseSpd));
-            ps.setInt(9, newRoot.applySpiritBonus(baseSpi));
-            ps.setLong(10, playerId);
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("更新灵根失败", e);
-        }
+        PLAYER_DAO.updateSpiritualRoot(playerId, newRoot);
         markDataDirty(playerId);
     }
 
     public void updateLastSecretRealmTime(long playerId, long lastSecretRealmTime) {
-        String sql = "UPDATE players SET last_secret_realm_time = ? WHERE id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, lastSecretRealmTime);
-            ps.setLong(2, playerId);
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("更新秘境时间失败", e);
-        }
+        PLAYER_DAO.updateLastSecretRealmTime(playerId, lastSecretRealmTime);
     }
 
     public void updateLastExplorationTime(long playerId, long lastExplorationTime) {
-        String sql = "UPDATE players SET last_exploration_time = ? WHERE id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, lastExplorationTime);
-            ps.setLong(2, playerId);
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("更新游历时间失败", e);
-        }
+        PLAYER_DAO.updateLastExplorationTime(playerId, lastExplorationTime);
     }
 
     public void updateBattleStrategy(long playerId, String strategy) {
-        String sql = "UPDATE players SET battle_strategy = ? WHERE id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, strategy);
-            ps.setLong(2, playerId);
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("更新战斗策略失败", e);
-        }
+        PLAYER_DAO.updateBattleStrategy(playerId, strategy);
     }
 
     public void updateLastOfflineTime(long playerId, long lastOfflineTime) {
-        String sql = "UPDATE players SET last_offline_time = ? WHERE id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, lastOfflineTime);
-            ps.setLong(2, playerId);
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("更新离线时间失败", e);
-        }
+        PLAYER_DAO.updateLastOfflineTime(playerId, lastOfflineTime);
     }
 
     /**
@@ -908,15 +632,7 @@ public class PlayerService {
      * 并发下只有第一个请求能认领成功，防止离线收益被重复发放。
      */
     public boolean claimOfflineTime(long playerId, long expectedLastOfflineTime) {
-        String sql = "UPDATE players SET last_offline_time = 0 WHERE id = ? AND last_offline_time = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            ps.setLong(2, expectedLastOfflineTime);
-            return ps.executeUpdate() > 0;
-        } catch (SQLException e) {
-            throw new RuntimeException("认领离线时间失败", e);
-        }
+        return PLAYER_DAO.claimOfflineTime(playerId, expectedLastOfflineTime);
     }
 
     // ==================== 玩法计数（称号获取） ====================
@@ -934,243 +650,43 @@ public class PlayerService {
     }
 
     private void updateCounter(long playerId, String column) {
-        String sql = "UPDATE players SET " + column + " = " + column + " + 1 WHERE id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("更新玩法计数失败: " + column, e);
-        }
+        PLAYER_DAO.incrementCounter(playerId, column);
     }
 
     public List<PlayerInfo> getAllPlayers(int limit, int offset) {
-        String sql = "SELECT * FROM players ORDER BY level DESC, experience DESC LIMIT ? OFFSET ?";
-        List<PlayerInfo> players = new ArrayList<>();
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, limit);
-            ps.setInt(2, offset);
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    players.add(mapPlayerInfo(rs));
-                }
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("获取玩家列表失败", e);
-        }
-        return players;
+        return PLAYER_DAO.findAll(limit, offset);
     }
 
     public List<PlayerInfo> searchPlayersByName(String name, int limit, int offset) {
-        String sql = "SELECT * FROM players WHERE name LIKE ? ORDER BY level DESC, experience DESC LIMIT ? OFFSET ?";
-        List<PlayerInfo> players = new ArrayList<>();
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, "%" + name + "%");
-            ps.setInt(2, limit);
-            ps.setInt(3, offset);
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    players.add(mapPlayerInfo(rs));
-                }
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("搜索玩家失败", e);
-        }
-        return players;
+        return PLAYER_DAO.searchByName(name, limit, offset);
     }
 
     public int getPlayerCount() {
-        String sql = "SELECT COUNT(*) FROM players";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql);
-             ResultSet rs = ps.executeQuery()) {
-            if (rs.next()) {
-                return rs.getInt(1);
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("获取玩家数量失败", e);
-        }
-        return 0;
+        return PLAYER_DAO.countPlayers();
     }
 
     public int getUserCount() {
-        String sql = "SELECT COUNT(*) FROM users";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql);
-             ResultSet rs = ps.executeQuery()) {
-            if (rs.next()) {
-                return rs.getInt(1);
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("获取用户数量失败", e);
-        }
-        return 0;
+        return PLAYER_DAO.countUserAccounts();
     }
 
     public List<PlayerInfo> getTopByRealm(int limit) {
-        String sql = "SELECT * FROM players ORDER BY realm DESC, experience DESC LIMIT ?";
-        return queryPlayerInfoList(sql, limit);
+        return PLAYER_DAO.findTopByRealm(limit);
     }
 
     public List<PlayerInfo> getTopByPower(int limit) {
-        String sql = "SELECT * FROM players ORDER BY (attack + defense + speed + max_hp) DESC LIMIT ?";
-        return queryPlayerInfoList(sql, limit);
+        return PLAYER_DAO.findTopByPower(limit);
     }
 
     public List<PlayerInfo> getTopByWealth(int limit) {
-        String sql = """
-            SELECT p.*, COALESCE(SUM(CASE
-                WHEN pi.item_key = 'mtxgdn:spirit_stone_low' THEN pi.quantity
-                WHEN pi.item_key = 'mtxgdn:spirit_stone_mid' THEN pi.quantity * 1000
-                WHEN pi.item_key = 'mtxgdn:spirit_stone_high' THEN pi.quantity * 1000000
-                WHEN pi.item_key = 'mtxgdn:spirit_stone_supreme' THEN pi.quantity * 1000000000
-                WHEN pi.item_key = 'mtxgdn:spirit_stone' THEN pi.quantity
-                ELSE 0 END), 0) AS spirit_stones
-            FROM players p
-            LEFT JOIN players_items pi ON p.id = pi.player_id
-            GROUP BY p.id
-            ORDER BY (p.gold + COALESCE(SUM(CASE
-                WHEN pi.item_key = 'mtxgdn:spirit_stone_low' THEN pi.quantity
-                WHEN pi.item_key = 'mtxgdn:spirit_stone_mid' THEN pi.quantity * 1000
-                WHEN pi.item_key = 'mtxgdn:spirit_stone_high' THEN pi.quantity * 1000000
-                WHEN pi.item_key = 'mtxgdn:spirit_stone_supreme' THEN pi.quantity * 1000000000
-                WHEN pi.item_key = 'mtxgdn:spirit_stone' THEN pi.quantity
-                ELSE 0 END), 0)) DESC
-            LIMIT ?
-            """;
-        List<PlayerInfo> players = new ArrayList<>();
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, limit);
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    players.add(mapPlayerInfo(rs));
-                }
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("获取财富榜失败", e);
-        }
-        return players;
-    }
-
-    private List<PlayerInfo> queryPlayerInfoList(String sql, int limit) {
-        List<PlayerInfo> players = new ArrayList<>();
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, limit);
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    players.add(mapPlayerInfo(rs));
-                }
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("查询玩家列表失败", e);
-        }
-        return players;
-    }
-
-    private PlayerInfo mapPlayerInfo(ResultSet rs) throws SQLException {
-        PlayerInfo pi = new PlayerInfo();
-        pi.setId(rs.getLong("id"));
-        pi.setUserId(rs.getLong("user_id"));
-        pi.setName(rs.getString("name"));
-        pi.setSpiritualRoot(safeParseSpiritualRoot(rs.getString("spiritual_root")));
-        pi.setLevel(rs.getInt("level"));
-        pi.setExperience(rs.getLong("experience"));
-        pi.setRealm(rs.getInt("realm"));
-        pi.setSubRealm(rs.getInt("sub_realm"));
-        pi.setHp(rs.getInt("hp"));
-        pi.setMaxHp(rs.getInt("max_hp"));
-        pi.setMp(rs.getInt("mp"));
-        pi.setMaxMp(rs.getInt("max_mp"));
-        pi.setAttack(rs.getInt("attack"));
-        pi.setDefense(rs.getInt("defense"));
-        pi.setSpeed(rs.getInt("speed"));
-        pi.setSpirit(rs.getInt("spirit"));
-        pi.setGold(rs.getLong("gold"));
-        pi.setCultivationProgress(rs.getInt("cultivation_progress"));
-        pi.setCultivating(rs.getBoolean("is_cultivating"));
-        pi.setCultivationStartTime(rs.getLong("cultivation_start_time"));
-        pi.setLastSecretRealmTime(rs.getLong("last_secret_realm_time"));
-        pi.setLastExplorationTime(rs.getLong("last_exploration_time"));
-        pi.setTutorialStep(rs.getInt("tutorial_step"));
-        pi.setTutorialTips(rs.getInt("tutorial_tips"));
-        pi.setLastOfflineTime(rs.getLong("last_offline_time"));
-        try { pi.setLastActiveTime(rs.getLong("last_active_time")); } catch (Exception ignored) {}
-        try { pi.setBreakthroughPity(rs.getInt("breakthrough_pity")); } catch (Exception ignored) {}
-        try { pi.setConsolidation(rs.getInt("consolidation")); } catch (Exception ignored) {}
-        // 老库迁移后该列是空串：getString 返回 "" 而不是 null，与"未设置"等价。
-        try { pi.setLanguage(rs.getString("lang")); } catch (Exception ignored) {}
-        pi.setCreatedAt(rs.getString("created_at"));
-        pi.setUpdatedAt(rs.getString("updated_at"));
-
-        RealmConfig realmConfig = GameConfigLoader.getRealmConfig(pi.getRealm(), pi.getSubRealm());
-        if (realmConfig != null) {
-            pi.setRealmName(realmConfig.getFullName());
-        }
-
-        return pi;
-    }
-
-    private Player mapPlayer(ResultSet rs) throws SQLException {
-        Player p = new Player();
-        p.setId(rs.getLong("id"));
-        p.setUserId(rs.getLong("user_id"));
-        p.setName(rs.getString("name"));
-        p.setSpiritualRoot(safeParseSpiritualRoot(rs.getString("spiritual_root")));
-        p.setLevel(rs.getInt("level"));
-        p.setExperience(rs.getLong("experience"));
-        p.setRealm(rs.getInt("realm"));
-        p.setSubRealm(rs.getInt("sub_realm"));
-        p.setHp(rs.getInt("hp"));
-        p.setMaxHp(rs.getInt("max_hp"));
-        p.setMp(rs.getInt("mp"));
-        p.setMaxMp(rs.getInt("max_mp"));
-        p.setAttack(rs.getInt("attack"));
-        p.setDefense(rs.getInt("defense"));
-        p.setSpeed(rs.getInt("speed"));
-        p.setSpirit(rs.getInt("spirit"));
-        p.setGold(rs.getLong("gold"));
-        p.setCultivationProgress(rs.getInt("cultivation_progress"));
-        p.setCultivating(rs.getBoolean("is_cultivating"));
-        p.setCultivationStartTime(rs.getLong("cultivation_start_time"));
-        p.setLastSecretRealmTime(rs.getLong("last_secret_realm_time"));
-        p.setLastExplorationTime(rs.getLong("last_exploration_time"));
-        p.setTutorialStep(rs.getInt("tutorial_step"));
-        p.setTutorialTips(rs.getInt("tutorial_tips"));
-        p.setLastOfflineTime(rs.getLong("last_offline_time"));
-        try { p.setLastActiveTime(rs.getLong("last_active_time")); } catch (Exception ignored) {}
-        try { p.setBattleStrategy(rs.getString("battle_strategy")); } catch (Exception ignored) {}
-        try { p.setCurrentLocationId(rs.getLong("current_location_id")); } catch (Exception ignored) {}
-        try { p.setLastTravelTime(rs.getLong("last_travel_time")); } catch (Exception ignored) {}
-        try { p.setLastBreakthroughTime(rs.getLong("last_breakthrough_time")); } catch (Exception ignored) {}
-        try { p.setBreakthroughPity(rs.getInt("breakthrough_pity")); } catch (Exception ignored) {}
-        try { p.setConsolidation(rs.getInt("consolidation")); } catch (Exception ignored) {}
-        try { p.setSecretRealmCount(rs.getInt("secret_realm_count")); } catch (Exception ignored) {}
-        try { p.setPvpWins(rs.getInt("pvp_wins")); } catch (Exception ignored) {}
-        try { p.setCraftCount(rs.getInt("craft_count")); } catch (Exception ignored) {}
-        p.setCreatedAt(rs.getString("created_at"));
-        p.setUpdatedAt(rs.getString("updated_at"));
-        return p;
+        return PLAYER_DAO.findTopByWealth(limit);
     }
 
     private Title getEquippedTitle(long playerId) {
-        String sql = "SELECT title_key FROM player_titles WHERE player_id = ? AND is_equipped = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            ps.setBoolean(2, true);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    return TitleRegistry.get(rs.getString("title_key"));
-                }
-            }
-        } catch (SQLException e) {
-            LOG.error("查询玩家称号失败", e);
+        String titleKey = PLAYER_DAO.findEquippedTitleKey(playerId);
+        if (titleKey == null) {
+            return null;
         }
-        return null;
+        return TitleRegistry.get(titleKey);
     }
 
     public int getFinalAttack(Player player) {
@@ -1236,25 +752,14 @@ public class PlayerService {
      *
      * <p>耐久归零（损坏）的装备不提供强化加成 —— 否则"装备坏了但强化还在"，
      * 修理就没有必要了。耐久表没有记录 = 从未磨损 = 满耐久，按生效处理。</p>
+     *
+     * <p>查询强化等级失败不阻断战斗（DAO 记日志并返回空列表），与原实现一致。</p>
      */
     private int[] getEnhanceBonus(long playerId) {
         int[] total = {0, 0, 0, 0};
-        String sql = "SELECT e.enhance_level FROM players_equipment e "
-                + "LEFT JOIN player_item_durability d ON d.player_id = e.player_id AND d.item_key = e.item_key "
-                + "WHERE e.player_id = ? AND e.enhance_level > 0 AND (d.durability IS NULL OR d.durability > 0)";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    int[] bonus = com.mtxgdn.game.service.EnhanceService.getEnhanceStatBonus(rs.getInt("enhance_level"));
-                    for (int i = 0; i < 4; i++) total[i] += bonus[i];
-                }
-            }
-        } catch (SQLException e) {
-            // 查询强化加成失败不阻断战斗，记录日志
-            java.util.logging.Logger.getLogger(PlayerService.class.getName())
-                    .warning("查询强化加成失败: " + e.getMessage());
+        for (int enhanceLevel : PLAYER_DAO.findActiveEnhanceLevels(playerId)) {
+            int[] bonus = com.mtxgdn.game.service.EnhanceService.getEnhanceStatBonus(enhanceLevel);
+            for (int i = 0; i < 4; i++) total[i] += bonus[i];
         }
         return total;
     }
@@ -1290,23 +795,12 @@ public class PlayerService {
         return base;
     }
 
+    /**
+     * 灵根字符串 → 枚举。保留本方法的签名（同包内与测试都在用），实现只有一份：
+     * 委托给 {@link PlayerDAO#parseSpiritualRoot(String)}，与"读 {@code players} 行"共用同一套解析。
+     */
     SpiritualRoot safeParseSpiritualRoot(String s) {
-        if (s == null || s.isBlank()) return SpiritualRoot.CHAOS_MIXED;
-        s = s.trim().toUpperCase();
-        return switch (s) {
-            case "METAL" -> SpiritualRoot.TAIYI_GOLDEN;
-            case "WOOD" -> SpiritualRoot.QINGDI_WOOD;
-            case "WATER" -> SpiritualRoot.XUANMING_WATER;
-            case "FIRE" -> SpiritualRoot.LIHUO_FIRE;
-            case "EARTH" -> SpiritualRoot.HOUTU_EARTH;
-            case "WIND" -> SpiritualRoot.XUNFENG_WIND;
-            case "THUNDER" -> SpiritualRoot.JINGLEI_THUNDER;
-            case "ICE" -> SpiritualRoot.XUANBING_ICE;
-            default -> {
-                try { yield SpiritualRoot.valueOf(s); }
-                catch (Exception e) { yield SpiritualRoot.CHAOS_MIXED; }
-            }
-        };
+        return PlayerDAO.parseSpiritualRoot(s);
     }
 
     public boolean deletePlayer(long playerId) {
@@ -1314,137 +808,16 @@ public class PlayerService {
         if (player == null) {
             return false;
         }
-
-        String[] tables = {
-            "players_items", "players_equipment", "players_skills", "players_techniques",
-            "player_daily", "player_economy", "player_bank", "player_titles", "player_energy",
-            "sect_members", "sect_applications", "auction_listings", "auction_bids",
-            "trade_listings", "redeemed_codes", "chat_messages", "player_action_logs"
-        };
-
-        try (Connection conn = DatabaseManager.getConnection()) {
-            conn.setAutoCommit(false);
-            try {
-                // M20 修复：若该玩家是某宗门的最后一名有管理权限成员，先解散宗门并清空仓库。
-                // 必须在删除 sect_members 之前执行，否则无法查出其宗门身份。
-                cleanupOrphanedSect(conn, playerId);
-
-                for (String table : tables) {
-                    String sql = "DELETE FROM " + table + " WHERE player_id = ?";
-                    try (PreparedStatement ps = conn.prepareStatement(sql)) {
-                        ps.setLong(1, playerId);
-                        ps.executeUpdate();
-                    }
-                }
-
-                // S11 修复：friends 表列名是 friend_player_id，不是 friend_id
-                String deleteFriendSql = "DELETE FROM friends WHERE player_id = ? OR friend_player_id = ?";
-                try (PreparedStatement ps = conn.prepareStatement(deleteFriendSql)) {
-                    ps.setLong(1, playerId);
-                    ps.setLong(2, playerId);
-                    ps.executeUpdate();
-                }
-
-                String deletePlayerSql = "DELETE FROM players WHERE id = ?";
-                try (PreparedStatement ps = conn.prepareStatement(deletePlayerSql)) {
-                    ps.setLong(1, playerId);
-                    int affected = ps.executeUpdate();
-                    if (affected == 0) {
-                        conn.rollback();
-                        return false;
-                    }
-                }
-
-                conn.commit();
-                return true;
-            } catch (SQLException e) {
-                conn.rollback();
-                throw new RuntimeException("删除玩家失败", e);
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("删除玩家失败", e);
-        }
-    }
-
-    /**
-     * M20 修复：玩家被删除时，若该玩家是某宗门的最后一名有管理权限成员（宗主/副宗主/长老），
-     * 则解散该宗门并清空宗门仓库、申请、战争记录。必须在同一事务内、且删除 sect_members 之前调用。
-     */
-    private void cleanupOrphanedSect(Connection conn, long playerId) throws SQLException {
-        long sectId = -1;
-        String role = null;
-        String findSql = "SELECT sect_id, role FROM sect_members WHERE player_id = ?";
-        try (PreparedStatement ps = conn.prepareStatement(findSql)) {
-            ps.setLong(1, playerId);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    sectId = rs.getLong("sect_id");
-                    role = rs.getString("role");
-                }
-            }
-        }
-        if (sectId < 0) {
-            return;
-        }
-        boolean isManager = com.mtxgdn.game.entity.SectMember.ROLE_LEADER.equals(role)
-                || com.mtxgdn.game.entity.SectMember.ROLE_VICE_LEADER.equals(role)
-                || com.mtxgdn.game.entity.SectMember.ROLE_ELDER.equals(role);
-        if (!isManager) {
-            return;
-        }
-
-        // 若宗门内还有其他管理权限成员，则无需解散
-        String countSql = "SELECT COUNT(*) FROM sect_members WHERE sect_id = ? AND player_id != ? " +
-                "AND role IN ('LEADER', 'VICE_LEADER', 'ELDER')";
-        try (PreparedStatement ps = conn.prepareStatement(countSql)) {
-            ps.setLong(1, sectId);
-            ps.setLong(2, playerId);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next() && rs.getInt(1) > 0) {
-                    return;
-                }
-            }
-        }
-
-        // 解散宗门：清空仓库/申请/成员/战争记录，再删除宗门本体
-        String[] sectTables = {"sect_warehouse", "sect_applications", "sect_members"};
-        for (String table : sectTables) {
-            try (PreparedStatement ps = conn.prepareStatement("DELETE FROM " + table + " WHERE sect_id = ?")) {
-                ps.setLong(1, sectId);
-                ps.executeUpdate();
-            }
-        }
-        // sect_wars 没有 sect_id 列，按攻/守两方宗门 id 清理
-        String deleteWarsSql = "DELETE FROM sect_wars WHERE attacker_sect_id = ? OR defender_sect_id = ?";
-        try (PreparedStatement ps = conn.prepareStatement(deleteWarsSql)) {
-            ps.setLong(1, sectId);
-            ps.setLong(2, sectId);
-            ps.executeUpdate();
-        }
-        try (PreparedStatement ps = conn.prepareStatement("DELETE FROM sects WHERE id = ?")) {
-            ps.setLong(1, sectId);
-            ps.executeUpdate();
-        }
-        LOG.info("删除玩家 " + playerId + " 时解散了无管理成员的宗门 sectId=" + sectId);
+        // 级联删除（含"最后一名管理者被删 → 解散孤儿宗门"）在同一个事务里，由 DAO 负责
+        return PLAYER_DAO.deletePlayerCascade(playerId);
     }
 
     private static void tickAutoHeal() {
         // 内置模块门控：角色系统停用后暂停自动疗伤
         if (!com.mtxgdn.plugin.BuiltInPluginRegistry.getInstance().isEnabledOrUnknown("player")) return;
-        String sql;
-        if (DatabaseManager.isSqlite()) {
-            sql = "UPDATE players SET hp = MIN(hp + CAST(CEILING(max_hp * 0.01) AS INTEGER), max_hp) WHERE hp < max_hp";
-        } else {
-            sql = "UPDATE players SET hp = LEAST(hp + CEIL(max_hp * 0.01), max_hp) WHERE hp < max_hp";
-        }
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            int affected = ps.executeUpdate();
-            if (affected > 0) {
-                LOG.debug("自动回血：" + affected + " 名玩家恢复了生命值");
-            }
-        } catch (SQLException e) {
-            LOG.error("自动回血失败", e);
+        int affected = PLAYER_DAO.healAllPlayersByOnePercent();
+        if (affected > 0) {
+            LOG.debug("自动回血：" + affected + " 名玩家恢复了生命值");
         }
     }
 }
