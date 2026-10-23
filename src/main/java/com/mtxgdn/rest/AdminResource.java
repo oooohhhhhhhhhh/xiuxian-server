@@ -266,6 +266,7 @@ public class AdminResource {
     @GET
     @Path("/plugins")
     @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("admin.plugins.manage")
     public Response getPluginPages() {
         com.google.gson.JsonArray plugins = PluginWebManager.getInstance().getPluginPagesJson();
         JsonObject result = new JsonObject();
@@ -474,6 +475,7 @@ public class AdminResource {
     @GET
     @Path("/logs")
     @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("admin.logs.view")
     public Response getLogs(@QueryParam("since") long since) {
         List<GameLogger.LogEntry> entries = GameLogger.getRecentLogs(since);
 
@@ -1209,6 +1211,7 @@ public class AdminResource {
     @GET
     @Path("/players")
     @Produces(MediaType.APPLICATION_JSON)
+    @RequirePermission("admin.users.manage")
     public Response getPlayers(
             @QueryParam("name") @DefaultValue("") String name,
             @QueryParam("limit") @DefaultValue("50") int limit,
