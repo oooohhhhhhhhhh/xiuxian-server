@@ -1,15 +1,13 @@
 package com.mtxgdn.game.service;
 
 import com.mtxgdn.db.DatabaseManager;
+import com.mtxgdn.db.SectWarehouseDAO;
 import com.mtxgdn.game.entity.SectMember;
 import com.mtxgdn.game.entity.SectWarehouseItem;
 import com.mtxgdn.game.item.Item;
 import com.mtxgdn.game.item.ItemRegistry;
 import com.mtxgdn.i18n.I18n;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -40,6 +38,9 @@ final class SectWarehouseDomain {
     private final ItemService itemService;
     private final SectQueryDomain queryDomain;
 
+    /** {@code sect_warehouse} 的读写入口（无状态，可共享）。 */
+    private static final SectWarehouseDAO WAREHOUSE_DAO = new SectWarehouseDAO();
+
     SectWarehouseDomain(ItemService itemService, SectQueryDomain queryDomain) {
         this.itemService = itemService;
         this.queryDomain = queryDomain;
@@ -48,17 +49,20 @@ final class SectWarehouseDomain {
     // ==================== 仓库系统 ====================
 
     List<SectWarehouseItem> getWarehouse(long sectId) {
-        String sql = "SELECT sw.*, p.name AS donated_by_name FROM sect_warehouse sw " +
-                "LEFT JOIN players p ON sw.donated_by_player_id = p.id " +
-                "WHERE sw.sect_id = ? AND sw.quantity > 0 ORDER BY sw.created_at";
+        // 异常文案与 SQL 一起搬进了 DAO：DAO 的自取连接版抛的就是这条。
+        // 行 → 实体的映射仍在这里：每列"老库缺列就跳过"的容错是域规则
         List<SectWarehouseItem> result = new ArrayList<>();
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, sectId);
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) result.add(SectSupport.mapWarehouseItem(rs));
-            }
-        } catch (SQLException e) { throw new RuntimeException("查询宗门仓库失败", e); }
+        for (SectWarehouseDAO.WarehouseItemRow row : WAREHOUSE_DAO.getWarehouse(sectId)) {
+            SectWarehouseItem i = new SectWarehouseItem();
+            i.setId(row.id());
+            i.setSectId(row.sectId());
+            i.setItemKey(row.itemKey());
+            i.setQuantity(row.quantity());
+            i.setCreatedAt(row.createdAt());
+            i.setDonatedByPlayerId(row.donatedByPlayerId());
+            i.setDonatedByName(row.donatedByName());
+            result.add(i);
+        }
         return result;
     }
 
@@ -90,41 +94,14 @@ final class SectWarehouseDomain {
 
         DatabaseManager.runTransaction(conn -> {
             itemService.removeItem(conn, playerId, fullKey, quantity);
-            String upsertSql;
-            if (DatabaseManager.isSqlite()) {
-                upsertSql = "INSERT INTO sect_warehouse (sect_id, item_key, quantity, donated_by_player_id) VALUES (?, ?, ?, ?) " +
-                        "ON CONFLICT(sect_id, item_key) DO UPDATE SET quantity = quantity + ?, donated_by_player_id = ?";
-            } else {
-                upsertSql = "INSERT INTO sect_warehouse (sect_id, item_key, quantity, donated_by_player_id) VALUES (?, ?, ?, ?) " +
-                        "ON DUPLICATE KEY UPDATE quantity = quantity + ?, donated_by_player_id = ?";
-            }
-            try (PreparedStatement ps = conn.prepareStatement(upsertSql)) {
-                ps.setLong(1, sectId);
-                ps.setString(2, fullKey);
-                ps.setInt(3, quantity);
-                ps.setLong(4, playerId);
-                ps.setInt(5, quantity);
-                ps.setLong(6, playerId);
-                ps.executeUpdate();
-            }
+            WAREHOUSE_DAO.upsertWarehouse(conn, sectId, fullKey, quantity, playerId);
             // 仅普通弟子捐献发放贡献值
             if (contributionGain > 0) {
-                try (PreparedStatement ps = conn.prepareStatement(
-                        "UPDATE sect_members SET contribution = contribution + ? WHERE sect_id = ? AND player_id = ?")) {
-                    ps.setLong(1, contributionGain);
-                    ps.setLong(2, sectId);
-                    ps.setLong(3, playerId);
-                    ps.executeUpdate();
-                }
+                WAREHOUSE_DAO.addContribution(conn, sectId, playerId, contributionGain);
             }
             // 任何成员捐献都小幅增加宗门声望（声望是宗门升级/宗门战的资源，此前无来源导致死锁）
             long prestigeGain = Math.max(1L, quantity / 10L);
-            try (PreparedStatement ps = conn.prepareStatement(
-                    "UPDATE sects SET prestige = prestige + ? WHERE id = ?")) {
-                ps.setLong(1, prestigeGain);
-                ps.setLong(2, sectId);
-                ps.executeUpdate();
-            }
+            WAREHOUSE_DAO.addPrestige(conn, sectId, prestigeGain);
             return null;
         });
 
@@ -176,26 +153,13 @@ final class SectWarehouseDomain {
             DatabaseManager.runTransaction(conn -> {
                 if (!isManager) {
                     long totalCost = getItemContributionCost(item) * quantity;
-                    String costSql = "UPDATE sect_members SET contribution = contribution - ? WHERE id = ? AND contribution >= ?";
-                    try (PreparedStatement ps = conn.prepareStatement(costSql)) {
-                        ps.setLong(1, totalCost);
-                        ps.setLong(2, member.getId());
-                        ps.setLong(3, totalCost);
-                        if (ps.executeUpdate() == 0) {
-                            throw new SQLException("贡献值不足");
-                        }
+                    if (!WAREHOUSE_DAO.deductContributionIfEnough(conn, member.getId(), totalCost)) {
+                        throw new SQLException("贡献值不足");
                     }
                 }
 
-                String deductSql = "UPDATE sect_warehouse SET quantity = quantity - ? WHERE sect_id = ? AND item_key = ? AND quantity >= ?";
-                try (PreparedStatement ps = conn.prepareStatement(deductSql)) {
-                    ps.setInt(1, quantity);
-                    ps.setLong(2, sectId);
-                    ps.setString(3, fullKey);
-                    ps.setInt(4, quantity);
-                    if (ps.executeUpdate() == 0) {
-                        throw new SQLException("仓库物品数量不足");
-                    }
+                if (!WAREHOUSE_DAO.deductWarehouseIfEnough(conn, sectId, fullKey, quantity)) {
+                    throw new SQLException("仓库物品数量不足");
                 }
 
                 if (!itemService.addItem(conn, playerId, fullKey, quantity)) {
@@ -234,15 +198,11 @@ final class SectWarehouseDomain {
     }
 
     private int getWarehouseItemCount(long sectId, String itemKey) {
-        String sql = "SELECT quantity FROM sect_warehouse WHERE sect_id = ? AND item_key = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, sectId);
-            ps.setString(2, itemKey);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) return rs.getInt("quantity");
-            }
-        } catch (SQLException e) { throw new RuntimeException("查询仓库物品失败", e); }
-        return 0;
+        try {
+            return WAREHOUSE_DAO.getWarehouseItemCount(sectId, itemKey);
+        } catch (RuntimeException e) {
+            // 查不到存量按 0 处理：调用方紧接着就会用「存量 < 数量」给出失败文案
+            return 0;
+        }
     }
 }

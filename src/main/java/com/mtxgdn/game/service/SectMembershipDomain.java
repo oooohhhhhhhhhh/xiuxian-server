@@ -1,6 +1,7 @@
 package com.mtxgdn.game.service;
 
 import com.mtxgdn.db.DatabaseManager;
+import com.mtxgdn.db.SectMembershipDAO;
 import com.mtxgdn.entity.Player;
 import com.mtxgdn.game.entity.Sect;
 import com.mtxgdn.game.entity.SectApplication;
@@ -8,17 +9,13 @@ import com.mtxgdn.game.entity.SectMember;
 import com.mtxgdn.game.sect.SectOperationResult;
 import com.mtxgdn.i18n.I18n;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.List;
 
 /**
  * 宗门成员域：入宗申请、审批、退宗、踢人、任命、贡献值。
  *
- * <p>这些方法都在回答同一个问题 ——「<b>谁在这个宗门里、是什么身份</b>」，
+ * <p>这些方法都在回答同一个问题 —— 「<b>谁在这个宗门里、是什么身份</b>」，
  * 所以放在一起：审批要看成员数上限、踢人要比职位高低、任命要判管理权限，
  * 它们共享同一套职位语义（{@link SectMember#canManage()} /
  * {@link SectMember#canKickOrAppoint(SectMember)}），拆开就会互相借私有方法。</p>
@@ -29,11 +26,21 @@ import java.util.List;
  * 要么是 {@link #leaveSect} 里那段"宗主退宗 → 解散宗门"的 {@code runTransaction}。
  * 那段事务块整体搬了过来，块内只使用事务传入的 {@code conn}，不调用任何会自己开连接的
  * 方法（{@code deleteMember} 在事务<b>之前</b>单独执行，位置与拆分前一致）。</p>
+ *
+ * <p><b>JDBC 都在 DAO 里</b>：{@code sect_applications} / {@code sect_members} 的
+ * 读写全部走 {@link SectMembershipDAO}，本类不再出现 {@code Connection} /
+ * {@code PreparedStatement} / {@code ResultSet}。每个 DAO 方法一对重载 ——
+ * 事务内一律传 {@code conn}，绝不在事务里另开连接（SQLite 下会
+ * {@code SQLITE_BUSY_SNAPSHOT}）。业务规则（成员上限、职位权限、称号授予、
+ * {@code SectOperationResult} 组装）留在本类。</p>
  */
 final class SectMembershipDomain {
 
     private final PlayerService playerService;
     private final SectQueryDomain queryDomain;
+
+    /** {@code sect_applications} / {@code sect_members} 的读写入口（无状态，可共享）。 */
+    private static final SectMembershipDAO MEMBERSHIP_DAO = new SectMembershipDAO();
 
     SectMembershipDomain(PlayerService playerService, SectQueryDomain queryDomain) {
         this.playerService = playerService;
@@ -64,47 +71,22 @@ final class SectMembershipDomain {
             return new SectOperationResult(false, I18n.t("sect.is_full", sect.getName(), members.size(), maxMembers));
         }
 
-        String checkSql = "SELECT id FROM sect_applications WHERE sect_id = ? AND player_id = ? AND status = 'pending'";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(checkSql)) {
-            ps.setLong(1, sectId);
-            ps.setLong(2, playerId);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    return new SectOperationResult(false, I18n.t("sect.you_have_already_applied"));
-                }
-            }
-        } catch (SQLException e) { throw new RuntimeException("查询申请失败", e); }
+        if (MEMBERSHIP_DAO.hasPendingApplication(sectId, playerId)) {
+            return new SectOperationResult(false, I18n.t("sect.you_have_already_applied"));
+        }
 
-        String sql = "INSERT INTO sect_applications (sect_id, player_id, message) VALUES (?, ?, ?)";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, sectId);
-            ps.setLong(2, playerId);
-            ps.setString(3, message != null ? message : "");
-            ps.executeUpdate();
-        } catch (SQLException e) { throw new RuntimeException("提交申请失败", e); }
+        MEMBERSHIP_DAO.insertApplication(sectId, playerId, message);
 
         return new SectOperationResult(true, I18n.t("sect.applied_to_join", sect.getName()));
     }
 
     List<SectApplication> getPendingApplications(long sectId) {
-        String sql = "SELECT sa.*, p.name AS player_name FROM sect_applications sa " +
-                "JOIN players p ON sa.player_id = p.id WHERE sa.sect_id = ? AND sa.status = 'pending' ORDER BY sa.created_at";
-        List<SectApplication> result = new ArrayList<>();
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, sectId);
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) result.add(SectSupport.mapApplication(rs));
-            }
-        } catch (SQLException e) { throw new RuntimeException("查询申请列表失败", e); }
-        return result;
+        return MEMBERSHIP_DAO.findPendingApplications(sectId);
     }
 
     SectOperationResult approveApplication(long approverPlayerId, long applicationId, boolean approved) {
 
-        SectApplication app = getApplicationById(applicationId);
+        SectApplication app = MEMBERSHIP_DAO.findApplicationById(applicationId);
         if (app == null || !"pending".equals(app.getStatus())) {
             return new SectOperationResult(false, I18n.t("sect.the_application_does_not_exist"));
         }
@@ -129,7 +111,7 @@ final class SectMembershipDomain {
             }
             status = "accepted";
             msg = "已通过玩家【" + app.getPlayerName() + "】的加入申请";
-            addMember(sect.getId(), app.getPlayerId());
+            MEMBERSHIP_DAO.addMember(sect.getId(), app.getPlayerId());
             // 首次入宗授予「首席弟子」称号
             try {
                 new com.mtxgdn.game.service.TitleService().grantTitle(app.getPlayerId(), "senior_disciple");
@@ -140,38 +122,9 @@ final class SectMembershipDomain {
             msg = "已拒绝玩家【" + app.getPlayerName() + "】的加入申请";
         }
 
-        String sql = "UPDATE sect_applications SET status = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, status);
-            ps.setLong(2, applicationId);
-            ps.executeUpdate();
-        } catch (SQLException e) { throw new RuntimeException("处理申请失败", e); }
+        MEMBERSHIP_DAO.updateApplicationStatus(applicationId, status);
 
         return new SectOperationResult(true, msg);
-    }
-
-    private SectApplication getApplicationById(long appId) {
-        String sql = "SELECT sa.*, p.name AS player_name FROM sect_applications sa " +
-                "JOIN players p ON sa.player_id = p.id WHERE sa.id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, appId);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) return SectSupport.mapApplication(rs);
-            }
-        } catch (SQLException e) { throw new RuntimeException("查询申请失败", e); }
-        return null;
-    }
-
-    private void addMember(long sectId, long playerId) {
-        String sql = "INSERT INTO sect_members (sect_id, player_id, role) VALUES (?, ?, 'OUTER_MEMBER')";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, sectId);
-            ps.setLong(2, playerId);
-            ps.executeUpdate();
-        } catch (SQLException e) { throw new RuntimeException("添加成员失败", e); }
     }
 
     // ==================== 退出/踢人 ====================
@@ -188,37 +141,19 @@ final class SectMembershipDomain {
         }
 
         if (member.isLeader()) {
-            String disbandSql = "SELECT COUNT(*) FROM sect_members WHERE sect_id = ?";
-            try (Connection conn = DatabaseManager.getConnection();
-                 PreparedStatement ps = conn.prepareStatement(disbandSql)) {
-                ps.setLong(1, sect.getId());
-                try (ResultSet rs = ps.executeQuery()) {
-                    if (rs.next() && rs.getInt(1) > 1) {
-                        return new SectOperationResult(false, I18n.t("sect.leave_leader_blocked"));
-                    }
-                }
-            } catch (SQLException e) { throw new RuntimeException(e); }
+            if (MEMBERSHIP_DAO.countMembers(sect.getId()) > 1) {
+                return new SectOperationResult(false, I18n.t("sect.leave_leader_blocked"));
+            }
         }
 
-        deleteMember(member.getSectId(), playerId);
+        MEMBERSHIP_DAO.deleteMember(member.getSectId(), playerId);
 
         String playerName = member.getPlayerName() != null ? member.getPlayerName() : "未知";
 
         // 宗主退出则解散宗门
         if (member.isLeader()) {
             DatabaseManager.runTransaction(conn -> {
-                String sql = "DELETE FROM sect_warehouse WHERE sect_id = ?";
-                try (PreparedStatement ps = conn.prepareStatement(sql)) { ps.setLong(1, sect.getId()); ps.executeUpdate(); }
-                catch (SQLException e) { throw new RuntimeException(e); }
-                sql = "DELETE FROM sect_applications WHERE sect_id = ?";
-                try (PreparedStatement ps = conn.prepareStatement(sql)) { ps.setLong(1, sect.getId()); ps.executeUpdate(); }
-                catch (SQLException e) { throw new RuntimeException(e); }
-                sql = "DELETE FROM sect_members WHERE sect_id = ?";
-                try (PreparedStatement ps = conn.prepareStatement(sql)) { ps.setLong(1, sect.getId()); ps.executeUpdate(); }
-                catch (SQLException e) { throw new RuntimeException(e); }
-                sql = "DELETE FROM sects WHERE id = ?";
-                try (PreparedStatement ps = conn.prepareStatement(sql)) { ps.setLong(1, sect.getId()); ps.executeUpdate(); }
-                catch (SQLException e) { throw new RuntimeException(e); }
+                MEMBERSHIP_DAO.deleteSectCascade(conn, sect.getId());
                 return null;
             });
             return new SectOperationResult(true, I18n.t("sect.you_disbanded_the_sect", sect.getName()));
@@ -250,7 +185,7 @@ final class SectMembershipDomain {
             return new SectOperationResult(false, I18n.t("sect.you_cannot_remove_members"));
         }
 
-        deleteMember(kicker.getSectId(), targetPlayerId);
+        MEMBERSHIP_DAO.deleteMember(kicker.getSectId(), targetPlayerId);
         return new SectOperationResult(true, I18n.t("sect.expelled_from_the_sect", target.getPlayerName()));
     }
 
@@ -300,51 +235,19 @@ final class SectMembershipDomain {
                     target.getPlayerName(), SectMember.getRoleDisplayName(role)));
         }
 
-        String sql = "UPDATE sect_members SET role = ? WHERE sect_id = ? AND player_id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, role);
-            ps.setLong(2, appointer.getSectId());
-            ps.setLong(3, targetPlayerId);
-            ps.executeUpdate();
-        } catch (SQLException e) { throw new RuntimeException("任命失败", e); }
+        MEMBERSHIP_DAO.setMemberRole(appointer.getSectId(), targetPlayerId, role);
 
         return new SectOperationResult(true, I18n.t("sect.appointed", target.getPlayerName(), SectMember.getRoleDisplayName(role), SectMember.getRoleDisplayName(target.getRole())));
-    }
-
-    private void deleteMember(long sectId, long playerId) {
-        String sql = "DELETE FROM sect_members WHERE sect_id = ? AND player_id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, sectId);
-            ps.setLong(2, playerId);
-            ps.executeUpdate();
-        } catch (SQLException e) { throw new RuntimeException("删除成员失败", e); }
     }
 
     // ==================== 贡献系统 ====================
 
     SectOperationResult addContribution(long sectId, long playerId, long amount) {
-        String sql = "UPDATE sect_members SET contribution = contribution + ? WHERE sect_id = ? AND player_id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, amount);
-            ps.setLong(2, sectId);
-            ps.setLong(3, playerId);
-            int updated = ps.executeUpdate();
-            if (updated > 0) {
-                if (amount > 0) {
-                    String prestigeSql = "UPDATE sects SET prestige = prestige + ? WHERE id = ?";
-                    try (PreparedStatement pps = conn.prepareStatement(prestigeSql)) {
-                        pps.setLong(1, amount);
-                        pps.setLong(2, sectId);
-                        pps.executeUpdate();
-                    }
-                }
-                return new SectOperationResult(true, I18n.t("sect.contribution_updated"));
-            } else {
-                return new SectOperationResult(false, I18n.t("sect.update_failed"));
-            }
-        } catch (SQLException e) { throw new RuntimeException("更新贡献值失败", e); }
+        int updated = MEMBERSHIP_DAO.addContribution(sectId, playerId, amount);
+        if (updated > 0) {
+            return new SectOperationResult(true, I18n.t("sect.contribution_updated"));
+        } else {
+            return new SectOperationResult(false, I18n.t("sect.update_failed"));
+        }
     }
 }

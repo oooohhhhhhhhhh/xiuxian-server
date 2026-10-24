@@ -1,14 +1,12 @@
 package com.mtxgdn.game.service;
 
 import com.mtxgdn.db.DatabaseManager;
+import com.mtxgdn.db.SectTreasuryDAO;
 import com.mtxgdn.game.entity.Sect;
 import com.mtxgdn.game.entity.SectMember;
 import com.mtxgdn.i18n.I18n;
 import com.mtxgdn.util.AppConfig;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
 import java.util.List;
@@ -36,6 +34,9 @@ final class SectTreasuryDomain {
     private final ItemService itemService;
     private final SectQueryDomain queryDomain;
     private final SectMembershipDomain membershipDomain;
+
+    /** {@code sects} 表 treasury / salary / prestige 列的读写入口（无状态，可共享）。 */
+    private static final SectTreasuryDAO TREASURY_DAO = new SectTreasuryDAO();
 
     SectTreasuryDomain(ItemService itemService, SectQueryDomain queryDomain,
                        SectMembershipDomain membershipDomain) {
@@ -87,15 +88,9 @@ final class SectTreasuryDomain {
     /** 增减宗门声望（正数增加、负数减少，下限 0）。 */
     private void addPrestige(long sectId, long amount) {
         if (amount == 0) return;
-        // SQLite 的标量取大是 MAX(a,b)，MySQL 是 GREATEST(a,b) —— 两者不通用
-        String clamp = DatabaseManager.isSqlite() ? "MAX(0, prestige + ?)" : "GREATEST(0, prestige + ?)";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(
-                     "UPDATE sects SET prestige = " + clamp + ", updated_at = CURRENT_TIMESTAMP WHERE id = ?")) {
-            ps.setLong(1, amount);
-            ps.setLong(2, sectId);
-            ps.executeUpdate();
-        } catch (SQLException e) {
+        try {
+            TREASURY_DAO.addPrestige(sectId, amount);
+        } catch (RuntimeException e) {
             SectSupport.LOG.warn("更新宗门声望失败: " + e.getMessage());
         }
     }
@@ -127,13 +122,9 @@ final class SectTreasuryDomain {
             result.put("message", I18n.t("sect.treasury_no_stones", amount));
             return result;
         }
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(
-                     "UPDATE sects SET treasury = treasury + ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?")) {
-            ps.setLong(1, amount);
-            ps.setLong(2, sect.getId());
-            ps.executeUpdate();
-        } catch (SQLException e) {
+        try {
+            TREASURY_DAO.addTreasury(sect.getId(), amount);
+        } catch (RuntimeException e) {
             // 扣了灵石却没进金库是最坏的结果，必须把灵石退回去
             itemService.addSpiritStones(playerId, amount);
             SectSupport.LOG.error("宗门金库入账失败，已退回灵石: " + e.getMessage());
@@ -226,17 +217,9 @@ final class SectTreasuryDomain {
         }
 
         // 从"未开启"变为"开启"时才开始计时，避免设定瞬间就被发一次
-        String sql = "UPDATE sects SET salary_per_member = ?, "
-                + "last_salary_time = CASE WHEN last_salary_time = 0 AND ? > 0 THEN ? ELSE last_salary_time END, "
-                + "updated_at = CURRENT_TIMESTAMP WHERE id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, perMember);
-            ps.setLong(2, perMember);
-            ps.setLong(3, System.currentTimeMillis());
-            ps.setLong(4, sect.getId());
-            ps.executeUpdate();
-        } catch (SQLException e) {
+        try {
+            TREASURY_DAO.setSalaryTier(sect.getId(), perMember, System.currentTimeMillis());
+        } catch (RuntimeException e) {
             SectSupport.LOG.error("设定宗门工资失败: " + e.getMessage());
             result.put("success", false);
             result.put("message", I18n.t("sect.salary_failed"));
@@ -343,28 +326,21 @@ final class SectTreasuryDomain {
         }
         if (paidTotal <= 0) {
             // 金库是 0：不发钱，但仍然推进周期，避免每次扫描都重复尝试
-            markSalaryPaid(sect.getId(), 0);
+            markSalaryPaid(sect.getId(), System.currentTimeMillis());
             result.put("success", false);
             result.put("message", I18n.t("sect.salary_empty_treasury"));
             return result;
         }
 
         // 先扣金库（条件更新防并发重复扣），扣成功才发钱
-        String deductSql = "UPDATE sects SET treasury = treasury - ?, last_salary_time = ?, "
-                + "updated_at = CURRENT_TIMESTAMP WHERE id = ? AND treasury >= ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(deductSql)) {
-            ps.setLong(1, paidTotal);
-            ps.setLong(2, System.currentTimeMillis());
-            ps.setLong(3, sect.getId());
-            ps.setLong(4, paidTotal);
-            if (ps.executeUpdate() == 0) {
+        try {
+            if (!TREASURY_DAO.deductTreasuryIfEnough(sect.getId(), paidTotal, System.currentTimeMillis())) {
                 // 被并发任务抢先扣过了，这一轮直接放弃，等下个周期
                 result.put("success", false);
                 result.put("message", I18n.t("sect.salary_failed"));
                 return result;
             }
-        } catch (SQLException e) {
+        } catch (RuntimeException e) {
             SectSupport.LOG.error("宗门工资扣减金库失败: " + e.getMessage());
             result.put("success", false);
             result.put("message", I18n.t("sect.salary_failed"));
@@ -392,14 +368,10 @@ final class SectTreasuryDomain {
         return result;
     }
 
-    private void markSalaryPaid(long sectId, long treasuryAfter) {
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(
-                     "UPDATE sects SET last_salary_time = ? WHERE id = ?")) {
-            ps.setLong(1, System.currentTimeMillis());
-            ps.setLong(2, sectId);
-            ps.executeUpdate();
-        } catch (SQLException e) {
+    private void markSalaryPaid(long sectId, long now) {
+        try {
+            TREASURY_DAO.markSalaryPaid(sectId, now);
+        } catch (RuntimeException e) {
             SectSupport.LOG.warn("更新宗门工资结算时间失败: " + e.getMessage());
         }
     }

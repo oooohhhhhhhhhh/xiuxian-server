@@ -1,14 +1,12 @@
 package com.mtxgdn.game.service;
 
 import com.mtxgdn.db.DatabaseManager;
+import com.mtxgdn.db.SectWarDAO;
 import com.mtxgdn.entity.Player;
 import com.mtxgdn.game.entity.Sect;
 import com.mtxgdn.game.entity.SectMember;
 import com.mtxgdn.i18n.I18n;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -41,6 +39,9 @@ final class SectWarDomain {
     private final ItemService itemService;
     private final SectQueryDomain queryDomain;
     private final SectDuelDomain duelDomain;
+
+    /** {@code sect_wars} 的读写入口（无状态，可共享）。 */
+    private static final SectWarDAO WAR_DAO = new SectWarDAO();
 
     SectWarDomain(PlayerService playerService, ItemService itemService,
                   SectQueryDomain queryDomain, SectDuelDomain duelDomain) {
@@ -83,23 +84,20 @@ final class SectWarDomain {
 
         // 宗门战冷却：同一防守方 24 小时内只能被宣战一次，防止无休止骚扰
         long warCooldownMs = 24 * 3600 * 1000L;
-        String lastWarSql = "SELECT MAX(created_at) FROM sect_wars WHERE defender_sect_id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(lastWarSql)) {
-            ps.setLong(1, defenderSectId);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next() && rs.getTimestamp(1) != null) {
-                    long lastWarTime = rs.getTimestamp(1).getTime();
-                    long remaining = warCooldownMs - (System.currentTimeMillis() - lastWarTime);
-                    if (remaining > 0) {
-                        result.put("success", false);
-                        result.put("message", I18n.t("sect.the_target_sect_just_fought", Math.max(1, remaining / 3600000)));
-                        return result;
-                    }
-                }
+        java.sql.Timestamp lastWarTime;
+        try {
+            lastWarTime = WAR_DAO.lastWarTime(defenderSectId);
+        } catch (RuntimeException e) {
+            throw new RuntimeException("查询宗门战记录失败", e);
+        }
+        if (lastWarTime != null) {
+            long remaining = warCooldownMs - (System.currentTimeMillis() - lastWarTime.getTime());
+            if (remaining > 0) {
+                result.put("success", false);
+                result.put("message", I18n.t("sect.the_target_sect_just_fought", Math.max(1, remaining / 3600000)));
+                return result;
             }
-        } catch (SQLException e) { throw new RuntimeException("查询宗门战记录失败", e); }
-
+        }
         if (attackerSect.getPrestige() < Sect.DECLARE_WAR_PRESTIGE_COST) {
             result.put("success", false);
             result.put("message", I18n.t("sect.the_sect_lacks_prestige", Sect.DECLARE_WAR_PRESTIGE_COST, attackerSect.getPrestige()));
@@ -118,12 +116,7 @@ final class SectWarDomain {
                 if (!itemService.removeSpiritStones(conn, attackerPlayerId, Sect.DECLARE_WAR_SPIRIT_STONE_COST)) {
                     throw new SQLException("扣除灵石失败");
                 }
-                String deductPrestigeSql = "UPDATE sects SET prestige = prestige - ? WHERE id = ?";
-                try (PreparedStatement ps = conn.prepareStatement(deductPrestigeSql)) {
-                    ps.setLong(1, Sect.DECLARE_WAR_PRESTIGE_COST);
-                    ps.setLong(2, attackerSect.getId());
-                    ps.executeUpdate();
-                }
+                WAR_DAO.deductPrestige(conn, attackerSect.getId(), Sect.DECLARE_WAR_PRESTIGE_COST);
                 return null;
             });
         } catch (Exception e) {
@@ -174,41 +167,24 @@ final class SectWarDomain {
         battleLog.add(attackerSect.getName() + " " + attackerWins + "胜 - " + defenderWins + "胜 " + defenderSect.getName());
         battleLog.add("胜者：【" + winnerSectName + "】，额外获得 " + Sect.WAR_WIN_PRESTIGE + " 声望");
 
-        // 发放声望奖励
-        String rewardSql = "UPDATE sects SET prestige = prestige + ? WHERE id = ?";
-        try (Connection conn = DatabaseManager.getConnection()) {
-            try (PreparedStatement ps = conn.prepareStatement(rewardSql)) {
-                ps.setLong(1, Sect.WAR_WIN_PRESTIGE);
-                ps.setLong(2, winnerSectId);
-                ps.executeUpdate();
-            }
-            // 失败方扣声望
-            long loserSectId = attackerWin ? defenderSect.getId() : attackerSect.getId();
-            String loseSql = DatabaseManager.isSqlite()
-                    ? "UPDATE sects SET prestige = MAX(0, prestige - ?) WHERE id = ?"
-                    : "UPDATE sects SET prestige = GREATEST(0, prestige - ?) WHERE id = ?";
-            try (PreparedStatement ps = conn.prepareStatement(loseSql)) {
-                ps.setLong(1, Sect.WAR_WIN_PRESTIGE);
-                ps.setLong(2, loserSectId);
-                ps.executeUpdate();
-            }
-        } catch (SQLException e) { throw new RuntimeException("发放宗门战奖励失败", e); }
+        // 发放声望奖励（赢家加、输家扣，下限 0）。
+        // 刻意不在上面的事务里：拆分前就是两条独立的 UPDATE，合并进行务属于行为改动
+        try {
+            WAR_DAO.settleWarPrestige(winnerSectId,
+                    attackerWin ? defenderSect.getId() : attackerSect.getId(),
+                    Sect.WAR_WIN_PRESTIGE);
+        } catch (RuntimeException e) {
+            throw new RuntimeException("发放宗门战奖励失败", e);
+        }
 
         // 保存战报
         String logText = String.join("\n", battleLog);
-        String insertSql = "INSERT INTO sect_wars (attacker_sect_id, defender_sect_id, winner_sect_id, attacker_wins, defender_wins, prestige_stake, battle_log) VALUES (?, ?, ?, ?, ?, ?, ?)";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(insertSql)) {
-            ps.setLong(1, attackerSect.getId());
-            ps.setLong(2, defenderSect.getId());
-            ps.setLong(3, winnerSectId);
-            ps.setInt(4, attackerWins);
-            ps.setInt(5, defenderWins);
-            ps.setLong(6, Sect.WAR_WIN_PRESTIGE);
-            ps.setString(7, logText);
-            ps.executeUpdate();
-        } catch (SQLException e) { throw new RuntimeException("保存宗门战记录失败", e); }
-
+        try {
+            WAR_DAO.saveWarLog(attackerSect.getId(), defenderSect.getId(), winnerSectId,
+                    attackerWins, defenderWins, Sect.WAR_WIN_PRESTIGE, logText);
+        } catch (RuntimeException e) {
+            throw new RuntimeException("保存宗门战记录失败", e);
+        }
         result.put("success", true);
         result.put("message", I18n.t("sect.war_result",
                 attackerSect.getName(), defenderSect.getName(), winnerSectName,

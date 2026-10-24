@@ -1,17 +1,14 @@
 package com.mtxgdn.game.service;
 
 import com.mtxgdn.db.DatabaseManager;
+import com.mtxgdn.db.SectRegistryDAO;
 import com.mtxgdn.entity.Player;
 import com.mtxgdn.game.config.GameConfigLoader;
 import com.mtxgdn.game.entity.Sect;
 import com.mtxgdn.game.entity.SectMember;
 import com.mtxgdn.i18n.I18n;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Statement;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
@@ -36,6 +33,9 @@ final class SectRegistryDomain {
     private final PlayerService playerService;
     private final ItemService itemService;
     private final SectQueryDomain queryDomain;
+
+    /** {@code sects} 建档/升级/转让/解散的读写入口（无状态，可共享）。 */
+    private static final SectRegistryDAO REGISTRY_DAO = new SectRegistryDAO();
 
     SectRegistryDomain(PlayerService playerService, ItemService itemService, SectQueryDomain queryDomain) {
         this.playerService = playerService;
@@ -98,35 +98,21 @@ final class SectRegistryDomain {
             if (!itemService.removeSpiritStones(conn, playerId, Sect.CREATE_COST_SPIRIT_STONES)) {
                 throw new SQLException("灵石扣除失败");
             }
-            String sql = "INSERT INTO sects (name, description, leader_player_id, prestige) VALUES (?, ?, ?, ?)";
-            try (PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-                ps.setString(1, name);
-                ps.setString(2, description != null ? description : "一个新兴的修仙宗门");
-                ps.setLong(3, playerId);
-                // 初始声望 1000：使宗门升级/宗门战在创建后即可积累使用，避免声望死锁
-                ps.setLong(4, 1000L);
-                ps.executeUpdate();
-                ResultSet keys = ps.getGeneratedKeys();
-                if (keys.next()) {
-                    long sectId = keys.getLong(1);
-                    String memberSql = "INSERT INTO sect_members (sect_id, player_id, role) VALUES (?, ?, 'LEADER')";
-                    try (PreparedStatement mps = conn.prepareStatement(memberSql)) {
-                        mps.setLong(1, sectId);
-                        mps.setLong(2, playerId);
-                        mps.executeUpdate();
-                    }
-                    // 直接构造 Sect 返回，避免事务内跨连接查询读不到未提交数据
-                    Sect created = new Sect();
-                    created.setId(sectId);
-                    created.setName(name);
-                    created.setDescription(description != null ? description : "一个新兴的修仙宗门");
-                    created.setLeaderPlayerId(playerId);
-                    created.setLeaderName(player.getName());
-                    created.setLevel(1);
-                    created.setPrestige(1000L);
-                    created.setMemberCount(1);
-                    return created;
-                }
+            long sectId = REGISTRY_DAO.createSect(conn, name,
+                    description != null ? description : "一个新兴的修仙宗门", playerId);
+            if (sectId > 0) {
+                REGISTRY_DAO.insertLeaderMember(conn, sectId, playerId);
+                // 直接构造 Sect 返回，避免事务内跨连接查询读不到未提交数据
+                Sect created = new Sect();
+                created.setId(sectId);
+                created.setName(name);
+                created.setDescription(description != null ? description : "一个新兴的修仙宗门");
+                created.setLeaderPlayerId(playerId);
+                created.setLeaderName(player.getName());
+                created.setLevel(1);
+                created.setPrestige(1000L);
+                created.setMemberCount(1);
+                return created;
             }
             return null;
         });
@@ -174,15 +160,11 @@ final class SectRegistryDomain {
 
         int newLevel = sect.getLevel() + 1;
         int newMaxMembers = Sect.getMaxMembersForLevel(newLevel);
-        String sql = "UPDATE sects SET level = ?, prestige = prestige - ?, max_members = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, newLevel);
-            ps.setLong(2, cost);
-            ps.setInt(3, newMaxMembers);
-            ps.setLong(4, sect.getId());
-            ps.executeUpdate();
-        } catch (SQLException e) { throw new RuntimeException("宗门升级失败", e); }
+        try {
+            REGISTRY_DAO.levelUp(sect.getId(), newLevel, cost, newMaxMembers);
+        } catch (RuntimeException e) {
+            throw new RuntimeException("宗门升级失败", e);
+        }
 
         result.put("success", true);
         result.put("message", I18n.t("sect.sect_advanced_to_level", sect.getName(), newLevel, cost, newMaxMembers));
@@ -233,26 +215,9 @@ final class SectRegistryDomain {
             if (!itemService.removeSpiritStones(conn, fromPlayerId, Sect.TRANSFER_COST_SPIRIT_STONES)) {
                 throw new Exception("扣除灵石失败");
             }
-            String sql = "UPDATE sects SET leader_player_id = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?";
-            try (PreparedStatement ps = conn.prepareStatement(sql)) {
-                ps.setLong(1, toPlayerId);
-                ps.setLong(2, sect.getId());
-                ps.executeUpdate();
-            } catch (SQLException e) { throw new RuntimeException(e); }
-
-            sql = "UPDATE sect_members SET role = 'VICE_LEADER' WHERE sect_id = ? AND player_id = ?";
-            try (PreparedStatement ps = conn.prepareStatement(sql)) {
-                ps.setLong(1, sect.getId());
-                ps.setLong(2, fromPlayerId);
-                ps.executeUpdate();
-            } catch (SQLException e) { throw new RuntimeException(e); }
-
-            sql = "UPDATE sect_members SET role = 'LEADER' WHERE sect_id = ? AND player_id = ?";
-            try (PreparedStatement ps = conn.prepareStatement(sql)) {
-                ps.setLong(1, sect.getId());
-                ps.setLong(2, toPlayerId);
-                ps.executeUpdate();
-            } catch (SQLException e) { throw new RuntimeException(e); }
+            REGISTRY_DAO.setLeader(conn, sect.getId(), toPlayerId);
+            REGISTRY_DAO.demoteToViceLeader(conn, sect.getId(), fromPlayerId);
+            REGISTRY_DAO.promoteToLeader(conn, sect.getId(), toPlayerId);
             return null;
         });
 
@@ -277,19 +242,12 @@ final class SectRegistryDomain {
             result.put("success", false); result.put("message", I18n.t("sect.sect_does_not_exist")); return result;
         }
 
+        // 四条 DELETE 有顺序：子表清完再删 sects 父行，否则启用外键时会失败
         DatabaseManager.runTransaction(conn -> {
-            String sql = "DELETE FROM sect_warehouse WHERE sect_id = ?";
-            try (PreparedStatement ps = conn.prepareStatement(sql)) { ps.setLong(1, sect.getId()); ps.executeUpdate(); }
-            catch (SQLException e) { throw new RuntimeException(e); }
-            sql = "DELETE FROM sect_applications WHERE sect_id = ?";
-            try (PreparedStatement ps = conn.prepareStatement(sql)) { ps.setLong(1, sect.getId()); ps.executeUpdate(); }
-            catch (SQLException e) { throw new RuntimeException(e); }
-            sql = "DELETE FROM sect_members WHERE sect_id = ?";
-            try (PreparedStatement ps = conn.prepareStatement(sql)) { ps.setLong(1, sect.getId()); ps.executeUpdate(); }
-            catch (SQLException e) { throw new RuntimeException(e); }
-            sql = "DELETE FROM sects WHERE id = ?";
-            try (PreparedStatement ps = conn.prepareStatement(sql)) { ps.setLong(1, sect.getId()); ps.executeUpdate(); }
-            catch (SQLException e) { throw new RuntimeException(e); }
+            REGISTRY_DAO.deleteWarehouse(conn, sect.getId());
+            REGISTRY_DAO.deleteApplications(conn, sect.getId());
+            REGISTRY_DAO.deleteMembers(conn, sect.getId());
+            REGISTRY_DAO.deleteSect(conn, sect.getId());
             return null;
         });
 
