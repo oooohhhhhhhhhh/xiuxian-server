@@ -1,13 +1,8 @@
 package com.mtxgdn.permission;
 
-import com.mtxgdn.db.DatabaseManager;
+import com.mtxgdn.db.PermissionDAO;
 import com.mtxgdn.util.AppConfig;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.EnumSet;
@@ -27,12 +22,22 @@ import java.util.Set;
  * - 权限(Permission)：细粒度的操作许可，如 "game.player.info"、"admin.users.manage"。
  *   系统内置权限由 {@link PermissionCode} 枚举定义，插件可注册自定义权限。
  * - 用户可以属于多个权限组，其有效权限 = 所有组权限的并集 + 直接分配的权限。
+ *
+ * <p><b>本类只剩业务逻辑</b>：角色层级判断、默认权限集合、继承展开、缓存与校验都在这里；
+ * 所有 SQL 与连接管理搬到了 {@link PermissionDAO}（每个方法都有"收调用方连接"的重载，
+ * 事务内必须用那一版，否则 SQLite 会抛 {@code SQLITE_BUSY_SNAPSHOT}）。
+ * 这次搬运是纯结构重构：公开 API、权限语义、异常文案、缓存失效时机一律未变。</p>
  */
 public class PermissionService {
 
     private static final int DEFAULT_ROLE_LEVEL = AppConfig.getInt("permission.default.role.level", 10);
-    private static final boolean IS_SQLITE = DatabaseManager.isSqlite();
-    private static final String INSERT_OR_IGNORE = IS_SQLITE ? "INSERT OR IGNORE" : "INSERT IGNORE";
+
+    /**
+     * 权限表的读写入口。
+     *
+     * <p>无状态（每条语句自己开/用连接），因此一个共享实例就够。</p>
+     */
+    private static final PermissionDAO PERMISSION_DAO = new PermissionDAO();
 
     // ==================== 默认权限组定义（系统内置，首次初始化时写入DB） ====================
 
@@ -175,33 +180,24 @@ public class PermissionService {
         Map<String, String> displayNames = new LinkedHashMap<>();
         Map<String, Set<String>> perms = new LinkedHashMap<>();
 
-        try (Connection conn = DatabaseManager.getConnection();
-             Statement stmt = conn.createStatement()) {
-            // 加载权限组基本信息
-            String roleSql = "SELECT name, display_name, level FROM roles ORDER BY level DESC";
-            try (ResultSet rs = stmt.executeQuery(roleSql)) {
-                while (rs.next()) {
-                    String name = rs.getString("name");
-                    hierarchy.put(name, rs.getInt("level"));
-                    displayNames.put(name, rs.getString("display_name"));
-                    perms.put(name, new HashSet<>());
+        try {
+            PermissionDAO.GroupCatalog catalog = PERMISSION_DAO.loadGroupCatalog();
+            for (PermissionDAO.RoleRow row : catalog.roles()) {
+                hierarchy.put(row.name(), row.level());
+                displayNames.put(row.name(), row.displayName());
+                perms.put(row.name(), new HashSet<>());
+            }
+            // 组→权限映射：只挂到"库里真实存在的组"上（孤立的 role_permissions 行一律忽略）
+            for (Map.Entry<String, Set<String>> entry : catalog.rolePermissions().entrySet()) {
+                Set<String> set = perms.get(entry.getKey());
+                if (set != null) {
+                    set.addAll(entry.getValue());
                 }
             }
-
-            // 加载权限组→权限映射
-            String rpSql = "SELECT role_name, permission_code FROM role_permissions";
-            try (ResultSet rs = stmt.executeQuery(rpSql)) {
-                while (rs.next()) {
-                    String roleName = rs.getString("role_name");
-                    String permCode = rs.getString("permission_code");
-                    Set<String> set = perms.get(roleName);
-                    if (set != null) {
-                        set.add(permCode);
-                    }
-                }
-            }
-        } catch (SQLException e) {
-            System.err.println("[PermissionService] 从DB加载权限组失败，使用默认配置: " + e.getMessage());
+        } catch (RuntimeException e) {
+            // 文案与重构前逐字一致：打印的是底层 SQL 失败原因
+            Throwable cause = e.getCause() != null ? e.getCause() : e;
+            System.err.println("[PermissionService] 从DB加载权限组失败，使用默认配置: " + cause.getMessage());
             // 回退到默认配置
             hierarchy = new LinkedHashMap<>(DEFAULT_GROUP_HIERARCHY);
             for (String name : hierarchy.keySet()) {
@@ -227,13 +223,11 @@ public class PermissionService {
                     for (String permCode : defaultGroupPerms) {
                         if (!existingPerms.contains(permCode)) {
                             existingPerms.add(permCode);
-                            String sql = INSERT_OR_IGNORE + " INTO role_permissions (role_name, permission_code) VALUES (?, ?)";
-                            try (Connection conn = DatabaseManager.getConnection();
-                                 PreparedStatement ps = conn.prepareStatement(sql)) {
-                                ps.setString(1, groupName);
-                                ps.setString(2, permCode);
-                                ps.executeUpdate();
-                            } catch (SQLException ignored) {
+                            try {
+                                PERMISSION_DAO.insertRolePermissionIfAbsent(
+                                        groupName, permCode, "写入权限组权限失败");
+                            } catch (RuntimeException ignored) {
+                                // 与重构前一致：补默认权限失败只跳过这一条，不影响缓存加载
                             }
                         }
                     }
@@ -279,16 +273,8 @@ public class PermissionService {
             throw new IllegalArgumentException("权限码已存在: " + code);
         }
         pluginPermissions.put(code, new PluginPermissionInfo(code, name, category));
-        String sql = INSERT_OR_IGNORE + " INTO permissions (code, name, category) VALUES (?, ?, ?)";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, code);
-            ps.setString(2, name);
-            ps.setString(3, category != null ? category : "插件扩展");
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("注册插件权限失败: " + code, e);
-        }
+        PERMISSION_DAO.insertPermissionIfAbsent(code, name,
+                category != null ? category : "插件扩展", "注册插件权限失败: " + code);
         // 新注册的插件权限会影响"直接授予的权限码是否算数"，缓存必须作废
         invalidatePermissionCache();
     }
@@ -308,16 +294,10 @@ public class PermissionService {
         if (PermissionCode.fromCode(code) != null || pluginPermissions.containsKey(code)) {
             return true;
         }
-        String sql = "SELECT COUNT(*) FROM permissions WHERE code = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, code);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next() && rs.getInt(1) > 0) {
-                    return true;
-                }
-            }
-        } catch (SQLException ignored) {
+        try {
+            return PERMISSION_DAO.existsPermissionCode(code);
+        } catch (RuntimeException ignored) {
+            // 与重构前一致：查库失败当作"没有这个权限码"，不向上抛
         }
         return false;
     }
@@ -375,20 +355,7 @@ public class PermissionService {
     // ==================== 用户角色/权限组管理 ====================
 
     public static List<String> getUserRoles(long userId) {
-        String sql = "SELECT role_name FROM user_roles WHERE user_id = ?";
-        List<String> roles = new ArrayList<>();
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, userId);
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    roles.add(rs.getString("role_name"));
-                }
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("查询用户角色失败", e);
-        }
-        return roles;
+        return PERMISSION_DAO.findRoleNamesByUserId(userId);
     }
 
     public static String getHighestRole(long userId) {
@@ -423,20 +390,11 @@ public class PermissionService {
      */
     public static Set<PermissionCode> getUserDirectPermissions(long userId) {
         Set<PermissionCode> result = EnumSet.noneOf(PermissionCode.class);
-        String sql = "SELECT permission_code FROM user_permissions WHERE user_id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, userId);
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    PermissionCode pc = PermissionCode.fromCode(rs.getString("permission_code"));
-                    if (pc != null) {
-                        result.add(pc);
-                    }
-                }
+        for (String code : PERMISSION_DAO.findDirectPermissionCodes(userId, "查询用户单独权限失败")) {
+            PermissionCode pc = PermissionCode.fromCode(code);
+            if (pc != null) {
+                result.add(pc);
             }
-        } catch (SQLException e) {
-            throw new RuntimeException("查询用户单独权限失败", e);
         }
         return result;
     }
@@ -446,20 +404,10 @@ public class PermissionService {
      */
     public static Set<String> getUserPluginPermissionCodes(long userId) {
         Set<String> result = new HashSet<>();
-        String sql = "SELECT permission_code FROM user_permissions WHERE user_id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, userId);
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    String code = rs.getString("permission_code");
-                    if (pluginPermissions.containsKey(code)) {
-                        result.add(code);
-                    }
-                }
+        for (String code : PERMISSION_DAO.findDirectPermissionCodes(userId, "查询用户插件权限失败")) {
+            if (pluginPermissions.containsKey(code)) {
+                result.add(code);
             }
-        } catch (SQLException e) {
-            throw new RuntimeException("查询用户插件权限失败", e);
         }
         return result;
     }
@@ -568,23 +516,13 @@ public class PermissionService {
     /** 读取 user_permissions 里该用户的全部权限码（内置与插件混在一起）。 */
     private static Set<String> queryDirectPermissionCodes(long userId) {
         Set<String> result = new HashSet<>();
-        String sql = "SELECT permission_code FROM user_permissions WHERE user_id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, userId);
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    String code = rs.getString("permission_code");
-                    // 保持原有语义：只有"内置枚举里存在的"或"已注册插件权限"才算数，
-                    // 手工塞进库里的野码一律忽略（否则 hasPermission 的判定范围会比以前宽）。
-                    if (code != null
-                            && (PermissionCode.fromCode(code) != null || pluginPermissions.containsKey(code))) {
-                        result.add(code);
-                    }
-                }
+        for (String code : PERMISSION_DAO.findDirectPermissionCodes(userId, "查询用户权限失败")) {
+            // 保持原有语义：只有"内置枚举里存在的"或"已注册插件权限"才算数，
+            // 手工塞进库里的野码一律忽略（否则 hasPermission 的判定范围会比以前宽）。
+            if (code != null
+                    && (PermissionCode.fromCode(code) != null || pluginPermissions.containsKey(code))) {
+                result.add(code);
             }
-        } catch (SQLException e) {
-            throw new RuntimeException("查询用户权限失败", e);
         }
         return result;
     }
@@ -597,15 +535,7 @@ public class PermissionService {
             throw new IllegalArgumentException("未知权限组: " + roleName);
         }
 
-        String sql = INSERT_OR_IGNORE + " INTO user_roles (user_id, role_name) VALUES (?, ?)";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, userId);
-            ps.setString(2, roleName);
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("分配角色失败", e);
-        }
+        PERMISSION_DAO.insertUserRoleIfAbsent(userId, roleName);
         invalidatePermissionCache(userId);
     }
 
@@ -626,15 +556,7 @@ public class PermissionService {
      */
     public static void removeRole(long userId, String roleName) {
         ensureLoaded();
-        String sql = "DELETE FROM user_roles WHERE user_id = ? AND role_name = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, userId);
-            ps.setString(2, roleName);
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("移除角色失败", e);
-        }
+        PERMISSION_DAO.deleteUserRole(userId, roleName);
         invalidatePermissionCache(userId);
     }
 
@@ -649,15 +571,7 @@ public class PermissionService {
         if (!isValidPermissionCode(permissionCode)) {
             throw new IllegalArgumentException("未知权限码: " + permissionCode);
         }
-        String sql = INSERT_OR_IGNORE + " INTO user_permissions (user_id, permission_code) VALUES (?, ?)";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, userId);
-            ps.setString(2, permissionCode);
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("分配权限失败", e);
-        }
+        PERMISSION_DAO.insertUserPermissionIfAbsent(userId, permissionCode);
         invalidatePermissionCache(userId);
     }
 
@@ -665,15 +579,7 @@ public class PermissionService {
      * 移除用户单独分配的权限码
      */
     public static void removePermission(long userId, String permissionCode) {
-        String sql = "DELETE FROM user_permissions WHERE user_id = ? AND permission_code = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, userId);
-            ps.setString(2, permissionCode);
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("移除权限失败", e);
-        }
+        PERMISSION_DAO.deleteUserPermission(userId, permissionCode);
         invalidatePermissionCache(userId);
     }
 
@@ -712,16 +618,7 @@ public class PermissionService {
         if (groupHierarchy.containsKey(name)) {
             throw new IllegalArgumentException("权限组已存在: " + name);
         }
-        String sql = "INSERT INTO roles (name, display_name, level) VALUES (?, ?, ?)";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, name);
-            ps.setString(2, displayName != null ? displayName : name);
-            ps.setInt(3, level);
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("创建权限组失败", e);
-        }
+        PERMISSION_DAO.createRole(name, displayName != null ? displayName : name, level);
         refreshGroupCache();
     }
 
@@ -736,23 +633,18 @@ public class PermissionService {
         if (!groupHierarchy.containsKey(name)) {
             throw new IllegalArgumentException("权限组不存在: " + name);
         }
-        String sql = "UPDATE roles SET display_name = ?, level = ? WHERE name = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, displayName != null ? displayName : name);
-            ps.setInt(2, level);
-            ps.setString(3, name);
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("更新权限组失败", e);
-        }
+        PERMISSION_DAO.updateRole(name, displayName != null ? displayName : name, level);
         refreshGroupCache();
     }
 
     /**
      * 删除权限组。
+     *
+     * <p>"删组权限映射 → 删用户关联 → 删组定义"这三步必须原子，事务边界在
+     * {@link PermissionDAO#deleteGroupCascade(String)} 里（顺序固定、失败整笔回滚）。</p>
+     *
      * @param name 权限组名称
-     * @throws IllegalArgumentException 如果是系统内置权限组
+     * @throws IllegalArgumentException 如果是系统内置权限组，或组不存在
      */
     public static void deleteGroup(String name) {
         if (name == null || name.isBlank()) {
@@ -761,40 +653,7 @@ public class PermissionService {
         if (DEFAULT_GROUP_HIERARCHY.containsKey(name)) {
             throw new IllegalArgumentException("系统内置权限组不可删除: " + name);
         }
-        try (Connection conn = DatabaseManager.getConnection()) {
-            conn.setAutoCommit(false);
-            try {
-                // 删除组权限映射
-                try (PreparedStatement ps = conn.prepareStatement(
-                        "DELETE FROM role_permissions WHERE role_name = ?")) {
-                    ps.setString(1, name);
-                    ps.executeUpdate();
-                }
-                // 删除用户与该组的关联
-                try (PreparedStatement ps = conn.prepareStatement(
-                        "DELETE FROM user_roles WHERE role_name = ?")) {
-                    ps.setString(1, name);
-                    ps.executeUpdate();
-                }
-                // 删除组定义
-                try (PreparedStatement ps = conn.prepareStatement(
-                        "DELETE FROM roles WHERE name = ?")) {
-                    ps.setString(1, name);
-                    int deleted = ps.executeUpdate();
-                    if (deleted == 0) {
-                        throw new IllegalArgumentException("权限组不存在: " + name);
-                    }
-                }
-                conn.commit();
-            } catch (Exception e) {
-                conn.rollback();
-                throw e;
-            } finally {
-                conn.setAutoCommit(true);
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("删除权限组失败", e);
-        }
+        PERMISSION_DAO.deleteGroupCascade(name);
         refreshGroupCache();
     }
 
@@ -809,15 +668,7 @@ public class PermissionService {
         if (!groupHierarchy.containsKey(groupName)) {
             throw new IllegalArgumentException("权限组不存在: " + groupName);
         }
-        String sql = INSERT_OR_IGNORE + " INTO role_permissions (role_name, permission_code) VALUES (?, ?)";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, groupName);
-            ps.setString(2, permissionCode);
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("添加权限组权限失败", e);
-        }
+        PERMISSION_DAO.insertRolePermissionIfAbsent(groupName, permissionCode, "添加权限组权限失败");
         refreshGroupCache();
     }
 
@@ -825,20 +676,15 @@ public class PermissionService {
      * 从权限组移除一个权限。
      */
     public static void removeGroupPermission(String groupName, String permissionCode) {
-        String sql = "DELETE FROM role_permissions WHERE role_name = ? AND permission_code = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, groupName);
-            ps.setString(2, permissionCode);
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("移除权限组权限失败", e);
-        }
+        PERMISSION_DAO.deleteRolePermission(groupName, permissionCode);
         refreshGroupCache();
     }
 
     /**
      * 设置权限组的完整权限列表（覆盖现有权限）。
+     *
+     * <p>"先清空、再批量插入"必须在同一个事务里，事务边界在
+     * {@link PermissionDAO#replaceRolePermissions(String, Set)} 里。</p>
      */
     public static void setGroupPermissions(String groupName, Set<String> permissionCodes) {
         ensureLoaded();
@@ -850,72 +696,42 @@ public class PermissionService {
                 throw new IllegalArgumentException("未知权限码: " + code);
             }
         }
-        try (Connection conn = DatabaseManager.getConnection()) {
-            conn.setAutoCommit(false);
-            try {
-                // 先清空
-                try (PreparedStatement ps = conn.prepareStatement(
-                        "DELETE FROM role_permissions WHERE role_name = ?")) {
-                    ps.setString(1, groupName);
-                    ps.executeUpdate();
-                }
-                // 再插入
-                String insertSql = INSERT_OR_IGNORE + " INTO role_permissions (role_name, permission_code) VALUES (?, ?)";
-                try (PreparedStatement ps = conn.prepareStatement(insertSql)) {
-                    for (String code : permissionCodes) {
-                        ps.setString(1, groupName);
-                        ps.setString(2, code);
-                        ps.addBatch();
-                    }
-                    ps.executeBatch();
-                }
-                conn.commit();
-            } catch (Exception e) {
-                conn.rollback();
-                throw e;
-            } finally {
-                conn.setAutoCommit(true);
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("设置权限组权限失败", e);
-        }
+        PERMISSION_DAO.replaceRolePermissions(groupName, permissionCodes);
         refreshGroupCache();
     }
 
     // ==================== 用户列表查询 ====================
 
     public static List<Map<String, Object>> getAllUsersWithRoles() {
-        String sql = "SELECT u.id, u.username, ur.role_name FROM users u LEFT JOIN user_roles ur ON u.id = ur.user_id ORDER BY u.id";
         List<Map<String, Object>> result = new ArrayList<>();
-        try (Connection conn = DatabaseManager.getConnection();
-             Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery(sql)) {
-            Map<Long, Map<String, Object>> userMap = new LinkedHashMap<>();
-            while (rs.next()) {
-                long userId = rs.getLong("id");
-                userMap.putIfAbsent(userId, new HashMap<>());
-                Map<String, Object> userEntry = userMap.get(userId);
-                userEntry.put("id", userId);
-                userEntry.put("username", rs.getString("username"));
-                @SuppressWarnings("unchecked")
-                List<String> roles = (List<String>) userEntry.computeIfAbsent("roles", k -> new ArrayList<>());
-                String roleName = rs.getString("role_name");
-                if (roleName != null) {
-                    roles.add(roleName);
-                }
+        List<PermissionDAO.UserRoleRow> rows = PERMISSION_DAO.findAllUserRoleRows();
+
+        // 先把"账号 → 角色列表"聚合起来。LEFT JOIN 保证没有任何角色的账号也有一行
+        // （roleName 为 null），这种账号同样要出现在列表里。
+        Map<Long, Map<String, Object>> userMap = new LinkedHashMap<>();
+        for (PermissionDAO.UserRoleRow row : rows) {
+            long userId = row.userId();
+            userMap.putIfAbsent(userId, new HashMap<>());
+            Map<String, Object> userEntry = userMap.get(userId);
+            userEntry.put("id", userId);
+            userEntry.put("username", row.username());
+            @SuppressWarnings("unchecked")
+            List<String> roles = (List<String>) userEntry.computeIfAbsent("roles", k -> new ArrayList<>());
+            if (row.roleName() != null) {
+                roles.add(row.roleName());
             }
-            for (Map.Entry<Long, Map<String, Object>> entry : userMap.entrySet()) {
-                Set<PermissionCode> directPerms = getUserDirectPermissions(entry.getKey());
-                List<String> permCodes = new ArrayList<>();
-                for (PermissionCode pc : directPerms) {
-                    permCodes.add(pc.getCode());
-                }
-                permCodes.addAll(getUserPluginPermissionCodes(entry.getKey()));
-                entry.getValue().put("directPermissions", permCodes);
-                result.add(entry.getValue());
+        }
+
+        // 再逐账号补上"直接授予的权限码"（内置枚举 + 插件权限）
+        for (Map.Entry<Long, Map<String, Object>> entry : userMap.entrySet()) {
+            Set<PermissionCode> directPerms = getUserDirectPermissions(entry.getKey());
+            List<String> permCodes = new ArrayList<>();
+            for (PermissionCode pc : directPerms) {
+                permCodes.add(pc.getCode());
             }
-        } catch (SQLException e) {
-            throw new RuntimeException("查询用户角色列表失败", e);
+            permCodes.addAll(getUserPluginPermissionCodes(entry.getKey()));
+            entry.getValue().put("directPermissions", permCodes);
+            result.add(entry.getValue());
         }
         return result;
     }
@@ -924,58 +740,24 @@ public class PermissionService {
 
     public static void initDefaultData() {
         // 创建用户单独权限表
-        try (Connection conn = DatabaseManager.getConnection();
-             Statement stmt = conn.createStatement()) {
-            stmt.executeUpdate("CREATE TABLE IF NOT EXISTS user_permissions (" +
-                    "user_id INTEGER NOT NULL, " +
-                    "permission_code VARCHAR(255) NOT NULL, " +
-                    "UNIQUE(user_id, permission_code)" +
-                    ")");
-        } catch (SQLException e) {
-            throw new RuntimeException("创建用户权限表失败", e);
-        }
+        PERMISSION_DAO.createUserPermissionsTable();
 
         // 初始化默认权限组
         for (Map.Entry<String, Integer> entry : DEFAULT_GROUP_HIERARCHY.entrySet()) {
-            String sql = INSERT_OR_IGNORE + " INTO roles (name, level, display_name) VALUES (?, ?, ?)";
-            try (Connection conn = DatabaseManager.getConnection();
-                 PreparedStatement ps = conn.prepareStatement(sql)) {
-                ps.setString(1, entry.getKey());
-                ps.setInt(2, entry.getValue());
-                ps.setString(3, entry.getKey());
-                ps.executeUpdate();
-            } catch (SQLException e) {
-                throw new RuntimeException("初始化角色数据失败", e);
-            }
+            PERMISSION_DAO.insertRoleIfAbsent(entry.getKey(), entry.getValue(), entry.getKey());
         }
 
         // 初始化权限码
         for (PermissionCode pc : PermissionCode.values()) {
-            String sql = INSERT_OR_IGNORE + " INTO permissions (code, name, category) VALUES (?, ?, ?)";
-            try (Connection conn = DatabaseManager.getConnection();
-                 PreparedStatement ps = conn.prepareStatement(sql)) {
-                ps.setString(1, pc.getCode());
-                ps.setString(2, pc.getName());
-                ps.setString(3, pc.getCategory());
-                ps.executeUpdate();
-            } catch (SQLException e) {
-                throw new RuntimeException("初始化权限数据失败", e);
-            }
+            PERMISSION_DAO.insertPermissionIfAbsent(pc.getCode(), pc.getName(), pc.getCategory(),
+                    "初始化权限数据失败");
         }
 
         // 初始化权限组→权限映射
         Map<String, Set<String>> defaultPerms = buildDefaultGroupPermissions();
         for (Map.Entry<String, Set<String>> entry : defaultPerms.entrySet()) {
             for (String permCode : entry.getValue()) {
-                String sql = INSERT_OR_IGNORE + " INTO role_permissions (role_name, permission_code) VALUES (?, ?)";
-                try (Connection conn = DatabaseManager.getConnection();
-                     PreparedStatement ps = conn.prepareStatement(sql)) {
-                    ps.setString(1, entry.getKey());
-                    ps.setString(2, permCode);
-                    ps.executeUpdate();
-                } catch (SQLException e) {
-                    throw new RuntimeException("初始化角色权限数据失败", e);
-                }
+                PERMISSION_DAO.insertRolePermissionIfAbsent(entry.getKey(), permCode, "初始化角色权限数据失败");
             }
         }
 
