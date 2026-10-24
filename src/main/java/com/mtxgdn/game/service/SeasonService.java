@@ -50,7 +50,24 @@ public class SeasonService {
         LOG.info("全局季节系统已启动（模式: " + (CYCLE_MODE ? "cycle/" + (CYCLE_DURATION_MS / 3600_000L) + "小时" : "calendar") + "），当前季节: " + currentSeason.getDisplayName());
     }
 
+    /**
+     * 停掉天象刷新任务。
+     *
+     * <p>以前这个类没有 shutdown：关服时定时器还活着，退出前那几秒仍在查
+     * 已经关掉的连接池，刷出一屏无意义异常。</p>
+     */
+    public static void shutdown() {
+        scheduler.shutdown();
+        LOG.info("全局季节刷新任务已停止");
+    }
+
     private static void tick() {
+
+        // 服务器正在关闭、或测试里刚换了连接池：这时候没有库可查，
+        // 继续跑只会刷一屏 "Connection is closed" 把真问题淹掉。
+        if (!com.mtxgdn.db.DatabaseManager.isReady()) {
+            return;
+        }
         // 内置模块门控：修炼模块停用后暂停天象刷新
         if (!com.mtxgdn.plugin.BuiltInPluginRegistry.getInstance().isEnabledOrUnknown("cultivation")) return;
         recompute(System.currentTimeMillis(), false);

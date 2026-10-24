@@ -27,7 +27,7 @@ public class CaveService {
     private final PlayerService playerService = ServiceRegistry.getPlayerService();
     private final ItemService itemService = ServiceRegistry.getItemService();
 
-    private static final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+    private static final ScheduledExecutorService scheduler = com.mtxgdn.util.Schedulers.newDaemonSingle("cave-spirit-energy");
 
     static {
         scheduler.scheduleAtFixedRate(CaveService::tickSpiritEnergy, 10, 10, TimeUnit.SECONDS);
@@ -324,6 +324,12 @@ public class CaveService {
     }
 
     public static void tickSpiritEnergy() {
+
+        // 服务器正在关闭、或测试里刚换了连接池：这时候没有库可查，
+        // 继续跑只会刷一屏 "Connection is closed" 把真问题淹掉。
+        if (!com.mtxgdn.db.DatabaseManager.isReady()) {
+            return;
+        }
         // 内置模块门控：洞府模块停用后暂停灵气自动收集
         if (!com.mtxgdn.plugin.BuiltInPluginRegistry.getInstance().isEnabledOrUnknown("cave")) return;
         String sql = DatabaseManager.isSqlite()

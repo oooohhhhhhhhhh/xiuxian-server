@@ -291,8 +291,14 @@ class PlayerDaoExtractionTest extends TestBase {
 
         // 白名单为空：本次重构的目标就是让服务层一行 JDBC 都不剩。
         // 如果将来确实需要例外，请在这里加"文件内唯一的一处 + 理由"，并让它尽可能小。
-        assertFalse(source.contains("DatabaseManager"),
-                "PlayerService 不该再碰 DatabaseManager：连接、方言差异、事务都应该在 PlayerDAO 里");
+        //
+        // 唯一的例外是 DatabaseManager.isReady()：定时任务在每次 tick 开头要问一句
+        // "池子还在吗"，这不是 JDBC，是生命周期判断。把这一句剔除之后再断言，
+        // 其余任何 DatabaseManager 用法（连接、方言、事务）仍然一律不许出现。
+        String withoutReadinessCheck = source.replace("DatabaseManager.isReady()", "");
+        assertFalse(withoutReadinessCheck.contains("DatabaseManager"),
+                "PlayerService 不该再碰 DatabaseManager：连接、方言差异、事务都应该在 PlayerDAO 里"
+                        + "（DatabaseManager.isReady() 是唯一的例外，它只是生命周期判断）");
         assertFalse(source.contains("getConnection("),
                 "PlayerService 不该再自己开连接");
         assertFalse(source.contains("PreparedStatement"),

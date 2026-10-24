@@ -26,7 +26,7 @@ public class FormationService {
     private final PlayerService playerService = ServiceRegistry.getPlayerService();
     private final ItemService itemService = ServiceRegistry.getItemService();
 
-    private static final ScheduledExecutorService scheduler = Executors.newSingleThreadScheduledExecutor();
+    private static final ScheduledExecutorService scheduler = com.mtxgdn.util.Schedulers.newDaemonSingle("formation-tick");
 
     static {
         scheduler.scheduleAtFixedRate(FormationService::tickFormations, 60, 60, TimeUnit.SECONDS);
@@ -208,6 +208,12 @@ public class FormationService {
     }
 
     public static void tickFormations() {
+
+        // 服务器正在关闭、或测试里刚换了连接池：这时候没有库可查，
+        // 继续跑只会刷一屏 "Connection is closed" 把真问题淹掉。
+        if (!com.mtxgdn.db.DatabaseManager.isReady()) {
+            return;
+        }
         // 内置模块门控：阵法模块停用后暂停阵法到期结算
         if (!com.mtxgdn.plugin.BuiltInPluginRegistry.getInstance().isEnabledOrUnknown("formation")) return;
         String sql = "UPDATE formations SET active = 0 WHERE active = 1 AND expires_at < ?";

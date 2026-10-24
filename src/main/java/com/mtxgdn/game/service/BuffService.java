@@ -63,6 +63,12 @@ public class BuffService {
     }
 
     private static void cleanupExpiredMemoryBuffs() {
+
+        // 服务器正在关闭、或测试里刚换了连接池：这时候没有库可查，
+        // 继续跑只会刷一屏 "Connection is closed" 把真问题淹掉。
+        if (!com.mtxgdn.db.DatabaseManager.isReady()) {
+            return;
+        }
         // 内置模块门控：Buff 模块停用后暂停内存增益清理
         if (!com.mtxgdn.plugin.BuiltInPluginRegistry.getInstance().isEnabledOrUnknown("buff")) return;
         long now = System.currentTimeMillis();

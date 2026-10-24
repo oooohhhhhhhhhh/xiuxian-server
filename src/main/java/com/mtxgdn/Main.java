@@ -109,6 +109,14 @@ public class Main {
             LOG.info("玩家数据文件同步已完成");
         });
         hook.addTask(() -> {
+            // 这两个服务的定时任务以前没人停：关服后它们还会继续查已经关掉的
+            // 连接池，刷一屏 "Connection is closed"，把真正的关闭日志淹掉。
+            // （玩家/增益/洞府/阵法的停止已经在 ServerShutdownHook.createDefault 里）
+            com.mtxgdn.game.service.SeasonService.shutdown();
+            com.mtxgdn.game.service.SectService.shutdownSuccessionSweeper();
+            LOG.info("天象刷新与宗门换届巡检任务已停止");
+        });
+        hook.addTask(() -> {
             // 指令线程池：停止接收新任务，给已入队的指令 5 秒跑完再强制收尾。
             // 放在数据库关闭之前 —— 指令执行要用数据库连接。
             com.mtxgdn.common.command.CommandExecutor.shutdown();

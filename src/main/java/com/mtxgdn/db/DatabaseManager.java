@@ -556,6 +556,20 @@ public class DatabaseManager {
     }
 
     /**
+     * 连接池是否可用（已初始化且未关闭）。
+     *
+     * <p>后台定时任务在每次 tick 开头都应该问一句：服务器正在关闭、
+     * 或者测试里刚把旧池换掉的那一瞬间，池子是不存在的 ——
+     * 这时候继续查库只会刷一屏
+     * {@code NullPointerException} / {@code Connection is closed}，
+     * 把真正的问题淹掉。</p>
+     */
+    public static boolean isReady() {
+        HikariDataSource ds = dataSource;
+        return ds != null && !ds.isClosed();
+    }
+
+    /**
      * 当前被借出的连接数（监控与测试用）。
      *
      * @return 借出数；池未初始化时返回 {@code -1}

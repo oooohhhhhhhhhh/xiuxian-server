@@ -40,22 +40,23 @@ class DatabasePoolLifecycleTest extends TestBase {
     @Test
     @Order(1)
     @DisplayName("init() 之后不许有借出未还的连接")
-    void initDoesNotLeakAWarmupConnection() {
-        assertEquals(0, DatabaseManager.getActiveConnectionCount(),
+    void initDoesNotLeakAWarmupConnection() throws Exception {
+        // 后台定时任务（玩家回血、拍卖结算…）随时可能借走一条连接查几毫秒就还，
+        // 所以不能只测一次快照。这里轮询等它安静下来：泄漏的连接永远不会还，
+        // 短暂的占用会很快归零。
+        int active = waitUntilNoConnectionBorrowed(3_000);
+        assertEquals(0, active,
                 "init() 结束后仍有借出未归还的连接，说明预热连接漏了 —— "
-                        + "池里会被永久占掉一个名额（SQLite 只有 4 个）");
+                        + "池里会被永久占掉一个名额，借空的池子会让后来者卡满 10 秒超时");
     }
 
     @Test
     @Order(2)
     @DisplayName("重复 init() 必须先把旧池关掉，而不是再建一个")
     void reInitClosesThePreviousPool() throws Exception {
-        // 先借一条连接出来，把池标记成"有借出"
-        Connection held;
-        try (Connection ignored = DatabaseManager.getConnection()) {
-            // 只是为了确认池是活的
-        }
-        held = DatabaseManager.getConnection();
+        waitUntilNoConnectionBorrowed(3_000);
+
+        Connection held = DatabaseManager.getConnection();
         try {
             assertEquals(1, DatabaseManager.getActiveConnectionCount(), "借出一条后应计为 1");
 
@@ -65,7 +66,7 @@ class DatabasePoolLifecycleTest extends TestBase {
             assertEquals(0, DatabaseManager.getActiveConnectionCount(),
                     "重复 init() 之后旧池应已关闭、旧连接已作废，"
                             + "否则每 init 一次就漏一个池（测试里每个测试类都会 init 一次）");
-            assertTrue(DatabaseManager.getMaxPoolSize() >= 2, "新池应已建好");
+            assertTrue(DatabaseManager.getMaxPoolSize() >= 8, "新池应已建好");
         } finally {
             try {
                 held.close();
@@ -82,22 +83,38 @@ class DatabasePoolLifecycleTest extends TestBase {
         int max = DatabaseManager.getMaxPoolSize();
         assertTrue(max >= 2, "池上限应至少为 2，实际 " + max);
 
-        // 只借池上限 - 1 条，保证不会把自己卡死在等连接上
-        int take = max - 1;
+        // 只借池上限 - 2 条，给后台定时任务留出余量，避免把自己卡死在等连接上
+        int take = max - 2;
         List<Connection> conns = new ArrayList<>();
         try {
             for (int i = 0; i < take; i++) {
                 conns.add(DatabaseManager.getConnection());
             }
-            assertEquals(take, DatabaseManager.getActiveConnectionCount(),
-                    "借出 " + take + " 条后借出数应为 " + take);
+            assertTrue(DatabaseManager.getActiveConnectionCount() >= take,
+                    "借出 " + take + " 条后借出数应至少为 " + take);
         } finally {
             for (Connection c : conns) {
                 c.close();
             }
         }
-        assertEquals(0, DatabaseManager.getActiveConnectionCount(),
+        assertEquals(0, waitUntilNoConnectionBorrowed(3_000),
                 "全部归还后借出数必须回到 0");
+    }
+
+    /**
+     * 等到"没有连接被借出"为止。
+     *
+     * <p>后台定时任务会短暂借连接查几毫秒，所以断言"某一瞬间借出数为 0"是不稳的；
+     * 而泄漏的连接永远不会还 —— 轮询几秒还降不下来就说明真漏了。</p>
+     */
+    private static int waitUntilNoConnectionBorrowed(long timeoutMillis) throws InterruptedException {
+        long deadline = System.currentTimeMillis() + timeoutMillis;
+        int active = DatabaseManager.getActiveConnectionCount();
+        while (active != 0 && System.currentTimeMillis() < deadline) {
+            Thread.sleep(50);
+            active = DatabaseManager.getActiveConnectionCount();
+        }
+        return active;
     }
 
     @Test
