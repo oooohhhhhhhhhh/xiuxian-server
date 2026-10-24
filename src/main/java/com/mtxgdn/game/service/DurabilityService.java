@@ -1,7 +1,7 @@
 package com.mtxgdn.game.service;
 
 import com.mtxgdn.common.service.ServiceRegistry;
-import com.mtxgdn.db.DatabaseManager;
+import com.mtxgdn.db.DurabilityDAO;
 import com.mtxgdn.game.item.BuffEffect;
 import com.mtxgdn.game.item.Item;
 import com.mtxgdn.game.item.ItemEffect;
@@ -11,10 +11,9 @@ import com.mtxgdn.util.AppConfig;
 import com.mtxgdn.util.GameLogger;
 
 import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -41,6 +40,9 @@ public class DurabilityService {
     public static final String[] SLOTS = {"weapon", "armor", "accessory"};
 
     private static final String[] SLOT_NAMES = {"武器", "护甲", "饰品"};
+
+    /** {@code player_item_durability} 的读写入口（无状态，可共享）。 */
+    private static final DurabilityDAO DURABILITY_DAO = new DurabilityDAO();
 
     public static String getSlotDisplayName(String slot) {
         for (int i = 0; i < SLOTS.length; i++) {
@@ -75,50 +77,34 @@ public class DurabilityService {
      * 单个物品的当前耐久。没有记录 = 从未磨损过 = 满耐久。
      */
     public int getDurability(long playerId, String itemKey) {
-        try (Connection conn = DatabaseManager.getConnection()) {
-            return getDurability(conn, playerId, itemKey);
-        } catch (SQLException e) {
+        try {
+            return DURABILITY_DAO.getDurability(playerId, itemKey, getMaxDurability());
+        } catch (RuntimeException e) {
             LOG.warn("查询装备耐久失败: " + e.getMessage());
             return getMaxDurability();
         }
     }
 
+    /**
+     * 事务内版本：在调用方已开启的连接上读耐久。
+     *
+     * <p>{@code ItemService.unequipItem} 在事务里用它判断"已损坏的装备不许卸下"
+     * —— 若改成自取连接的重载，这一步就会落在另一条连接上单独提交，
+     * 事务回滚时"已经查过耐久"这件事不会跟着回滚，而且 SQLite 下会撞
+     * {@code SQLITE_BUSY_SNAPSHOT}。</p>
+     */
     public int getDurability(Connection conn, long playerId, String itemKey) throws SQLException {
-        String sql = "SELECT durability FROM player_item_durability WHERE player_id = ? AND item_key = ?";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            ps.setString(2, itemKey);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    return rs.getInt("durability");
-                }
-            }
-        }
-        return getMaxDurability();
+        return DURABILITY_DAO.getDurability(conn, playerId, itemKey);
     }
 
     /** 装备栏各槽位的当前耐久（slot → durability）。未装备的槽位不出现在结果里。 */
     public Map<String, Integer> getEquippedDurability(long playerId) {
-        Map<String, Integer> result = new LinkedHashMap<>();
-        String sql = "SELECT e.slot, e.item_key, d.durability FROM players_equipment e "
-                + "LEFT JOIN player_item_durability d ON d.player_id = e.player_id AND d.item_key = e.item_key "
-                + "WHERE e.player_id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    int dur = rs.getInt("durability");
-                    if (rs.wasNull()) {
-                        dur = getMaxDurability();
-                    }
-                    result.put(rs.getString("slot"), dur);
-                }
-            }
-        } catch (SQLException e) {
+        try {
+            return DURABILITY_DAO.getEquippedDurability(playerId, getMaxDurability());
+        } catch (RuntimeException e) {
             LOG.warn("查询装备耐久列表失败: " + e.getMessage());
+            return new LinkedHashMap<>();
         }
-        return result;
     }
 
     public boolean isBroken(long playerId, String itemKey) {
@@ -134,28 +120,24 @@ public class DurabilityService {
      */
     public int[] getBrokenPenalty(long playerId) {
         int[] penalty = {0, 0, 0, 0};
-        String sql = "SELECT e.item_key, d.durability FROM players_equipment e "
-                + "JOIN player_item_durability d ON d.player_id = e.player_id AND d.item_key = e.item_key "
-                + "WHERE e.player_id = ? AND d.durability <= 0";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    Item item = ItemRegistry.get(rs.getString("item_key"));
-                    if (item == null) continue;
-                    for (ItemEffect effect : item.getEffects()) {
-                        if (effect instanceof BuffEffect be) {
-                            penalty[0] += be.getAttackBonus();
-                            penalty[1] += be.getDefenseBonus();
-                            penalty[2] += be.getSpeedBonus();
-                            penalty[3] += be.getSpiritBonus();
-                        }
-                    }
+        List<String> brokenItemKeys;
+        try {
+            brokenItemKeys = DURABILITY_DAO.findBrokenItemKeys(playerId);
+        } catch (RuntimeException e) {
+            LOG.warn("统计损坏装备惩罚失败: " + e.getMessage());
+            return penalty;
+        }
+        for (String itemKey : brokenItemKeys) {
+            Item item = ItemRegistry.get(itemKey);
+            if (item == null) continue;
+            for (ItemEffect effect : item.getEffects()) {
+                if (effect instanceof BuffEffect be) {
+                    penalty[0] += be.getAttackBonus();
+                    penalty[1] += be.getDefenseBonus();
+                    penalty[2] += be.getSpeedBonus();
+                    penalty[3] += be.getSpiritBonus();
                 }
             }
-        } catch (SQLException e) {
-            LOG.warn("统计损坏装备惩罚失败: " + e.getMessage());
         }
         return penalty;
     }
@@ -176,26 +158,9 @@ public class DurabilityService {
         if (equipment.isEmpty()) {
             return;
         }
-        int max = getMaxDurability();
-        String sql = DatabaseManager.isSqlite()
-                ? "INSERT INTO player_item_durability (player_id, item_key, durability) VALUES (?, ?, ?) "
-                + "ON CONFLICT(player_id, item_key) DO UPDATE SET "
-                + "durability = MAX(0, durability - ?), updated_at = CURRENT_TIMESTAMP"
-                : "INSERT INTO player_item_durability (player_id, item_key, durability) VALUES (?, ?, ?) "
-                + "ON DUPLICATE KEY UPDATE "
-                + "durability = GREATEST(0, durability - ?), updated_at = CURRENT_TIMESTAMP";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            for (String itemKey : equipment.values()) {
-                if (itemKey == null || itemKey.isEmpty()) continue;
-                ps.setLong(1, playerId);
-                ps.setString(2, itemKey);
-                ps.setInt(3, Math.max(0, max - amount));
-                ps.setInt(4, amount);
-                ps.addBatch();
-            }
-            ps.executeBatch();
-        } catch (SQLException e) {
+        try {
+            DURABILITY_DAO.applyWear(playerId, equipment.values(), amount, getMaxDurability());
+        } catch (RuntimeException e) {
             // 磨损失败不该让战斗报错：耐久是长期账，漏一次可以接受
             LOG.warn("装备磨损结算失败: " + e.getMessage());
         }
@@ -262,25 +227,9 @@ public class DurabilityService {
             return result;
         }
 
-        String sql = DatabaseManager.isSqlite()
-                ? "INSERT INTO player_item_durability (player_id, item_key, durability) VALUES (?, ?, ?) "
-                + "ON CONFLICT(player_id, item_key) DO UPDATE SET "
-                + "durability = ?, updated_at = CURRENT_TIMESTAMP"
-                : "INSERT INTO player_item_durability (player_id, item_key, durability) VALUES (?, ?, ?) "
-                + "ON DUPLICATE KEY UPDATE durability = VALUES(durability), updated_at = CURRENT_TIMESTAMP";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            for (String itemKey : toRepair.keySet()) {
-                ps.setLong(1, playerId);
-                ps.setString(2, itemKey);
-                ps.setInt(3, max);
-                if (DatabaseManager.isSqlite()) {
-                    ps.setInt(4, max);
-                }
-                ps.addBatch();
-            }
-            ps.executeBatch();
-        } catch (SQLException e) {
+        try {
+            DURABILITY_DAO.repairToMax(playerId, toRepair.keySet(), max);
+        } catch (RuntimeException e) {
             LOG.error("修理装备写库失败: " + e.getMessage());
             result.put("success", false);
             result.put("message", I18n.t("equip.repair_failed"));
