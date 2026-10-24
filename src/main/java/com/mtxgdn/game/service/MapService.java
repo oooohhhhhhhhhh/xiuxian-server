@@ -1,6 +1,14 @@
 package com.mtxgdn.game.service;
 
 import com.mtxgdn.db.DatabaseManager;
+import com.mtxgdn.db.MapDAO;
+import com.mtxgdn.db.MapDAO.BonusSeedState;
+import com.mtxgdn.db.MapDAO.ConnectionRow;
+import com.mtxgdn.db.MapDAO.CurrentLocationRow;
+import com.mtxgdn.db.MapDAO.EventBiasRow;
+import com.mtxgdn.db.MapDAO.LocationRow;
+import com.mtxgdn.db.MapDAO.PlayerLocationRow;
+import com.mtxgdn.db.MapDAO.PlayerPositionRow;
 import com.mtxgdn.game.config.GameConfigLoader;
 import com.mtxgdn.game.config.MapDefaults;
 import com.mtxgdn.game.config.MapDefaults.EventBiasSeed;
@@ -15,8 +23,6 @@ import com.mtxgdn.common.service.ServiceRegistry;
 import com.mtxgdn.util.GameLogger;
 
 import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -46,10 +52,27 @@ import com.mtxgdn.i18n.I18n;
  * <p>代价是野外节点不能走"从缓存查表"的老路：{@link #getLocation(long)} 对野外 id
  * 会现算节点，{@link #getNeighbors(long)} 会现算邻接。赶路冷却、境界门槛、
  * 并发 CAS 这些既有逻辑因此原样复用，不需要知道地点是查出来的还是算出来的。</p>
+ *
+ * <p><b>数据访问在哪</b>：{@code map_locations} / {@code map_connections} /
+ * {@code map_location_event_bias} / {@code player_map_exploration} 四张表，
+ * 以及 {@code players} 上的 {@code current_location_id} / {@code last_travel_time} /
+ * {@code last_gather_time} 三列，全部读写都在 {@link MapDAO} 里。
+ * 本类只剩业务逻辑：缓存与热重载、境界/邻接/冷却校验、坐标与边界换算、事件触发。
+ * 仍在本类里开连接的地方只有四处，且都是"多条语句必须共用同一条连接"的场景
+ * （整段地图加载、探索记录 + 首达奖励、一轮分片扫描、发物品 + 采集冷却）。</p>
  */
 public class MapService {
 
     private static final GameLogger LOG = GameLogger.getLogger(MapService.class);
+
+    /**
+     * 地图数据访问入口（三张配置表 + 探索记录 + {@code players} 上的位置/冷却列）。
+     *
+     * <p>无状态，因此可以是静态字段：本服务需要单例的只有下面那六份<b>缓存</b>，
+     * DAO 不持有任何数据。所有 SQL 都在 {@link MapDAO} 里，本类只留业务逻辑
+     * （缓存、校验、坐标/边界计算、事件触发）。</p>
+     */
+    private static final MapDAO MAP_DAO = new MapDAO();
 
     /** 连接未配置路程秒数时的兜底值（后台手加连接可能留空）。 */
     private static final long TRAVEL_COOLDOWN_SECONDS = 30;
@@ -232,14 +255,9 @@ public class MapService {
     private void repairDefaultData(Connection conn) throws SQLException {
         // 列集合一次性取好：老库若迁移未成功可能缺 danger_level 等新列，
         // 此时退化为"只补旧列"，而不是让整个地图加载失败。
-        Set<String> columns = columnsOf(conn, "map_locations");
+        Set<String> columns = MAP_DAO.findLocationColumns(conn);
 
-        boolean empty;
-        try (var stmt = conn.createStatement();
-             var rs = stmt.executeQuery("SELECT COUNT(*) FROM map_locations")) {
-            rs.next();
-            empty = rs.getInt(1) == 0;
-        }
+        boolean empty = MAP_DAO.isLocationTableEmpty(conn);
 
         if (empty) {
             insertAllDefaultLocations(conn, columns);
@@ -251,14 +269,14 @@ public class MapService {
 
         // 默认连接必须双向补齐，避免出现"只能去不能回"的单向路径
         for (long[] pair : MapDefaults.CONNECTIONS) {
-            insertConnectionIfMissing(conn, pair[0], pair[1]);
-            insertConnectionIfMissing(conn, pair[1], pair[0]);
+            MAP_DAO.insertConnectionIfMissing(conn, pair[0], pair[1]);
+            MAP_DAO.insertConnectionIfMissing(conn, pair[1], pair[0]);
         }
         // 修复历史数据中的单向连接：若存在 A→B 但缺少 B→A，补上反向
         repairReverseConnections(conn);
 
         for (EventBiasSeed bias : MapDefaults.EVENT_BIAS) {
-            insertEventBiasIfMissing(conn, bias.locationId(), bias.eventKey(), bias.weightMultiplier());
+            MAP_DAO.insertEventBiasIfMissing(conn, bias.locationId(), bias.eventKey(), bias.weightMultiplier());
         }
     }
 
@@ -269,315 +287,89 @@ public class MapService {
      */
     private void repairLocation(Connection conn, LocationSeed seed, Set<String> columns) throws SQLException {
         boolean dangerAvailable = columns.contains("danger_level");
-        String checkSql = dangerAvailable
-                ? "SELECT cultivation_bonus, exploration_bonus, danger_level FROM map_locations WHERE id = ?"
-                : "SELECT cultivation_bonus, exploration_bonus FROM map_locations WHERE id = ?";
-        boolean exists = false;
-        boolean cultivationUnseeded = false;
-        boolean explorationUnseeded = false;
-        boolean dangerUnseeded = false;
         boolean bonusColumnsAvailable = true;
-
-        try (PreparedStatement ps = conn.prepareStatement(checkSql)) {
-            ps.setLong(1, seed.id());
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    exists = true;
-                    rs.getDouble("cultivation_bonus");
-                    cultivationUnseeded = rs.wasNull();
-                    rs.getDouble("exploration_bonus");
-                    explorationUnseeded = rs.wasNull();
-                    if (dangerAvailable) {
-                        rs.getInt("danger_level");
-                        dangerUnseeded = rs.wasNull();
-                    }
-                }
-            }
+        BonusSeedState state;
+        try {
+            state = MAP_DAO.findBonusSeedState(conn, seed.id(), dangerAvailable);
         } catch (SQLException e) {
             LOG.warn("map_locations 加成列不可用（迁移可能未成功），本次只补齐地点本身: " + e.getMessage());
             bonusColumnsAvailable = false;
-            exists = locationRowExists(conn, seed.id());
+            state = new BonusSeedState(MAP_DAO.existsLocation(conn, seed.id()), false, false, false);
         }
 
-        if (!exists) {
-            insertLocation(conn, seed, columns);
+        if (!state.exists()) {
+            MAP_DAO.insertLocation(conn, seed, columns);
             return;
         }
 
-        if (bonusColumnsAvailable && (cultivationUnseeded || explorationUnseeded || dangerUnseeded)) {
-            String sql = "UPDATE map_locations SET "
-                    + "cultivation_bonus = COALESCE(cultivation_bonus, ?), "
-                    + "exploration_bonus = COALESCE(exploration_bonus, ?)"
-                    + (dangerAvailable ? ", danger_level = COALESCE(danger_level, ?)" : "")
-                    + " WHERE id = ?";
-            try (PreparedStatement ps = conn.prepareStatement(sql)) {
-                int index = 1;
-                ps.setDouble(index++, seed.cultivationBonus());
-                ps.setDouble(index++, seed.explorationBonus());
-                if (dangerAvailable) {
-                    ps.setInt(index++, seed.dangerLevel());
-                }
-                ps.setLong(index, seed.id());
-                ps.executeUpdate();
-            }
+        if (bonusColumnsAvailable
+                && (state.cultivationUnseeded() || state.explorationUnseeded() || state.dangerUnseeded())) {
+            MAP_DAO.seedLocationBonusColumns(conn, seed.id(), seed.cultivationBonus(),
+                    seed.explorationBonus(), dangerAvailable, seed.dangerLevel());
         }
     }
 
-    /** 读表的列名集合（小写）。用于在老库缺列时优雅退化，而不是靠逐个 try/catch 猜。 */
-    private static Set<String> columnsOf(Connection conn, String table) {
-        Set<String> columns = new HashSet<>();
-        try (var stmt = conn.createStatement();
-             var rs = stmt.executeQuery("SELECT * FROM " + table + " WHERE 1 = 0")) {
-            var meta = rs.getMetaData();
-            for (int i = 1; i <= meta.getColumnCount(); i++) {
-                columns.add(meta.getColumnLabel(i).toLowerCase());
-            }
-        } catch (SQLException e) {
-            LOG.warn("读取 " + table + " 的列名失败（将按老库处理）: " + e.getMessage());
-        }
-        return columns;
-    }
-
-    private boolean locationRowExists(Connection conn, long id) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement("SELECT COUNT(*) FROM map_locations WHERE id = ?")) {
-            ps.setLong(1, id);
-            try (ResultSet rs = ps.executeQuery()) {
-                return rs.next() && rs.getInt(1) > 0;
-            }
-        }
-    }
-
-    private void insertLocation(Connection conn, LocationSeed seed, Set<String> columns) throws SQLException {
-        boolean withBonuses = columns.contains("cultivation_bonus") && columns.contains("exploration_bonus");
-        boolean withDanger = columns.contains("danger_level");
-
-        StringBuilder cols = new StringBuilder("(id, name, description, region, min_realm, is_safe_zone");
-        StringBuilder marks = new StringBuilder("VALUES (?, ?, ?, ?, ?, ?");
-        if (withBonuses) {
-            cols.append(", cultivation_bonus, exploration_bonus");
-            marks.append(", ?, ?");
-        }
-        if (withDanger) {
-            cols.append(", danger_level");
-            marks.append(", ?");
-        }
-        cols.append(")");
-        marks.append(")");
-
-        try (PreparedStatement ps = conn.prepareStatement(
-                "INSERT INTO map_locations " + cols + " " + marks)) {
-            int i = 1;
-            ps.setLong(i++, seed.id());
-            ps.setString(i++, seed.name());
-            ps.setString(i++, seed.description());
-            ps.setString(i++, seed.region());
-            ps.setInt(i++, seed.minRealm());
-            ps.setBoolean(i++, seed.safeZone());
-            if (withBonuses) {
-                ps.setDouble(i++, seed.cultivationBonus());
-                ps.setDouble(i++, seed.explorationBonus());
-            }
-            if (withDanger) {
-                ps.setInt(i, seed.dangerLevel());
-            }
-            ps.executeUpdate();
-        }
-    }
-
+    /**
+     * 新库首次安装：全量写入出厂地点与出厂连接。
+     *
+     * <p>两步都走同一条连接（调用方传入），因此"地点写了一半、连接没写"不会留到库里。</p>
+     */
     private void insertAllDefaultLocations(Connection conn, Set<String> columns) throws SQLException {
-        boolean withDanger = columns.contains("danger_level");
-        String sql = "INSERT INTO map_locations "
-                + "(id, name, description, region, min_realm, is_safe_zone, cultivation_bonus, exploration_bonus"
-                + (withDanger ? ", danger_level" : "") + ") "
-                + "VALUES (?, ?, ?, ?, ?, ?, ?, ?" + (withDanger ? ", ?" : "") + ")";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            for (LocationSeed seed : MapDefaults.LOCATIONS) {
-                ps.setLong(1, seed.id());
-                ps.setString(2, seed.name());
-                ps.setString(3, seed.description());
-                ps.setString(4, seed.region());
-                ps.setInt(5, seed.minRealm());
-                ps.setBoolean(6, seed.safeZone());
-                ps.setDouble(7, seed.cultivationBonus());
-                ps.setDouble(8, seed.explorationBonus());
-                if (withDanger) {
-                    ps.setInt(9, seed.dangerLevel());
-                }
-                ps.addBatch();
-            }
-            ps.executeBatch();
-        }
-
-        String connSql = "INSERT INTO map_connections (from_location_id, to_location_id, travel_time_seconds) VALUES (?, ?, 5)";
-        try (PreparedStatement ps = conn.prepareStatement(connSql)) {
-            for (long[] pair : MapDefaults.CONNECTIONS) {
-                ps.setLong(1, pair[0]);
-                ps.setLong(2, pair[1]);
-                ps.addBatch();
-                ps.setLong(1, pair[1]);
-                ps.setLong(2, pair[0]);
-                ps.addBatch();
-            }
-            ps.executeBatch();
-        }
+        MAP_DAO.insertDefaultLocations(conn, MapDefaults.LOCATIONS, columns);
+        MAP_DAO.insertDefaultConnections(conn, MapDefaults.CONNECTIONS);
     }
 
     private void repairReverseConnections(Connection conn) throws SQLException {
-        String reverseSql = "SELECT from_location_id, to_location_id FROM map_connections";
-        List<long[]> existing = new ArrayList<>();
-        try (PreparedStatement ps = conn.prepareStatement(reverseSql);
-             ResultSet rs = ps.executeQuery()) {
-            while (rs.next()) {
-                existing.add(new long[]{rs.getLong(1), rs.getLong(2)});
-            }
-        }
-        for (long[] edge : existing) {
-            insertConnectionIfMissing(conn, edge[1], edge[0]);
-        }
-    }
-
-    private void insertConnectionIfMissing(Connection conn, long from, long to) throws SQLException {
-        String checkSql = "SELECT COUNT(*) FROM map_connections WHERE from_location_id = ? AND to_location_id = ?";
-        try (PreparedStatement ps = conn.prepareStatement(checkSql)) {
-            ps.setLong(1, from);
-            ps.setLong(2, to);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next() && rs.getInt(1) > 0) {
-                    return;
-                }
-            }
-        }
-        String sql = "INSERT INTO map_connections (from_location_id, to_location_id, travel_time_seconds) VALUES (?, ?, ?)";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, from);
-            ps.setLong(2, to);
-            ps.setInt(3, 5);
-            ps.executeUpdate();
-        }
-    }
-
-    private void insertEventBiasIfMissing(Connection conn, long locationId, String eventKey, double multiplier)
-            throws SQLException {
-        String checkSql = "SELECT COUNT(*) FROM map_location_event_bias WHERE location_id = ? AND event_key = ?";
-        try (PreparedStatement ps = conn.prepareStatement(checkSql)) {
-            ps.setLong(1, locationId);
-            ps.setString(2, eventKey);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next() && rs.getInt(1) > 0) {
-                    return;
-                }
-            }
-        }
-        String sql = "INSERT INTO map_location_event_bias (location_id, event_key, weight_multiplier) VALUES (?, ?, ?)";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, locationId);
-            ps.setString(2, eventKey);
-            ps.setDouble(3, multiplier);
-            ps.executeUpdate();
+        for (long[] edge : MAP_DAO.findAllConnectionEdges(conn)) {
+            MAP_DAO.insertConnectionIfMissing(conn, edge[1], edge[0]);
         }
     }
 
     // ==================== 加载 ====================
 
     private void loadLocations(Connection conn) throws SQLException {
-        Set<String> columns = columnsOf(conn, "map_locations");
-        boolean hasDanger = columns.contains("danger_level");
-        boolean hasWilderness = columns.contains("is_wilderness");
-        boolean hasExpires = columns.contains("expires_at");
-        boolean hasEntry = columns.contains("entry_location_id");
+        for (LocationRow row : MAP_DAO.findAllLocations(conn)) {
+            MapLocation loc = new MapLocation(
+                    row.id(), row.name(), row.description(), row.region(), row.minRealm(), row.safeZone(),
+                    row.cultivationBonus(), row.explorationBonus(), row.dangerLevel());
+            loc.setWilderness(row.wilderness());
+            loc.setExpiresAt(row.expiresAt());
+            loc.setEntryLocationId(row.entryLocationId());
 
-        String sql = "SELECT * FROM map_locations ORDER BY id";
-        try (PreparedStatement ps = conn.prepareStatement(sql);
-             ResultSet rows = ps.executeQuery()) {
-            while (rows.next()) {
-                long id = rows.getLong("id");
-                MapLocation loc = new MapLocation(
-                        id, rows.getString("name"), rows.getString("description"),
-                        rows.getString("region"), rows.getInt("min_realm"),
-                        rows.getBoolean("is_safe_zone"),
-                        readBonus(rows, "cultivation_bonus"),
-                        readBonus(rows, "exploration_bonus"),
-                        hasDanger ? readInt(rows, "danger_level", 0) : 0);
-                loc.setWilderness(hasWilderness && readInt(rows, "is_wilderness", 0) != 0);
-                loc.setExpiresAt(hasExpires ? readLong(rows, "expires_at", 0L) : 0L);
-                loc.setEntryLocationId(hasEntry ? readLong(rows, "entry_location_id", 0L) : 0L);
-
-                // 不变式：安全区不可能是险地。矛盾数据只告警、不静默改写（管理员可在后台修正）；
-                // 且 PVP 判定以 is_safe_zone 为准，所以危险度被误设也不会打开 PK 的口子。
-                if (loc.isSafeZone() && loc.getDangerLevel() > 0) {
-                    LOG.warn("地点「" + loc.getName() + "」(id=" + id + ") 同时被标为安全区与危险度 "
-                            + loc.getDangerLevel() + "，数据矛盾：PVP 仍按安全区处理，请到管理台修正");
-                }
-                locationCache.put(id, loc);
+            // 不变式：安全区不可能是险地。矛盾数据只告警、不静默改写（管理员可在后台修正）；
+            // 且 PVP 判定以 is_safe_zone 为准，所以危险度被误设也不会打开 PK 的口子。
+            if (loc.isSafeZone() && loc.getDangerLevel() > 0) {
+                LOG.warn("地点「" + loc.getName() + "」(id=" + row.id() + ") 同时被标为安全区与危险度 "
+                        + loc.getDangerLevel() + "，数据矛盾：PVP 仍按安全区处理，请到管理台修正");
             }
-        }
-    }
-
-    /** 读取整型列；列为 NULL 或不存在（老库尚未升级）时用默认值。 */
-    private static int readInt(ResultSet rows, String column, int fallback) {
-        try {
-            int value = rows.getInt(column);
-            return rows.wasNull() ? fallback : value;
-        } catch (SQLException e) {
-            return fallback;
-        }
-    }
-
-    /** 读取长整型列；列为 NULL 或不存在（老库尚未升级）时用默认值。 */
-    private static long readLong(ResultSet rows, String column, long fallback) {
-        try {
-            long value = rows.getLong(column);
-            return rows.wasNull() ? fallback : value;
-        } catch (SQLException e) {
-            return fallback;
-        }
-    }
-
-    /** 读取加成列；列为 NULL 或异常（老库尚未升级）时按 1.0 处理，保证加成永不缺失。 */
-    private static double readBonus(ResultSet rows, String column) {
-        try {
-            double value = rows.getDouble(column);
-            if (rows.wasNull() || value <= 0) {
-                return 1.0;
-            }
-            return value;
-        } catch (SQLException e) {
-            return 1.0;
+            locationCache.put(row.id(), loc);
         }
     }
 
     private void loadConnections(Connection conn) throws SQLException {
-        String sql = "SELECT * FROM map_connections";
-        try (PreparedStatement ps = conn.prepareStatement(sql);
-             ResultSet rows = ps.executeQuery()) {
-            while (rows.next()) {
-                long from = rows.getLong("from_location_id");
-                long to = rows.getLong("to_location_id");
-                int travelTime = rows.getInt("travel_time_seconds");
-                connections.add(new long[]{from, to});
-                travelTimes.put(key(from, to), Math.max(1, travelTime));
-                MapLocation a = locationCache.get(from);
-                MapLocation b = locationCache.get(to);
-                if (a != null && b != null) {
-                    if (!a.getConnections().contains(b)) a.getConnections().add(b);
-                    if (!b.getConnections().contains(a)) b.getConnections().add(a);
-                }
+        for (ConnectionRow row : MAP_DAO.findAllConnections(conn)) {
+            long from = row.fromLocationId();
+            long to = row.toLocationId();
+            connections.add(new long[]{from, to});
+            travelTimes.put(key(from, to), Math.max(1, row.travelTimeSeconds()));
+            MapLocation a = locationCache.get(from);
+            MapLocation b = locationCache.get(to);
+            if (a != null && b != null) {
+                if (!a.getConnections().contains(b)) a.getConnections().add(b);
+                if (!b.getConnections().contains(a)) b.getConnections().add(a);
             }
         }
     }
 
     private void loadEventBias(Connection conn) {
-        String sql = "SELECT location_id, event_key, weight_multiplier FROM map_location_event_bias";
-        try (PreparedStatement ps = conn.prepareStatement(sql);
-             ResultSet rows = ps.executeQuery()) {
-            while (rows.next()) {
-                long locationId = rows.getLong("location_id");
-                String eventKey = rows.getString("event_key");
-                double multiplier = rows.getDouble("weight_multiplier");
+        try {
+            for (EventBiasRow row : MAP_DAO.findAllEventBiases(conn)) {
+                String eventKey = row.eventKey();
+                double multiplier = row.weightMultiplier();
                 if (eventKey == null || eventKey.isBlank() || multiplier <= 0) {
                     continue;
                 }
-                eventBias.computeIfAbsent(locationId, k -> new ConcurrentHashMap<>()).put(eventKey, multiplier);
+                eventBias.computeIfAbsent(row.locationId(), k -> new ConcurrentHashMap<>()).put(eventKey, multiplier);
             }
         } catch (SQLException e) {
             // 老库尚未建表时降级为"无偏置"，不影响地图主流程
@@ -740,43 +532,16 @@ public class MapService {
      */
     public long getPlayerLocationId(long playerId) {
         ensureInitialized();
-        String sql = "SELECT current_location_id FROM players WHERE id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    long locId = rs.getLong("current_location_id");
-                    boolean wasNull = rs.wasNull();
-                    return resolveLocationId(locId, wasNull, playerId);
-                }
-            }
-        } catch (SQLException e) { throw new RuntimeException("获取玩家位置失败", e); }
+        CurrentLocationRow row = MAP_DAO.findCurrentLocation(playerId);
+        if (row != null) {
+            return resolveLocationId(row.locationId(), row.locationNull(), playerId);
+        }
         return DEFAULT_LOCATION_ID;
     }
 
-    /** 玩家位置的原始读数。CAS 期望值必须是库里的原值，而不是回落后的值。 */
-    private record RawPosition(long rawLocationId, boolean locationNull, long lastTravelTime) {
-    }
-
-    private RawPosition readRawPosition(long playerId) {
-        String sql = "SELECT current_location_id, last_travel_time FROM players WHERE id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    long rawLoc = rs.getLong("current_location_id");
-                    boolean locNull = rs.wasNull();
-                    long lastTravel = rs.getLong("last_travel_time");
-                    if (rs.wasNull()) lastTravel = 0;
-                    return new RawPosition(rawLoc, locNull, lastTravel);
-                }
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("获取玩家位置失败", e);
-        }
-        return new RawPosition(DEFAULT_LOCATION_ID, true, 0);
+    private PlayerPositionRow readRawPosition(long playerId) {
+        PlayerPositionRow row = MAP_DAO.findPlayerPosition(playerId);
+        return row != null ? row : new PlayerPositionRow(DEFAULT_LOCATION_ID, true, 0);
     }
 
     /** 把库里的位置解析为有效地点 id；失效值回落到出生地并告警。 */
@@ -806,18 +571,7 @@ public class MapService {
     }
 
     public long getPlayerLastTravelTime(long playerId) {
-        String sql = "SELECT last_travel_time FROM players WHERE id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    long t = rs.getLong("last_travel_time");
-                    return rs.wasNull() ? 0 : t;
-                }
-            }
-        } catch (SQLException e) { throw new RuntimeException("获取玩家旅行时间失败", e); }
-        return 0;
+        return MAP_DAO.findLastTravelTime(playerId);
     }
 
     // ==================== 移动 ====================
@@ -839,7 +593,7 @@ public class MapService {
             return createResult(false, I18n.t("map.realm_too_low", target.getName(), getRealmName(target.getMinRealm()), getRealmName(player.getRealm())));
         }
 
-        RawPosition position = readRawPosition(playerId);
+        PlayerPositionRow position = readRawPosition(playerId);
         long currentLocId = resolveLocationId(position.rawLocationId(), position.locationNull(), playerId);
         long lastTravel = position.lastTravelTime();
 
@@ -916,26 +670,8 @@ public class MapService {
      * <p>期望位置用的是<b>库里的原值</b>而非回落后的有效值：位置失效（如地点被删）时两者不同，
      * 若拿回落值去比对会永远匹配不上，玩家就再也动不了 —— 正是本次要修掉的那个毛病。</p>
      */
-    private int compareAndSetTravel(long playerId, RawPosition expected, long targetLocationId, long now) {
-        String locationPredicate = expected.locationNull()
-                ? "current_location_id IS NULL"
-                : "current_location_id = ?";
-        String sql = "UPDATE players SET current_location_id = ?, last_travel_time = ? "
-                + "WHERE id = ? AND " + locationPredicate + " AND COALESCE(last_travel_time, 0) = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, targetLocationId);
-            ps.setLong(2, now);
-            ps.setLong(3, playerId);
-            int index = 4;
-            if (!expected.locationNull()) {
-                ps.setLong(index++, expected.rawLocationId());
-            }
-            ps.setLong(index, expected.lastTravelTime());
-            return ps.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("移动失败", e);
-        }
+    private int compareAndSetTravel(long playerId, PlayerPositionRow expected, long targetLocationId, long now) {
+        return MAP_DAO.updateTravelIfUnchanged(playerId, expected, targetLocationId, now);
     }
 
     private boolean checkRealm(Player player, MapLocation target) {
@@ -978,14 +714,7 @@ public class MapService {
     }
 
     private void executeTravel(long playerId, long targetLocationId) {
-        String sql = "UPDATE players SET current_location_id = ?, last_travel_time = ? WHERE id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
-            pstmt.setLong(1, targetLocationId);
-            pstmt.setLong(2, System.currentTimeMillis() / 1000);
-            pstmt.setLong(3, playerId);
-            pstmt.executeUpdate();
-        } catch (SQLException e) { throw new RuntimeException("移动失败", e); }
+        MAP_DAO.updateTravel(playerId, targetLocationId, System.currentTimeMillis() / 1000);
     }
 
     /**
@@ -1062,28 +791,11 @@ public class MapService {
         ensureInitialized();
         if (playerIds.isEmpty()) return result;
 
-        StringBuilder sql = new StringBuilder("SELECT id, current_location_id FROM players WHERE id IN (");
-        for (int i = 0; i < playerIds.size(); i++) {
-            if (i > 0) sql.append(",");
-            sql.append("?");
+        for (PlayerLocationRow row : MAP_DAO.findPlayerLocations(playerIds)) {
+            MapLocation loc = locationCache.get(
+                    resolveLocationId(row.rawLocationId(), row.locationNull(), row.playerId()));
+            result.put(row.playerId(), loc != null ? loc.getName() : "未知");
         }
-        sql.append(")");
-
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql.toString())) {
-            for (int i = 0; i < playerIds.size(); i++) {
-                ps.setLong(i + 1, playerIds.get(i));
-            }
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    long pid = rs.getLong("id");
-                    long rawLoc = rs.getLong("current_location_id");
-                    boolean wasNull = rs.wasNull();
-                    MapLocation loc = locationCache.get(resolveLocationId(rawLoc, wasNull, pid));
-                    result.put(pid, loc != null ? loc.getName() : "未知");
-                }
-            }
-        } catch (SQLException e) { throw new RuntimeException("获取玩家位置失败", e); }
         return result;
     }
 
@@ -1207,7 +919,7 @@ public class MapService {
             }
         } else {
             try (Connection conn = DatabaseManager.getConnection()) {
-                firstVisit = insertExplorationIfAbsent(conn, playerId, locationId, now);
+                firstVisit = MAP_DAO.insertExplorationIfAbsent(conn, playerId, locationId, now);
                 if (firstVisit) {
                     grantFirstVisitReward(conn, playerId, loc);
                 }
@@ -1257,20 +969,6 @@ public class MapService {
         return added;
     }
 
-    /** 插入探索记录；返回 true 表示本次是首次（唯一键冲突即非首次）。 */
-    private boolean insertExplorationIfAbsent(Connection conn, long playerId, long locationId, long now)
-            throws SQLException {
-        String sql = DatabaseManager.isSqlite()
-                ? "INSERT OR IGNORE INTO player_map_exploration (player_id, location_id, first_visited_at) VALUES (?, ?, ?)"
-                : "INSERT IGNORE INTO player_map_exploration (player_id, location_id, first_visited_at) VALUES (?, ?, ?)";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            ps.setLong(2, locationId);
-            ps.setLong(3, now);
-            return ps.executeUpdate() > 0;
-        }
-    }
-
     /** 首达灵石奖励：基础 + 危险度×每级，野外再乘野外倍率。 */
     private static long firstVisitSpiritStones(WildernessMapConfig.FirstVisitReward reward, MapLocation loc) {
         long base = reward.getSpiritStonesBase() + reward.getSpiritStonesPerDanger() * loc.getDangerLevel();
@@ -1306,15 +1004,10 @@ public class MapService {
                     WildernessTerrain.chunkYOfNode(locationId));
             return chunk.isExploredBy(WildernessTerrain.slotOfNode(locationId), playerId);
         }
-        String sql = "SELECT COUNT(*) FROM player_map_exploration WHERE player_id = ? AND location_id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            ps.setLong(2, locationId);
-            try (ResultSet rs = ps.executeQuery()) {
-                return rs.next() && rs.getInt(1) > 0;
-            }
-        } catch (SQLException e) {
+        try {
+            return MAP_DAO.isExplored(playerId, locationId);
+        } catch (RuntimeException e) {
+            // 一次读失败只按"没探索过"处理：探索记录只影响传送点解锁与迷雾，不该挡住地图展示
             LOG.error("查询探索记录失败 player=" + playerId, e);
             return false;
         }
@@ -1323,20 +1016,12 @@ public class MapService {
     /** 玩家已探索的地点 id 集合（一次查完，供列表页避免 N+1）。 */
     public Set<Long> getExploredLocationIds(long playerId) {
         ensureInitialized();
-        Set<Long> result = new HashSet<>();
-        String sql = "SELECT location_id FROM player_map_exploration WHERE player_id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    result.add(rs.getLong(1));
-                }
-            }
-        } catch (SQLException e) {
+        try {
+            return MAP_DAO.findExploredLocationIds(playerId);
+        } catch (RuntimeException e) {
             LOG.error("查询探索记录失败 player=" + playerId, e);
+            return new HashSet<>();
         }
-        return result;
     }
 
     /** 已探索的已知世界地点数（野外流动，不计入完成度）。 */
@@ -1395,7 +1080,7 @@ public class MapService {
             return createResult(false, I18n.t("map.you_have_never_been", target.getName()));
         }
 
-        RawPosition position = readRawPosition(playerId);
+        PlayerPositionRow position = readRawPosition(playerId);
         long currentLocId = resolveLocationId(position.rawLocationId(), position.locationNull(), playerId);
         if (currentLocId == targetLocationId) {
             return createResult(false, I18n.t("map.you_are_already", target.getName()));
@@ -1702,13 +1387,8 @@ public class MapService {
     private static boolean hasPlayerInChunk(Connection conn, int chunkX, int chunkY) {
         long first = WildernessTerrain.nodeId(chunkX, chunkY, 0);
         long last = first + WildernessTerrain.SLOT_STRIDE;
-        String sql = "SELECT COUNT(*) FROM players WHERE current_location_id >= ? AND current_location_id < ?";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, first);
-            ps.setLong(2, last);
-            try (ResultSet rs = ps.executeQuery()) {
-                return rs.next() && rs.getInt(1) > 0;
-            }
+        try {
+            return MAP_DAO.hasPlayerInLocationRange(conn, first, last);
         } catch (SQLException e) {
             // 查不出来就当有玩家在：宁可少回收一片，也不能把人脚下的地删了
             return true;
@@ -1839,12 +1519,7 @@ public class MapService {
                 chunkStore.save(chunk);
                 return createResult(false, I18n.t("map.gathering_failed_2"));
             }
-            try (PreparedStatement ps = conn.prepareStatement(
-                    "UPDATE players SET last_gather_time = ? WHERE id = ?")) {
-                ps.setLong(1, now);
-                ps.setLong(2, playerId);
-                ps.executeUpdate();
-            }
+            MAP_DAO.updateLastGatherTime(conn, playerId, now);
         } catch (SQLException e) {
             chunk.refund(slot, itemKey, taken);
             chunkStore.save(chunk);
@@ -1864,17 +1539,9 @@ public class MapService {
     }
 
     private long readLastGatherTime(long playerId) {
-        String sql = "SELECT last_gather_time FROM players WHERE id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    long value = rs.getLong(1);
-                    return rs.wasNull() ? 0 : value;
-                }
-            }
-        } catch (SQLException e) {
+        try {
+            return MAP_DAO.findLastGatherTime(playerId);
+        } catch (RuntimeException e) {
             LOG.warn("读取采集冷却失败（老库可能尚无该列）: " + e.getMessage());
         }
         return 0;
