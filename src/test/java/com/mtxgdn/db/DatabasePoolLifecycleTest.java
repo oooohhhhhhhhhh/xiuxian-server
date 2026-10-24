@@ -63,7 +63,9 @@ class DatabasePoolLifecycleTest extends TestBase {
             // 重复初始化：旧池必须被关掉（关池会把借出的连接一并作废）
             DatabaseManager.init(TestBase.testDbUrl("xiuxian_test.db"), "", "");
 
-            assertEquals(0, DatabaseManager.getActiveConnectionCount(),
+            // 旧池关掉之后借出数应归零；但后台定时任务可能刚好借走一条查几毫秒，
+            // 所以轮询等它安静下来 —— 泄漏的连接永远不会还。
+            assertEquals(0, waitUntilNoConnectionBorrowed(3_000),
                     "重复 init() 之后旧池应已关闭、旧连接已作废，"
                             + "否则每 init 一次就漏一个池（测试里每个测试类都会 init 一次）");
             assertTrue(DatabaseManager.getMaxPoolSize() >= 8, "新池应已建好");
