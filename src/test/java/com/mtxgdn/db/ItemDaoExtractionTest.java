@@ -16,6 +16,8 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
 /**
  * 背包/装备模块的 JDBC 边界：服务层不碰连接，DAO 的每个方法都能在事务里用。
  *
@@ -173,9 +175,6 @@ class ItemDaoExtractionTest {
 
     // ==================== 夹具 ====================
 
-    private static void assertEquals(int expected, int actual, String message) {
-        org.junit.jupiter.api.Assertions.assertEquals(expected, actual, message);
-    }
 
     private static String stripComments(String code) {
         String noBlock = code.replaceAll("(?s)/\\*.*?\\*/", "");

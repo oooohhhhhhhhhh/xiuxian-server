@@ -16,6 +16,8 @@ import java.util.List;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
+import static org.junit.jupiter.api.Assertions.assertEquals;
+
 /**
  * 兑换码模块的 JDBC 边界：服务层不碰连接，兑换流程的四步共用同一条连接。
  *
@@ -161,9 +163,6 @@ class RedeemCodeDaoExtractionTest {
         assertTrue(code.contains("Types.TIMESTAMP"), "必须显式指定 TIMESTAMP 类型");
     }
 
-    private static void assertEquals(int expected, int actual, String message) {
-        org.junit.jupiter.api.Assertions.assertEquals(expected, actual, message);
-    }
 
     @Test
     @DisplayName("全仓库 runTransaction 的 lambda 内不许 getConnection()")
