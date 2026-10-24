@@ -518,18 +518,18 @@ public class MultiPlayerFullTest {
         long sectId = createdSect.getId();
 
         // 加入申请+批准
-        Map<String,Object> apply = sectService.applyToSect(p2.playerId, sectId, "求入宗门");
-        if (Boolean.TRUE.equals(apply.get("success"))) {
+        var apply = sectService.applyToSect(p2.playerId, sectId, "求入宗门");
+        if (apply.success()) {
             System.out.println("  ✓ " + p2.playerName + " 申请加入");
             List<SectApplication> apps = sectService.getPendingApplications(sectId);
             if (!apps.isEmpty()) {
                 long appId = apps.get(0).getId();
-                Map<String,Object> approve = sectService.approveApplication(p1.playerId, appId, true);
-                System.out.println("  " + (Boolean.TRUE.equals(approve.get("success"))?"✓":"○") +
-                        " 批准申请: " + approve.get("message"));
+                var approve = sectService.approveApplication(p1.playerId, appId, true);
+                System.out.println("  " + (approve.success()?"✓":"○") +
+                        " 批准申请: " + approve.message());
             }
         } else {
-            System.out.println("  ○ 申请加入: " + apply.get("message"));
+            System.out.println("  ○ 申请加入: " + apply.message());
         }
 
         List<Sect> sects = sectService.getAllSects();

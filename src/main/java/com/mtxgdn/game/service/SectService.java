@@ -4,6 +4,7 @@ import com.mtxgdn.common.service.ServiceRegistry;
 import com.mtxgdn.game.entity.Sect;
 import com.mtxgdn.game.entity.SectApplication;
 import com.mtxgdn.game.entity.SectMember;
+import com.mtxgdn.game.sect.SectOperationResult;
 import com.mtxgdn.game.entity.SectWarehouseItem;
 import com.mtxgdn.game.item.Item;
 
@@ -220,7 +221,7 @@ public class SectService {
 
     // ==================== 成员与申请（委托 SectMembershipDomain） ====================
 
-    public Map<String, Object> applyToSect(long playerId, long sectId, String message) {
+    public SectOperationResult applyToSect(long playerId, long sectId, String message) {
         return membershipDomain.applyToSect(playerId, sectId, message);
     }
 
@@ -228,23 +229,23 @@ public class SectService {
         return membershipDomain.getPendingApplications(sectId);
     }
 
-    public Map<String, Object> approveApplication(long approverPlayerId, long applicationId, boolean approved) {
+    public SectOperationResult approveApplication(long approverPlayerId, long applicationId, boolean approved) {
         return membershipDomain.approveApplication(approverPlayerId, applicationId, approved);
     }
 
-    public Map<String, Object> leaveSect(long playerId) {
+    public SectOperationResult leaveSect(long playerId) {
         return membershipDomain.leaveSect(playerId);
     }
 
-    public Map<String, Object> kickMember(long kickerPlayerId, long targetPlayerId) {
+    public SectOperationResult kickMember(long kickerPlayerId, long targetPlayerId) {
         return membershipDomain.kickMember(kickerPlayerId, targetPlayerId);
     }
 
-    public Map<String, Object> appointMember(long appointerPlayerId, long targetPlayerId, String newRole) {
+    public SectOperationResult appointMember(long appointerPlayerId, long targetPlayerId, String newRole) {
         return membershipDomain.appointMember(appointerPlayerId, targetPlayerId, newRole);
     }
 
-    public Map<String, Object> addContribution(long sectId, long playerId, long amount) {
+    public SectOperationResult addContribution(long sectId, long playerId, long amount) {
         return membershipDomain.addContribution(sectId, playerId, amount);
     }
 

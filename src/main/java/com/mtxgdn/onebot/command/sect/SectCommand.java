@@ -100,7 +100,7 @@ public class SectCommand extends Command {
         if (sect == null) { ctx.reply(I18n.t("sect.sect_not_found", name)); return; }
         String msg = parts.length > 2 ? parts[2] : "";
         var result = sectService.applyToSect(p.getId(), sect.getId(), msg);
-        ctx.reply((String) result.get("message"));
+        ctx.reply(result.message());
     }
 
     private void handleList(CommandContext ctx, PlayerInfo p, String[] parts) {
@@ -173,7 +173,7 @@ public class SectCommand extends Command {
         Sect sect = sectService.getSectByName(name);
         if (sect == null) { ctx.reply(I18n.t("sect.sect_not_found", name)); return; }
         var result = sectService.applyToSect(p.getId(), sect.getId(), "");
-        ctx.reply((String) result.get("message"));
+        ctx.reply(result.message());
     }
 
     private void handlePendingList(CommandContext ctx, PlayerInfo p, String[] parts) {
@@ -206,7 +206,7 @@ public class SectCommand extends Command {
         }
         if (target == null) { ctx.reply(I18n.t("sect.no_application_found_from_player_2", targetName)); return; }
         var result = sectService.approveApplication(p.getId(), target.getId(), true);
-        ctx.reply((String) result.get("message"));
+        ctx.reply(result.message());
     }
 
     private void handleReject(CommandContext ctx, PlayerInfo p, String[] parts) {
@@ -222,12 +222,12 @@ public class SectCommand extends Command {
         }
         if (target == null) { ctx.reply(I18n.t("sect.no_application_found_from_player", targetName)); return; }
         var result = sectService.approveApplication(p.getId(), target.getId(), false);
-        ctx.reply((String) result.get("message"));
+        ctx.reply(result.message());
     }
 
     private void handleLeave(CommandContext ctx, PlayerInfo p, String[] parts) {
         var result = sectService.leaveSect(p.getId());
-        ctx.reply((String) result.get("message"));
+        ctx.reply(result.message());
     }
 
     private void handleKick(CommandContext ctx, PlayerInfo p, String[] parts) {
@@ -245,7 +245,7 @@ public class SectCommand extends Command {
         if (target == null) { ctx.reply(I18n.t("sect.player_not_found", targetName)); return; }
 
         var result = sectService.kickMember(p.getId(), target.getPlayerId());
-        ctx.reply((String) result.get("message"));
+        ctx.reply(result.message());
     }
 
     private void handleAppoint(CommandContext ctx, PlayerInfo p, String[] parts) {
@@ -264,7 +264,7 @@ public class SectCommand extends Command {
         if (target == null) { ctx.reply(I18n.t("sect.player_not_found", targetName)); return; }
 
         var result = sectService.appointMember(p.getId(), target.getPlayerId(), role);
-        ctx.reply((String) result.get("message"));
+        ctx.reply(result.message());
     }
 
     private void handleDonate(CommandContext ctx, PlayerInfo p, String[] parts) {

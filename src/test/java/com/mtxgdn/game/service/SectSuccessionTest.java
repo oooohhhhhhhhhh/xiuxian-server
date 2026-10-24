@@ -4,6 +4,7 @@ import com.mtxgdn.TestBase;
 import com.mtxgdn.db.DatabaseManager;
 import com.mtxgdn.game.entity.Sect;
 import com.mtxgdn.game.entity.SectMember;
+import com.mtxgdn.game.sect.SectOperationResult;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 
@@ -73,15 +74,15 @@ class SectSuccessionTest extends TestBase {
         addMember(sectId, heir, SectMember.ROLE_OUTER_MEMBER, 900);
 
         // 改造前：宗主退宗会被直接拒绝
-        Map<String, Object> blocked = sectService.leaveSect(leader);
-        assertFalse((Boolean) blocked.get("success"));
-        assertTrue(String.valueOf(blocked.get("message")).contains("退位"),
-                "拒绝文案必须指路 /宗门 退位，否则玩家无从下手：" + blocked.get("message"));
+        var blocked = sectService.leaveSect(leader);
+        assertFalse(blocked.success());
+        assertTrue(String.valueOf(blocked.message()).contains("退位"),
+                "拒绝文案必须指路 /宗门 退位，否则玩家无从下手：" + blocked.message());
 
         sectService.stepDown(leader);
-        Map<String, Object> allowed = sectService.leaveSect(leader);
+        var allowed = sectService.leaveSect(leader);
 
-        assertTrue((Boolean) allowed.get("success"), String.valueOf(allowed.get("message")));
+        assertTrue(allowed.success(), String.valueOf(allowed.message()));
         assertNull(memberRow(sectId, leader), "退位后应已离开宗门");
     }
 

@@ -5,6 +5,7 @@ import com.mtxgdn.entity.Player;
 import com.mtxgdn.game.entity.Sect;
 import com.mtxgdn.game.entity.SectApplication;
 import com.mtxgdn.game.entity.SectMember;
+import com.mtxgdn.game.sect.SectOperationResult;
 import com.mtxgdn.i18n.I18n;
 
 import java.sql.Connection;
@@ -12,9 +13,7 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * 宗门成员域：入宗申请、审批、退宗、踢人、任命、贡献值。
@@ -43,29 +42,26 @@ final class SectMembershipDomain {
 
     // ==================== 申请管理 ====================
 
-    Map<String, Object> applyToSect(long playerId, long sectId, String message) {
-        Map<String, Object> result = new LinkedHashMap<>();
+    SectOperationResult applyToSect(long playerId, long sectId, String message) {
 
         Player player = playerService.getPlayerById(playerId);
         if (player == null) {
-            result.put("success", false); result.put("message", I18n.t("sect.character_does_not_exist")); return result;
+            return new SectOperationResult(false, I18n.t("sect.character_does_not_exist"));
         }
 
         Sect sect = queryDomain.getSectById(sectId);
         if (sect == null) {
-            result.put("success", false); result.put("message", I18n.t("sect.sect_does_not_exist")); return result;
+            return new SectOperationResult(false, I18n.t("sect.sect_does_not_exist"));
         }
 
         if (queryDomain.getPlayerSect(playerId) != null) {
-            result.put("success", false); result.put("message", I18n.t("sect.you_already_belong")); return result;
+            return new SectOperationResult(false, I18n.t("sect.you_already_belong"));
         }
 
         List<SectMember> members = queryDomain.getSectMembers(sectId);
         int maxMembers = Sect.getMaxMembersForLevel(sect.getLevel());
         if (members.size() >= maxMembers) {
-            result.put("success", false);
-            result.put("message", I18n.t("sect.is_full", sect.getName(), members.size(), maxMembers));
-            return result;
+            return new SectOperationResult(false, I18n.t("sect.is_full", sect.getName(), members.size(), maxMembers));
         }
 
         String checkSql = "SELECT id FROM sect_applications WHERE sect_id = ? AND player_id = ? AND status = 'pending'";
@@ -75,9 +71,7 @@ final class SectMembershipDomain {
             ps.setLong(2, playerId);
             try (ResultSet rs = ps.executeQuery()) {
                 if (rs.next()) {
-                    result.put("success", false);
-                    result.put("message", I18n.t("sect.you_have_already_applied"));
-                    return result;
+                    return new SectOperationResult(false, I18n.t("sect.you_have_already_applied"));
                 }
             }
         } catch (SQLException e) { throw new RuntimeException("查询申请失败", e); }
@@ -91,9 +85,7 @@ final class SectMembershipDomain {
             ps.executeUpdate();
         } catch (SQLException e) { throw new RuntimeException("提交申请失败", e); }
 
-        result.put("success", true);
-        result.put("message", I18n.t("sect.applied_to_join", sect.getName()));
-        return result;
+        return new SectOperationResult(true, I18n.t("sect.applied_to_join", sect.getName()));
     }
 
     List<SectApplication> getPendingApplications(long sectId) {
@@ -110,22 +102,21 @@ final class SectMembershipDomain {
         return result;
     }
 
-    Map<String, Object> approveApplication(long approverPlayerId, long applicationId, boolean approved) {
-        Map<String, Object> result = new LinkedHashMap<>();
+    SectOperationResult approveApplication(long approverPlayerId, long applicationId, boolean approved) {
 
         SectApplication app = getApplicationById(applicationId);
         if (app == null || !"pending".equals(app.getStatus())) {
-            result.put("success", false); result.put("message", I18n.t("sect.the_application_does_not_exist")); return result;
+            return new SectOperationResult(false, I18n.t("sect.the_application_does_not_exist"));
         }
 
         Sect sect = queryDomain.getSectById(app.getSectId());
         if (sect == null) {
-            result.put("success", false); result.put("message", I18n.t("sect.sect_does_not_exist")); return result;
+            return new SectOperationResult(false, I18n.t("sect.sect_does_not_exist"));
         }
 
         SectMember approver = queryDomain.getMember(sect.getId(), approverPlayerId);
         if (approver == null || !approver.canManage()) {
-            result.put("success", false); result.put("message", I18n.t("sect.you_are_not_allowed")); return result;
+            return new SectOperationResult(false, I18n.t("sect.you_are_not_allowed"));
         }
 
         String status;
@@ -134,8 +125,7 @@ final class SectMembershipDomain {
             List<SectMember> members = queryDomain.getSectMembers(sect.getId());
             int maxMembers = Sect.getMaxMembersForLevel(sect.getLevel());
             if (members.size() >= maxMembers) {
-                result.put("success", false);
-                result.put("message", I18n.t("sect.the_sect_is_full")); return result;
+                return new SectOperationResult(false, I18n.t("sect.the_sect_is_full"));
             }
             status = "accepted";
             msg = "已通过玩家【" + app.getPlayerName() + "】的加入申请";
@@ -158,9 +148,7 @@ final class SectMembershipDomain {
             ps.executeUpdate();
         } catch (SQLException e) { throw new RuntimeException("处理申请失败", e); }
 
-        result.put("success", true);
-        result.put("message", msg);
-        return result;
+        return new SectOperationResult(true, msg);
     }
 
     private SectApplication getApplicationById(long appId) {
@@ -188,16 +176,15 @@ final class SectMembershipDomain {
 
     // ==================== 退出/踢人 ====================
 
-    Map<String, Object> leaveSect(long playerId) {
-        Map<String, Object> result = new LinkedHashMap<>();
+    SectOperationResult leaveSect(long playerId) {
         SectMember member = queryDomain.getPlayerMember(playerId);
         if (member == null) {
-            result.put("success", false); result.put("message", I18n.t("sect.you_have_not_joined_any")); return result;
+            return new SectOperationResult(false, I18n.t("sect.you_have_not_joined_any"));
         }
 
         Sect sect = queryDomain.getSectById(member.getSectId());
         if (sect == null) {
-            result.put("success", false); result.put("message", I18n.t("sect.sect_does_not_exist")); return result;
+            return new SectOperationResult(false, I18n.t("sect.sect_does_not_exist"));
         }
 
         if (member.isLeader()) {
@@ -207,9 +194,7 @@ final class SectMembershipDomain {
                 ps.setLong(1, sect.getId());
                 try (ResultSet rs = ps.executeQuery()) {
                     if (rs.next() && rs.getInt(1) > 1) {
-                        result.put("success", false);
-                        result.put("message", I18n.t("sect.leave_leader_blocked"));
-                        return result;
+                        return new SectOperationResult(false, I18n.t("sect.leave_leader_blocked"));
                     }
                 }
             } catch (SQLException e) { throw new RuntimeException(e); }
@@ -236,50 +221,43 @@ final class SectMembershipDomain {
                 catch (SQLException e) { throw new RuntimeException(e); }
                 return null;
             });
-            result.put("success", true);
-            result.put("message", I18n.t("sect.you_disbanded_the_sect", sect.getName()));
+            return new SectOperationResult(true, I18n.t("sect.you_disbanded_the_sect", sect.getName()));
         } else {
-            result.put("success", true);
-            result.put("message", I18n.t("sect.member_left", playerName, sect.getName()));
+            return new SectOperationResult(true, I18n.t("sect.member_left", playerName, sect.getName()));
         }
-        return result;
     }
 
-    Map<String, Object> kickMember(long kickerPlayerId, long targetPlayerId) {
-        Map<String, Object> result = new LinkedHashMap<>();
+    SectOperationResult kickMember(long kickerPlayerId, long targetPlayerId) {
         SectMember kicker = queryDomain.getPlayerMember(kickerPlayerId);
         if (kicker == null) {
-            result.put("success", false); result.put("message", I18n.t("sect.you_have_not_joined_any")); return result;
+            return new SectOperationResult(false, I18n.t("sect.you_have_not_joined_any"));
         }
         if (!kicker.canManage()) {
-            result.put("success", false); result.put("message", I18n.t("sect.only_the_sect_leader_vice_3")); return result;
+            return new SectOperationResult(false, I18n.t("sect.only_the_sect_leader_vice_3"));
         }
 
         SectMember target = queryDomain.getMember(kicker.getSectId(), targetPlayerId);
         if (target == null) {
-            result.put("success", false); result.put("message", I18n.t("sect.that_player")); return result;
+            return new SectOperationResult(false, I18n.t("sect.that_player"));
         }
         if (target.isLeader()) {
-            result.put("success", false); result.put("message", I18n.t("sect.you_cannot_remove_the_sect")); return result;
+            return new SectOperationResult(false, I18n.t("sect.you_cannot_remove_the_sect"));
         }
         if (target.isViceLeader() && !kicker.isLeader()) {
-            result.put("success", false); result.put("message", I18n.t("sect.only_the_sect_leader_4")); return result;
+            return new SectOperationResult(false, I18n.t("sect.only_the_sect_leader_4"));
         }
         if (!kicker.canKickOrAppoint(target)) {
-            result.put("success", false); result.put("message", I18n.t("sect.you_cannot_remove_members")); return result;
+            return new SectOperationResult(false, I18n.t("sect.you_cannot_remove_members"));
         }
 
         deleteMember(kicker.getSectId(), targetPlayerId);
-        result.put("success", true);
-        result.put("message", I18n.t("sect.expelled_from_the_sect", target.getPlayerName()));
-        return result;
+        return new SectOperationResult(true, I18n.t("sect.expelled_from_the_sect", target.getPlayerName()));
     }
 
-    Map<String, Object> appointMember(long appointerPlayerId, long targetPlayerId, String newRole) {
-        Map<String, Object> result = new LinkedHashMap<>();
+    SectOperationResult appointMember(long appointerPlayerId, long targetPlayerId, String newRole) {
         SectMember appointer = queryDomain.getPlayerMember(appointerPlayerId);
         if (appointer == null || !appointer.canManage()) {
-            result.put("success", false); result.put("message", I18n.t("sect.only_the_sect_leader_vice_2")); return result;
+            return new SectOperationResult(false, I18n.t("sect.only_the_sect_leader_vice_2"));
         }
 
         // 先解析目标角色
@@ -290,41 +268,36 @@ final class SectMembershipDomain {
             case "内门", "内门弟子", "inner", "inner_member": role = SectMember.ROLE_INNER_MEMBER; break;
             case "外门", "外门弟子", "outer", "outer_member": role = SectMember.ROLE_OUTER_MEMBER; break;
             default:
-                result.put("success", false);
-                result.put("message", I18n.t("sect.invalid_position"));
-                return result;
+                return new SectOperationResult(false, I18n.t("sect.invalid_position"));
         }
 
         // 权限检查
         if (appointer.isElder()) {
             if (!role.equals(SectMember.ROLE_INNER_MEMBER) && !role.equals(SectMember.ROLE_OUTER_MEMBER)) {
-                result.put("success", false);
-                result.put("message", I18n.t("sect.elders_can_only_appoint_inner")); return result;
+                return new SectOperationResult(false, I18n.t("sect.elders_can_only_appoint_inner"));
             }
         }
         if (appointer.isViceLeader() && role.equals(SectMember.ROLE_VICE_LEADER)) {
-            result.put("success", false);
-            result.put("message", I18n.t("sect.the_vice_leader_cannot_appoint")); return result;
+            return new SectOperationResult(false, I18n.t("sect.the_vice_leader_cannot_appoint"));
         }
 
         SectMember target = queryDomain.getMember(appointer.getSectId(), targetPlayerId);
         if (target == null) {
-            result.put("success", false); result.put("message", I18n.t("sect.that_player")); return result;
+            return new SectOperationResult(false, I18n.t("sect.that_player"));
         }
         if (target.isLeader()) {
-            result.put("success", false); result.put("message", I18n.t("sect.you_cannot_change_the_sect")); return result;
+            return new SectOperationResult(false, I18n.t("sect.you_cannot_change_the_sect"));
         }
         if (target.isViceLeader() && !appointer.isLeader()) {
-            result.put("success", false); result.put("message", I18n.t("sect.only_the_sect_leader_3")); return result;
+            return new SectOperationResult(false, I18n.t("sect.only_the_sect_leader_3"));
         }
         if (target.isElder() && appointer.isElder()) {
-            result.put("success", false); result.put("message", I18n.t("sect.elders_cannot_act_on_members")); return result;
+            return new SectOperationResult(false, I18n.t("sect.elders_cannot_act_on_members"));
         }
 
         if (role.equals(target.getRole())) {
-            result.put("success", false);
-            result.put("message", I18n.t("sect.role_already",
-                    target.getPlayerName(), SectMember.getRoleDisplayName(role))); return result;
+            return new SectOperationResult(false, I18n.t("sect.role_already",
+                    target.getPlayerName(), SectMember.getRoleDisplayName(role)));
         }
 
         String sql = "UPDATE sect_members SET role = ? WHERE sect_id = ? AND player_id = ?";
@@ -336,9 +309,7 @@ final class SectMembershipDomain {
             ps.executeUpdate();
         } catch (SQLException e) { throw new RuntimeException("任命失败", e); }
 
-        result.put("success", true);
-        result.put("message", I18n.t("sect.appointed", target.getPlayerName(), SectMember.getRoleDisplayName(role), SectMember.getRoleDisplayName(target.getRole())));
-        return result;
+        return new SectOperationResult(true, I18n.t("sect.appointed", target.getPlayerName(), SectMember.getRoleDisplayName(role), SectMember.getRoleDisplayName(target.getRole())));
     }
 
     private void deleteMember(long sectId, long playerId) {
@@ -353,8 +324,7 @@ final class SectMembershipDomain {
 
     // ==================== 贡献系统 ====================
 
-    Map<String, Object> addContribution(long sectId, long playerId, long amount) {
-        Map<String, Object> result = new LinkedHashMap<>();
+    SectOperationResult addContribution(long sectId, long playerId, long amount) {
         String sql = "UPDATE sect_members SET contribution = contribution + ? WHERE sect_id = ? AND player_id = ?";
         try (Connection conn = DatabaseManager.getConnection();
              PreparedStatement ps = conn.prepareStatement(sql)) {
@@ -371,13 +341,10 @@ final class SectMembershipDomain {
                         pps.executeUpdate();
                     }
                 }
-                result.put("success", true);
-                result.put("message", I18n.t("sect.contribution_updated"));
+                return new SectOperationResult(true, I18n.t("sect.contribution_updated"));
             } else {
-                result.put("success", false);
-                result.put("message", I18n.t("sect.update_failed"));
+                return new SectOperationResult(false, I18n.t("sect.update_failed"));
             }
         } catch (SQLException e) { throw new RuntimeException("更新贡献值失败", e); }
-        return result;
     }
 }

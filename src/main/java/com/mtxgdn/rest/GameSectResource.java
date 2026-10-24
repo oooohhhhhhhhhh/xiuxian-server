@@ -10,6 +10,7 @@ import com.mtxgdn.game.entity.SectApplication;
 import com.mtxgdn.game.entity.SectMember;
 import com.mtxgdn.game.entity.SectWarehouseItem;
 import com.mtxgdn.game.service.SectService;
+import com.mtxgdn.game.sect.SectOperationResult;
 import com.mtxgdn.i18n.I18n;
 import com.mtxgdn.permission.RequirePermission;
 
@@ -124,11 +125,11 @@ public class GameSectResource {
     public Response joinSect(@PathParam("sectId") long sectId) {
         Long userId = getCurrentUserId();
         int playerId = getPlayerIdByUserId(userId);
-        Map<String, Object> result = sectService.applyToSect(playerId, sectId, "");
-        if ((boolean) result.get("success")) {
-            return Response.ok(GameMessage.restOk((String) result.get("message"), null).toString()).build();
+        SectOperationResult result = sectService.applyToSect(playerId, sectId, "");
+        if (result.success()) {
+            return Response.ok(GameMessage.restOk(result.message(), null).toString()).build();
         }
-        return Response.ok(GameMessage.restError(400, (String) result.get("message")).toString()).build();
+        return Response.ok(GameMessage.restError(400, result.message()).toString()).build();
     }
 
     @GET
@@ -165,11 +166,11 @@ public class GameSectResource {
     public Response approveApplication(@PathParam("appId") long appId) {
         Long userId = getCurrentUserId();
         int playerId = getPlayerIdByUserId(userId);
-        Map<String, Object> result = sectService.approveApplication(playerId, appId, true);
-        if ((boolean) result.get("success")) {
-            return Response.ok(GameMessage.restOk((String) result.get("message"), null).toString()).build();
+        SectOperationResult result = sectService.approveApplication(playerId, appId, true);
+        if (result.success()) {
+            return Response.ok(GameMessage.restOk(result.message(), null).toString()).build();
         }
-        return Response.ok(GameMessage.restError(400, (String) result.get("message")).toString()).build();
+        return Response.ok(GameMessage.restError(400, result.message()).toString()).build();
     }
 
     @POST
@@ -179,11 +180,11 @@ public class GameSectResource {
     public Response rejectApplication(@PathParam("appId") long appId) {
         Long userId = getCurrentUserId();
         int playerId = getPlayerIdByUserId(userId);
-        Map<String, Object> result = sectService.approveApplication(playerId, appId, false);
-        if ((boolean) result.get("success")) {
-            return Response.ok(GameMessage.restOk((String) result.get("message"), null).toString()).build();
+        SectOperationResult result = sectService.approveApplication(playerId, appId, false);
+        if (result.success()) {
+            return Response.ok(GameMessage.restOk(result.message(), null).toString()).build();
         }
-        return Response.ok(GameMessage.restError(400, (String) result.get("message")).toString()).build();
+        return Response.ok(GameMessage.restError(400, result.message()).toString()).build();
     }
 
     @POST
@@ -193,11 +194,11 @@ public class GameSectResource {
     public Response leaveSect() {
         Long userId = getCurrentUserId();
         int playerId = getPlayerIdByUserId(userId);
-        Map<String, Object> result = sectService.leaveSect(playerId);
-        if ((boolean) result.get("success")) {
-            return Response.ok(GameMessage.restOk((String) result.get("message"), null).toString()).build();
+        SectOperationResult result = sectService.leaveSect(playerId);
+        if (result.success()) {
+            return Response.ok(GameMessage.restOk(result.message(), null).toString()).build();
         }
-        return Response.ok(GameMessage.restError(400, (String) result.get("message")).toString()).build();
+        return Response.ok(GameMessage.restError(400, result.message()).toString()).build();
     }
 
     @POST
@@ -207,11 +208,11 @@ public class GameSectResource {
     public Response kickMember(@PathParam("targetPlayerId") long targetPlayerId) {
         Long userId = getCurrentUserId();
         int playerId = getPlayerIdByUserId(userId);
-        Map<String, Object> result = sectService.kickMember(playerId, targetPlayerId);
-        if ((boolean) result.get("success")) {
-            return Response.ok(GameMessage.restOk((String) result.get("message"), null).toString()).build();
+        SectOperationResult result = sectService.kickMember(playerId, targetPlayerId);
+        if (result.success()) {
+            return Response.ok(GameMessage.restOk(result.message(), null).toString()).build();
         }
-        return Response.ok(GameMessage.restError(400, (String) result.get("message")).toString()).build();
+        return Response.ok(GameMessage.restError(400, result.message()).toString()).build();
     }
 
     @POST
@@ -228,11 +229,11 @@ public class GameSectResource {
         if (targetId == 0 || role.isEmpty()) {
             return Response.ok(GameMessage.restError(GameErrorCode.PARAM_MISSING).toString()).build();
         }
-        Map<String, Object> result = sectService.appointMember(playerId, targetId, role);
-        if ((boolean) result.get("success")) {
-            return Response.ok(GameMessage.restOk((String) result.get("message"), null).toString()).build();
+        SectOperationResult result = sectService.appointMember(playerId, targetId, role);
+        if (result.success()) {
+            return Response.ok(GameMessage.restOk(result.message(), null).toString()).build();
         }
-        return Response.ok(GameMessage.restError(400, (String) result.get("message")).toString()).build();
+        return Response.ok(GameMessage.restError(400, result.message()).toString()).build();
     }
 
     @GET

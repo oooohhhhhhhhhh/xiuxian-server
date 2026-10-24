@@ -8,6 +8,7 @@ import com.mtxgdn.game.entity.PlayerInfo;
 import com.mtxgdn.game.entity.Sect;
 import com.mtxgdn.game.entity.SectApplication;
 import com.mtxgdn.game.entity.SectMember;
+import com.mtxgdn.game.sect.SectOperationResult;
 import com.mtxgdn.game.entity.SectWarehouseItem;
 import org.glassfish.grizzly.websockets.WebSocket;
 
@@ -166,11 +167,11 @@ final class WsSectHandler extends WsHandler {
             return;
         }
         long sectId = data.get("sectId").getAsLong();
-        Map<String, Object> result = sectService.applyToSect(player.getId(), sectId, "");
-        if (Boolean.TRUE.equals(result.get("success"))) {
-            socket.send(GameMessage.ok(msgId, "sect_join", (String) result.get("message"), null).toJson());
+        SectOperationResult result = sectService.applyToSect(player.getId(), sectId, "");
+        if (result.success()) {
+            socket.send(GameMessage.ok(msgId, "sect_join", result.message(), null).toJson());
         } else {
-            socket.send(GameMessage.error(msgId, "sect_join", 400, (String) result.get("message")).toJson());
+            socket.send(GameMessage.error(msgId, "sect_join", 400, result.message()).toJson());
         }
     }
 
@@ -212,11 +213,11 @@ final class WsSectHandler extends WsHandler {
             return;
         }
         long appId = data.get("appId").getAsLong();
-        Map<String, Object> result = sectService.approveApplication(player.getId(), appId, true);
-        if (Boolean.TRUE.equals(result.get("success"))) {
-            socket.send(GameMessage.ok(msgId, "sect_approve", (String) result.get("message"), null).toJson());
+        SectOperationResult result = sectService.approveApplication(player.getId(), appId, true);
+        if (result.success()) {
+            socket.send(GameMessage.ok(msgId, "sect_approve", result.message(), null).toJson());
         } else {
-            socket.send(GameMessage.error(msgId, "sect_approve", 400, (String) result.get("message")).toJson());
+            socket.send(GameMessage.error(msgId, "sect_approve", 400, result.message()).toJson());
         }
     }
 
@@ -231,11 +232,11 @@ final class WsSectHandler extends WsHandler {
             return;
         }
         long appId = data.get("appId").getAsLong();
-        Map<String, Object> result = sectService.approveApplication(player.getId(), appId, false);
-        if (Boolean.TRUE.equals(result.get("success"))) {
-            socket.send(GameMessage.ok(msgId, "sect_reject", (String) result.get("message"), null).toJson());
+        SectOperationResult result = sectService.approveApplication(player.getId(), appId, false);
+        if (result.success()) {
+            socket.send(GameMessage.ok(msgId, "sect_reject", result.message(), null).toJson());
         } else {
-            socket.send(GameMessage.error(msgId, "sect_reject", 400, (String) result.get("message")).toJson());
+            socket.send(GameMessage.error(msgId, "sect_reject", 400, result.message()).toJson());
         }
     }
 
@@ -245,11 +246,11 @@ final class WsSectHandler extends WsHandler {
             socket.send(GameMessage.error(msgId, "sect_leave", GameErrorCode.PLAYER_NOT_FOUND).toJson());
             return;
         }
-        Map<String, Object> result = sectService.leaveSect(player.getId());
-        if (Boolean.TRUE.equals(result.get("success"))) {
-            socket.send(GameMessage.ok(msgId, "sect_leave", (String) result.get("message"), null).toJson());
+        SectOperationResult result = sectService.leaveSect(player.getId());
+        if (result.success()) {
+            socket.send(GameMessage.ok(msgId, "sect_leave", result.message(), null).toJson());
         } else {
-            socket.send(GameMessage.error(msgId, "sect_leave", 400, (String) result.get("message")).toJson());
+            socket.send(GameMessage.error(msgId, "sect_leave", 400, result.message()).toJson());
         }
     }
 
@@ -264,11 +265,11 @@ final class WsSectHandler extends WsHandler {
             return;
         }
         long targetId = data.get("targetPlayerId").getAsLong();
-        Map<String, Object> result = sectService.kickMember(player.getId(), targetId);
-        if (Boolean.TRUE.equals(result.get("success"))) {
-            socket.send(GameMessage.ok(msgId, "sect_kick", (String) result.get("message"), null).toJson());
+        SectOperationResult result = sectService.kickMember(player.getId(), targetId);
+        if (result.success()) {
+            socket.send(GameMessage.ok(msgId, "sect_kick", result.message(), null).toJson());
         } else {
-            socket.send(GameMessage.error(msgId, "sect_kick", 400, (String) result.get("message")).toJson());
+            socket.send(GameMessage.error(msgId, "sect_kick", 400, result.message()).toJson());
         }
     }
 
@@ -284,11 +285,11 @@ final class WsSectHandler extends WsHandler {
         }
         long targetId = data.get("targetPlayerId").getAsLong();
         String role = data.get("role").getAsString();
-        Map<String, Object> result = sectService.appointMember(player.getId(), targetId, role);
-        if (Boolean.TRUE.equals(result.get("success"))) {
-            socket.send(GameMessage.ok(msgId, "sect_appoint", (String) result.get("message"), null).toJson());
+        SectOperationResult result = sectService.appointMember(player.getId(), targetId, role);
+        if (result.success()) {
+            socket.send(GameMessage.ok(msgId, "sect_appoint", result.message(), null).toJson());
         } else {
-            socket.send(GameMessage.error(msgId, "sect_appoint", 400, (String) result.get("message")).toJson());
+            socket.send(GameMessage.error(msgId, "sect_appoint", 400, result.message()).toJson());
         }
     }
 
