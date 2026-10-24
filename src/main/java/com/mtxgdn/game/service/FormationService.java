@@ -3,15 +3,11 @@ package com.mtxgdn.game.service;
 import com.mtxgdn.common.service.ServiceRegistry;
 
 import com.mtxgdn.db.DatabaseManager;
+import com.mtxgdn.db.FormationDAO;
 import com.mtxgdn.entity.Player;
 import com.mtxgdn.game.entity.Formation;
 import com.mtxgdn.util.GameLogger;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.Executors;
@@ -19,12 +15,17 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 import com.mtxgdn.i18n.I18n;
 
+import java.sql.SQLException;
+
 public class FormationService {
 
     private static final GameLogger LOG = GameLogger.getLogger(FormationService.class);
 
     private final PlayerService playerService = ServiceRegistry.getPlayerService();
     private final ItemService itemService = ServiceRegistry.getItemService();
+
+    /** {@code formations} 的读写入口（无状态，可共享）。 */
+    private static final FormationDAO FORMATION_DAO = new FormationDAO();
 
     private static final ScheduledExecutorService scheduler = com.mtxgdn.util.Schedulers.newDaemonSingle("formation-tick");
 
@@ -39,22 +40,12 @@ public class FormationService {
     }
 
     public Formation getActiveFormation(long playerId) {
-        String sql = "SELECT * FROM formations WHERE player_id = ? AND active = 1 ORDER BY expires_at DESC LIMIT 1";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    Formation f = mapFormation(rs);
-                    if (f.isExpired()) {
-                        deactivateFormation(f.getId());
-                        return null;
-                    }
-                    return f;
-                }
-            }
-        } catch (SQLException e) { throw new RuntimeException("查询阵法失败", e); }
-        return null;
+        Formation f = FORMATION_DAO.findActiveFormation(playerId);
+        if (f != null && f.isExpired()) {
+            FORMATION_DAO.deactivate(f.getId());
+            return null;
+        }
+        return f;
     }
 
     public Map<String, Object> placeFormation(long playerId, String formationKey, int level) {
@@ -94,23 +85,13 @@ public class FormationService {
             }
             long now = System.currentTimeMillis();
             long durationMs = (long) Formation.getBaseDuration(formationKey) * 60 * 1000;
-            String sql = "INSERT INTO formations (player_id, formation_key, name, level, " +
-                    "spirit_energy_boost, cultivation_bonus, defense_bonus, heart_demon_resist, " +
-                    "duration_minutes, placed_at, expires_at, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)";
-            try (PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-                ps.setLong(1, playerId);
-                ps.setString(2, formationKey);
-                ps.setString(3, Formation.getNameForKey(formationKey));
-                ps.setInt(4, level);
-                ps.setInt(5, Formation.getSpiritEnergyBoostForLevel(formationKey, level));
-                ps.setInt(6, Formation.getCultivationBonusForLevel(formationKey, level));
-                ps.setInt(7, Formation.getDefenseBonusForLevel(formationKey, level));
-                ps.setInt(8, Formation.getHeartDemonResistForLevel(formationKey, level));
-                ps.setInt(9, Formation.getBaseDuration(formationKey));
-                ps.setLong(10, now);
-                ps.setLong(11, now + durationMs);
-                ps.executeUpdate();
-            }
+            FORMATION_DAO.insertFormation(conn, playerId, formationKey,
+                    Formation.getNameForKey(formationKey), level,
+                    Formation.getSpiritEnergyBoostForLevel(formationKey, level),
+                    Formation.getCultivationBonusForLevel(formationKey, level),
+                    Formation.getDefenseBonusForLevel(formationKey, level),
+                    Formation.getHeartDemonResistForLevel(formationKey, level),
+                    Formation.getBaseDuration(formationKey), now, now + durationMs);
             return null;
         });
 
@@ -151,18 +132,11 @@ public class FormationService {
             if (!itemService.removeSpiritStones(conn, playerId, cost)) {
                 throw new SQLException("灵石扣除失败");
             }
-            String sql = "UPDATE formations SET level = ?, spirit_energy_boost = ?, " +
-                    "cultivation_bonus = ?, defense_bonus = ?, heart_demon_resist = ?, " +
-                    "updated_at = CURRENT_TIMESTAMP WHERE id = ?";
-            try (PreparedStatement ps = conn.prepareStatement(sql)) {
-                ps.setInt(1, newLevel);
-                ps.setInt(2, Formation.getSpiritEnergyBoostForLevel(formation.getFormationKey(), newLevel));
-                ps.setInt(3, Formation.getCultivationBonusForLevel(formation.getFormationKey(), newLevel));
-                ps.setInt(4, Formation.getDefenseBonusForLevel(formation.getFormationKey(), newLevel));
-                ps.setInt(5, Formation.getHeartDemonResistForLevel(formation.getFormationKey(), newLevel));
-                ps.setLong(6, formation.getId());
-                ps.executeUpdate();
-            }
+            FORMATION_DAO.updateFormationStats(conn, formation.getId(), newLevel,
+                    Formation.getSpiritEnergyBoostForLevel(formation.getFormationKey(), newLevel),
+                    Formation.getCultivationBonusForLevel(formation.getFormationKey(), newLevel),
+                    Formation.getDefenseBonusForLevel(formation.getFormationKey(), newLevel),
+                    Formation.getHeartDemonResistForLevel(formation.getFormationKey(), newLevel));
             return null;
         });
 
@@ -185,26 +159,13 @@ public class FormationService {
         }
 
         DatabaseManager.runTransaction(conn -> {
-            String sql = "UPDATE formations SET active = 0 WHERE id = ?";
-            try (PreparedStatement ps = conn.prepareStatement(sql)) {
-                ps.setLong(1, formation.getId());
-                ps.executeUpdate();
-            }
+            FORMATION_DAO.deactivate(conn, formation.getId());
             return null;
         });
 
         result.put("success", true);
         result.put("message", I18n.t("formation.dismantled", formation.getName()));
         return result;
-    }
-
-    private void deactivateFormation(long formationId) {
-        String sql = "UPDATE formations SET active = 0 WHERE id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, formationId);
-            ps.executeUpdate();
-        } catch (SQLException e) { throw new RuntimeException("阵法失效失败", e); }
     }
 
     public static void tickFormations() {
@@ -216,12 +177,7 @@ public class FormationService {
         }
         // 内置模块门控：阵法模块停用后暂停阵法到期结算
         if (!com.mtxgdn.plugin.BuiltInPluginRegistry.getInstance().isEnabledOrUnknown("formation")) return;
-        String sql = "UPDATE formations SET active = 0 WHERE active = 1 AND expires_at < ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, System.currentTimeMillis());
-            ps.executeUpdate();
-        } catch (SQLException e) { throw new RuntimeException("阵法定时检查失败", e); }
+        FORMATION_DAO.expireDueFormations(System.currentTimeMillis());
     }
 
     public int getTotalSpiritEnergyBoost(long playerId) {
@@ -284,35 +240,19 @@ public class FormationService {
         final int level = 1;
         try {
             DatabaseManager.runTransaction(conn -> {
-                try (PreparedStatement ps = conn.prepareStatement(
-                        "SELECT quantity FROM players_items WHERE player_id = ? AND item_key = ?")) {
-                    ps.setLong(1, playerId);
-                    ps.setString(2, treasureFullKey);
-                    try (ResultSet rs = ps.executeQuery()) {
-                        if (!rs.next() || rs.getLong(1) < 1) {
-                            throw new SQLException("背包中没有该阵图");
-                        }
-                    }
+                // 背包里至少要有一张阵图（没有行时 getItemCount 返回 0，与"查不到行"等价）
+                if (itemService.getItemCount(conn, playerId, treasureFullKey) < 1) {
+                    throw new SQLException("背包中没有该阵图");
                 }
                 long now = System.currentTimeMillis();
                 long durationMs = (long) Formation.getBaseDuration(formationKey) * 60 * 1000;
-                String sql = "INSERT INTO formations (player_id, formation_key, name, level, " +
-                        "spirit_energy_boost, cultivation_bonus, defense_bonus, heart_demon_resist, " +
-                        "duration_minutes, placed_at, expires_at, active) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 1)";
-                try (PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-                    ps.setLong(1, playerId);
-                    ps.setString(2, formationKey);
-                    ps.setString(3, Formation.getNameForKey(formationKey));
-                    ps.setInt(4, level);
-                    ps.setInt(5, Formation.getSpiritEnergyBoostForLevel(formationKey, level));
-                    ps.setInt(6, Formation.getCultivationBonusForLevel(formationKey, level));
-                    ps.setInt(7, Formation.getDefenseBonusForLevel(formationKey, level));
-                    ps.setInt(8, Formation.getHeartDemonResistForLevel(formationKey, level));
-                    ps.setInt(9, Formation.getBaseDuration(formationKey));
-                    ps.setLong(10, now);
-                    ps.setLong(11, now + durationMs);
-                    ps.executeUpdate();
-                }
+                FORMATION_DAO.insertFormation(conn, playerId, formationKey,
+                        Formation.getNameForKey(formationKey), level,
+                        Formation.getSpiritEnergyBoostForLevel(formationKey, level),
+                        Formation.getCultivationBonusForLevel(formationKey, level),
+                        Formation.getDefenseBonusForLevel(formationKey, level),
+                        Formation.getHeartDemonResistForLevel(formationKey, level),
+                        Formation.getBaseDuration(formationKey), now, now + durationMs);
                 if (!itemService.removeItem(conn, playerId, treasureFullKey, 1)) {
                     throw new SQLException("阵图扣除失败: " + treasureFullKey);
                 }
@@ -341,23 +281,5 @@ public class FormationService {
                         : ""));
         result.put("formation", formation);
         return result;
-    }
-
-    private Formation mapFormation(ResultSet rs) throws SQLException {
-        Formation f = new Formation();
-        f.setId(rs.getLong("id"));
-        f.setPlayerId(rs.getLong("player_id"));
-        f.setFormationKey(rs.getString("formation_key"));
-        f.setName(rs.getString("name"));
-        f.setLevel(rs.getInt("level"));
-        f.setSpiritEnergyBoost(rs.getInt("spirit_energy_boost"));
-        f.setCultivationBonus(rs.getInt("cultivation_bonus"));
-        f.setDefenseBonus(rs.getInt("defense_bonus"));
-        f.setHeartDemonResist(rs.getInt("heart_demon_resist"));
-        f.setDurationMinutes(rs.getInt("duration_minutes"));
-        f.setPlacedAt(rs.getLong("placed_at"));
-        f.setExpiresAt(rs.getLong("expires_at"));
-        f.setActive(rs.getBoolean("active"));
-        return f;
     }
 }

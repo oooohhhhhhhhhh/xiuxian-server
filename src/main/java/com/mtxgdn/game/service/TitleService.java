@@ -2,11 +2,10 @@ package com.mtxgdn.game.service;
 
 import com.mtxgdn.common.service.ServiceRegistry;
 
-import com.mtxgdn.db.DatabaseManager;
+import com.mtxgdn.db.TitleDAO;
 import com.mtxgdn.game.entity.Title;
 import com.mtxgdn.game.title.TitleRegistry;
 
-import java.sql.*;
 import java.util.*;
 import com.mtxgdn.i18n.I18n;
 
@@ -16,6 +15,9 @@ public class TitleService {
             com.mtxgdn.util.GameLogger.getLogger(TitleService.class);
 
     private final PlayerService playerService = ServiceRegistry.getPlayerService();
+
+    /** {@code player_titles} 的读写入口（无状态，可共享）。 */
+    private static final TitleDAO TITLE_DAO = new TitleDAO();
 
     public TitleService() {
         TitleRegistry.init();
@@ -32,18 +34,13 @@ public class TitleService {
             return createResult(false, I18n.t("title.you_already_own_that_title"));
         }
 
-        String sql = "INSERT INTO player_titles (player_id, title_key, is_equipped) VALUES (?, ?, ?)";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            ps.setString(2, titleKey);
-            ps.setBoolean(3, false);
-            ps.executeUpdate();
+        try {
+            TITLE_DAO.grantTitle(playerId, titleKey);
             Map<String, Object> result = createResult(true, I18n.t("title.successfully_granted_title", title.getName()));
             result.put("titleKey", titleKey);
             result.put("titleName", title.getName());
             return result;
-        } catch (SQLException e) {
+        } catch (RuntimeException e) {
             return createResult(false, I18n.t("title.failed_to_grant_the_title", e.getMessage()));
         }
     }
@@ -92,22 +89,17 @@ public class TitleService {
     }
 
     /** 撤销称号 */
-    public Map<String, Object> revokeTitle(long playerId, String titleKey) {        String sql = "DELETE FROM player_titles WHERE player_id = ? AND title_key = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            ps.setString(2, titleKey);
-            int rows = ps.executeUpdate();
-            if (rows > 0) {
-                Title title = TitleRegistry.get(titleKey);
-                // 查不到称号时退回原 key 而不是编一个名字——
-                // 这里的 key 是装备/称号的内部标识，玩家认得出
-                return createResult(true, I18n.t("title.revoked",
-                        title != null ? title.getName() : titleKey));
-            } else {
+    public Map<String, Object> revokeTitle(long playerId, String titleKey) {
+        try {
+            if (!TITLE_DAO.revokeTitle(playerId, titleKey)) {
                 return createResult(false, I18n.t("title.the_player_does_not_own"));
             }
-        } catch (SQLException e) {
+            Title title = TitleRegistry.get(titleKey);
+            // 查不到称号时退回原 key 而不是编一个名字——
+            // 这里的 key 是装备/称号的内部标识，玩家认得出
+            return createResult(true, I18n.t("title.revoked",
+                    title != null ? title.getName() : titleKey));
+        } catch (RuntimeException e) {
             return createResult(false, I18n.t("title.failed_to_revoke_the_title", e.getMessage()));
         }
     }
@@ -124,9 +116,9 @@ public class TitleService {
         }
 
         try {
-            DatabaseManager.runTransaction(conn -> {
-                unequipCurrentTitle(conn, playerId);
-                equipNewTitle(conn, playerId, titleKey);
+            com.mtxgdn.db.DatabaseManager.runTransaction(conn -> {
+                TITLE_DAO.unequipAll(conn, playerId);
+                TITLE_DAO.equipTitle(conn, playerId, titleKey);
                 return null;
             });
 
@@ -141,17 +133,12 @@ public class TitleService {
 
     /** 卸下称号 */
     public Map<String, Object> unequipTitle(long playerId) {
-        String sql = "UPDATE player_titles SET is_equipped = ? WHERE player_id = ? AND is_equipped = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setBoolean(1, false);
-            ps.setLong(2, playerId);
-            ps.setBoolean(3, true);
-            int rows = ps.executeUpdate();
+        try {
+            int rows = TITLE_DAO.unequipAll(playerId);
             Map<String, Object> result = createResult(true,
                     rows > 0 ? I18n.t("title.unequipped") : I18n.t("title.none_equipped"));
             return result;
-        } catch (SQLException e) {
+        } catch (RuntimeException e) {
             return createResult(false, I18n.t("title.failed_to_unequip_the_title", e.getMessage()));
         }
     }
@@ -159,19 +146,14 @@ public class TitleService {
     /** 获取玩家所有称号 */
     public List<Map<String, Object>> getPlayerTitles(long playerId) {
         List<Map<String, Object>> list = new ArrayList<>();
-        String sql = "SELECT title_key, is_equipped, acquired_at FROM player_titles WHERE player_id = ? ORDER BY acquired_at DESC";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    String key = rs.getString("title_key");
-                    Title title = TitleRegistry.get(key);
-                    if (title == null) continue;
-                    list.add(buildTitleMap(key, title, rs.getBoolean("is_equipped"), rs.getString("acquired_at")));
-                }
+        try {
+            for (Object[] row : TITLE_DAO.findPlayerTitles(playerId)) {
+                String key = (String) row[0];
+                Title title = TitleRegistry.get(key);
+                if (title == null) continue;
+                list.add(buildTitleMap(key, title, (Boolean) row[1], (String) row[2]));
             }
-        } catch (SQLException e) {
+        } catch (RuntimeException e) {
             LOG.error("查询玩家称号列表失败", e);
         }
         return list;
@@ -179,34 +161,19 @@ public class TitleService {
 
     /** 获取当前装备的称号 */
     public Title getEquippedTitle(long playerId) {
-        String sql = "SELECT title_key FROM player_titles WHERE player_id = ? AND is_equipped = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            ps.setBoolean(2, true);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    return TitleRegistry.get(rs.getString("title_key"));
-                }
+        try {
+            String key = TITLE_DAO.findEquippedTitleKey(playerId);
+            if (key != null) {
+                return TitleRegistry.get(key);
             }
-        } catch (SQLException e) {
+        } catch (RuntimeException e) {
             LOG.error("查询当前装备称号失败", e);
         }
         return null;
     }
 
     public boolean hasTitle(long playerId, String titleKey) {
-        String sql = "SELECT 1 FROM player_titles WHERE player_id = ? AND title_key = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            ps.setString(2, titleKey);
-            try (ResultSet rs = ps.executeQuery()) {
-                return rs.next();
-            }
-        } catch (SQLException e) {
-            return false;
-        }
+        return TITLE_DAO.hasTitle(playerId, titleKey);
     }
 
     private Map<String, Object> createResult(boolean success, String message) {
@@ -214,26 +181,6 @@ public class TitleService {
         result.put("success", success);
         result.put("message", message);
         return result;
-    }
-
-    private void unequipCurrentTitle(Connection conn, long playerId) throws SQLException {
-        String sql = "UPDATE player_titles SET is_equipped = ? WHERE player_id = ? AND is_equipped = ?";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setBoolean(1, false);
-            ps.setLong(2, playerId);
-            ps.setBoolean(3, true);
-            ps.executeUpdate();
-        }
-    }
-
-    private void equipNewTitle(Connection conn, long playerId, String titleKey) throws SQLException {
-        String sql = "UPDATE player_titles SET is_equipped = ? WHERE player_id = ? AND title_key = ?";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setBoolean(1, true);
-            ps.setLong(2, playerId);
-            ps.setString(3, titleKey);
-            ps.executeUpdate();
-        }
     }
 
     private Map<String, Object> buildTitleMap(String key, Title title, boolean isEquipped, String acquiredAt) {

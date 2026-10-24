@@ -1,6 +1,7 @@
 package com.mtxgdn.game.service;
 
 import com.mtxgdn.common.service.ServiceRegistry;
+import com.mtxgdn.db.CombatDAO;
 import com.mtxgdn.entity.Player;
 import com.mtxgdn.game.entity.BossForm;
 import com.mtxgdn.game.entity.MapLocation;
@@ -84,6 +85,9 @@ public class CombatService {
     /** PVP 每日参与次数限制（发起+接受合计，持久化到数据库，重启不丢失） */
     private static final int DAILY_PVP_LIMIT = 10;
 
+    /** {@code player_daily} 的读写入口（无状态，可共享）。 */
+    private static final CombatDAO COMBAT_DAO = new CombatDAO();
+
     private static boolean canParticipatePvp(long playerId) {
         int count = getDailyPvpCount(playerId);
         return count < DAILY_PVP_LIMIT;
@@ -98,21 +102,7 @@ public class CombatService {
         // 先执行 player_daily 行级按日复位，保证 PVP 次数在跨天后从 0 开始
         ServiceRegistry.getDailyService().ensureDailyReset(playerId);
         String today = java.time.LocalDate.now().toString();
-        String sql = "SELECT pvp_count FROM player_daily WHERE player_id = ? AND last_daily_reset = ?";
-        try (java.sql.Connection conn = com.mtxgdn.db.DatabaseManager.getConnection();
-             java.sql.PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            ps.setString(2, today);
-            try (java.sql.ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    return rs.getInt("pvp_count");
-                }
-            }
-        } catch (java.sql.SQLException e) {
-            // 表或列可能不存在（升级前），记录日志并降级为0
-            System.err.println("[Combat] 读取PVP次数失败: " + e.getMessage());
-        }
-        return 0;
+        return COMBAT_DAO.getDailyPvpCount(playerId, today);
     }
 
     /** 原子递增玩家今日PVP次数（跨天自动重置为1） */
@@ -120,28 +110,7 @@ public class CombatService {
         // 先执行行级按日复位，确保上一日的 last_daily_reset 已刷新到今天（否则共享行会导致其它列跨日失效）
         ServiceRegistry.getDailyService().ensureDailyReset(playerId);
         String today = java.time.LocalDate.now().toString();
-        String sql;
-        if (com.mtxgdn.db.DatabaseManager.isSqlite()) {
-            sql = "INSERT INTO player_daily (player_id, pvp_count, last_daily_reset) VALUES (?, 1, ?) " +
-                  "ON CONFLICT(player_id) DO UPDATE SET " +
-                  "pvp_count = CASE WHEN last_daily_reset = ? THEN pvp_count + 1 ELSE 1 END, " +
-                  "last_daily_reset = ?";
-        } else {
-            sql = "INSERT INTO player_daily (player_id, pvp_count, last_daily_reset) VALUES (?, 1, ?) " +
-                  "ON DUPLICATE KEY UPDATE " +
-                  "pvp_count = IF(last_daily_reset = ?, pvp_count + 1, 1), " +
-                  "last_daily_reset = ?";
-        }
-        try (java.sql.Connection conn = com.mtxgdn.db.DatabaseManager.getConnection();
-             java.sql.PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            ps.setString(2, today);
-            ps.setString(3, today);
-            ps.setString(4, today);
-            ps.executeUpdate();
-        } catch (java.sql.SQLException e) {
-            System.err.println("[Combat] 记录PVP次数失败: " + e.getMessage());
-        }
+        COMBAT_DAO.incrementDailyPvpCount(playerId, today);
     }
 
     public CombatService() {

@@ -1,6 +1,8 @@
 package com.mtxgdn.game.service;
 
 import com.mtxgdn.db.DatabaseManager;
+import com.mtxgdn.db.EnhanceDAO;
+import com.mtxgdn.db.EnhanceDAO.EnhanceQueryException;
 import com.mtxgdn.entity.Player;
 import com.mtxgdn.game.item.BuffEffect;
 import com.mtxgdn.game.item.Item;
@@ -10,8 +12,6 @@ import com.mtxgdn.common.service.ServiceRegistry;
 import com.mtxgdn.util.GameLogger;
 
 import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -30,6 +30,9 @@ public class EnhanceService {
     private final PlayerService playerService;
     private final ItemService itemService;
     private final Random random = new Random();
+
+    /** {@code players_equipment.enhance_level} 的读写入口（无状态，可共享）。 */
+    private static final EnhanceDAO ENHANCE_DAO = new EnhanceDAO();
 
     private static final int[] ENHANCE_GOLD_COST = {
         500, 800, 1200, 1800, 2500, 3500, 5000, 7000, 10000, 15000,
@@ -67,34 +70,18 @@ public class EnhanceService {
     }
 
     public int getEnhanceLevel(long playerId, String slot) {
-        String sql = "SELECT enhance_level FROM players_equipment WHERE player_id = ? AND slot = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            ps.setString(2, slot);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    return rs.getInt("enhance_level");
-                }
-            }
-        } catch (SQLException e) {
+        try {
+            return ENHANCE_DAO.getEnhanceLevel(playerId, slot);
+        } catch (EnhanceQueryException e) {
             LOG.error("查询强化等级失败: " + e.getMessage(), e);
         }
         return 0;
     }
 
     public String getEquippedItemKey(long playerId, String slot) {
-        String sql = "SELECT item_key FROM players_equipment WHERE player_id = ? AND slot = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            ps.setString(2, slot);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    return rs.getString("item_key");
-                }
-            }
-        } catch (SQLException e) {
+        try {
+            return ENHANCE_DAO.getEquippedItemKey(playerId, slot);
+        } catch (EnhanceQueryException e) {
             LOG.error("查询装备失败: " + e.getMessage(), e);
         }
         return null;
@@ -254,13 +241,7 @@ public class EnhanceService {
     }
 
     private void setEnhanceLevel(Connection conn, long playerId, String slot, int level) throws SQLException {
-        String sql = "UPDATE players_equipment SET enhance_level = ? WHERE player_id = ? AND slot = ?";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, level);
-            ps.setLong(2, playerId);
-            ps.setString(3, slot);
-            ps.executeUpdate();
-        }
+        ENHANCE_DAO.setEnhanceLevel(conn, playerId, slot, level);
     }
 
     /**
@@ -280,8 +261,8 @@ public class EnhanceService {
      * 玩家申诉时无从查证。</p>
      */
     private void unequipItem(Connection conn, long playerId, String slot) throws SQLException {
-        String itemKey = getEquippedItemKey(conn, playerId, slot);
-        int enhanceLevel = getEnhanceLevel(conn, playerId, slot);
+        String itemKey = ENHANCE_DAO.getEquippedItemKey(conn, playerId, slot);
+        int enhanceLevel = ENHANCE_DAO.getEnhanceLevel(conn, playerId, slot);
         if (itemKey != null) {
             Item item = ItemRegistry.get(itemKey);
             if (item != null) {
@@ -299,38 +280,9 @@ public class EnhanceService {
             }
         }
 
-        String sql = "DELETE FROM players_equipment WHERE player_id = ? AND slot = ?";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            ps.setString(2, slot);
-            ps.executeUpdate();
-        }
+        ENHANCE_DAO.deleteEquipment(conn, playerId, slot);
 
         LOG.warn("装备强化碎裂销毁: playerId=" + playerId + " slot=" + slot
                 + " itemKey=" + itemKey + " enhanceLevel=" + enhanceLevel);
-    }
-
-    /** 事务内版本：复用调用方已开启的连接，避免在持有连接时再向池里要一条。 */
-    private String getEquippedItemKey(Connection conn, long playerId, String slot) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement(
-                "SELECT item_key FROM players_equipment WHERE player_id = ? AND slot = ?")) {
-            ps.setLong(1, playerId);
-            ps.setString(2, slot);
-            try (ResultSet rs = ps.executeQuery()) {
-                return rs.next() ? rs.getString("item_key") : null;
-            }
-        }
-    }
-
-    /** 事务内版本：同 {@link #getEquippedItemKey(Connection, long, String)}。 */
-    private int getEnhanceLevel(Connection conn, long playerId, String slot) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement(
-                "SELECT enhance_level FROM players_equipment WHERE player_id = ? AND slot = ?")) {
-            ps.setLong(1, playerId);
-            ps.setString(2, slot);
-            try (ResultSet rs = ps.executeQuery()) {
-                return rs.next() ? rs.getInt("enhance_level") : 0;
-            }
-        }
     }
 }
