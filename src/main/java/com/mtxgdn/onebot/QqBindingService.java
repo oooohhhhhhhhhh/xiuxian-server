@@ -1,54 +1,27 @@
 package com.mtxgdn.onebot;
 
-import com.mtxgdn.db.DatabaseManager;
+import com.mtxgdn.db.QqBindingDAO;
+import com.mtxgdn.db.QqOfficialBindingDAO;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-
+/**
+ * OneBot 渠道的 QQ 号绑定服务。
+ *
+ * <p>与 QQ 官方开放平台的绑定是<b>两套身份体系</b>：OneBot 拿的是真实 QQ 号，
+ * 官方平台下发的是 openid，分别存在 {@code qq_bindings} 与
+ * {@code qq_official_bindings} 两张表里。本类只负责前者，
+ * SQL 已全部抽到 {@link QqBindingDAO}。</p>
+ */
 public class QqBindingService {
 
+    /** {@code qq_bindings} 的读写入口（无状态，可共享）。 */
+    private static final QqBindingDAO BINDING_DAO = new QqBindingDAO();
+
     public QqBinding findByQq(String qqNumber) {
-        String sql = "SELECT id, qq_number, user_id, created_at FROM qq_bindings WHERE qq_number = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setString(1, qqNumber);
-            try (ResultSet rs = stmt.executeQuery()) {
-                if (rs.next()) {
-                    QqBinding binding = new QqBinding();
-                    binding.setId(rs.getLong("id"));
-                    binding.setQqNumber(rs.getString("qq_number"));
-                    binding.setUserId(rs.getLong("user_id"));
-                    binding.setCreatedAt(rs.getString("created_at"));
-                    return binding;
-                }
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("查询QQ绑定失败", e);
-        }
-        return null;
+        return BINDING_DAO.findByQq(qqNumber);
     }
 
     public QqBinding findByUserId(Long userId) {
-        String sql = "SELECT id, qq_number, user_id, created_at FROM qq_bindings WHERE user_id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setLong(1, userId);
-            try (ResultSet rs = stmt.executeQuery()) {
-                if (rs.next()) {
-                    QqBinding binding = new QqBinding();
-                    binding.setId(rs.getLong("id"));
-                    binding.setQqNumber(rs.getString("qq_number"));
-                    binding.setUserId(rs.getLong("user_id"));
-                    binding.setCreatedAt(rs.getString("created_at"));
-                    return binding;
-                }
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("查询用户绑定失败", e);
-        }
-        return null;
+        return BINDING_DAO.findByUserId(userId);
     }
 
     /**
@@ -58,7 +31,7 @@ public class QqBindingService {
     public QqBinding findAnyBindingByUserId(Long userId) {
         QqBinding b = findByUserId(userId);
         if (b != null) return b;
-        return new QqOfficialBindingService().findByUserId(userId);
+        return new QqOfficialBindingDAO().findByUserIdAnyApp(userId);
     }
 
     public void bind(String qqNumber, Long userId) {
@@ -72,42 +45,20 @@ public class QqBindingService {
             throw new RuntimeException("该用户已绑定QQ号: " + existingByUser.getQqNumber());
         }
 
-        String sql = "INSERT INTO qq_bindings (qq_number, user_id) VALUES (?, ?)";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setString(1, qqNumber);
-            stmt.setLong(2, userId);
-            stmt.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("绑定QQ失败", e);
-        }
+        BINDING_DAO.insertBinding(qqNumber, userId);
     }
 
     public void unbindByQq(String qqNumber) {
-        String sql = "DELETE FROM qq_bindings WHERE qq_number = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setString(1, qqNumber);
-            int affected = stmt.executeUpdate();
-            if (affected == 0) {
-                throw new RuntimeException("该QQ号未绑定任何用户");
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("解绑QQ失败", e);
+        int affected = BINDING_DAO.deleteByQq(qqNumber);
+        if (affected == 0) {
+            throw new RuntimeException("该QQ号未绑定任何用户");
         }
     }
 
     public void unbindByUserId(Long userId) {
-        String sql = "DELETE FROM qq_bindings WHERE user_id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setLong(1, userId);
-            int affected = stmt.executeUpdate();
-            if (affected == 0) {
-                throw new RuntimeException("该用户未绑定任何QQ");
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("解绑用户失败", e);
+        int affected = BINDING_DAO.deleteByUserId(userId);
+        if (affected == 0) {
+            throw new RuntimeException("该用户未绑定任何QQ");
         }
     }
 }

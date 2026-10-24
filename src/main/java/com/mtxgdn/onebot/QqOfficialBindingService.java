@@ -1,11 +1,6 @@
 package com.mtxgdn.onebot;
 
-import com.mtxgdn.db.DatabaseManager;
-
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
+import com.mtxgdn.db.QqOfficialBindingDAO;
 
 /**
  * QQ 官方开放平台绑定服务（独立于 OneBot 的 {@link QqBindingService}）。
@@ -25,11 +20,18 @@ import java.sql.SQLException;
  *
  * <p>方法签名与 {@link QqBindingService} 保持一致（内部字段 {@code qqNumber}
  * 承载 openid 字符串），以便 QQ 官方适配器无侵入切换。</p>
+ *
+ * <p><b>SQL 已全部抽到 {@link QqOfficialBindingDAO}</b>：本类只保留 AppID 维度的
+ * 业务规则（未配置 app_id 不能绑定、历史兼容行的判定与提示文案、解绑的两级退化），
+ * 一条 SQL 都不再自己写。</p>
  */
 public class QqOfficialBindingService {
 
     /** 机器人 AppID；为空 = 不限 AppID（仅用于跨平台展示查询，不能用于绑定） */
     private final String appId;
+
+    /** {@code qq_official_bindings} 的读写入口（无状态，可共享）。 */
+    private static final QqOfficialBindingDAO BINDING_DAO = new QqOfficialBindingDAO();
 
     /** 跨机器人查询用构造器（不限 AppID，仅展示用途）。 */
     public QqOfficialBindingService() {
@@ -56,26 +58,9 @@ public class QqOfficialBindingService {
             return null;
         }
         if (!scoped()) {
-            return queryOneByString("SELECT id, app_id, openid, user_id, created_at FROM qq_official_bindings "
-                    + "WHERE openid = ? LIMIT 1", openid);
+            return BINDING_DAO.findByQqAnyApp(openid);
         }
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(
-                     "SELECT id, app_id, openid, user_id, created_at FROM qq_official_bindings "
-                             + "WHERE openid = ? AND (app_id = ? OR app_id = '') "
-                             + "ORDER BY CASE WHEN app_id = ? THEN 0 ELSE 1 END LIMIT 1")) {
-            stmt.setString(1, openid);
-            stmt.setString(2, appId);
-            stmt.setString(3, appId);
-            try (ResultSet rs = stmt.executeQuery()) {
-                if (rs.next()) {
-                    return mapBinding(rs);
-                }
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("查询QQ官方绑定失败", e);
-        }
-        return null;
+        return BINDING_DAO.findByQqForApp(openid, appId);
     }
 
     /**
@@ -87,52 +72,9 @@ public class QqOfficialBindingService {
             return null;
         }
         if (!scoped()) {
-            return queryOneByLong("SELECT id, app_id, openid, user_id, created_at FROM qq_official_bindings "
-                    + "WHERE user_id = ? LIMIT 1", userId);
+            return BINDING_DAO.findByUserIdAnyApp(userId);
         }
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(
-                     "SELECT id, app_id, openid, user_id, created_at FROM qq_official_bindings "
-                             + "WHERE user_id = ? AND (app_id = ? OR app_id = '') "
-                             + "ORDER BY CASE WHEN app_id = ? THEN 0 ELSE 1 END LIMIT 1")) {
-            stmt.setLong(1, userId);
-            stmt.setString(2, appId);
-            stmt.setString(3, appId);
-            try (ResultSet rs = stmt.executeQuery()) {
-                if (rs.next()) {
-                    return mapBinding(rs);
-                }
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("查询用户QQ官方绑定失败", e);
-        }
-        return null;
-    }
-
-    /** 单参数（字符串）查询一条记录，不限 AppID 时使用。 */
-    private QqBinding queryOneByString(String sql, String param) {
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setString(1, param);
-            try (ResultSet rs = stmt.executeQuery()) {
-                return rs.next() ? mapBinding(rs) : null;
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("查询QQ官方绑定失败", e);
-        }
-    }
-
-    /** 单参数（Long）查询一条记录，不限 AppID 时使用。 */
-    private QqBinding queryOneByLong(String sql, Long param) {
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setLong(1, param);
-            try (ResultSet rs = stmt.executeQuery()) {
-                return rs.next() ? mapBinding(rs) : null;
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("查询QQ官方绑定失败", e);
-        }
+        return BINDING_DAO.findByUserIdForApp(userId, appId);
     }
 
     public void bind(String openid, Long userId) {
@@ -152,16 +94,7 @@ public class QqOfficialBindingService {
                     + legacyHint(existingByUser));
         }
 
-        String sql = "INSERT INTO qq_official_bindings (app_id, openid, user_id) VALUES (?, ?, ?)";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setString(1, appId);
-            stmt.setString(2, openid);
-            stmt.setLong(3, userId);
-            stmt.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("绑定QQ官方失败", e);
-        }
+        BINDING_DAO.insertBinding(appId, openid, userId);
     }
 
     /** 历史兼容行（升级前写入、app_id 为空）的补充说明，便于排查"为什么绑定不上"。 */
@@ -188,55 +121,17 @@ public class QqOfficialBindingService {
      * 解绑：先删本机器人（含历史兼容行）的绑定；若不存在则退化为按 openid 删除任意机器人的绑定。
      */
     public void unbindByQq(String openid) {
-        String sql = scoped()
-                ? "DELETE FROM qq_official_bindings WHERE openid = ? AND (app_id = ? OR app_id = '')"
-                : "DELETE FROM qq_official_bindings WHERE openid = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setString(1, openid);
-            if (scoped()) {
-                stmt.setString(2, appId);
-            }
-            int affected = stmt.executeUpdate();
-            if (affected == 0 && scoped()) {
-                // 本机器人没有绑定记录时，退回按 openid 全量删除（用户视角：解绑这个 QQ）
-                try (PreparedStatement fallback = conn.prepareStatement(
-                        "DELETE FROM qq_official_bindings WHERE openid = ?")) {
-                    fallback.setString(1, openid);
-                    affected = fallback.executeUpdate();
-                }
-            }
-            if (affected == 0) {
-                throw new RuntimeException("该 openid 未绑定任何用户");
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("解绑QQ官方失败", e);
+        int affected = BINDING_DAO.deleteByQq(openid, appId);
+        if (affected == 0) {
+            throw new RuntimeException("该 openid 未绑定任何用户");
         }
     }
 
     /** 按用户解绑全部机器人的绑定（管理员/注销账号场景）。 */
     public void unbindByUserId(Long userId) {
-        String sql = "DELETE FROM qq_official_bindings WHERE user_id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setLong(1, userId);
-            int affected = stmt.executeUpdate();
-            if (affected == 0) {
-                throw new RuntimeException("该用户未绑定任何QQ官方 openid");
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("解绑用户QQ官方失败", e);
+        int affected = BINDING_DAO.deleteByUserId(userId);
+        if (affected == 0) {
+            throw new RuntimeException("该用户未绑定任何QQ官方 openid");
         }
-    }
-
-    private QqBinding mapBinding(ResultSet rs) throws SQLException {
-        QqBinding binding = new QqBinding();
-        binding.setId(rs.getLong("id"));
-        // 复用 QqBinding 实体：qqNumber 字段承载 openid 字符串
-        binding.setQqNumber(rs.getString("openid"));
-        binding.setUserId(rs.getLong("user_id"));
-        binding.setCreatedAt(rs.getString("created_at"));
-        binding.setAppId(rs.getString("app_id"));
-        return binding;
     }
 }
