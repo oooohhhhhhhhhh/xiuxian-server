@@ -99,4 +99,18 @@ class DatabasePoolLifecycleTest extends TestBase {
         assertEquals(0, DatabaseManager.getActiveConnectionCount(),
                 "全部归还后借出数必须回到 0");
     }
+
+    @Test
+    @Order(4)
+    @DisplayName("连接池上限不能小于并发业务线程数")
+    void poolIsAtLeastAsLargeAsTheCommandThreadPool() {
+        int poolSize = DatabaseManager.getMaxPoolSize();
+        int commandThreads = com.mtxgdn.common.command.CommandExecutor.getThreads();
+
+        assertTrue(poolSize >= commandThreads,
+                "连接池上限 " + poolSize + " 小于指令执行线程数 " + commandThreads + "："
+                        + "当所有指令线程同时查库时，池子必然被借空，后来者要卡满 10 秒"
+                        + "连接超时才报错，而报错的堆栈会指向一条毫不相干的业务查询。"
+                        + "要么调大 database.pool_max，要么调小 performance.command_threads。");
+    }
 }

@@ -54,15 +54,19 @@ public class DatabaseManager {
             cfg.setUsername(user);
             cfg.setPassword(password);
             cfg.setPoolName("xiuxian-db");
-            cfg.setMaximumPoolSize(Math.max(4, AppConfig.getInt("database.pool_max", 4)));
+            cfg.setMaximumPoolSize(Math.max(8, AppConfig.getInt("database.pool_max", 8)));
             cfg.setMinimumIdle(1);
             cfg.setConnectionTimeout(10_000);
             cfg.setValidationTimeout(3_000);
             cfg.setIdleTimeout(300_000);
             cfg.setMaxLifetime(1_800_000);
             if (IS_SQLITE) {
-                // SQLite 单写者模型：池内保持少量连接即可，避免写锁争用
-                cfg.setMaximumPoolSize(Math.min(8, Math.max(2, AppConfig.getInt("database.pool_max", 4))));
+                // SQLite 单写者模型：连接数不必很多，但**不能少于并发业务线程数**。
+                // 池子借空后，后来者会卡满 connectionTimeout（10 秒）才抛
+                // "Connection is not available"，堆栈指向一条毫不相干的业务查询，
+                // 现场极难定位。指令线程池默认 4 个，再加 Grizzly worker、WS 推送、
+                // 定时任务，4 个连接是不够的，所以下限给到 8。
+                cfg.setMaximumPoolSize(Math.min(16, Math.max(8, AppConfig.getInt("database.pool_max", 8))));
             }
             dataSource = new HikariDataSource(cfg);
             // 预热连接池：让驱动加载与方言初始化在启动阶段就完成，

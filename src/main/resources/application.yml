@@ -27,7 +27,13 @@ database:
   username: root               # MySQL 用户名（仅 type=mysql 时使用）
   password: root               # MySQL 密码（仅 type=mysql 时使用）
   sqlite_path: xiuxian.db      # SQLite 数据库文件路径（仅 type=sqlite 时使用）
-  pool_max: 4                  # 连接池最大连接数（SQLite 建议 2~8，MySQL 建议 8~32）
+  pool_max: 8                  # 连接池最大连接数（SQLite 建议 2~8，MySQL 建议 8~32）
+                               # 注意：SQLite 下这个值不能小于「并发业务线程数」。
+                               # 指令执行线程池默认 4 个（performance.command_threads），
+                               # 再加 Grizzly worker、WS 推送、定时任务，同时在用连接的
+                               # 请求很容易超过 4 个。池子一旦借空，后来者会卡满 10 秒
+                               # 连接超时，抛出的 "Connection is not available" 堆栈
+                               # 指向一条毫不相干的业务查询，极难定位。所以默认给到 8。
   mysql:
     shutdown_grace_seconds: 30 # 关闭内置 MySQL 时，等待它自行刷盘退出的秒数（最小 5）
                                # 原来固定等 5 秒就 destroyForcibly()（SIGKILL），
