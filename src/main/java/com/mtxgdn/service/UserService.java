@@ -3,7 +3,7 @@ package com.mtxgdn.service;
 import com.google.gson.JsonObject;
 import com.mtxgdn.common.GameErrorCode;
 import com.mtxgdn.common.GameMessage;
-import com.mtxgdn.db.DatabaseManager;
+import com.mtxgdn.db.UserServiceDAO;
 import com.mtxgdn.entity.User;
 import com.mtxgdn.permission.PermissionService;
 import com.mtxgdn.util.AppConfig;
@@ -11,18 +11,38 @@ import com.mtxgdn.util.JwtUtil;
 import jakarta.ws.rs.core.Response;
 import org.mindrot.jbcrypt.BCrypt;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
 import java.sql.Timestamp;
 import java.util.Arrays;
 import java.util.List;
 import java.util.regex.Pattern;
 import com.mtxgdn.i18n.I18n;
 
+/**
+ * 账号中心的业务逻辑：注册校验、BCrypt 哈希与校验、JWT 签发、登录锁定策略、
+ * 错误码与文案。
+ *
+ * <p>所有 SQL 都在 {@link UserServiceDAO} 里。本类刻意<b>不</b>碰
+ * {@code Connection} / {@code PreparedStatement} / {@code SQLException}：
+ * 一是这是安全代码，改判定与改语句必须能分别 review；
+ * 二是"哪条语句在事务里"必须一眼看得出来 —— 现在本类里一条语句都没有，
+ * 因此不存在"顺手开个短连接"的可能。</p>
+ */
 public class UserService {
+
+    /**
+     * {@code users} 表的数据访问入口。
+     *
+     * <p>无状态、线程安全，因此做成 {@code static final} 常量：
+     * 每个 {@code UserService} 实例都新建一个 DAO 只会白白多出对象，
+     * 也让"DAO 有没有藏状态"这件事变得可疑。</p>
+     */
+    private static final UserServiceDAO USER_DAO = new UserServiceDAO();
+
+    /** 登录连续失败多少次后锁定账号。 */
+    private static final int MAX_FAILED_ATTEMPTS = 5;
+
+    /** 锁定时长（分钟）。 */
+    private static final long LOCK_DURATION_MINUTES = 15;
 
     // 用户名格式：3-32字符，只允许字母、数字和下划线
     private static final Pattern USERNAME_PATTERN = Pattern.compile("^[a-zA-Z0-9_]{3,32}$");
@@ -57,7 +77,7 @@ public class UserService {
             return buildError(400, "密码长度不能超过128位");
         }
 
-        if (isUsernameExists(trimmedUsername)) {
+        if (USER_DAO.existsByUsername(trimmedUsername)) {
             return buildError(409, GameErrorCode.AUTH_USERNAME_EXISTS.getMessage());
         }
 
@@ -78,7 +98,7 @@ public class UserService {
                 return buildError(400, "不支持的邮箱类型");
             }
 
-            if (isEmailExists(trimmedEmail)) {
+            if (USER_DAO.existsByEmail(trimmedEmail)) {
                 return buildError(409, "该邮箱已被注册");
             }
 
@@ -94,7 +114,7 @@ public class UserService {
 
         String hashedPassword = BCrypt.hashpw(rawPassword, BCrypt.gensalt());
 
-        User user = insertUser(trimmedUsername, hashedPassword, trimmedEmail);
+        User user = USER_DAO.insertUser(trimmedUsername, hashedPassword, trimmedEmail);
         if (user == null) {
             return buildError(500, "注册失败，请稍后重试");
         }
@@ -126,22 +146,6 @@ public class UserService {
         return domains.contains(domain);
     }
 
-    private boolean isEmailExists(String email) {
-        String sql = "SELECT COUNT(*) FROM users WHERE email = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, email);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    return rs.getInt(1) > 0;
-                }
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("数据库查询失败", e);
-        }
-        return false;
-    }
-
     public Response login(String username, String rawPassword) {
         if (username == null || username.trim().isEmpty()) {
             return buildError(400, "用户名不能为空");
@@ -152,7 +156,7 @@ public class UserService {
 
         String trimmedUsername = username.trim();
 
-        User user = findUserByUsernameWithLockInfo(trimmedUsername);
+        User user = USER_DAO.findByUsernameWithLockInfo(trimmedUsername);
         if (user == null) {
             return buildError(401, GameErrorCode.AUTH_WRONG_PASSWORD.getMessage());
         }
@@ -192,53 +196,11 @@ public class UserService {
         if (trimmedUsername.isEmpty() || rawPassword == null || rawPassword.isEmpty()) {
             return null;
         }
-        User user = findUserByUsername(trimmedUsername);
+        User user = USER_DAO.findByUsername(trimmedUsername);
         if (user == null || !BCrypt.checkpw(rawPassword, user.getPassword())) {
             return null;
         }
         return user;
-    }
-
-    private User findUserByUsername(String username) {
-        String sql = "SELECT id, username, password FROM users WHERE username = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, username);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    User user = new User();
-                    user.setId(rs.getLong("id"));
-                    user.setUsername(rs.getString("username"));
-                    user.setPassword(rs.getString("password"));
-                    return user;
-                }
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("数据库查询失败", e);
-        }
-        return null;
-    }
-
-    private User findUserByUsernameWithLockInfo(String username) {
-        String sql = "SELECT id, username, password, failed_attempts, locked_until FROM users WHERE username = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, username);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    User user = new User();
-                    user.setId(rs.getLong("id"));
-                    user.setUsername(rs.getString("username"));
-                    user.setPassword(rs.getString("password"));
-                    user.setFailedAttempts(rs.getInt("failed_attempts"));
-                    user.setLockedUntil(rs.getTimestamp("locked_until"));
-                    return user;
-                }
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("数据库查询失败", e);
-        }
-        return null;
     }
 
     private boolean isAccountLocked(User user) {
@@ -249,75 +211,21 @@ public class UserService {
         return lockedUntil.getTime() > System.currentTimeMillis();
     }
 
+    /**
+     * 记一次登录失败，达到阈值时锁定账号。
+     *
+     * <p>阈值与锁定时长是<b>认证策略</b>，留在本类；具体怎么落库（在 SQL 里做加法、
+     * 用 {@code COALESCE} 保住原有锁定时刻）属于数据访问，在 DAO 里。</p>
+     */
     private void incrementFailedAttempts(long userId) {
-        int maxAttempts = 5;
-        long lockDurationMinutes = 15;
-        String sql = "UPDATE users SET failed_attempts = failed_attempts + 1, " +
-                "locked_until = COALESCE(" +
-                "CASE WHEN failed_attempts + 1 >= ? THEN ? ELSE NULL END, " +
-                "locked_until) " +
-                "WHERE id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, maxAttempts);
-            ps.setTimestamp(2, new java.sql.Timestamp(System.currentTimeMillis() + lockDurationMinutes * 60 * 1000));
-            ps.setLong(3, userId);
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("更新失败次数失败", e);
-        }
+        int maxAttempts = MAX_FAILED_ATTEMPTS;
+        long lockDurationMinutes = LOCK_DURATION_MINUTES;
+        USER_DAO.recordFailedAttempt(userId, maxAttempts,
+                new Timestamp(System.currentTimeMillis() + lockDurationMinutes * 60 * 1000));
     }
 
     private void resetFailedAttempts(long userId) {
-        String sql = "UPDATE users SET failed_attempts = 0, locked_until = NULL WHERE id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, userId);
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("重置失败次数失败", e);
-        }
-    }
-
-    private boolean isUsernameExists(String username) {
-        String sql = "SELECT COUNT(*) FROM users WHERE username = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, username);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    return rs.getInt(1) > 0;
-                }
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("数据库查询失败", e);
-        }
-        return false;
-    }
-
-    private User insertUser(String username, String hashedPassword, String email) {
-        String sql = "INSERT INTO users (username, password, email) VALUES (?, ?, ?)";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-            ps.setString(1, username);
-            ps.setString(2, hashedPassword);
-            ps.setString(3, email);
-            int affected = ps.executeUpdate();
-            if (affected > 0) {
-                try (ResultSet rs = ps.getGeneratedKeys()) {
-                    if (rs.next()) {
-                        User user = new User();
-                        user.setId(rs.getLong(1));
-                        user.setUsername(username);
-                        user.setEmail(email);
-                        return user;
-                    }
-                }
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("用户插入失败", e);
-        }
-        return null;
+        USER_DAO.clearFailedAttempts(userId);
     }
 
     private Response buildError(int httpStatus, String message) {
@@ -326,42 +234,11 @@ public class UserService {
     }
 
     public void updateUserEmail(long userId, String email) {
-        String sql;
-        if (email == null) {
-            sql = "UPDATE users SET email = NULL WHERE id = ? AND (email IS NULL OR email = '')";
-        } else {
-            sql = "UPDATE users SET email = ? WHERE id = ? AND (email IS NULL OR email = '' OR email = ?)";
-        }
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            int idx = 1;
-            if (email != null) {
-                ps.setString(idx++, email);
-            }
-            ps.setLong(idx++, userId);
-            if (email != null) {
-                ps.setString(idx, email);
-            }
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("更新邮箱失败", e);
-        }
+        USER_DAO.updateEmail(userId, email);
     }
 
     public String getUserEmail(long userId) {
-        String sql = "SELECT email FROM users WHERE id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, userId);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    return rs.getString("email");
-                }
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("查询邮箱失败", e);
-        }
-        return null;
+        return USER_DAO.findEmailById(userId);
     }
 
     public Response changePassword(long userId, String oldPassword, String newPassword) {
@@ -378,34 +255,20 @@ public class UserService {
             return buildError(400, "新密码不能与原密码相同");
         }
 
-        String sql = "SELECT id, password FROM users WHERE id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, userId);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (!rs.next()) {
-                    return buildError(404, "用户不存在");
-                }
-                String hashedPassword = rs.getString("password");
-                if (!BCrypt.checkpw(oldPassword, hashedPassword)) {
-                    return buildError(401, "原密码错误");
-                }
-            }
-
-            String newHashedPassword = BCrypt.hashpw(newPassword, BCrypt.gensalt());
-            String updateSql = "UPDATE users SET password = ? WHERE id = ?";
-            try (PreparedStatement ups = conn.prepareStatement(updateSql)) {
-                ups.setString(1, newHashedPassword);
-                ups.setLong(2, userId);
-                ups.executeUpdate();
-            }
-
-            JsonObject data = new JsonObject();
-            data.addProperty("message", I18n.t("user.password_changed_successfully"));
-            return Response.ok(GameMessage.restOk(I18n.t("auth.password_changed"), data).toString()).build();
-        } catch (SQLException e) {
-            throw new RuntimeException("修改密码失败", e);
+        UserServiceDAO.CredentialRow credential = USER_DAO.findCredentialById(userId);
+        if (credential == null) {
+            return buildError(404, "用户不存在");
         }
+        if (!BCrypt.checkpw(oldPassword, credential.hashedPassword())) {
+            return buildError(401, "原密码错误");
+        }
+
+        String newHashedPassword = BCrypt.hashpw(newPassword, BCrypt.gensalt());
+        USER_DAO.updatePasswordHash(userId, newHashedPassword);
+
+        JsonObject data = new JsonObject();
+        data.addProperty("message", I18n.t("user.password_changed_successfully"));
+        return Response.ok(GameMessage.restOk(I18n.t("auth.password_changed"), data).toString()).build();
     }
 
     /**
@@ -421,68 +284,39 @@ public class UserService {
         if (rawPassword == null || rawPassword.isEmpty()) {
             return false;
         }
-        String sql = "SELECT password FROM users WHERE id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, userId);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    String hashed = rs.getString("password");
-                    return hashed != null && BCrypt.checkpw(rawPassword, hashed);
-                }
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("校验密码失败", e);
+        String hashed = USER_DAO.findPasswordHashById(userId);
+        if (hashed == null) {
+            return false;
+        }
+        try {
+            return BCrypt.checkpw(rawPassword, hashed);
         } catch (IllegalArgumentException e) {
             // bcrypt 哈希格式异常
             return false;
         }
-        return false;
     }
 
-    public Response deleteUser(long userId) {        String sql = "DELETE FROM users WHERE id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, userId);
-            int affected = ps.executeUpdate();
-            if (affected == 0) {
-                return buildError(404, "用户不存在");
-            }
-            JsonObject data = new JsonObject();
-            data.addProperty("message", I18n.t("user.account_deleted_successfully"));
-            return Response.ok(GameMessage.restOk(I18n.t("auth.account_deleted"), data).toString()).build();
-        } catch (SQLException e) {
-            throw new RuntimeException("注销账户失败", e);
+    public Response deleteUser(long userId) {
+        if (!USER_DAO.deleteUserById(userId)) {
+            return buildError(404, "用户不存在");
         }
+        JsonObject data = new JsonObject();
+        data.addProperty("message", I18n.t("user.account_deleted_successfully"));
+        return Response.ok(GameMessage.restOk(I18n.t("auth.account_deleted"), data).toString()).build();
     }
 
     public Response resetPasswordByEmail(String email, String newPassword) {
-        String sql = "SELECT id, username FROM users WHERE email = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, email);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (!rs.next()) {
-                    return buildError(404, "该邮箱未注册");
-                }
-                long userId = rs.getLong("id");
-                String username = rs.getString("username");
-
-                String hashedPassword = BCrypt.hashpw(newPassword, BCrypt.gensalt());
-                String updateSql = "UPDATE users SET password = ?, failed_attempts = 0, locked_until = NULL WHERE id = ?";
-                try (PreparedStatement ups = conn.prepareStatement(updateSql)) {
-                    ups.setString(1, hashedPassword);
-                    ups.setLong(2, userId);
-                    ups.executeUpdate();
-                }
-
-                JsonObject data = new JsonObject();
-                data.addProperty("message", I18n.t("user.password_reset_successfully"));
-                data.addProperty("username", username);
-                return Response.ok(GameMessage.restOk(I18n.t("auth.password_reset"), data).toString()).build();
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("重置密码失败", e);
+        UserServiceDAO.EmailOwnerRow owner = USER_DAO.findIdAndUsernameByEmail(email);
+        if (owner == null) {
+            return buildError(404, "该邮箱未注册");
         }
+
+        String hashedPassword = BCrypt.hashpw(newPassword, BCrypt.gensalt());
+        USER_DAO.resetPassword(owner.id(), hashedPassword);
+
+        JsonObject data = new JsonObject();
+        data.addProperty("message", I18n.t("user.password_reset_successfully"));
+        data.addProperty("username", owner.username());
+        return Response.ok(GameMessage.restOk(I18n.t("auth.password_reset"), data).toString()).build();
     }
 }
