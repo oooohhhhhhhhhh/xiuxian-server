@@ -1,6 +1,7 @@
 package com.mtxgdn.game.service;
 
 import com.mtxgdn.db.DatabaseManager;
+import com.mtxgdn.db.FriendDAO;
 import com.mtxgdn.game.config.GameConfigLoader;
 import com.mtxgdn.game.entity.RealmConfig;
 import com.mtxgdn.game.entity.Friend;
@@ -8,8 +9,6 @@ import com.mtxgdn.entity.Player;
 import com.mtxgdn.common.service.ServiceRegistry;
 
 import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -22,6 +21,7 @@ import com.mtxgdn.i18n.I18n;
 public class FriendService {
 
     private final PlayerService playerService;
+    private static final FriendDAO FRIEND_DAO = new FriendDAO();
 
     public FriendService() {
         this.playerService = ServiceRegistry.getPlayerService();
@@ -46,15 +46,7 @@ public class FriendService {
             return result;
         }
 
-        String sql = "INSERT INTO friends (player_id, friend_player_id, status) VALUES (?, ?, 'pending')";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            ps.setLong(2, targetPlayerId);
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("发送好友申请失败", e);
-        }
+        FRIEND_DAO.insertRequest(playerId, targetPlayerId);
 
         Friend friend = new Friend();
         friend.setPlayerId(playerId);
@@ -66,16 +58,15 @@ public class FriendService {
     }
 
     public boolean acceptRequest(long playerId, long requesterPlayerId) {
-        String sql = "UPDATE friends SET status = 'accepted', updated_at = CURRENT_TIMESTAMP WHERE player_id = ? AND friend_player_id = ? AND status = 'pending'";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, requesterPlayerId);
-            ps.setLong(2, playerId);
-            int affected = ps.executeUpdate();
+        // 两步必须共用同一条连接：改申请状态 + 补反向记录。
+        // 若拆成两次自取连接，中间失败就会留下"申请已接受但没有反向记录"的脏数据，
+        // 对方的好友列表里看不到你。
+        try (Connection conn = DatabaseManager.getConnection()) {
+            int affected = FRIEND_DAO.acceptRequest(conn, playerId, requesterPlayerId);
             if (affected == 0) {
                 return false;
             }
-            insertReverseRelationship(conn, playerId, requesterPlayerId);
+            FRIEND_DAO.insertReverseRelationship(conn, playerId, requesterPlayerId);
             return true;
         } catch (SQLException e) {
             throw new RuntimeException("接受好友申请失败", e);
@@ -83,79 +74,35 @@ public class FriendService {
     }
 
     public boolean rejectRequest(long playerId, long requesterPlayerId) {
-        String sql = "DELETE FROM friends WHERE player_id = ? AND friend_player_id = ? AND status = 'pending'";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, requesterPlayerId);
-            ps.setLong(2, playerId);
-            int affected = ps.executeUpdate();
-            return affected > 0;
-        } catch (SQLException e) {
-            throw new RuntimeException("拒绝好友申请失败", e);
-        }
+        return FRIEND_DAO.rejectRequest(playerId, requesterPlayerId);
     }
 
     public boolean removeFriend(long playerId, long friendPlayerId) {
-        String sql = "DELETE FROM friends WHERE (player_id = ? AND friend_player_id = ?) OR (player_id = ? AND friend_player_id = ?)";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            ps.setLong(2, friendPlayerId);
-            ps.setLong(3, friendPlayerId);
-            ps.setLong(4, playerId);
-            int affected = ps.executeUpdate();
-            return affected > 0;
-        } catch (SQLException e) {
-            throw new RuntimeException("删除好友失败", e);
-        }
+        return FRIEND_DAO.removeFriend(playerId, friendPlayerId);
     }
 
     public List<Friend> getFriends(long playerId) {
-        String sql = "SELECT f.id, f.player_id, f.friend_player_id, f.status, f.created_at, f.updated_at FROM friends f " +
-                "WHERE ((f.player_id = ?) OR (f.friend_player_id = ? AND f.status = 'accepted')) AND f.status = 'accepted'";
         List<Friend> friends = new ArrayList<>();
         Set<Long> seenFriendIds = new HashSet<>();
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            ps.setLong(2, playerId);
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    Friend f = createFriendFromResultSet(rs);
-
-                    long friendId = (f.getPlayerId() == playerId) ? f.getFriendPlayerId() : f.getPlayerId();
-                    if (seenFriendIds.contains(friendId)) {
-                        continue;
-                    }
-                    seenFriendIds.add(friendId);
-
-                    populateFriendPlayerInfo(f, friendId);
-                    f.setFriendPlayerId(friendId);
-                    friends.add(f);
-                }
+        for (Friend f : FRIEND_DAO.findFriends(playerId)) {
+            long friendId = (f.getPlayerId() == playerId) ? f.getFriendPlayerId() : f.getPlayerId();
+            if (seenFriendIds.contains(friendId)) {
+                continue;
             }
-        } catch (SQLException e) {
-            throw new RuntimeException("获取好友列表失败", e);
+            seenFriendIds.add(friendId);
+
+            populateFriendPlayerInfo(f, friendId);
+            f.setFriendPlayerId(friendId);
+            friends.add(f);
         }
         return friends;
     }
 
     public List<Friend> getPendingRequests(long playerId) {
-        String sql = "SELECT f.id, f.player_id, f.friend_player_id, f.status, f.created_at FROM friends f " +
-                "WHERE f.friend_player_id = ? AND f.status = 'pending'";
         List<Friend> requests = new ArrayList<>();
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    Friend f = createFriendFromResultSet(rs);
-                    populateFriendPlayerInfo(f, f.getPlayerId());
-                    requests.add(f);
-                }
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("获取好友申请失败", e);
+        for (Friend f : FRIEND_DAO.findPendingRequests(playerId)) {
+            populateFriendPlayerInfo(f, f.getPlayerId());
+            requests.add(f);
         }
         return requests;
     }
@@ -163,6 +110,11 @@ public class FriendService {
     public boolean areFriends(long playerId, long otherPlayerId) {
         String existingStatus = checkExistingRelationship(playerId, otherPlayerId);
         return "accepted".equals(existingStatus);
+    }
+
+    /** 双向查一次关系状态（null 表示没关系）。 */
+    private String checkExistingRelationship(long playerId, long targetPlayerId) {
+        return FRIEND_DAO.checkExistingRelationship(playerId, targetPlayerId);
     }
 
     // ==================== 好友拜访（每日互动） ====================
@@ -227,53 +179,8 @@ public class FriendService {
         return result;
     }
 
-    private String checkExistingRelationship(long playerId, long targetPlayerId) {
-        String sql = "SELECT status FROM friends WHERE (player_id = ? AND friend_player_id = ?) OR (player_id = ? AND friend_player_id = ?)";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            ps.setLong(2, targetPlayerId);
-            ps.setLong(3, targetPlayerId);
-            ps.setLong(4, playerId);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    return rs.getString("status");
-                }
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("检查好友关系失败", e);
-        }
-        return null;
-    }
 
-    private void insertReverseRelationship(Connection conn, long playerId, long friendPlayerId) throws SQLException {
-        String reverseSql;
-        if (DatabaseManager.isSqlite()) {
-            reverseSql = "INSERT OR REPLACE INTO friends (player_id, friend_player_id, status) VALUES (?, ?, 'accepted')";
-        } else {
-            reverseSql = "INSERT INTO friends (player_id, friend_player_id, status) VALUES (?, ?, 'accepted') ON DUPLICATE KEY UPDATE status = 'accepted'";
-        }
-        try (PreparedStatement ps = conn.prepareStatement(reverseSql)) {
-            ps.setLong(1, playerId);
-            ps.setLong(2, friendPlayerId);
-            ps.executeUpdate();
-        }
-    }
 
-    private Friend createFriendFromResultSet(ResultSet rs) throws SQLException {
-        Friend f = new Friend();
-        f.setId(rs.getLong("id"));
-        f.setPlayerId(rs.getLong("player_id"));
-        f.setFriendPlayerId(rs.getLong("friend_player_id"));
-        f.setStatus(rs.getString("status"));
-        if (rs.getMetaData().getColumnCount() > 4) {
-            f.setCreatedAt(rs.getString("created_at"));
-        }
-        if (rs.getMetaData().getColumnCount() > 5) {
-            f.setUpdatedAt(rs.getString("updated_at"));
-        }
-        return f;
-    }
 
     private void populateFriendPlayerInfo(Friend f, long friendPlayerId) {
         Player friendPlayer = playerService.getPlayerById(friendPlayerId);
