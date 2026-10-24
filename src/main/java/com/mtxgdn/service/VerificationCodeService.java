@@ -1,15 +1,11 @@
 package com.mtxgdn.service;
 
 import com.mtxgdn.db.DatabaseManager;
+import com.mtxgdn.db.VerificationCodeDAO;
 import com.mtxgdn.util.AppConfig;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Timestamp;
-import java.time.Instant;
 import java.security.SecureRandom;
+import java.time.Instant;
 import java.util.concurrent.ConcurrentHashMap;
 
 public class VerificationCodeService {
@@ -24,28 +20,23 @@ public class VerificationCodeService {
     /** email -> {failCount, lockUntilMs} */
     private static final ConcurrentHashMap<String, long[]> VERIFY_FAILURES = new ConcurrentHashMap<>();
 
+    /** {@code verification_codes} 表的读写入口。 */
+    private final VerificationCodeDAO codeDao = new VerificationCodeDAO();
+
     public String generateAndStoreCode(String email) {
         String code = generateCode();
+        // 限流检查与插入必须落在同一条连接上：分开两次连接时，两个并发请求
+        // 可以同时看到"60 秒内没有发送记录"，然后双双插入 —— 限流形同虚设，
+        // 而它挡的是短信/邮件轰炸。
         Boolean success = DatabaseManager.runTransaction(conn -> {
             int rateLimitSeconds = AppConfig.getInt("verify_code.rate_limit_seconds", RATE_LIMIT_SECONDS);
-            String checkSql = "SELECT id FROM verification_codes WHERE email = ? AND sent_at > ? ORDER BY id DESC LIMIT 1";
-            try (var ps = conn.prepareStatement(checkSql)) {
-                ps.setString(1, email);
-                ps.setTimestamp(2, Timestamp.from(Instant.now().minusSeconds(rateLimitSeconds)));
-                try (var rs = ps.executeQuery()) {
-                    if (rs.next()) {
-                        return false;
-                    }
-                }
+            Long latestId = codeDao.findLatestSentId(conn, email,
+                    Instant.now().minusSeconds(rateLimitSeconds));
+            if (latestId != null) {
+                return false;
             }
-            String insertSql = "INSERT INTO verification_codes (email, code, expires_at, sent_at) VALUES (?, ?, ?, ?)";
-            try (var ps = conn.prepareStatement(insertSql)) {
-                ps.setString(1, email);
-                ps.setString(2, code);
-                ps.setTimestamp(3, Timestamp.from(Instant.now().plusSeconds(EXPIRY_MINUTES * 60L)));
-                ps.setTimestamp(4, Timestamp.from(Instant.now()));
-                ps.executeUpdate();
-            }
+            codeDao.insertCode(conn, email, code,
+                    Instant.now().plusSeconds(EXPIRY_MINUTES * 60L), Instant.now());
             return true;
         });
         if (!success) {
@@ -56,17 +47,7 @@ public class VerificationCodeService {
 
     public boolean canSendCode(String email) {
         int rateLimitSeconds = AppConfig.getInt("verify_code.rate_limit_seconds", RATE_LIMIT_SECONDS);
-        String sql = "SELECT id FROM verification_codes WHERE email = ? AND sent_at > ? ORDER BY id DESC LIMIT 1";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, email);
-            ps.setTimestamp(2, Timestamp.from(Instant.now().minusSeconds(rateLimitSeconds)));
-            try (ResultSet rs = ps.executeQuery()) {
-                return !rs.next();
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("查询发送记录失败", e);
-        }
+        return codeDao.findLatestSentId(email, Instant.now().minusSeconds(rateLimitSeconds)) == null;
     }
 
     public boolean verifyCode(String email, String code) {
@@ -76,21 +57,12 @@ public class VerificationCodeService {
         if (isVerifyLocked(email)) {
             return false;
         }
-        String sql = "SELECT id FROM verification_codes WHERE email = ? AND code = ? AND expires_at > ? ORDER BY id DESC LIMIT 1";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, email);
-            ps.setString(2, code);
-            ps.setTimestamp(3, Timestamp.from(Instant.now()));
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    VERIFY_FAILURES.remove(email);
-                    deleteCodes(email);
-                    return true;
-                }
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("验证码校验失败", e);
+        Long id = codeDao.findValidCodeId(email, code, Instant.now());
+        if (id != null) {
+            VERIFY_FAILURES.remove(email);
+            // 用掉即删：一次性消费，删掉该邮箱全部验证码
+            deleteCodes(email);
+            return true;
         }
         recordVerifyFailure(email);
         return false;
@@ -127,14 +99,7 @@ public class VerificationCodeService {
     }
 
     private void deleteCodes(String email) {
-        String sql = "DELETE FROM verification_codes WHERE email = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, email);
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("清理验证码失败", e);
-        }
+        codeDao.deleteCodes(email);
     }
 
     private String generateCode() {

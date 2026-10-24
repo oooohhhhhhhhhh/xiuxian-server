@@ -3,6 +3,7 @@ package com.mtxgdn.playerdata;
 import com.google.gson.Gson;
 import com.google.gson.GsonBuilder;
 import com.mtxgdn.db.DatabaseManager;
+import com.mtxgdn.db.PlayerDataCacheDAO;
 import com.mtxgdn.util.AppConfig;
 import com.mtxgdn.util.GameLogger;
 
@@ -14,12 +15,6 @@ import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
 import java.security.MessageDigest;
 import java.security.NoSuchAlgorithmException;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.ResultSetMetaData;
-import java.sql.SQLException;
-import java.sql.Statement;
 import java.util.ArrayList;
 import java.util.Date;
 import java.util.HexFormat;
@@ -88,6 +83,9 @@ public class PlayerDataService {
                 t.setDaemon(true);
                 return t;
             });
+
+    /** 玩家快照的读写入口（SQL 全部在这里，本类只做编排与文件）。 */
+    private final PlayerDataCacheDAO cacheDao = new PlayerDataCacheDAO();
 
     static {
         if (ENABLED && AUTO_SYNC_SECONDS > 0) {
@@ -342,21 +340,14 @@ public class PlayerDataService {
         Map<String, Object> result = new LinkedHashMap<>();
         int ok = 0;
         int fail = 0;
-        try (Connection conn = DatabaseManager.getConnection();
-             Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery("SELECT id FROM players")) {
-            while (rs.next()) {
-                long id = rs.getLong("id");
-                try {
-                    exportPlayer(id);
-                    ok++;
-                } catch (Exception e) {
-                    fail++;
-                    LOG.warn("导出玩家 " + id + " 失败: " + e.getMessage());
-                }
+        for (long id : cacheDao.listPlayerIds()) {
+            try {
+                exportPlayer(id);
+                ok++;
+            } catch (Exception e) {
+                fail++;
+                LOG.warn("导出玩家 " + id + " 失败: " + e.getMessage());
             }
-        } catch (SQLException e) {
-            throw new RuntimeException("导出全部玩家失败", e);
         }
         result.put("success", true);
         result.put("exported", ok);
@@ -416,110 +407,40 @@ public class PlayerDataService {
 
     private PlayerData collectPlayerData(long playerId) {
         PlayerData data = new PlayerData();
-        Map<String, Object> playerRow = querySingleRow("players", "id", playerId);
-        if (playerRow == null) {
+        List<Map<String, Object>> playerRows = cacheDao.findRowsByColumn("players", "id", playerId);
+        if (playerRows.isEmpty()) {
             return null;
         }
+        Map<String, Object> playerRow = playerRows.get(0);
         data.playerId = playerId;
         data.userId = ((Number) playerRow.getOrDefault("user_id", 0L)).longValue();
         Object name = playerRow.get("name");
         data.playerName = name != null ? name.toString() : ("#" + playerId);
         data.exportedAt = System.currentTimeMillis();
 
-        List<Map<String, Object>> playerRows = new ArrayList<>();
-        playerRows.add(playerRow);
         data.tables.put("players", playerRows);
 
         for (Map.Entry<String, String> entry : PLAYER_TABLES.entrySet()) {
             String table = entry.getKey();
-            List<Map<String, Object>> rows = queryRowsByColumn(table, entry.getValue(), playerId);
+            List<Map<String, Object>> rows = cacheDao.findRowsByColumn(table, entry.getValue(), playerId);
             if (!rows.isEmpty()) {
                 data.tables.put(table, rows);
             }
         }
 
         // 好友：双向记录
-        List<Map<String, Object>> friends = queryRowsByColumnOr("friends", "player_id", "friend_player_id", playerId);
+        List<Map<String, Object>> friends =
+                cacheDao.findRowsByColumnOr("friends", "player_id", "friend_player_id", playerId);
         if (!friends.isEmpty()) {
             data.tables.put("friends", friends);
         }
 
         // 宗门成员
-        List<Map<String, Object>> sectMembers = queryRowsByColumn("sect_members", "player_id", playerId);
+        List<Map<String, Object>> sectMembers = cacheDao.findRowsByColumn("sect_members", "player_id", playerId);
         if (!sectMembers.isEmpty()) {
             data.tables.put("sect_members", sectMembers);
         }
         return data;
-    }
-
-    /**
-     * 读某张表里属于该玩家的所有行。
-     *
-     * <p><b>读失败必须抛异常</b>：旧实现只是打一条 WARN 然后返回空列表，
-     * 结果一张表读挂了会产出一份"看起来正常、实际缺表"的快照，
-     * 等到需要恢复时才发现少了一半数据。备份的价值在于完整性，
-     * 所以这里宁可让整次导出失败。</p>
-     */
-    private List<Map<String, Object>> queryRowsByColumn(String table, String column, long value) {
-        List<Map<String, Object>> rows = new ArrayList<>();
-        String sql = "SELECT * FROM " + table + " WHERE " + column + " = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, value);
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    rows.add(rowToMap(rs));
-                }
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("读取表 " + table + " 失败: " + e.getMessage(), e);
-        }
-        return rows;
-    }
-
-    private List<Map<String, Object>> queryRowsByColumnOr(String table, String colA, String colB, long value) {
-        List<Map<String, Object>> rows = new ArrayList<>();
-        String sql = "SELECT * FROM " + table + " WHERE " + colA + " = ? OR " + colB + " = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, value);
-            ps.setLong(2, value);
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    rows.add(rowToMap(rs));
-                }
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("读取表 " + table + " 失败: " + e.getMessage(), e);
-        }
-        return rows;
-    }
-
-    private Map<String, Object> querySingleRow(String table, String column, long value) {
-        List<Map<String, Object>> rows = queryRowsByColumn(table, column, value);
-        return rows.isEmpty() ? null : rows.get(0);
-    }
-
-    private Map<String, Object> rowToMap(ResultSet rs) throws SQLException {
-        ResultSetMetaData meta = rs.getMetaData();
-        Map<String, Object> row = new LinkedHashMap<>();
-        for (int i = 1; i <= meta.getColumnCount(); i++) {
-            String columnName = meta.getColumnName(i);
-            Object value = rs.getObject(i);
-            row.put(columnName, toJsonSafe(value));
-        }
-        return row;
-    }
-
-    /** 将 JDBC 值转换为可 JSON 序列化的基本类型（时间戳 → "ts:毫秒" 标签，便于还原类型） */
-    private Object toJsonSafe(Object value) {
-        if (value instanceof Date) {
-            return "ts:" + ((Date) value).getTime();
-        }
-        if (value instanceof byte[]) {
-            return java.util.Base64.getEncoder().encodeToString((byte[]) value);
-        }
-        return value;
     }
 
     // ==================== 还原（导入）====================
@@ -598,14 +519,20 @@ public class PlayerDataService {
             return result;
         }
 
-        int restored = 0;
-        try (Connection conn = DatabaseManager.getConnection()) {
-            conn.setAutoCommit(false);
-            try {
+        // 事务边界走 DatabaseManager.runTransaction：还原是"删旧行 → 逐行插回"的
+        // 大事务，两步必须共用同一条连接。DAO 里凡是收 Connection 的方法都只做 SQL、
+        // 不碰事务，所以这里由服务层持有事务。
+        //
+        // runTransaction 会把业务异常包成 RuntimeException("事务执行失败: " + 原因)，
+        // 而还原失败要给玩家的文案必须是"真实原因"而不是这层包装，所以 catch 后解包。
+        int[] restoredBox = {0};
+        try {
+            restoredBox[0] = DatabaseManager.runTransaction(conn -> {
+                int restored = 0;
                 // 1. 还原基础玩家行（UPDATE）
                 List<Map<String, Object>> playerRows = data.tables.get("players");
                 if (playerRows != null && !playerRows.isEmpty()) {
-                    restorePlayerRow(conn, playerRows.get(0));
+                    cacheDao.updatePlayerRow(conn, restoredRow(playerRows.get(0)));
                     restored++;
                 }
                 // 2. 清空并重建其他个人表
@@ -615,33 +542,28 @@ public class PlayerDataService {
                         continue;
                     }
                     if ("friends".equals(table)) {
-                        deleteByColumnOr(conn, "friends", "player_id", "friend_player_id", playerId);
+                        cacheDao.deleteByColumnOr(conn, "friends", "player_id", "friend_player_id", playerId);
                     } else if ("sect_members".equals(table)) {
                         // 宗门成员不做删除重建，避免破坏宗门关系（仅提示）
                         continue;
                     } else {
-                        deleteByColumn(conn, table, playerColumn(table), playerId);
+                        cacheDao.deleteByColumn(conn, table, playerColumn(table), playerId);
                     }
                     for (Map<String, Object> row : entry.getValue()) {
-                        if (insertRow(conn, table, row)) {
+                        if (cacheDao.insertRow(conn, table, restoredRow(row))) {
                             restored++;
                         }
                     }
                 }
-                conn.commit();
-            } catch (Exception e) {
-                conn.rollback();
-                recordRestoreFailure("玩家 " + playerId + " 数据还原失败: " + e.getMessage());
-                result.put("success", false);
-                result.put("message", I18n.t("playerdata.restore_failed_and_was_rolled", e.getMessage()));
-                return result;
-            }
-        } catch (SQLException e) {
-            recordRestoreFailure("玩家 " + playerId + " 数据还原失败: " + e.getMessage());
+                return restored;
+            });
+        } catch (RuntimeException e) {
+            recordRestoreFailure("玩家 " + playerId + " 数据还原失败: " + rootMessage(e));
             result.put("success", false);
-            result.put("message", I18n.t("playerdata.restore_failed", e.getMessage()));
+            result.put("message", I18n.t("playerdata.restore_failed_and_was_rolled", rootMessage(e)));
             return result;
         }
+        int restored = restoredBox[0];
 
         RESTORE_OK.incrementAndGet();
         result.put("success", true);
@@ -655,6 +577,21 @@ public class PlayerDataService {
         lastError = message;
         lastErrorAt = System.currentTimeMillis();
         LOG.error(message);
+    }
+
+    /**
+     * 解包 {@code DatabaseManager.runTransaction} 包装的 RuntimeException，
+     * 返回业务异常的真实原因消息。
+     *
+     * <p>还原失败要给玩家的文案必须是"真实原因"（哪一行插不进去、哪个列非法），
+     * 而不是 {@code "事务执行失败: "} 这层包装 —— 运维与玩家都靠这句话定位问题。</p>
+     */
+    private static String rootMessage(Throwable t) {
+        Throwable cause = t;
+        while (cause instanceof RuntimeException && cause.getCause() != null) {
+            cause = cause.getCause();
+        }
+        return cause.getMessage() != null ? cause.getMessage() : cause.toString();
     }
 
     /**
@@ -785,71 +722,26 @@ public class PlayerDataService {
         return null;
     }
 
-    private void restorePlayerRow(Connection conn, Map<String, Object> row) throws SQLException {
-        Long id = ((Number) row.get("id")).longValue();
-        StringBuilder sql = new StringBuilder("UPDATE players SET ");
-        List<Object> params = new ArrayList<>();
-        boolean first = true;
+    /**
+     * 把一行的每个值都过一遍 {@link #restoreValue(Object)}。
+     *
+     * <p>键（列名）不动 —— 结构与标识符校验由 {@code validateTableStructure}
+     * 与 DAO 内的纵深防御负责，这里只做"JSON 值 → JDBC 值"的转换。</p>
+     */
+    private Map<String, Object> restoredRow(Map<String, Object> row) {
+        Map<String, Object> converted = new LinkedHashMap<>();
         for (Map.Entry<String, Object> entry : row.entrySet()) {
-            // user_id 关联账号所有权，还原时禁止覆盖，防止数据文件把玩家挂到他人账号
-            if ("id".equals(entry.getKey()) || "user_id".equals(entry.getKey())
-                    || "created_at".equals(entry.getKey()) || "updated_at".equals(entry.getKey())) {
-                continue;
-            }
-            // 列名要拼进 SQL 文本，必须逐个校验（值走占位符，列名没有占位符可用）
-            DatabaseManager.assertSafeColumnName(entry.getKey());
-            if (!first) {
-                sql.append(", ");
-            }
-            sql.append(entry.getKey()).append(" = ?");
-            params.add(restoreValue(entry.getValue()));
-            first = false;
+            converted.put(entry.getKey(), restoreValue(entry.getValue()));
         }
-        sql.append(" WHERE id = ?");
-        try (PreparedStatement ps = conn.prepareStatement(sql.toString())) {
-            for (int i = 0; i < params.size(); i++) {
-                ps.setObject(i + 1, params.get(i));
-            }
-            ps.setLong(params.size() + 1, id);
-            ps.executeUpdate();
-        }
+        return converted;
     }
 
-    private boolean insertRow(Connection conn, String table, Map<String, Object> row) {
-        // 纵深防御：即便上游漏了结构校验，这里也不允许把非法标识符拼进 SQL
-        DatabaseManager.assertSafeTableName(table);
-        StringBuilder sql = new StringBuilder("INSERT INTO " + table + " (");
-        StringBuilder values = new StringBuilder("VALUES (");
-        List<Object> params = new ArrayList<>();
-        boolean first = true;
-        for (Map.Entry<String, Object> entry : row.entrySet()) {
-            if (entry.getValue() == null) {
-                continue;
-            }
-            DatabaseManager.assertSafeColumnName(entry.getKey());
-            if (!first) {
-                sql.append(", ");
-                values.append(", ");
-            }
-            sql.append(entry.getKey());
-            values.append("?");
-            params.add(restoreValue(entry.getValue()));
-            first = false;
-        }
-        sql.append(") ").append(values).append(")");
-        try (PreparedStatement ps = conn.prepareStatement(sql.toString())) {
-            for (int i = 0; i < params.size(); i++) {
-                ps.setObject(i + 1, params.get(i));
-            }
-            ps.executeUpdate();
-            return true;
-        } catch (SQLException e) {
-            LOG.warn("还原行失败 [" + table + "]: " + e.getMessage());
-            return false;
-        }
-    }
-
-    /** 还原值时，"ts:" 标签的字符串还原为 Timestamp（兼容 MySQL DATETIME 列），其余原样 */
+    /**
+     * 还原值时，"ts:" 标签的字符串还原为 Timestamp（兼容 MySQL DATETIME 列），其余原样。
+     *
+     * <p>与 {@code PlayerDataCacheDAO} 的 {@code toJsonSafe} 是一对编解码，
+     * 两边必须成对修改。JSON 反序列化语义属于服务层，所以留在这里。</p>
+     */
     private Object restoreValue(Object value) {
         if (value instanceof String && ((String) value).startsWith("ts:")) {
             try {
@@ -863,27 +755,5 @@ public class PlayerDataService {
             return d.longValue();
         }
         return value;
-    }
-
-    private void deleteByColumn(Connection conn, String table, String column, long value) throws SQLException {
-        DatabaseManager.assertSafeTableName(table);
-        DatabaseManager.assertSafeColumnName(column);
-        String sql = "DELETE FROM " + table + " WHERE " + column + " = ?";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, value);
-            ps.executeUpdate();
-        }
-    }
-
-    private void deleteByColumnOr(Connection conn, String table, String colA, String colB, long value) throws SQLException {
-        DatabaseManager.assertSafeTableName(table);
-        DatabaseManager.assertSafeColumnName(colA);
-        DatabaseManager.assertSafeColumnName(colB);
-        String sql = "DELETE FROM " + table + " WHERE " + colA + " = ? OR " + colB + " = ?";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, value);
-            ps.setLong(2, value);
-            ps.executeUpdate();
-        }
     }
 }

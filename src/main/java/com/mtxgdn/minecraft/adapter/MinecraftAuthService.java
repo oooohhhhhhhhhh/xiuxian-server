@@ -1,7 +1,7 @@
 package com.mtxgdn.minecraft.adapter;
 
 import com.mtxgdn.common.service.ServiceRegistry;
-import com.mtxgdn.db.DatabaseManager;
+import com.mtxgdn.db.MinecraftAuthDAO;
 import com.mtxgdn.game.entity.PlayerInfo;
 import com.mtxgdn.game.service.NewbieGuideService;
 import com.mtxgdn.permission.PermissionService;
@@ -9,11 +9,6 @@ import com.mtxgdn.util.GameLogger;
 import com.mtxgdn.util.PlayerActionLogger;
 import org.mindrot.jbcrypt.BCrypt;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -23,6 +18,7 @@ public class MinecraftAuthService {
     private static final PlayerActionLogger actionLog = PlayerActionLogger.getInstance();
 
     private final MinecraftPlayerBindingService bindingService = ServiceRegistry.getMcBindingService();
+    private final MinecraftAuthDAO authDao = new MinecraftAuthDAO();
     private final Map<String, PendingSession> pendingSessions = new ConcurrentHashMap<>();
 
     public static class PendingSession {
@@ -174,52 +170,22 @@ public class MinecraftAuthService {
     }
 
     private Long verifyUserCredentials(String username, String password) {
-        String sql = "SELECT id, password FROM users WHERE username = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setString(1, username);
-            try (ResultSet rs = stmt.executeQuery()) {
-                if (rs.next() && BCrypt.checkpw(password, rs.getString("password"))) {
-                    return rs.getLong("id");
-                }
-            }
-        } catch (SQLException e) { log.error("验证用户凭据失败", e); }
+        MinecraftAuthDAO.UserCredential credential = authDao.findCredentialByUsername(username);
+        if (credential != null && BCrypt.checkpw(password, credential.passwordHash())) {
+            return credential.id();
+        }
         return null;
     }
 
     private boolean isUsernameExists(String username) {
-        String sql = "SELECT COUNT(*) FROM users WHERE username = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setString(1, username);
-            try (ResultSet rs = stmt.executeQuery()) {
-                if (rs.next()) return rs.getInt(1) > 0;
-            }
-        } catch (SQLException e) { log.error("查询用户名失败", e); }
-        return false;
+        return authDao.isUsernameExists(username);
     }
 
     private Long insertUser(String username, String hashedPassword) {
-        String sql = "INSERT INTO users (username, password) VALUES (?, ?)";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-            stmt.setString(1, username);
-            stmt.setString(2, hashedPassword);
-            if (stmt.executeUpdate() > 0) {
-                try (ResultSet rs = stmt.getGeneratedKeys()) {
-                    if (rs.next()) return rs.getLong(1);
-                }
-            }
-        } catch (SQLException e) { throw new RuntimeException("用户插入失败", e); }
-        return null;
+        return authDao.insertUser(username, hashedPassword);
     }
 
     private void deleteUser(long userId) {
-        String sql = "DELETE FROM users WHERE id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setLong(1, userId);
-            stmt.executeUpdate();
-        } catch (SQLException e) { throw new RuntimeException("删除用户失败", e); }
+        authDao.deleteUser(userId);
     }
 }

@@ -1,13 +1,10 @@
 package com.mtxgdn.util;
 
-import com.mtxgdn.db.DatabaseManager;
+import com.mtxgdn.db.TokenBlacklistDAO;
 
 import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
 
@@ -30,6 +27,11 @@ import java.util.concurrent.ConcurrentHashMap;
  * <p>隐私与容量考虑：DB 中只存 token 的 <b>SHA-256 摘要</b>而非明文 token，
  * 数据库泄露无法直接拿去冒用；{@code expires_at} 记录 token 自然过期时间，
  * {@link #cleanupExpired(long)} 据此清理，表中不会有无限增长的历史数据。</p>
+ *
+ * <p><b>SQL 已抽到 {@link TokenBlacklistDAO}</b>：本类只保留哈希、
+ * 过期时间解析与"内存优先、DB 兜底"的判定策略 —— 那才是吊销语义本身。
+ * 登出与令牌吊销的行为不能因为这次抽取而变化，尤其是"DB 挂了也要能登出"
+ * 这条降级路径。</p>
  */
 public class TokenBlacklist {
 
@@ -38,6 +40,9 @@ public class TokenBlacklist {
 
     /** 未取到 exp 时的兜底保留时长（应大于等于 JWT 有效期）。 */
     private static final long DEFAULT_RETENTION_MS = 7L * 24 * 60 * 60 * 1000;
+
+    /** {@code token_blacklist} 表的读写入口。 */
+    private static final TokenBlacklistDAO DAO = new TokenBlacklistDAO();
 
     private TokenBlacklist() {
     }
@@ -95,22 +100,10 @@ public class TokenBlacklist {
     }
 
     private static void persist(String tokenHash, long expiresAt) {
-        String sql = DatabaseManager.isSqlite()
-                ? "INSERT INTO token_blacklist (token_hash, expires_at) VALUES (?, ?) ON CONFLICT(token_hash) DO NOTHING"
-                : "INSERT IGNORE INTO token_blacklist (token_hash, expires_at) VALUES (?, ?)";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, tokenHash);
-            ps.setLong(2, expiresAt);
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            // DB 不可用不应阻断登出：内存已生效，仅告警（重启后该 token 会复活，
-            // 但这是极端降级场景，不能因为落库失败就让玩家无法登出）
-            System.err.println("[TokenBlacklist] 警告：吊销记录落库失败，重启后可能失效: " + e.getMessage());
-        } catch (RuntimeException e) {
-            // DatabaseManager 未初始化（如单元测试环境）同样降级为内存模式
-            System.err.println("[TokenBlacklist] 警告：数据库未就绪，吊销仅存内存: " + e.getMessage());
-        }
+        // DB 不可用不应阻断登出：内存已生效，仅告警（重启后该 token 会复活，
+        // 但这是极端降级场景，不能因为落库失败就让玩家无法登出）。
+        // 降级与告警都在 DAO 里，这里只保留"先内存后落库"的顺序。
+        DAO.insert(tokenHash, expiresAt);
     }
 
     /**
@@ -145,20 +138,8 @@ public class TokenBlacklist {
     }
 
     private static Long queryFromDatabase(String tokenHash) {
-        String sql = "SELECT expires_at FROM token_blacklist WHERE token_hash = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, tokenHash);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    return rs.getLong("expires_at");
-                }
-            }
-        } catch (SQLException | RuntimeException e) {
-            // 查询失败时保守放行（不误伤正常用户），仅告警
-            System.err.println("[TokenBlacklist] 警告：吊销名单查询失败: " + e.getMessage());
-        }
-        return null;
+        // 查询失败时保守放行（不误伤正常用户），仅告警 —— 降级在 DAO 里
+        return DAO.findExpiresAt(tokenHash);
     }
 
     /**
@@ -169,24 +150,15 @@ public class TokenBlacklist {
      */
     public static int loadFromDatabase() {
         long now = System.currentTimeMillis();
-        String sql = "SELECT token_hash, expires_at FROM token_blacklist WHERE expires_at > ?";
-        int loaded = 0;
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, now);
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    blacklist.put(rs.getString("token_hash"), rs.getLong("expires_at"));
-                    loaded++;
-                }
-            }
-        } catch (SQLException | RuntimeException e) {
-            System.err.println("[TokenBlacklist] 警告：载入历史吊销名单失败: " + e.getMessage());
+        List<TokenBlacklistDAO.BlacklistEntry> entries = DAO.findUnexpired(now);
+        if (entries.isEmpty()) {
             return 0;
         }
-        if (loaded > 0) {
-            System.out.println("[TokenBlacklist] 已载入 " + loaded + " 条历史吊销记录");
+        for (TokenBlacklistDAO.BlacklistEntry entry : entries) {
+            blacklist.put(entry.tokenHash(), entry.expiresAt());
         }
+        int loaded = entries.size();
+        System.out.println("[TokenBlacklist] 已载入 " + loaded + " 条历史吊销记录");
         return loaded;
     }
 
@@ -198,15 +170,8 @@ public class TokenBlacklist {
     public static void cleanupExpired(long maxAgeMs) {
         long now = System.currentTimeMillis();
         blacklist.entrySet().removeIf(entry -> entry.getValue() < now);
-        // DB 中按 expires_at 精确清理
-        String sql = "DELETE FROM token_blacklist WHERE expires_at < ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, now);
-            ps.executeUpdate();
-        } catch (SQLException | RuntimeException ignored) {
-            // 清理失败不影响主流程
-        }
+        // DB 中按 expires_at 精确清理；清理失败静默（不影响主流程）
+        DAO.deleteExpiredBefore(now);
     }
 
     /** 清空内存缓存（不删库，测试与调试用）。 */
@@ -217,11 +182,7 @@ public class TokenBlacklist {
     /** 清空内存与数据库（测试用）。 */
     public static void clearAll() {
         blacklist.clear();
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement("DELETE FROM token_blacklist")) {
-            ps.executeUpdate();
-        } catch (SQLException | RuntimeException ignored) {
-        }
+        DAO.deleteAll();
     }
 
     public static int size() {
