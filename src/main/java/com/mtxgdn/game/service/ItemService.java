@@ -3,6 +3,7 @@ package com.mtxgdn.game.service;
 import com.mtxgdn.common.service.ServiceRegistry;
 
 import com.mtxgdn.db.DatabaseManager;
+import com.mtxgdn.db.ItemDAO;
 import com.mtxgdn.entity.Player;
 import com.mtxgdn.game.item.BuffEffect;
 import com.mtxgdn.game.item.CurrencyEffect;
@@ -13,8 +14,6 @@ import com.mtxgdn.game.item.ItemRegistry;
 import com.mtxgdn.util.AppConfig;
 
 import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -26,6 +25,9 @@ public class ItemService {
 
     private static final int BASE_CAPACITY = AppConfig.getInt("inventory.base_capacity", 30);
     private static final int CAPACITY_PER_LEVEL = AppConfig.getInt("inventory.capacity_per_level", 5);
+
+    /** {@code players_items} / {@code players_equipment} 的读写入口（无状态，可共享）。 */
+    private static final ItemDAO ITEM_DAO = new ItemDAO();
 
     private final PlayerService playerService = ServiceRegistry.getPlayerService();
 
@@ -58,19 +60,7 @@ public class ItemService {
     }
 
     public int getInventoryUsedSlots(long playerId) {
-        String sql = "SELECT COUNT(*) FROM players_items WHERE player_id = ? AND quantity > 0";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    return rs.getInt(1);
-                }
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("查询背包使用槽位数失败", e);
-        }
-        return 0;
+        return ITEM_DAO.getInventoryUsedSlots(playerId);
     }
 
     public boolean isInventoryFull(long playerId) {
@@ -88,15 +78,11 @@ public class ItemService {
     public boolean addItem(long playerId, String itemKey, long quantity) {
         String resolvedKey = validateAddParams(itemKey, quantity);
         checkCapacity(playerId, resolvedKey);
-        try (Connection conn = DatabaseManager.getConnection()) {
-            boolean ok = addItem(conn, playerId, resolvedKey, quantity);
-            if (ok) {
-                com.mtxgdn.playerdata.PlayerDataService.markDirty(playerId);
-            }
-            return ok;
-        } catch (SQLException e) {
-            throw new RuntimeException("添加物品失败", e);
+        boolean ok = ITEM_DAO.addItem(playerId, resolvedKey, quantity);
+        if (ok) {
+            com.mtxgdn.playerdata.PlayerDataService.markDirty(playerId);
         }
+        return ok;
     }
 
     /**
@@ -105,28 +91,7 @@ public class ItemService {
     public boolean addItem(Connection conn, long playerId, String itemKey, long quantity) throws SQLException {
         String resolvedKey = validateAddParams(itemKey, quantity);
         checkCapacity(conn, playerId, resolvedKey);
-        String sql;
-        if (DatabaseManager.isSqlite()) {
-            sql = """
-                INSERT INTO players_items (player_id, item_key, quantity)
-                VALUES (?, ?, ?)
-                ON CONFLICT(player_id, item_key) DO UPDATE SET quantity = quantity + excluded.quantity,
-                    updated_at = CURRENT_TIMESTAMP
-                """;
-        } else {
-            sql = """
-                INSERT INTO players_items (player_id, item_key, quantity)
-                VALUES (?, ?, ?)
-                ON DUPLICATE KEY UPDATE quantity = quantity + VALUES(quantity),
-                    updated_at = CURRENT_TIMESTAMP
-                """;
-        }
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            ps.setString(2, resolvedKey);
-            ps.setLong(3, quantity);
-            return ps.executeUpdate() > 0;
-        }
+        return ITEM_DAO.addItem(conn, playerId, resolvedKey, quantity);
     }
 
     private String validateAddParams(String itemKey, long quantity) {
@@ -169,15 +134,11 @@ public class ItemService {
      */
     public boolean removeItem(long playerId, String itemKey, long quantity) {
         validateRemoveParams(quantity);
-        try (Connection conn = DatabaseManager.getConnection()) {
-            boolean ok = removeItem(conn, playerId, itemKey, quantity);
-            if (ok) {
-                com.mtxgdn.playerdata.PlayerDataService.markDirty(playerId);
-            }
-            return ok;
-        } catch (SQLException e) {
-            throw new RuntimeException("移除物品失败", e);
+        boolean ok = ITEM_DAO.removeItem(playerId, itemKey, quantity);
+        if (ok) {
+            com.mtxgdn.playerdata.PlayerDataService.markDirty(playerId);
         }
+        return ok;
     }
 
     /**
@@ -186,35 +147,12 @@ public class ItemService {
     public boolean removeItem(Connection conn, long playerId, String itemKey, long quantity) throws SQLException {
         validateRemoveParams(quantity);
         // 原子操作：一条 SQL 同时完成检查与扣除
-        String sql = "UPDATE players_items SET quantity = quantity - ?, updated_at = CURRENT_TIMESTAMP " +
-                "WHERE player_id = ? AND item_key = ? AND quantity >= ?";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, quantity);
-            ps.setLong(2, playerId);
-            ps.setString(3, itemKey);
-            ps.setLong(4, quantity);
-            int affected = ps.executeUpdate();
-            if (affected > 0) {
-                // 扣除成功后清理零数量行
-                cleanZeroQuantity(conn, playerId, itemKey);
-                return true;
-            }
-            return false;
-        }
+        return ITEM_DAO.removeItem(conn, playerId, itemKey, quantity);
     }
 
     private void validateRemoveParams(long quantity) {
         if (quantity <= 0) {
             throw new IllegalArgumentException("数量必须大于 0，当前值: " + quantity);
-        }
-    }
-
-    private void cleanZeroQuantity(Connection conn, long playerId, String itemKey) throws SQLException {
-        String sql = "DELETE FROM players_items WHERE player_id = ? AND item_key = ? AND quantity <= 0";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            ps.setString(2, itemKey);
-            ps.executeUpdate();
         }
     }
 
@@ -262,47 +200,22 @@ public class ItemService {
     // ==================== 查询 ====================
 
     public List<InventoryEntry> getInventory(long playerId) {
-        String sql = "SELECT item_key, quantity FROM players_items WHERE player_id = ? AND quantity > 0 ORDER BY item_key";
         List<InventoryEntry> result = new ArrayList<>();
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    String itemKey = rs.getString("item_key");
-                    long quantity = rs.getLong("quantity");
-                    Item item = ItemRegistry.get(itemKey);
-                    if (item != null) {
-                        result.add(new InventoryEntry(item, quantity));
-                    }
-                }
+        for (Map.Entry<String, Long> entry : ITEM_DAO.getInventoryQuantities(playerId).entrySet()) {
+            Item item = ItemRegistry.get(entry.getKey());
+            if (item != null) {
+                result.add(new InventoryEntry(item, entry.getValue()));
             }
-        } catch (SQLException e) {
-            throw new RuntimeException("获取背包失败", e);
         }
         return result;
     }
 
     public long getItemCount(long playerId, String itemKey) {
-        try (Connection conn = DatabaseManager.getConnection()) {
-            return getItemCount(conn, playerId, itemKey);
-        } catch (SQLException e) {
-            throw new RuntimeException("查询物品数量失败", e);
-        }
+        return ITEM_DAO.getItemCount(playerId, itemKey);
     }
 
     public long getItemCount(Connection conn, long playerId, String itemKey) throws SQLException {
-        String sql = "SELECT quantity FROM players_items WHERE player_id = ? AND item_key = ?";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            ps.setString(2, itemKey);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    return rs.getLong("quantity");
-                }
-            }
-        }
-        return 0;
+        return ITEM_DAO.getItemCount(conn, playerId, itemKey);
     }
 
     public boolean hasItem(long playerId, String itemKey, long quantity) {
@@ -329,11 +242,7 @@ public class ItemService {
     }
 
     public long getTotalSpiritStonesInLowGrade(long playerId) {
-        try (Connection conn = DatabaseManager.getConnection()) {
-            return getTotalSpiritStonesInLowGrade(conn, playerId);
-        } catch (SQLException e) {
-            throw new RuntimeException("查询灵石数量失败", e);
-        }
+        return ITEM_DAO.getTotalSpiritStonesInLowGrade(playerId);
     }
 
     public long getTotalSpiritStonesInLowGrade(Connection conn, long playerId) throws SQLException {
@@ -359,11 +268,7 @@ public class ItemService {
 
     private boolean removeSpiritStonesFromAllGrades(long playerId, long amount) {
         if (amount <= 0) return true;
-        try (Connection conn = DatabaseManager.getConnection()) {
-            return removeSpiritStonesFromAllGrades(conn, playerId, amount);
-        } catch (SQLException e) {
-            throw new RuntimeException("扣除灵石失败", e);
-        }
+        return DatabaseManager.runTransaction(conn -> removeSpiritStonesFromAllGrades(conn, playerId, amount));
     }
 
     public boolean removeSpiritStones(Connection conn, long playerId, long amount) throws SQLException {
@@ -492,12 +397,7 @@ public class ItemService {
      * 而全库没有任何内容直接发放中品/上品/极品，所以这条路是极品唯一的来源。</p>
      */
     private boolean addSpiritStonesAuto(long playerId, long amount) {
-        try (Connection conn = DatabaseManager.getConnection()) {
-            addSpiritStonesAuto(conn, playerId, amount);
-            return true;
-        } catch (SQLException e) {
-            throw new RuntimeException("发放灵石失败", e);
-        }
+        return DatabaseManager.runTransaction(conn -> addSpiritStonesAuto(conn, playerId, amount));
     }
 
     private boolean addSpiritStonesAuto(Connection conn, long playerId, long amount) throws SQLException {
@@ -663,28 +563,7 @@ public class ItemService {
                 }
 
                 // 3. 写入装备表
-                String upsertSql;
-                if (DatabaseManager.isSqlite()) {
-                    upsertSql = """
-                        INSERT INTO players_equipment (player_id, slot, item_key)
-                        VALUES (?, ?, ?)
-                        ON CONFLICT(player_id, slot) DO UPDATE SET item_key = excluded.item_key,
-                            updated_at = CURRENT_TIMESTAMP
-                        """;
-                } else {
-                    upsertSql = """
-                        INSERT INTO players_equipment (player_id, slot, item_key)
-                        VALUES (?, ?, ?)
-                        ON DUPLICATE KEY UPDATE item_key = VALUES(item_key),
-                            updated_at = CURRENT_TIMESTAMP
-                        """;
-                }
-                try (PreparedStatement ps = conn.prepareStatement(upsertSql)) {
-                    ps.setLong(1, playerId);
-                    ps.setString(2, slot);
-                    ps.setString(3, fullKey);
-                    ps.executeUpdate();
-                }
+                ITEM_DAO.upsertEquipment(conn, playerId, slot, fullKey);
 
                 // 4. 执行新装备效果（在数据库写入成功后）
                 StringBuilder msgBuilder = new StringBuilder();
@@ -756,12 +635,7 @@ public class ItemService {
                 }
 
                 // 1. 从装备表删除
-                String delSql = "DELETE FROM players_equipment WHERE player_id = ? AND slot = ?";
-                try (PreparedStatement ps = conn.prepareStatement(delSql)) {
-                    ps.setLong(1, playerId);
-                    ps.setString(2, slot);
-                    ps.executeUpdate();
-                }
+                ITEM_DAO.deleteEquipment(conn, playerId, slot);
 
                 // 2. 物品回到背包
                 addItem(conn, playerId, itemKey, 1);
@@ -811,42 +685,15 @@ public class ItemService {
     }
 
     public String getEquippedItem(long playerId, String slot) {
-        try (Connection conn = DatabaseManager.getConnection()) {
-            return getEquippedItem(conn, playerId, slot);
-        } catch (SQLException e) {
-            throw new RuntimeException("查询装备失败", e);
-        }
+        return ITEM_DAO.getEquippedItem(playerId, slot);
     }
 
     private String getEquippedItem(Connection conn, long playerId, String slot) throws SQLException {
-        String sql = "SELECT item_key FROM players_equipment WHERE player_id = ? AND slot = ?";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            ps.setString(2, slot);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    return rs.getString("item_key");
-                }
-            }
-        }
-        return null;
+        return ITEM_DAO.getEquippedItem(conn, playerId, slot);
     }
 
     public Map<String, String> getEquipment(long playerId) {
-        Map<String, String> result = new LinkedHashMap<>();
-        String sql = "SELECT slot, item_key FROM players_equipment WHERE player_id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    result.put(rs.getString("slot"), rs.getString("item_key"));
-                }
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("获取装备列表失败", e);
-        }
-        return result;
+        return ITEM_DAO.getEquipment(playerId);
     }
 
     // ==================== 使用物品 ====================
@@ -876,18 +723,12 @@ public class ItemService {
                 Map<String, Object> innerResult = new LinkedHashMap<>();
 
                 // 使用 SELECT FOR UPDATE 锁定物品，防止并发重复使用
-                String lockSql = "SELECT quantity FROM players_items WHERE player_id = ? AND item_key = ? " +
-                    DatabaseManager.getDialect().getForUpdateClause();
-                try (java.sql.PreparedStatement ps = conn.prepareStatement(lockSql)) {
-                    ps.setLong(1, playerId);
-                    ps.setString(2, fullKey);
-                    try (java.sql.ResultSet rs = ps.executeQuery()) {
-                        if (!rs.next() || rs.getLong("quantity") < 1) {
-                            innerResult.put("success", false);
-                            innerResult.put("message", I18n.t("item.that_item"));
-                            return innerResult;
-                        }
-                    }
+                // （SQLite 的锁子句由方言提供，退化成不带锁的读）
+                long lockedQty = ITEM_DAO.lockAndGetQuantity(conn, playerId, fullKey);
+                if (lockedQty < 1) {
+                    innerResult.put("success", false);
+                    innerResult.put("message", I18n.t("item.that_item"));
+                    return innerResult;
                 }
 
                 // 1. 先执行效果（如果失败则回滚，物品不会丢失）
