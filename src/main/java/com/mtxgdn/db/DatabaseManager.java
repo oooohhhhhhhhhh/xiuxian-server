@@ -34,7 +34,7 @@ public class DatabaseManager {
     /** HikariCP 连接池（替代每次裸建连接，显著降低连接开销） */
     private static HikariDataSource dataSource;
 
-    public static void init(String url, String user, String password) {
+    public static synchronized void init(String url, String user, String password) {
         dbUrl = url;
         dbUser = user;
         dbPassword = password;
@@ -42,6 +42,12 @@ public class DatabaseManager {
         DIALECT = IS_SQLITE ? new SQLiteDialect() : new MySQLDialect();
         try {
             Class.forName(IS_SQLITE ? SQLITE_DRIVER : MYSQL_DRIVER);
+            // 重复初始化（测试里每个测试类都会调一次）必须先关掉旧池，
+            // 否则旧池连同它借出的连接一起泄漏，进程里会堆出几十个池。
+            if (dataSource != null) {
+                dataSource.close();
+                dataSource = null;
+            }
             // 初始化连接池
             HikariConfig cfg = new HikariConfig();
             cfg.setJdbcUrl(url);
@@ -59,7 +65,19 @@ public class DatabaseManager {
                 cfg.setMaximumPoolSize(Math.min(8, Math.max(2, AppConfig.getInt("database.pool_max", 4))));
             }
             dataSource = new HikariDataSource(cfg);
-            getConnection();
+            // 预热连接池：让驱动加载与方言初始化在启动阶段就完成，
+            // 而不是把第一个真实请求当成试验品。
+            //
+            // **必须关闭**：这条连接以前是"借了不还"，会永久占掉池里的一个名额。
+            // SQLite 下池子只有 4 个连接，少一个就是少 25%，
+            // 表现是高峰期莫名其妙的
+            // "Connection is not available, request timed out after 10000ms"。
+            try (Connection warmup = getConnection()) {
+                // 拿到就够，无需做任何事
+                if (warmup == null) {
+                    throw new SQLException("连接池预热失败");
+                }
+            }
             initTable();
         } catch (ClassNotFoundException | SQLException e) {
             throw new RuntimeException("数据库驱动加载失败", e);
@@ -531,6 +549,25 @@ public class DatabaseManager {
             dataSource = null;
             logger.info("数据库连接池已关闭");
         }
+    }
+
+    /**
+     * 当前被借出的连接数（监控与测试用）。
+     *
+     * @return 借出数；池未初始化时返回 {@code -1}
+     */
+    public static int getActiveConnectionCount() {
+        HikariDataSource ds = dataSource;
+        if (ds == null || ds.getHikariPoolMXBean() == null) {
+            return -1;
+        }
+        return ds.getHikariPoolMXBean().getActiveConnections();
+    }
+
+    /** 连接池上限（监控与测试用）；池未初始化时返回 {@code -1}。 */
+    public static int getMaxPoolSize() {
+        HikariDataSource ds = dataSource;
+        return ds == null ? -1 : ds.getMaximumPoolSize();
     }
 
     public static List<Map<String, Object>> queryPlayerActionLogs(Long userId, String playerName, String action,
