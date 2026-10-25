@@ -2,6 +2,7 @@ package com.mtxgdn.game.service;
 
 import com.mtxgdn.common.service.ServiceRegistry;
 import com.mtxgdn.db.DatabaseManager;
+import com.mtxgdn.db.WorldBossDAO;
 import com.mtxgdn.entity.Player;
 import com.mtxgdn.game.entity.Monster;
 import com.mtxgdn.game.entity.PveCombatResult;
@@ -11,8 +12,6 @@ import com.mtxgdn.util.AppConfig;
 import com.mtxgdn.util.GameLogger;
 
 import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -52,6 +51,8 @@ import com.mtxgdn.i18n.I18n;
 public class WorldBossService {
 
     private static final GameLogger LOG = GameLogger.getLogger(WorldBossService.class);
+
+    private static final WorldBossDAO WORLD_BOSS_DAO = new WorldBossDAO();
 
     /** 单世界服务器：全服共享同一批 Boss。 */
     public static final String DEFAULT_SCOPE = "global";
@@ -183,20 +184,12 @@ public class WorldBossService {
 
         DatabaseManager.runTransaction(conn -> {
             // 先清掉旧池的伤害台账，再清旧池 —— 否则台账会随着每次重建无限累积
-            try (PreparedStatement ps = conn.prepareStatement(
-                    "DELETE FROM world_boss_damage WHERE boss_id IN "
-                            + "(SELECT id FROM world_bosses WHERE scope = ?)")) {
-                ps.setString(1, scope);
-                ps.executeUpdate();
-            }
-            try (PreparedStatement ps = conn.prepareStatement("DELETE FROM world_bosses WHERE scope = ?")) {
-                ps.setString(1, scope);
-                ps.executeUpdate();
-            }
+            WORLD_BOSS_DAO.deleteDamageForScope(conn, scope);
+            WORLD_BOSS_DAO.deleteBossesForScope(conn, scope);
             Random random = ThreadLocalRandom.current();
             for (int slot = 1; slot <= count; slot++) {
                 WorldBoss boss = generateBoss(scope, slot, count, maxRealm, now, expiresAt, random);
-                insertBoss(conn, boss);
+                WORLD_BOSS_DAO.insertBoss(conn, boss);
             }
             return null;
         });
@@ -208,13 +201,9 @@ public class WorldBossService {
      * <p>这样新开的服务器也不会三只都是 0 境界的同一只怪。</p>
      */
     private int resolveRealmCeiling() {
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement("SELECT MAX(realm) FROM players");
-             ResultSet rs = ps.executeQuery()) {
-            if (rs.next()) {
-                return Math.max(3, rs.getInt(1));
-            }
-        } catch (SQLException e) {
+        try {
+            return Math.max(3, WORLD_BOSS_DAO.findMaxPlayerRealm());
+        } catch (RuntimeException e) {
             LOG.warn("读取全服最高境界失败，世界Boss按默认境界生成: " + e);
         }
         return 3;
@@ -276,89 +265,19 @@ public class WorldBossService {
     }
 
     private void insertBoss(Connection conn, WorldBoss boss) {
-        String sql = "INSERT INTO world_bosses (scope, slot, name, description, realm, hp, max_hp, "
-                + "attack, defense, speed, stone_budget, exp_budget, expires_at, killed_at) "
-                + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0)";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, boss.getScope());
-            ps.setInt(2, boss.getSlot());
-            ps.setString(3, boss.getName());
-            ps.setString(4, boss.getDescription());
-            ps.setInt(5, boss.getRealm());
-            ps.setLong(6, boss.getHp());
-            ps.setLong(7, boss.getMaxHp());
-            ps.setInt(8, boss.getAttack());
-            ps.setInt(9, boss.getDefense());
-            ps.setInt(10, boss.getSpeed());
-            ps.setLong(11, boss.getStoneBudget());
-            ps.setLong(12, boss.getExpBudget());
-            ps.setLong(13, boss.getExpiresAt());
-            ps.executeUpdate();
+        try {
+            WORLD_BOSS_DAO.insertBoss(conn, boss);
         } catch (SQLException e) {
             throw new RuntimeException("写入世界Boss失败", e);
         }
     }
 
     private List<WorldBoss> loadPool(String scope) {
-        String sql = "SELECT b.*, p.name AS killer_name FROM world_bosses b "
-                + "LEFT JOIN players p ON b.killer_player_id = p.id "
-                + "WHERE b.scope = ? ORDER BY b.slot";
-        List<WorldBoss> result = new ArrayList<>();
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, scope);
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    result.add(mapBoss(rs));
-                }
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("查询世界Boss失败", e);
-        }
-        return result;
+        return WORLD_BOSS_DAO.findPool(scope);
     }
 
     public WorldBoss getBossById(long bossId) {
-        String sql = "SELECT b.*, p.name AS killer_name FROM world_bosses b "
-                + "LEFT JOIN players p ON b.killer_player_id = p.id WHERE b.id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, bossId);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    return mapBoss(rs);
-                }
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("查询世界Boss失败", e);
-        }
-        return null;
-    }
-
-    private WorldBoss mapBoss(ResultSet rs) throws SQLException {
-        WorldBoss boss = new WorldBoss();
-        boss.setId(rs.getLong("id"));
-        boss.setScope(rs.getString("scope"));
-        boss.setSlot(rs.getInt("slot"));
-        boss.setName(rs.getString("name"));
-        boss.setDescription(rs.getString("description"));
-        boss.setRealm(rs.getInt("realm"));
-        boss.setHp(rs.getLong("hp"));
-        boss.setMaxHp(rs.getLong("max_hp"));
-        boss.setAttack(rs.getInt("attack"));
-        boss.setDefense(rs.getInt("defense"));
-        boss.setSpeed(rs.getInt("speed"));
-        boss.setStoneBudget(rs.getLong("stone_budget"));
-        boss.setExpBudget(rs.getLong("exp_budget"));
-        boss.setExpiresAt(rs.getLong("expires_at"));
-        boss.setKilledAt(rs.getLong("killed_at"));
-        boss.setKillerPlayerId(rs.getLong("killer_player_id"));
-        try {
-            boss.setKillerName(rs.getString("killer_name"));
-        } catch (SQLException ignored) {
-            // 没有 JOIN players 的查询里没有这一列
-        }
-        return boss;
+        return WORLD_BOSS_DAO.findBossById(bossId);
     }
 
     // ==================== 挑战 ====================
@@ -524,68 +443,37 @@ public class WorldBossService {
      */
     private Settlement settleDamage(long bossId, long playerId, long damage, long now) {
         return DatabaseManager.runTransaction(conn -> {
-            long curHp;
-            long maxHp;
-            long stoneBudget;
-            long expBudget;
-            String lockSql = "SELECT hp, max_hp, stone_budget, exp_budget FROM world_bosses WHERE id = ? "
-                    + DatabaseManager.getDialect().getForUpdateClause();
-            try (PreparedStatement ps = conn.prepareStatement(lockSql)) {
-                ps.setLong(1, bossId);
-                try (ResultSet rs = ps.executeQuery()) {
-                    if (!rs.next()) {
-                        throw new IllegalStateException("世界Boss不存在: " + bossId);
-                    }
-                    curHp = rs.getLong(1);
-                    maxHp = rs.getLong(2);
-                    stoneBudget = rs.getLong(3);
-                    expBudget = rs.getLong(4);
-                }
-            } catch (SQLException e) {
-                throw new RuntimeException("锁定世界Boss失败", e);
-            }
+            WorldBossDAO.BossSettlementRow row = WORLD_BOSS_DAO.lockBossForSettlement(conn, bossId);
 
             Settlement out = new Settlement();
-            out.maxHp = maxHp;
+            out.maxHp = row.maxHp;
 
-            if (curHp <= 0) {
+            if (row.hp <= 0) {
                 // 在我们打的这段时间里被别人打死了：本次不再扣血、不再发奖
                 out.hpRemaining = 0;
                 out.killed = false;
-                recordDamage(conn, bossId, playerId, 0, now);
+                WORLD_BOSS_DAO.recordDamage(conn, bossId, playerId, 0, now);
                 return out;
             }
 
-            long applied = Math.min(curHp, Math.max(0, damage));
-            long newHp = curHp - applied;
+            long applied = Math.min(row.hp, Math.max(0, damage));
+            long newHp = row.hp - applied;
             boolean killed = newHp <= 0;
             out.hpRemaining = newHp;
             out.killed = killed;
 
-            String updateSql = killed
-                    ? "UPDATE world_bosses SET hp = 0, killed_at = ?, killer_player_id = ?, "
-                            + "updated_at = CURRENT_TIMESTAMP WHERE id = ?"
-                    : "UPDATE world_bosses SET hp = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?";
-            try (PreparedStatement ps = conn.prepareStatement(updateSql)) {
-                if (killed) {
-                    ps.setLong(1, now);
-                    ps.setLong(2, playerId);
-                    ps.setLong(3, bossId);
-                } else {
-                    ps.setLong(1, newHp);
-                    ps.setLong(2, bossId);
-                }
-                ps.executeUpdate();
-            } catch (SQLException e) {
-                throw new RuntimeException("更新世界Boss血量失败", e);
+            if (killed) {
+                WORLD_BOSS_DAO.markBossKilled(conn, bossId, now, playerId);
+            } else {
+                WORLD_BOSS_DAO.updateBossHp(conn, bossId, newHp);
             }
 
             // ---- 伤害分红：预算 × 本次伤害 / 最大血量 ----
-            long stones = maxHp > 0 ? stoneBudget * applied / maxHp : 0;
-            long exp = maxHp > 0 ? expBudget * applied / maxHp : 0;
+            long stones = row.maxHp > 0 ? row.stoneBudget * applied / row.maxHp : 0;
+            long exp = row.maxHp > 0 ? row.expBudget * applied / row.maxHp : 0;
             if (killed) {
                 // 补最后一刀的人额外拿一份，按预算比例算，同样受熔断约束
-                exp += (long) (expBudget * killBonusRatio());
+                exp += (long) (row.expBudget * killBonusRatio());
             }
             long cappedStones = applyOverflowBreaker(stones);
             long cappedExp = applyOverflowBreaker(exp);
@@ -599,7 +487,7 @@ public class WorldBossService {
             if (out.exp > 0) {
                 playerService.addExperience(conn, playerId, out.exp);
             }
-            recordDamage(conn, bossId, playerId, applied, now);
+            WORLD_BOSS_DAO.recordDamage(conn, bossId, playerId, applied, now);
             return out;
         });
     }
@@ -624,26 +512,7 @@ public class WorldBossService {
 
     private void recordDamage(Connection conn, long bossId, long playerId, long damage, long now)
             throws SQLException {
-        String update = "UPDATE world_boss_damage SET damage = damage + ?, hits = hits + 1, last_hit_at = ? "
-                + "WHERE boss_id = ? AND player_id = ?";
-        try (PreparedStatement ps = conn.prepareStatement(update)) {
-            ps.setLong(1, damage);
-            ps.setLong(2, now);
-            ps.setLong(3, bossId);
-            ps.setLong(4, playerId);
-            if (ps.executeUpdate() > 0) {
-                return;
-            }
-        }
-        String insert = "INSERT INTO world_boss_damage (boss_id, player_id, damage, hits, last_hit_at) "
-                + "VALUES (?, ?, ?, 1, ?)";
-        try (PreparedStatement ps = conn.prepareStatement(insert)) {
-            ps.setLong(1, bossId);
-            ps.setLong(2, playerId);
-            ps.setLong(3, damage);
-            ps.setLong(4, now);
-            ps.executeUpdate();
-        }
+        WORLD_BOSS_DAO.recordDamage(conn, bossId, playerId, damage, now);
     }
 
     /**
@@ -651,110 +520,18 @@ public class WorldBossService {
      * <p>这一步发生在<b>战斗之前</b>，因此连点两下的并发请求只会有一个真正进入战斗。</p>
      */
     private boolean claimChallengeSlot(long bossId, long playerId, long now, long cooldownMs) {
-        long cutoff = now - Math.max(0, cooldownMs);
-        String update = "UPDATE world_boss_damage SET last_hit_at = ? "
-                + "WHERE boss_id = ? AND player_id = ? AND last_hit_at <= ?";
-        try (Connection conn = DatabaseManager.getConnection()) {
-            if (tryClaim(conn, update, bossId, playerId, now, cutoff)) {
-                return true;
-            }
-            if (hasDamageRow(conn, bossId, playerId)) {
-                return false; // 记录存在但冷却未过
-            }
-            String insert = "INSERT INTO world_boss_damage (boss_id, player_id, damage, hits, last_hit_at) "
-                    + "VALUES (?, ?, 0, 0, ?)";
-            try (PreparedStatement ps = conn.prepareStatement(insert)) {
-                ps.setLong(1, bossId);
-                ps.setLong(2, playerId);
-                ps.setLong(3, now);
-                ps.executeUpdate();
-                return true;
-            } catch (SQLException duplicate) {
-                // 并发插入撞唯一键：回到条件更新再判一次
-                return tryClaim(conn, update, bossId, playerId, now, cutoff);
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("抢占世界Boss挑战冷却失败", e);
-        }
-    }
-
-    private boolean tryClaim(Connection conn, String update, long bossId, long playerId,
-                             long now, long cutoff) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement(update)) {
-            ps.setLong(1, now);
-            ps.setLong(2, bossId);
-            ps.setLong(3, playerId);
-            ps.setLong(4, cutoff);
-            return ps.executeUpdate() > 0;
-        }
-    }
-
-    private boolean hasDamageRow(Connection conn, long bossId, long playerId) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement(
-                "SELECT 1 FROM world_boss_damage WHERE boss_id = ? AND player_id = ?")) {
-            ps.setLong(1, bossId);
-            ps.setLong(2, playerId);
-            try (ResultSet rs = ps.executeQuery()) {
-                return rs.next();
-            }
-        }
+        return WORLD_BOSS_DAO.claimChallengeSlot(bossId, playerId, now, cooldownMs);
     }
 
     // ==================== 查询 ====================
 
     public WorldBossDamage getDamage(long bossId, long playerId) {
-        String sql = "SELECT d.*, p.name AS player_name FROM world_boss_damage d "
-                + "LEFT JOIN players p ON d.player_id = p.id "
-                + "WHERE d.boss_id = ? AND d.player_id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, bossId);
-            ps.setLong(2, playerId);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    return mapDamage(rs);
-                }
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("查询世界Boss伤害记录失败", e);
-        }
-        return null;
+        return WORLD_BOSS_DAO.findDamage(bossId, playerId);
     }
 
     /** 某只 Boss 的伤害贡献榜（按伤害降序）。 */
     public List<WorldBossDamage> getLeaderboard(long bossId, int limit) {
-        String sql = "SELECT d.*, p.name AS player_name FROM world_boss_damage d "
-                + "LEFT JOIN players p ON d.player_id = p.id "
-                + "WHERE d.boss_id = ? AND d.damage > 0 ORDER BY d.damage DESC, d.player_id ASC LIMIT ?";
-        List<WorldBossDamage> result = new ArrayList<>();
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, bossId);
-            ps.setInt(2, Math.max(1, limit));
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    result.add(mapDamage(rs));
-                }
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("查询世界Boss排行榜失败", e);
-        }
-        return result;
-    }
-
-    private WorldBossDamage mapDamage(ResultSet rs) throws SQLException {
-        WorldBossDamage d = new WorldBossDamage();
-        d.setBossId(rs.getLong("boss_id"));
-        d.setPlayerId(rs.getLong("player_id"));
-        d.setDamage(rs.getLong("damage"));
-        d.setHits(rs.getInt("hits"));
-        d.setLastHitAt(rs.getLong("last_hit_at"));
-        try {
-            d.setPlayerName(rs.getString("player_name"));
-        } catch (SQLException ignored) {
-            // 没有 JOIN players 的查询里没有这一列
-        }
-        return d;
+        return WORLD_BOSS_DAO.findLeaderboard(bossId, limit);
     }
 
     // ==================== 文案 ====================
