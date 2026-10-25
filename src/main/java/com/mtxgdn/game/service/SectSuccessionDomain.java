@@ -1,6 +1,7 @@
 package com.mtxgdn.game.service;
 
 import com.mtxgdn.db.DatabaseManager;
+import com.mtxgdn.db.SectSuccessionDAO;
 import com.mtxgdn.entity.Player;
 import com.mtxgdn.game.entity.Sect;
 import com.mtxgdn.game.entity.SectMember;
@@ -8,10 +9,7 @@ import com.mtxgdn.i18n.I18n;
 import com.mtxgdn.util.AppConfig;
 
 import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Types;
 import java.util.ArrayList;
 import java.util.Comparator;
 import java.util.LinkedHashMap;
@@ -30,13 +28,20 @@ import java.util.Map;
  * 幂等（{@code leader_absent_since = 0} 或竞争期未结束时直接返回）、
  * 并发安全（落库用条件更新）、现任宗主不是候选人。</p>
  *
- * <p>方法体、SQL、日志文案、异常文案、{@code Map} 里 key 的顺序都与拆分前逐字相同。</p>
+ * <p>方法体、日志文案、异常文案、{@code Map} 里 key 的顺序都与拆分前逐字相同。</p>
  *
  * <p><b>事务边界</b>：{@link #resolveSuccession} 与 {@link #acceptContest} 各有一个
  * {@code runTransaction}（条件更新 sects + 改两人职位），拆分时整块搬了过来，
  * 块内只使用事务传入的 {@code conn} —— 改职位走 {@link #setMemberRole} 的
  * {@code conn} 重载，绝不在事务里再开连接。其余方法（标记缺位、清理竞争期、
  * 发起挑战）在拆分前就是单条 SQL 的独立短连接，这里保持独立。</p>
+ *
+ * <p><b>JDBC 都在 DAO 里</b>：{@code sects} 的缺位/竞争期字段与 {@code sect_members.role}
+ * 的读写全部走 {@link SectSuccessionDAO}，本类不再出现 {@code PreparedStatement} /
+ * {@code ResultSet}。每个意图一对重载 ——
+ * 事务内一律传 {@code conn}，绝不在事务里另开连接（SQLite 下会
+ * {@code SQLITE_BUSY_SNAPSHOT}）。业务规则（谁能退位、候选人怎么挑、
+ * 归一化怎么压战力、{@code Map} 的 key 与文案）留在本类。</p>
  *
  * <p>对拼规则在 {@link SectDuelDomain}（与宗门战共用），本类只做归一化与流程编排。</p>
  */
@@ -50,6 +55,9 @@ final class SectSuccessionDomain {
     private final PlayerService playerService;
     private final SectQueryDomain queryDomain;
     private final SectDuelDomain duelDomain;
+
+    /** {@code sects} 缺位/竞争期字段与 {@code sect_members.role} 的读写入口（无状态，可共享）。 */
+    private static final SectSuccessionDAO SUCCESSION_DAO = new SectSuccessionDAO();
 
     SectSuccessionDomain(PlayerService playerService, SectQueryDomain queryDomain, SectDuelDomain duelDomain) {
         this.playerService = playerService;
@@ -216,24 +224,8 @@ final class SectSuccessionDomain {
         final long finalChallengerId = challengerId;
 
         Boolean applied = DatabaseManager.runTransaction(conn -> {
-            int rows;
-            String sql = "UPDATE sects SET leader_player_id = ?, leader_absent_since = 0, "
-                    + "contest_until = ?, contest_challenger_id = ?, contest_requested = 0, "
-                    + "updated_at = CURRENT_TIMESTAMP WHERE id = ? AND leader_absent_since = ?";
-            try (PreparedStatement ps = conn.prepareStatement(sql)) {
-                ps.setLong(1, newLeaderId);
-                ps.setLong(2, finalContestUntil);
-                if (finalChallengerId > 0) {
-                    ps.setLong(3, finalChallengerId);
-                } else {
-                    ps.setNull(3, Types.BIGINT);
-                }
-                ps.setLong(4, sectId);
-                ps.setLong(5, expectedAbsent);
-                rows = ps.executeUpdate();
-            } catch (SQLException e) {
-                throw new RuntimeException(e);
-            }
+            int rows = SUCCESSION_DAO.applySuccession(conn, sectId, newLeaderId,
+                    finalContestUntil, finalChallengerId, expectedAbsent);
             if (rows == 0) {
                 return false; // 状态已被其他请求推进，放弃本次继位
             }
@@ -361,18 +353,7 @@ final class SectSuccessionDomain {
             result.put("message", I18n.t("sect.you_have_started_the_challenge"));
             return result;
         }
-        String sql = "UPDATE sects SET contest_requested = 1, updated_at = CURRENT_TIMESTAMP "
-                + "WHERE id = ? AND contest_challenger_id = ? AND contest_until > ?";
-        int rows;
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, sect.getId());
-            ps.setLong(2, sect.getContestChallengerId());
-            ps.setLong(3, now);
-            rows = ps.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("发起宗主挑战失败", e);
-        }
+        int rows = SUCCESSION_DAO.requestContest(sect.getId(), sect.getContestChallengerId(), now);
         if (rows == 0) {
             result.put("success", false);
             result.put("message", I18n.t("sect.the_contest_period_has_ended"));
@@ -443,21 +424,9 @@ final class SectSuccessionDomain {
         final long finalWinnerId = winnerId;
         final long finalLoserId = loserId;
         Boolean applied = DatabaseManager.runTransaction(conn -> {
-            int rows;
             // 条件更新：只有"挑战已发起 + 挑战者/宗主都没变"才落库，杜绝双端重复结算
-            String sql = "UPDATE sects SET leader_player_id = ?, contest_until = 0, "
-                    + "contest_challenger_id = NULL, contest_requested = 0, leader_absent_since = 0, "
-                    + "updated_at = CURRENT_TIMESTAMP "
-                    + "WHERE id = ? AND contest_requested = 1 AND contest_challenger_id = ? AND leader_player_id = ?";
-            try (PreparedStatement ps = conn.prepareStatement(sql)) {
-                ps.setLong(1, finalWinnerId);
-                ps.setLong(2, sect.getId());
-                ps.setLong(3, challengerId);
-                ps.setLong(4, leaderId);
-                rows = ps.executeUpdate();
-            } catch (SQLException e) {
-                throw new RuntimeException(e);
-            }
+            int rows = SUCCESSION_DAO.applyContestOutcome(conn, sect.getId(),
+                    finalWinnerId, challengerId, leaderId);
             if (rows == 0) {
                 return false;
             }
@@ -515,16 +484,7 @@ final class SectSuccessionDomain {
 
     /** 竞争期到期但未被挑战：宗主保住位置，只清字段。 */
     private int clearExpiredContests(long now) {
-        String sql = "UPDATE sects SET contest_until = 0, contest_challenger_id = NULL, "
-                + "contest_requested = 0, updated_at = CURRENT_TIMESTAMP "
-                + "WHERE contest_until > 0 AND contest_until <= ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, now);
-            return ps.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("清理到期宗主竞争期失败", e);
-        }
+        return SUCCESSION_DAO.clearExpiredContests(now);
     }
 
     /**
@@ -534,30 +494,12 @@ final class SectSuccessionDomain {
      * 老库升级后该列全为 0（表示"尚未观测到活跃"），若把 0 当成纪元起点，
      * 升级瞬间会把全服宗主一次性判定成弃坑。</p>
      *
-     * <p>SQL 刻意写成"先 SELECT id 再逐条 UPDATE"：MySQL 不允许在 UPDATE 的子查询里
+     * <p>DAO 刻意写成"先 SELECT id 再逐条 UPDATE"：MySQL 不允许在 UPDATE 的子查询里
      * 直接引用被更新的表（ERROR 1093），拆开写两种方言都安全。</p>
      */
     private int markInactiveLeaders(long now, int absentDays) {
         long cutoff = now - (long) absentDays * DAY_MS;
-        List<Long> sectIds = new ArrayList<>();
-        // 「成员数 > 1」是必须的：单人宗门无人可继位，标了缺位也只会在下一轮被清掉，
-        // 徒增两次 UPDATE 并让 /宗门 info 的"宗主缺位中"来回闪烁。
-        String sql = "SELECT s.id FROM sects s JOIN players p ON s.leader_player_id = p.id "
-                + "WHERE s.leader_absent_since = 0 AND s.contest_until <= ? "
-                + "AND p.last_active_time > 0 AND p.last_active_time < ? "
-                + "AND (SELECT COUNT(*) FROM sect_members m WHERE m.sect_id = s.id) > 1";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, now);
-            ps.setLong(2, cutoff);
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    sectIds.add(rs.getLong(1));
-                }
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("查询不活跃宗主失败", e);
-        }
+        List<Long> sectIds = SUCCESSION_DAO.findInactiveLeaderSectIds(now, cutoff);
 
         int marked = 0;
         for (long sectId : sectIds) {
@@ -568,59 +510,30 @@ final class SectSuccessionDomain {
 
     /** 列出"缺位且无进行中竞争期"的宗门，交给 {@link #resolveSuccession} 逐个处理。 */
     private List<Long> listAbsentLeaderSects(long now) {
-        List<Long> ids = new ArrayList<>();
-        String sql = "SELECT id FROM sects WHERE leader_absent_since > 0 AND contest_until <= ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, now);
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    ids.add(rs.getLong(1));
-                }
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("查询宗主缺位的宗门失败", e);
-        }
-        return ids;
+        return SUCCESSION_DAO.listAbsentLeaderSectIds(now);
     }
 
     /** 标记宗主缺位（条件更新：仅在当前仍在任时生效）。返回受影响行数。 */
     private int markLeaderAbsent(long sectId, long now) {
-        String sql = "UPDATE sects SET leader_absent_since = ?, contest_until = 0, "
-                + "contest_challenger_id = NULL, contest_requested = 0, "
-                + "updated_at = CURRENT_TIMESTAMP WHERE id = ? AND leader_absent_since = 0";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, now);
-            ps.setLong(2, sectId);
-            return ps.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("标记宗主缺位失败", e);
-        }
+        return SUCCESSION_DAO.markLeaderAbsent(sectId, now);
     }
 
     /** 清除缺位标记（条件更新：仅在值未被他人改动时生效）。 */
     private void clearLeaderAbsent(long sectId, long expectedAbsentSince) {
-        String sql = "UPDATE sects SET leader_absent_since = 0, updated_at = CURRENT_TIMESTAMP "
-                + "WHERE id = ? AND leader_absent_since = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, sectId);
-            ps.setLong(2, expectedAbsentSince);
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("清除宗主缺位标记失败", e);
-        }
+        SUCCESSION_DAO.clearLeaderAbsent(sectId, expectedAbsentSince);
     }
 
-    /** 事务内设置成员职位。 */
+    /**
+     * 事务内设置成员职位。
+     *
+     * <p>刻意只保留这一个签名（{@code Connection} 首参）：继位与争夺战的落库都在同一个
+     * {@code runTransaction} 里，自己开连接会读到旧快照。SQL 在
+     * {@link SectSuccessionDAO#setMemberRole}，这里只做转发，让"事务内改职位必须用事务
+     * 连接"这个不变量在本类里仍然看得见。</p>
+     */
     private void setMemberRole(Connection conn, long sectId, long playerId, String role) {
-        String sql = "UPDATE sect_members SET role = ? WHERE sect_id = ? AND player_id = ?";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, role);
-            ps.setLong(2, sectId);
-            ps.setLong(3, playerId);
-            ps.executeUpdate();
+        try {
+            SUCCESSION_DAO.setMemberRole(conn, sectId, playerId, role);
         } catch (SQLException e) {
             throw new RuntimeException(e);
         }
