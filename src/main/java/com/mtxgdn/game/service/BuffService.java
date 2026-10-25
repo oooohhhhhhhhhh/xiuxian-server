@@ -1,11 +1,10 @@
 package com.mtxgdn.game.service;
 
+import com.mtxgdn.db.BuffDAO;
 import com.mtxgdn.db.DatabaseManager;
 import com.mtxgdn.common.service.ServiceRegistry;
 
 import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.*;
 import java.util.concurrent.Executors;
@@ -13,6 +12,8 @@ import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 public class BuffService {
+
+    private static final BuffDAO BUFF_DAO = new BuffDAO();
 
     private static final com.mtxgdn.util.GameLogger LOG =
             com.mtxgdn.util.GameLogger.getLogger(BuffService.class);
@@ -118,25 +119,11 @@ public class BuffService {
 
     /** 移除玩家全部活跃 Buff 并回退属性加成。 */
     public void removeAllBuffs(long playerId) {
-        String sql = "SELECT buff_id FROM player_buffs WHERE player_id = ? AND expire_time > ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            ps.setLong(2, System.currentTimeMillis());
-            try (ResultSet rs = ps.executeQuery()) {
-                List<String> ids = new ArrayList<>();
-                while (rs.next()) {
-                    ids.add(rs.getString("buff_id"));
-                }
-                for (String id : ids) {
-                    try {
-                        removeBuff(playerId, id);
-                    } catch (Exception ignored) {
-                    }
-                }
+        for (String id : BUFF_DAO.findActiveBuffIds(playerId, System.currentTimeMillis())) {
+            try {
+                removeBuff(playerId, id);
+            } catch (Exception ignored) {
             }
-        } catch (SQLException e) {
-            throw new RuntimeException("查询活跃 Buff 失败", e);
         }
     }
 
@@ -204,40 +191,13 @@ public class BuffService {
         // 先清掉该玩家已过期的增益：否则"同 buffId 已存在"会把一条早已过期的行当成有效增益
         expirePlayerBuffs(conn, playerId, System.currentTimeMillis());
         // 同 buffId 已存在（如重复使用同种丹药）：只刷新时长，不重复叠加属性
-        String existsSql = "SELECT id FROM player_buffs WHERE player_id = ? AND buff_id = ?";
-        boolean exists;
-        try (PreparedStatement ps = conn.prepareStatement(existsSql)) {
-            ps.setLong(1, playerId);
-            ps.setString(2, buffId);
-            try (ResultSet rs = ps.executeQuery()) {
-                exists = rs.next();
-            }
-        }
-        if (exists) {
-            String refreshSql = "UPDATE player_buffs SET expire_time = ? WHERE player_id = ? AND buff_id = ?";
-            try (PreparedStatement ps = conn.prepareStatement(refreshSql)) {
-                ps.setLong(1, expireTime);
-                ps.setLong(2, playerId);
-                ps.setString(3, buffId);
-                ps.executeUpdate();
-            }
+        if (BUFF_DAO.buffExists(conn, playerId, buffId)) {
+            BUFF_DAO.refreshBuffExpire(conn, playerId, buffId, expireTime);
             return;
         }
 
-        String sql = """
-            INSERT INTO player_buffs (player_id, buff_id, attack_bonus, defense_bonus, speed_bonus, spirit_bonus, expire_time)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
-            """;
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            ps.setString(2, buffId);
-            ps.setInt(3, attackBonus);
-            ps.setInt(4, defenseBonus);
-            ps.setInt(5, speedBonus);
-            ps.setInt(6, spiritBonus);
-            ps.setLong(7, expireTime);
-            ps.executeUpdate();
-        }
+        BUFF_DAO.insertBuff(conn, playerId, buffId,
+                attackBonus, defenseBonus, speedBonus, spiritBonus, expireTime);
 
         PlayerService playerService = ServiceRegistry.getPlayerService();
         if (attackBonus != 0) playerService.addAttack(conn, playerId, attackBonus);
@@ -250,34 +210,15 @@ public class BuffService {
         DatabaseManager.runTransaction(conn -> {
             // 先结算过期增益，避免"已过期但尚未回退"的行与本次移除相互干扰
             expirePlayerBuffs(conn, playerId, System.currentTimeMillis());
-            String sql = "SELECT attack_bonus, defense_bonus, speed_bonus, spirit_bonus FROM player_buffs WHERE player_id = ? AND buff_id = ?";
-            int atk = 0, def = 0, spd = 0, spi = 0;
+            BuffDAO.BonusSum bonuses = BUFF_DAO.findBuffBonuses(conn, playerId, buffId);
 
-            try (PreparedStatement ps = conn.prepareStatement(sql)) {
-                ps.setLong(1, playerId);
-                ps.setString(2, buffId);
-                try (ResultSet rs = ps.executeQuery()) {
-                    if (rs.next()) {
-                        atk = rs.getInt("attack_bonus");
-                        def = rs.getInt("defense_bonus");
-                        spd = rs.getInt("speed_bonus");
-                        spi = rs.getInt("spirit_bonus");
-                    }
-                }
-            }
-
-            String delSql = "DELETE FROM player_buffs WHERE player_id = ? AND buff_id = ?";
-            try (PreparedStatement ps = conn.prepareStatement(delSql)) {
-                ps.setLong(1, playerId);
-                ps.setString(2, buffId);
-                ps.executeUpdate();
-            }
+            BUFF_DAO.deleteBuff(conn, playerId, buffId);
 
             PlayerService playerService = ServiceRegistry.getPlayerService();
-            if (atk != 0) playerService.addAttack(conn, playerId, -atk);
-            if (def != 0) playerService.addDefense(conn, playerId, -def);
-            if (spd != 0) playerService.addSpeed(conn, playerId, -spd);
-            if (spi != 0) playerService.addSpirit(conn, playerId, -spi);
+            if (bonuses.attack != 0) playerService.addAttack(conn, playerId, -bonuses.attack);
+            if (bonuses.defense != 0) playerService.addDefense(conn, playerId, -bonuses.defense);
+            if (bonuses.speed != 0) playerService.addSpeed(conn, playerId, -bonuses.speed);
+            if (bonuses.spirit != 0) playerService.addSpirit(conn, playerId, -bonuses.spirit);
 
             return true;
         });
@@ -287,29 +228,23 @@ public class BuffService {
         Map<String, Object> result = new LinkedHashMap<>();
         List<Map<String, Object>> buffList = new ArrayList<>();
 
-        String sql = "SELECT buff_id, attack_bonus, defense_bonus, speed_bonus, spirit_bonus, expire_time FROM player_buffs WHERE player_id = ? AND expire_time > ?";
         long now = System.currentTimeMillis();
-
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+        // 用事务而不是裸连接：expirePlayerBuffs 会 DELETE + 回退属性，
+        // 那不是只读操作，必须和随后的查询落在同一个事务里
+        List<BuffDAO.ActiveBuffRow> rows = DatabaseManager.runTransaction(conn -> {
             // 读取即结算：过期增益在这里当场回退，玩家看到的属性永远是最新的
             expirePlayerBuffs(conn, playerId, now);
-            ps.setLong(1, playerId);
-            ps.setLong(2, now);
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    Map<String, Object> buffInfo = new LinkedHashMap<>();
-                    buffInfo.put("id", rs.getString("buff_id"));
-                    buffInfo.put("attackBonus", rs.getInt("attack_bonus"));
-                    buffInfo.put("defenseBonus", rs.getInt("defense_bonus"));
-                    buffInfo.put("speedBonus", rs.getInt("speed_bonus"));
-                    buffInfo.put("spiritBonus", rs.getInt("spirit_bonus"));
-                    buffInfo.put("remainingSeconds", Math.max(0, (rs.getLong("expire_time") - now) / 1000));
-                    buffList.add(buffInfo);
-                }
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("查询buff失败", e);
+            return BUFF_DAO.findActiveBuffs(conn, playerId, now);
+        });
+        for (BuffDAO.ActiveBuffRow row : rows) {
+            Map<String, Object> buffInfo = new LinkedHashMap<>();
+            buffInfo.put("id", row.buffId);
+            buffInfo.put("attackBonus", row.attackBonus);
+            buffInfo.put("defenseBonus", row.defenseBonus);
+            buffInfo.put("speedBonus", row.speedBonus);
+            buffInfo.put("spiritBonus", row.spiritBonus);
+            buffInfo.put("remainingSeconds", Math.max(0, (row.expireTime - now) / 1000));
+            buffList.add(buffInfo);
         }
 
         result.put("buffs", buffList);
@@ -328,33 +263,13 @@ public class BuffService {
      * 或与兜底任务撞车时都不会重复扣减。</p>
      */
     private static void expirePlayerBuffs(Connection conn, long playerId, long now) throws SQLException {
-        String selectSql = "SELECT buff_id, attack_bonus, defense_bonus, speed_bonus, spirit_bonus "
-                + "FROM player_buffs WHERE player_id = ? AND expire_time <= ?";
-        List<Object[]> expired = new ArrayList<>();
-        try (PreparedStatement ps = conn.prepareStatement(selectSql)) {
-            ps.setLong(1, playerId);
-            ps.setLong(2, now);
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    expired.add(new Object[]{
-                            rs.getString("buff_id"),
-                            rs.getInt("attack_bonus"),
-                            rs.getInt("defense_bonus"),
-                            rs.getInt("speed_bonus"),
-                            rs.getInt("spirit_bonus")});
-                }
-            }
-        } catch (SQLException e) {
-            LOG.warn("查询过期增益失败 player=" + playerId + ": " + e.getMessage());
-            return;
-        }
-
+        List<BuffDAO.ExpiredBuffRow> expired = BUFF_DAO.findExpiredBuffsForPlayer(conn, playerId, now);
         if (expired.isEmpty()) return;
 
         PlayerService playerService = ServiceRegistry.getPlayerService();
-        for (Object[] row : expired) {
-            rollbackIfClaimed(conn, playerId, (String) row[0],
-                    (int) row[1], (int) row[2], (int) row[3], (int) row[4],
+        for (BuffDAO.ExpiredBuffRow row : expired) {
+            rollbackIfClaimed(conn, playerId, row.buffId,
+                    row.attackBonus, row.defenseBonus, row.speedBonus, row.spiritBonus,
                     now, playerService);
         }
     }
@@ -362,24 +277,15 @@ public class BuffService {
     /**
      * 认领并回退一条过期增益。
      *
-     * <p>幂等认领：条件 DELETE 的 {@code executeUpdate() == 1} 才是「这一行归我处理」的证据，
-     * 只有拿到 1 才回退属性。条件里带上 {@code expire_time <= ?}，
+     * <p>幂等认领：条件 DELETE 命中 1 行才是「这一行归我处理」的证据，
+     * 只有拿到才算认领成功才回退属性。条件里带上 {@code expire_time <= ?}，
      * 因此玩家在期间重新嗑药刷新了时长（expire_time 被推到未来）时不会被误删、误扣。</p>
      */
     private static void rollbackIfClaimed(Connection conn, long playerId, String buffId,
                                           int atk, int def, int spd, int spi,
                                           long now, PlayerService playerService) throws SQLException {
-        String delSql = "DELETE FROM player_buffs WHERE player_id = ? AND buff_id = ? AND expire_time <= ?";
-        try (PreparedStatement ps = conn.prepareStatement(delSql)) {
-            ps.setLong(1, playerId);
-            ps.setString(2, buffId);
-            ps.setLong(3, now);
-            if (ps.executeUpdate() != 1) {
-                return; // 已被其他线程或兜底任务抢先处理，不再重复回退
-            }
-        } catch (SQLException e) {
-            LOG.warn("删除过期增益失败 player=" + playerId + " buff=" + buffId + ": " + e.getMessage());
-            return;
+        if (!BUFF_DAO.deleteExpiredBuffIfClaimed(conn, playerId, buffId, now)) {
+            return; // 已被其他线程或兜底任务抢先处理，不再重复回退
         }
 
         if (atk != 0) playerService.addAttack(conn, playerId, -atk);
@@ -398,35 +304,14 @@ public class BuffService {
         // 内置模块门控：Buff 模块停用后暂停过期增益清理
         if (!com.mtxgdn.plugin.BuiltInPluginRegistry.getInstance().isEnabledOrUnknown("buff")) return;
         long now = System.currentTimeMillis();
-        String sql = "SELECT player_id, buff_id, attack_bonus, defense_bonus, speed_bonus, spirit_bonus "
-                + "FROM player_buffs WHERE expire_time <= ?";
-
-        List<Object[]> expiredList = new ArrayList<>();
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, now);
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    expiredList.add(new Object[]{
-                            rs.getLong("player_id"),
-                            rs.getString("buff_id"),
-                            rs.getInt("attack_bonus"),
-                            rs.getInt("defense_bonus"),
-                            rs.getInt("speed_bonus"),
-                            rs.getInt("spirit_bonus")});
-                }
-            }
-        } catch (SQLException e) {
-            return;
-        }
-
+        List<BuffDAO.ExpiredBuffRow> expiredList = BUFF_DAO.findAllExpiredBuffs(now);
         if (expiredList.isEmpty()) return;
 
         DatabaseManager.runTransaction(conn -> {
             PlayerService playerService = ServiceRegistry.getPlayerService();
-            for (Object[] row : expiredList) {
-                rollbackIfClaimed(conn, (long) row[0], (String) row[1],
-                        (int) row[2], (int) row[3], (int) row[4], (int) row[5],
+            for (BuffDAO.ExpiredBuffRow row : expiredList) {
+                rollbackIfClaimed(conn, row.playerId, row.buffId,
+                        row.attackBonus, row.defenseBonus, row.speedBonus, row.spiritBonus,
                         now, playerService);
             }
             return true;
@@ -437,32 +322,15 @@ public class BuffService {
         DatabaseManager.runTransaction(conn -> {
             // 先结算过期增益：过期行由认领逻辑回退，剩下的才是本次要清掉的有效增益
             expirePlayerBuffs(conn, playerId, System.currentTimeMillis());
-            String sql = "SELECT attack_bonus, defense_bonus, speed_bonus, spirit_bonus FROM player_buffs WHERE player_id = ?";
-            int totalAtk = 0, totalDef = 0, totalSpd = 0, totalSpi = 0;
+            BuffDAO.BonusSum total = BUFF_DAO.sumAllBonuses(conn, playerId);
 
-            try (PreparedStatement ps = conn.prepareStatement(sql)) {
-                ps.setLong(1, playerId);
-                try (ResultSet rs = ps.executeQuery()) {
-                    while (rs.next()) {
-                        totalAtk += rs.getInt("attack_bonus");
-                        totalDef += rs.getInt("defense_bonus");
-                        totalSpd += rs.getInt("speed_bonus");
-                        totalSpi += rs.getInt("spirit_bonus");
-                    }
-                }
-            }
-
-            String delSql = "DELETE FROM player_buffs WHERE player_id = ?";
-            try (PreparedStatement ps = conn.prepareStatement(delSql)) {
-                ps.setLong(1, playerId);
-                ps.executeUpdate();
-            }
+            BUFF_DAO.deleteAllBuffs(conn, playerId);
 
             PlayerService playerService = ServiceRegistry.getPlayerService();
-            if (totalAtk != 0) playerService.addAttack(conn, playerId, -totalAtk);
-            if (totalDef != 0) playerService.addDefense(conn, playerId, -totalDef);
-            if (totalSpd != 0) playerService.addSpeed(conn, playerId, -totalSpd);
-            if (totalSpi != 0) playerService.addSpirit(conn, playerId, -totalSpi);
+            if (total.attack != 0) playerService.addAttack(conn, playerId, -total.attack);
+            if (total.defense != 0) playerService.addDefense(conn, playerId, -total.defense);
+            if (total.speed != 0) playerService.addSpeed(conn, playerId, -total.speed);
+            if (total.spirit != 0) playerService.addSpirit(conn, playerId, -total.spirit);
 
             return true;
         });
@@ -485,51 +353,32 @@ public class BuffService {
     }
 
     private int getTotalBonus(long playerId, String column) {
-        String sql = "SELECT COALESCE(SUM(" + column + "), 0) as total FROM player_buffs WHERE player_id = ? AND expire_time > ?";
         long now = System.currentTimeMillis();
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            // 读取即结算：统计前先把过期行回退掉，避免把已失效的加成算进来
-            expirePlayerBuffs(conn, playerId, now);
-            ps.setLong(1, playerId);
-            ps.setLong(2, now);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    return rs.getInt("total");
-                }
-            }
-        } catch (SQLException e) {
+        try {
+            // 用事务而不是裸连接：结算会 DELETE + 回退属性，不是只读操作
+            return DatabaseManager.runTransaction(conn -> {
+                // 读取即结算：统计前先把过期行回退掉，避免把已失效的加成算进来
+                expirePlayerBuffs(conn, playerId, now);
+                return BUFF_DAO.sumActiveBonus(conn, playerId, now, column);
+            });
+        } catch (Exception e) {
             return 0;
         }
-        return 0;
     }
 
     public void reloadBuffsOnStartup(long playerId) {
         DatabaseManager.runTransaction(conn -> {
             // 登录 / 重启加载：先把停机期间过期的增益回退掉，再汇总仍然有效的加成。
             // 这一步很关键——停机期间没有后台任务，只有这里能把虚高的属性修正回来。
-            expirePlayerBuffs(conn, playerId, System.currentTimeMillis());
-            String sql = "SELECT attack_bonus, defense_bonus, speed_bonus, spirit_bonus FROM player_buffs WHERE player_id = ? AND expire_time > ?";
-            int totalAtk = 0, totalDef = 0, totalSpd = 0, totalSpi = 0;
-
-            try (PreparedStatement ps = conn.prepareStatement(sql)) {
-                ps.setLong(1, playerId);
-                ps.setLong(2, System.currentTimeMillis());
-                try (ResultSet rs = ps.executeQuery()) {
-                    while (rs.next()) {
-                        totalAtk += rs.getInt("attack_bonus");
-                        totalDef += rs.getInt("defense_bonus");
-                        totalSpd += rs.getInt("speed_bonus");
-                        totalSpi += rs.getInt("spirit_bonus");
-                    }
-                }
-            }
+            long now = System.currentTimeMillis();
+            expirePlayerBuffs(conn, playerId, now);
+            BuffDAO.BonusSum total = BUFF_DAO.sumStillValidBonuses(conn, playerId, now);
 
             PlayerService playerService = ServiceRegistry.getPlayerService();
-            if (totalAtk != 0) playerService.addAttack(conn, playerId, totalAtk);
-            if (totalDef != 0) playerService.addDefense(conn, playerId, totalDef);
-            if (totalSpd != 0) playerService.addSpeed(conn, playerId, totalSpd);
-            if (totalSpi != 0) playerService.addSpirit(conn, playerId, totalSpi);
+            if (total.attack != 0) playerService.addAttack(conn, playerId, total.attack);
+            if (total.defense != 0) playerService.addDefense(conn, playerId, total.defense);
+            if (total.speed != 0) playerService.addSpeed(conn, playerId, total.speed);
+            if (total.spirit != 0) playerService.addSpirit(conn, playerId, total.spirit);
 
             return true;
         });
