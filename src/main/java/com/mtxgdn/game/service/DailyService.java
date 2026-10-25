@@ -1,5 +1,6 @@
 package com.mtxgdn.game.service;
 
+import com.mtxgdn.db.DailyDAO;
 import com.mtxgdn.db.DatabaseManager;
 import com.mtxgdn.entity.Player;
 import com.mtxgdn.game.entity.CelestialPhenomenon;
@@ -9,10 +10,6 @@ import com.mtxgdn.i18n.I18n;
 import com.mtxgdn.common.service.ServiceRegistry;
 import com.mtxgdn.util.GameLogger;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.time.LocalDate;
 import java.time.LocalTime;
 import java.util.LinkedHashMap;
@@ -26,6 +23,8 @@ public class DailyService {
     private final PlayerService playerService = ServiceRegistry.getPlayerService();
     private final ItemService itemService = ServiceRegistry.getItemService();
     private final Random random = new Random();
+    /** {@code player_daily} 的读写入口（无状态，可共享）。 */
+    private static final DailyDAO DAILY_DAO = new DailyDAO();
 
     /**
      * 今日天象的缓存。必须是 <b>static</b>：天象是全局天气，不是某个服务实例的私有状态。
@@ -105,7 +104,7 @@ public class DailyService {
             return result;
         }
 
-        PlayerDaily daily = getOrCreateDaily(playerId);
+        DailyDAO.PlayerDaily daily = getOrCreateDaily(playerId);
         if (daily.lastMorningCultivation != null && daily.lastMorningCultivation.equals(todayStr)) {
             result.put("success", false);
             result.put("message", I18n.t("daily.you_have_already_done_morning"));
@@ -139,36 +138,13 @@ public class DailyService {
         }
         totalSpiritStones = (long)(totalSpiritStones * SeasonService.getSpiritStoneMultiplier());
 
-        String sql;
-        if (DatabaseManager.isSqlite()) {
-            sql = """
-                INSERT INTO player_daily (player_id, last_morning_cultivation, consecutive_days, total_active_days)
-                VALUES (?, ?, ?, 1)
-                ON CONFLICT(player_id) DO UPDATE SET
-                last_morning_cultivation = excluded.last_morning_cultivation,
-                consecutive_days = excluded.consecutive_days,
-                total_active_days = total_active_days + 1
-                """;
-        } else {
-            sql = """
-                INSERT INTO player_daily (player_id, last_morning_cultivation, consecutive_days, total_active_days)
-                VALUES (?, ?, ?, 1)
-                ON DUPLICATE KEY UPDATE
-                last_morning_cultivation = VALUES(last_morning_cultivation),
-                consecutive_days = VALUES(consecutive_days),
-                total_active_days = total_active_days + 1
-                """;
-        }
-
+        // 签到 upsert 的双方言分支（ON CONFLICT / ON DUPLICATE KEY）与
+        // total_active_days 的累加式都在 DailyDAO 里，逐字保留；
+        // 事务内只用 Connection 版，不再另开连接。
         final long finalTotalExp = totalExp;
         final long finalTotalSpiritStones = totalSpiritStones;
         DatabaseManager.runTransaction(conn -> {
-            try (PreparedStatement ps = conn.prepareStatement(sql)) {
-                ps.setLong(1, playerId);
-                ps.setString(2, todayStr);
-                ps.setInt(3, consecutive);
-                ps.executeUpdate();
-            }
+            DAILY_DAO.recordMorningCultivation(conn, playerId, todayStr, consecutive);
             playerService.addExperience(conn, playerId, finalTotalExp);
             itemService.addSpiritStones(conn, playerId, finalTotalSpiritStones);
             return null;
@@ -194,18 +170,6 @@ public class DailyService {
         return result;
     }
 
-    /** 计数型每日字段的跨方言累加：行级“跨日复位”由 {@link #ensureDailyReset} 负责，此处只做同日累加。 */
-    private static String dailyCountIncrementSql(String countColumn) {
-        if (DatabaseManager.isSqlite()) {
-            return "INSERT INTO player_daily (player_id, " + countColumn + ", last_daily_reset) VALUES (?, 1, CURRENT_DATE) " +
-                    "ON CONFLICT(player_id) DO UPDATE SET " + countColumn + " = " + countColumn + " + 1, " +
-                    "last_daily_reset = CURRENT_DATE";
-        }
-        return "INSERT INTO player_daily (player_id, " + countColumn + ", last_daily_reset) VALUES (?, 1, CURRENT_DATE) " +
-                "ON DUPLICATE KEY UPDATE " + countColumn + " = " + countColumn + " + 1, " +
-                "last_daily_reset = CURRENT_DATE";
-    }
-
     /**
      * 行级“跨日复位”：当 last_daily_reset 不是今天（或为空）时，将四个今日机缘计数与奖励标记、PVP 次数全部归零并刷新日期，
      * 保证每个机缘目标与 PVP 次数在每天首次触发/查询时都从 0 开始。
@@ -214,19 +178,7 @@ public class DailyService {
      */
     public void ensureDailyReset(long playerId) {
         String today = LocalDate.now().toString();
-        String sql = "UPDATE player_daily SET " +
-                "exploration_count = 0, battle_count = 0, secret_realm_count = 0, skill_learn_count = 0, pvp_count = 0, " +
-                "exploration_rewarded = 0, battle_rewarded = 0, secret_realm_rewarded = 0, skill_learn_rewarded = 0, " +
-                "last_daily_reset = ? WHERE player_id = ? AND (last_daily_reset IS NULL OR last_daily_reset <> ?)";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, today);
-            ps.setLong(2, playerId);
-            ps.setString(3, today);
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("每日状态复位失败", e);
-        }
+        DAILY_DAO.resetDaily(playerId, today);
     }
 
     /** 静态入口：供 CombatService 等跨系统在读取/累加 PVP 次数前调用，保证 player_daily 全行按日复位。 */
@@ -236,58 +188,30 @@ public class DailyService {
 
     public void onExplore(long playerId, String eventType) {
         ensureDailyReset(playerId);
-        String sql = dailyCountIncrementSql("exploration_count");
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("记录游历次数失败", e);
-        }
+        DAILY_DAO.incrementDailyCount(playerId, "exploration_count");
         checkAndAwardDailyFortune(playerId);
     }
 
     public void onBattle(long playerId) {
         ensureDailyReset(playerId);
-        String sql = dailyCountIncrementSql("battle_count");
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("记录战斗次数失败", e);
-        }
+        DAILY_DAO.incrementDailyCount(playerId, "battle_count");
         checkAndAwardDailyFortune(playerId);
     }
 
     public void onSecretRealm(long playerId) {
         ensureDailyReset(playerId);
-        String sql = dailyCountIncrementSql("secret_realm_count");
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("记录秘境次数失败", e);
-        }
+        DAILY_DAO.incrementDailyCount(playerId, "secret_realm_count");
         checkAndAwardDailyFortune(playerId);
     }
 
     public void onSkillLearn(long playerId) {
         ensureDailyReset(playerId);
-        String sql = dailyCountIncrementSql("skill_learn_count");
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("记录学习次数失败", e);
-        }
+        DAILY_DAO.incrementDailyCount(playerId, "skill_learn_count");
         checkAndAwardDailyFortune(playerId);
     }
 
     private void checkAndAwardDailyFortune(long playerId) {
-        PlayerDaily daily = getOrCreateDaily(playerId);
+        DailyDAO.PlayerDaily daily = getOrCreateDaily(playerId);
         if (daily.explorationCount >= 3 && !daily.explorationRewarded) {
             Player p = playerService.getPlayerById(playerId);
             long expReward = (p.getRealm() + 1) * 100L;
@@ -314,22 +238,16 @@ public class DailyService {
         }
     }
 
+    /** 把某个机缘奖励 / 共鸣里程碑标记为"已发放"（列名必须是服务层的受信字面量）。 */
     private void markFortuneClaimed(long playerId, String column) {
-        String sql = "UPDATE player_daily SET " + column + " = 1 WHERE player_id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("标记机缘奖励失败", e);
-        }
+        DAILY_DAO.markFortuneClaimed(playerId, column);
     }
 
     public Map<String, Object> getDailyInfo(long playerId) {
         Map<String, Object> result = new LinkedHashMap<>();
         // 先按日复位（跨天时计数与机缘奖励标记归零），再读取展示
         ensureDailyReset(playerId);
-        PlayerDaily daily = getOrCreateDaily(playerId);
+        DailyDAO.PlayerDaily daily = getOrCreateDaily(playerId);
         CelestialPhenomenon phenom = getTodayPhenomenon();
 
         result.put("phenomenon", phenom.getDisplayName());
@@ -377,7 +295,7 @@ public class DailyService {
     }
 
     private void checkSpiritualRootResonance(long playerId, Player player) {
-        PlayerDaily daily = getOrCreateDaily(playerId);
+        DailyDAO.PlayerDaily daily = getOrCreateDaily(playerId);
         SpiritualRoot root = player.getSpiritualRoot();
         if (root == null) return;
 
@@ -421,61 +339,21 @@ public class DailyService {
         }
     }
 
-    private PlayerDaily getOrCreateDaily(long playerId) {
-        String sql = "SELECT * FROM player_daily WHERE player_id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    return mapDaily(rs);
-                }
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("查询每日数据失败", e);
+    /**
+     * 读出每日行；没有行就先建一行再返回全零对象。
+     *
+     * <p>"读"与"建行"的顺序与原实现一致：先查，查不到才插。
+     * 两条 SQL 都在 {@link DailyDAO} 里（{@code getDaily} / {@code insertDaily}）。</p>
+     */
+    private DailyDAO.PlayerDaily getOrCreateDaily(long playerId) {
+        DailyDAO.PlayerDaily daily = DAILY_DAO.getDaily(playerId);
+        if (daily != null) {
+            return daily;
         }
-        String insertSql = "INSERT INTO player_daily (player_id) VALUES (?)";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(insertSql)) {
-            ps.setLong(1, playerId);
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            throw new RuntimeException("创建每日数据失败", e);
-        }
-        return new PlayerDaily();
+        DAILY_DAO.insertDaily(playerId);
+        return new DailyDAO.PlayerDaily();
     }
 
-    private PlayerDaily mapDaily(ResultSet rs) throws SQLException {
-        PlayerDaily d = new PlayerDaily();
-        d.lastMorningCultivation = rs.getString("last_morning_cultivation");
-        d.consecutiveDays = rs.getInt("consecutive_days");
-        d.totalActiveDays = rs.getInt("total_active_days");
-        d.explorationCount = rs.getInt("exploration_count");
-        d.battleCount = rs.getInt("battle_count");
-        d.secretRealmCount = rs.getInt("secret_realm_count");
-        d.skillLearnCount = rs.getInt("skill_learn_count");
-        d.explorationRewarded = rs.getInt("exploration_rewarded") == 1;
-        d.battleRewarded = rs.getInt("battle_rewarded") == 1;
-        d.secretRealmRewarded = rs.getInt("secret_realm_rewarded") == 1;
-        d.skillLearnRewarded = rs.getInt("skill_learn_rewarded") == 1;
-        d.resonance7Awarded = rs.getInt("resonance7_awarded") == 1;
-        d.resonance30Awarded = rs.getInt("resonance30_awarded") == 1;
-        return d;
-    }
+    // PlayerDaily 已搬到 DailyDAO（它就是 player_daily 表的行映射）。
 
-    public static class PlayerDaily {
-        String lastMorningCultivation;
-        int consecutiveDays;
-        int totalActiveDays;
-        int explorationCount;
-        int battleCount;
-        int secretRealmCount;
-        int skillLearnCount;
-        boolean explorationRewarded;
-        boolean battleRewarded;
-        boolean secretRealmRewarded;
-        boolean skillLearnRewarded;
-        boolean resonance7Awarded;
-        boolean resonance30Awarded;
-    }
 }
