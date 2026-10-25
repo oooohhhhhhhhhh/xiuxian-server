@@ -23,6 +23,7 @@ import java.io.File;
 import java.io.FileInputStream;
 import java.io.InputStream;
 import java.sql.Connection;
+import java.sql.SQLException;
 import java.util.Properties;
 
 /**
@@ -307,12 +308,48 @@ public final class PluginContext {
     // ================ 底层接口（供插件访问服务端基础设施） =================
 
     /**
-     * 获取数据库连接（HikariCP 连接池）。
-     * 插件可以使用此连接执行原生 SQL 查询。
-     * 注意：用完后必须在 finally 块中 close() 归还连接。
+     * 在一条由服务端管理的连接上执行插件给的代码。
+     *
+     * <p><b>为什么不再是 {@code getDatabaseConnection()}</b>：原来那个方法把
+     * HikariCP 的连接原样递给插件，插件必须自己在 {@code finally} 里
+     * {@code close()}。三个后果：</p>
+     * <ul>
+     *   <li>插件忘了 close，连接池就少一条 —— 本项目页面文件只有 1.4 GB，
+     *       池子打空后要卡满 10 秒才抛 {@code Connection is not available}，
+     *       堆栈还指向一条毫不相干的业务查询；</li>
+     *   <li>插件在别人的事务里调它，会在事务内另开连接 —— SQLite 下表现为
+     *       {@code SQLITE_BUSY_SNAPSHOT}，这类 bug 极难定位；</li>
+     *   <li>连接生命周期泄漏到 {@code com.mtxgdn.plugin} 包，与
+     *       {@code JdbcBoundaryTest} 的全局约束正面冲突。</li>
+     * </ul>
+     *
+     * <p>改成"插件给内容、服务端给连接"：连接由 {@code DatabaseManager} 借出、
+     * try-with-resources 保证归还，插件不再需要（也不能）持有连接对象。</p>
+     *
+     * <p><b>插件侧迁移</b>：</p>
+     * <pre>{@code
+     * // 旧写法
+     * Connection conn = ctx.getDatabaseConnection();
+     * try (var ps = conn.prepareStatement("...")) { ... } finally { conn.close(); }
+     *
+     * // 新写法
+     * ctx.runInConnection(conn -> {
+     *     try (var ps = conn.prepareStatement("...")) { ... }
+     * });
+     * }</pre>
+     *
+     * <p>{@link DatabaseWork} 允许抛 {@link java.sql.SQLException}：由服务端
+     * 统一包成 {@link RuntimeException} 抛回给插件。</p>
      */
-    public Connection getDatabaseConnection() throws java.sql.SQLException {
-        return DatabaseManager.getConnection();
+    public void runInConnection(DatabaseWork work) {
+        // 借出与归还都在 db 包内（JdbcBoundaryTest 的约束）；这里只转发。
+        DatabaseManager.runWithConnection(work::run);
+    }
+
+    /** 插件在借出的连接上要执行的内容。 */
+    @FunctionalInterface
+    public interface DatabaseWork {
+        void run(Connection conn) throws SQLException;
     }
 
     /** 获取服务端配置（application.yml）。 */

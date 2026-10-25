@@ -166,6 +166,39 @@ public class DatabaseManager {
     }
 
     /**
+     * 在一条<b>自动提交</b>的连接上执行调用方给的内容，执行完保证归还。
+     *
+     * <p><b>为什么需要这个而不是让调用方自己 {@code getConnection()}</b>：
+     * {@code JdbcBoundaryTest} 规定只有 {@code com.mtxgdn.db} 包内的类可以
+     * 出现 {@code DatabaseManager.getConnection(}。插件 API
+     * （{@code PluginContext.runInConnection}）确实需要"在一条连接上跑一段
+     * 原生 SQL"的能力 —— 但"拿连接"和"用连接"可以分开：调用方给内容，
+     * 这里负责借出与归还。</p>
+     *
+     * <p><b>与 {@link #runTransaction} 的区别</b>：本方法<b>不开事务</b>，
+     * 每条语句各自提交。适用于"只读"或"单条写入且不需要回滚"的场景。
+     * 需要"多步写入要么全成要么全不成"时用 {@link #runTransaction}。</p>
+     *
+     * <p><b>不重试</b>：自动提交下语句已经落库，重跑会把写入做两遍。
+     * 这一点与 {@code runTransaction} 相反，选错方法会写出重复数据。</p>
+     *
+     * @param work 要在连接上执行的内容；允许抛 {@link SQLException}
+     */
+    public static void runWithConnection(ConnectionWork work) {
+        try (Connection conn = getConnection()) {
+            work.run(conn);
+        } catch (SQLException e) {
+            throw new RuntimeException("数据库操作失败: " + e.getMessage(), e);
+        }
+    }
+
+    /** {@link #runWithConnection} 的执行体。 */
+    @FunctionalInterface
+    public interface ConnectionWork {
+        void run(Connection conn) throws SQLException;
+    }
+
+    /**
      * 判断异常是否属于"回滚后重跑就能成功"的并发冲突。
      *
      * <p>只认三类明确语义的冲突，其余异常一律原样抛出 —— 不能把业务失败

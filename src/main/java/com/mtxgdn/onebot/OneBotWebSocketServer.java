@@ -8,6 +8,8 @@ import com.mtxgdn.common.command.Command;
 import com.mtxgdn.common.command.CommandRegistry;
 import com.mtxgdn.common.service.ServiceRegistry;
 import com.mtxgdn.db.DatabaseManager;
+import com.mtxgdn.db.UserServiceDAO;
+import com.mtxgdn.entity.User;
 import com.mtxgdn.db.UserAccountDAO;
 import com.mtxgdn.game.entity.PlayerInfo;
 import com.mtxgdn.game.service.NewbieGuideService;
@@ -29,9 +31,6 @@ import org.glassfish.grizzly.websockets.WebSocketApplication;
 import org.mindrot.jbcrypt.BCrypt;
 
 import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.sql.Statement;
 import java.sql.Timestamp;
 import java.util.Map;
@@ -47,6 +46,7 @@ public class OneBotWebSocketServer extends WebSocketApplication
     private static final PlayerActionLogger actionLog = PlayerActionLogger.getInstance();
 
     private final QqBindingService bindingService = new QqBindingService();
+    private final UserServiceDAO USER_DAO = new UserServiceDAO();
     private final Map<WebSocket, String> sessionBots = new ConcurrentHashMap<>();
     private final Map<String, WebSocket> botSessions = new ConcurrentHashMap<>();
     private final Map<String, PendingSession> pendingSessions = new ConcurrentHashMap<>();
@@ -1044,53 +1044,50 @@ public class OneBotWebSocketServer extends WebSocketApplication
             return null;
         }
 
-        String sql = "SELECT id, password, failed_attempts, locked_until FROM users WHERE username = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setString(1, username);
-            try (ResultSet rs = stmt.executeQuery()) {
-                if (rs.next()) {
-                    java.sql.Timestamp lockedUntil = rs.getTimestamp("locked_until");
-                    if (lockedUntil != null && lockedUntil.getTime() > System.currentTimeMillis()) {
-                        return null;
-                    }
+        // 凭据校验的 SQL 全在 UserServiceDAO（users 表归它），这里只做认证策略：
+        // 锁定判定、BCrypt 比对、输错计数。
+        com.mtxgdn.entity.User user;
+        try {
+            user = USER_DAO.findByUsernameWithLockInfo(username);
+        } catch (RuntimeException e) {
+            log.error("验证用户凭据失败", e);
+            return null;
+        }
 
-                    if (BCrypt.checkpw(password, rs.getString("password"))) {
-                        resetFailedAttempts(rs.getLong("id"));
-                        return rs.getLong("id");
-                    } else {
-                        incrementFailedAttempts(rs.getLong("id"));
-                    }
-                }
-            }
-        } catch (SQLException e) { log.error("验证用户凭据失败", e); }
-        return null;
+        if (user == null) {
+            return null;
+        }
+
+        java.sql.Timestamp lockedUntil = user.getLockedUntil();
+        if (lockedUntil != null && lockedUntil.getTime() > System.currentTimeMillis()) {
+            return null;
+        }
+
+        if (!BCrypt.checkpw(password, user.getPassword())) {
+            incrementFailedAttempts(user.getId());
+            return null;
+        }
+
+        try {
+            USER_DAO.clearFailedAttempts(user.getId());
+        } catch (RuntimeException e) {
+            // 计数清零失败不该让一次成功的登录变成失败：密码已经验对了
+            log.warn("重置失败次数失败（不影响本次登录）: userId=" + user.getId() + " - " + e.getMessage());
+        }
+        return user.getId();
     }
 
     private void incrementFailedAttempts(long userId) {
         int maxAttempts = 5;
         long lockDurationMinutes = 15;
-        String sql = "UPDATE users SET failed_attempts = failed_attempts + 1, " +
-                "locked_until = COALESCE(" +
-                "CASE WHEN failed_attempts + 1 >= ? THEN ? ELSE NULL END, " +
-                "locked_until) " +
-                "WHERE id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, maxAttempts);
-            ps.setTimestamp(2, new Timestamp(System.currentTimeMillis() + lockDurationMinutes * 60 * 1000));
-            ps.setLong(3, userId);
-            ps.executeUpdate();
-        } catch (SQLException e) { log.error("更新失败次数失败", e); }
-    }
-
-    private void resetFailedAttempts(long userId) {
-        String sql = "UPDATE users SET failed_attempts = 0, locked_until = NULL WHERE id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, userId);
-            ps.executeUpdate();
-        } catch (SQLException e) { log.error("重置失败次数失败", e); }
+        Timestamp lockedUntil = new Timestamp(System.currentTimeMillis() + lockDurationMinutes * 60 * 1000);
+        try {
+            // 计数在 SQL 里做加法（failed_attempts = failed_attempts + 1）：
+            // 读内存值再写绝对值，会在两条通道同时输错密码时丢一次计数。
+            USER_DAO.recordFailedAttempt(userId, maxAttempts, lockedUntil);
+        } catch (RuntimeException e) {
+            log.error("更新失败次数失败", e);
+        }
     }
 
     // ==================== 黑名单自动禁言 ====================

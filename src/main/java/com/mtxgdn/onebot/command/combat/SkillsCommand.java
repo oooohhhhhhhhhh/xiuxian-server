@@ -2,18 +2,17 @@ package com.mtxgdn.onebot.command.combat;
 
 import com.mtxgdn.common.command.Command;
 import com.mtxgdn.common.command.CommandContext;
-import com.mtxgdn.db.DatabaseManager;
 import com.mtxgdn.game.entity.PlayerInfo;
 import com.mtxgdn.game.entity.Skill;
+import com.mtxgdn.db.SkillDAO;
 import com.mtxgdn.common.service.ServiceRegistry;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.SQLException;
 import java.util.List;
 import com.mtxgdn.i18n.I18n;
 
 public class SkillsCommand extends Command {
+
+    private static final SkillDAO SKILL_DAO = new SkillDAO();
     public SkillsCommand() {
         super(new String[]{"技能", "skills"}, "查看可用技能列表", "/技能", "战斗", "game.player.info");
         
@@ -82,15 +81,9 @@ public class SkillsCommand extends Command {
         int newProficiency = currentProficiency - proficiencyNeeded;
         int newLevel = currentLevel + 1;
 
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(
-                     "UPDATE players_skills SET level = ?, proficiency = ? WHERE player_id = ? AND skill_id = ?")) {
-            ps.setInt(1, newLevel);
-            ps.setInt(2, newProficiency);
-            ps.setLong(3, p.getId());
-            ps.setLong(4, skillId);
-            ps.executeUpdate();
-        } catch (SQLException e) {
+        try {
+            SKILL_DAO.updateLevelAndProficiency(p.getId(), skillId, newLevel, newProficiency);
+        } catch (RuntimeException e) {
             ctx.reply(I18n.t("combat.upgrade_failed", e.getMessage()));
             return;
         }

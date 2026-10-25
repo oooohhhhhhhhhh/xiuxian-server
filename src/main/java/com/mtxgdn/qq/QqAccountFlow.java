@@ -3,6 +3,8 @@ package com.mtxgdn.qq;
 import com.mtxgdn.common.service.ServiceRegistry;
 import com.mtxgdn.db.DatabaseManager;
 import com.mtxgdn.db.UserAccountDAO;
+import com.mtxgdn.db.UserServiceDAO;
+import com.mtxgdn.entity.User;
 import com.mtxgdn.game.entity.PlayerInfo;
 import com.mtxgdn.game.service.NewbieGuideService;
 import com.mtxgdn.onebot.OneBotSession;
@@ -13,10 +15,6 @@ import com.mtxgdn.util.EmailService;
 import com.mtxgdn.util.RateLimiter;
 import org.mindrot.jbcrypt.BCrypt;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.sql.Timestamp;
 
 import static com.mtxgdn.qq.QqSupport.actionLog;
@@ -53,6 +51,7 @@ final class QqAccountFlow {
 
     private final QqAdapterContext ctx;
     private final QqMessageSender sender;
+    private final UserServiceDAO USER_DAO = new UserServiceDAO();
 
     QqAccountFlow(QqAdapterContext ctx, QqMessageSender sender) {
         this.ctx = ctx;
@@ -407,56 +406,51 @@ final class QqAccountFlow {
             return new CredentialCheck(null, "尝试过于频繁，请 1 分钟后再试。");
         }
 
-        String sql = "SELECT id, password, locked_until FROM users WHERE username = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            stmt.setString(1, username);
-            try (ResultSet rs = stmt.executeQuery()) {
-                if (rs.next()) {
-                    Timestamp lockedUntil = rs.getTimestamp("locked_until");
-                    long now = System.currentTimeMillis();
-                    if (lockedUntil != null && lockedUntil.getTime() > now) {
-                        long minutes = Math.max(1, (lockedUntil.getTime() - now + 59_999) / 60_000);
-                        log.warn("QQ官方登录被拒：账号已锁定 " + minutes + " 分钟, username=" + username);
-                        return new CredentialCheck(null,
-                                "该账号因多次输错密码已被临时锁定，请约 " + minutes + " 分钟后再试（不是密码错误）。");
-                    }
+        // 凭据校验的 SQL 全在 UserServiceDAO（users 表归它），这里只做认证策略：
+        // 锁定判定、BCrypt 比对、输错计数。原来的三处 getConnection 一并消掉。
+        User user;
+        try {
+            user = USER_DAO.findByUsernameWithLockInfo(username);
+        } catch (RuntimeException e) {
+            log.error("验证用户凭据失败", e);
+            return new CredentialCheck(null, "用户名或密码错误。");
+        }
 
-                    if (BCrypt.checkpw(password, rs.getString("password"))) {
-                        resetFailedAttempts(rs.getLong("id"));
-                        return new CredentialCheck(rs.getLong("id"), null);
-                    } else {
-                        incrementFailedAttempts(rs.getLong("id"));
-                    }
-                }
+        if (user != null) {
+            Timestamp lockedUntil = user.getLockedUntil();
+            long now = System.currentTimeMillis();
+            if (lockedUntil != null && lockedUntil.getTime() > now) {
+                long minutes = Math.max(1, (lockedUntil.getTime() - now + 59_999) / 60_000);
+                log.warn("QQ官方登录被拒：账号已锁定 " + minutes + " 分钟, username=" + username);
+                return new CredentialCheck(null,
+                        "该账号因多次输错密码已被临时锁定，请约 " + minutes + " 分钟后再试（不是密码错误）。");
             }
-        } catch (SQLException e) { log.error("验证用户凭据失败", e); }
+
+            if (BCrypt.checkpw(password, user.getPassword())) {
+                try {
+                    USER_DAO.clearFailedAttempts(user.getId());
+                } catch (RuntimeException e) {
+                    // 计数清零失败不该让一次成功的登录变成失败：密码已经验对了
+                    log.warn("重置失败次数失败（不影响本次登录）: userId=" + user.getId() + " - " + e.getMessage());
+                }
+                return new CredentialCheck(user.getId(), null);
+            }
+
+            incrementFailedAttempts(user.getId());
+        }
         return new CredentialCheck(null, "用户名或密码错误。");
     }
 
     private void incrementFailedAttempts(long userId) {
         int maxAttempts = 5;
         long lockDurationMinutes = 15;
-        String sql = "UPDATE users SET failed_attempts = failed_attempts + 1, " +
-                "locked_until = COALESCE(" +
-                "CASE WHEN failed_attempts + 1 >= ? THEN ? ELSE NULL END, " +
-                "locked_until) " +
-                "WHERE id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, maxAttempts);
-            ps.setTimestamp(2, new Timestamp(System.currentTimeMillis() + lockDurationMinutes * 60 * 1000));
-            ps.setLong(3, userId);
-            ps.executeUpdate();
-        } catch (SQLException e) { log.error("更新失败次数失败", e); }
-    }
-
-    private void resetFailedAttempts(long userId) {
-        String sql = "UPDATE users SET failed_attempts = 0, locked_until = NULL WHERE id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, userId);
-            ps.executeUpdate();
-        } catch (SQLException e) { log.error("重置失败次数失败", e); }
+        Timestamp lockedUntil = new Timestamp(System.currentTimeMillis() + lockDurationMinutes * 60 * 1000);
+        try {
+            // 计数在 SQL 里做加法（failed_attempts = failed_attempts + 1）：
+            // 读内存值再写绝对值，会在两条通道同时输错密码时丢一次计数。
+            USER_DAO.recordFailedAttempt(userId, maxAttempts, lockedUntil);
+        } catch (RuntimeException e) {
+            log.error("更新失败次数失败", e);
+        }
     }
 }
