@@ -2,17 +2,14 @@ package com.mtxgdn.game.service;
 
 import com.mtxgdn.common.service.ServiceRegistry;
 
+import com.mtxgdn.db.CaveDAO;
 import com.mtxgdn.db.DatabaseManager;
 import com.mtxgdn.entity.Player;
 import com.mtxgdn.game.config.GameConfigLoader;
 import com.mtxgdn.game.entity.Cave;
 import com.mtxgdn.util.GameLogger;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.sql.SQLException;
-import java.sql.Statement;
 import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.concurrent.Executors;
@@ -23,6 +20,8 @@ import com.mtxgdn.i18n.I18n;
 public class CaveService {
 
     private static final GameLogger LOG = GameLogger.getLogger(CaveService.class);
+
+    private static final CaveDAO CAVE_DAO = new CaveDAO();
 
     private final PlayerService playerService = ServiceRegistry.getPlayerService();
     private final ItemService itemService = ServiceRegistry.getItemService();
@@ -40,15 +39,7 @@ public class CaveService {
     }
 
     public Cave getCaveByPlayerId(long playerId) {
-        String sql = "SELECT * FROM caves WHERE player_id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) return mapCave(rs);
-            }
-        } catch (SQLException e) { throw new RuntimeException("查询洞府失败", e); }
-        return null;
+        return CAVE_DAO.findCaveByPlayerId(playerId);
     }
 
     public Map<String, Object> createCave(long playerId, String caveName) {
@@ -96,25 +87,14 @@ public class CaveService {
             if (!itemService.removeSpiritStones(conn, playerId, Cave.CREATE_COST_SPIRIT_STONES)) {
                 throw new SQLException("灵石扣除失败");
             }
-            String sql = "INSERT INTO caves (player_id, name, level, spirit_energy, max_spirit_energy, " +
-                    "cultivation_bonus, storage_bonus, last_collect_time) VALUES (?, ?, 1, 0, ?, ?, ?, ?)";
-            try (PreparedStatement ps = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-                ps.setLong(1, playerId);
-                ps.setString(2, name);
-                ps.setInt(3, Cave.getMaxSpiritEnergyForLevel(1));
-                ps.setInt(4, Cave.getCultivationBonusForLevel(1));
-                ps.setInt(5, Cave.getStorageBonusForLevel(1));
-                ps.setLong(6, System.currentTimeMillis());
-                ps.executeUpdate();
-                ResultSet keys = ps.getGeneratedKeys();
-                if (keys.next()) {
-                    return keys.getLong(1);
-                }
-            }
-            return null;
+            return CAVE_DAO.insertCave(conn, playerId, name,
+                    Cave.getMaxSpiritEnergyForLevel(1),
+                    Cave.getCultivationBonusForLevel(1),
+                    Cave.getStorageBonusForLevel(1),
+                    System.currentTimeMillis());
         });
 
-        Cave cave = caveId != null ? getCaveById(caveId) : null;
+        Cave cave = caveId != null && caveId > 0 ? getCaveById(caveId) : null;
 
         if (cave != null) {
             result.put("success", true);
@@ -128,15 +108,7 @@ public class CaveService {
     }
 
     private Cave getCaveById(long caveId) {
-        String sql = "SELECT * FROM caves WHERE id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, caveId);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) return mapCave(rs);
-            }
-        } catch (SQLException e) { throw new RuntimeException("查询洞府失败", e); }
-        return null;
+        return CAVE_DAO.findCaveById(caveId);
     }
 
     public Map<String, Object> collectSpiritEnergy(long playerId) {
@@ -152,18 +124,9 @@ public class CaveService {
 
         long collectInterval = 5 * 60 * 1000L;
         Long collectedEnergy = DatabaseManager.runTransaction(conn -> {
-            String checkSql = "SELECT spirit_energy, last_collect_time FROM caves WHERE id = ? " + com.mtxgdn.db.DatabaseManager.getDialect().getForUpdateClause();
-            long spiritEnergy = 0;
-            long lastCollectTime = 0;
-            try (var ps = conn.prepareStatement(checkSql)) {
-                ps.setLong(1, cave.getId());
-                try (var rs = ps.executeQuery()) {
-                    if (rs.next()) {
-                        spiritEnergy = rs.getLong("spirit_energy");
-                        lastCollectTime = rs.getLong("last_collect_time");
-                    }
-                }
-            }
+            CaveDAO.SpiritEnergyRow locked = CAVE_DAO.lockSpiritEnergy(conn, cave.getId());
+            long spiritEnergy = locked.spiritEnergy;
+            long lastCollectTime = locked.lastCollectTime;
 
             long now = System.currentTimeMillis();
             if (lastCollectTime > 0 && (now - lastCollectTime) < collectInterval) {
@@ -174,12 +137,7 @@ public class CaveService {
                 return null;
             }
 
-            String updateSql = "UPDATE caves SET spirit_energy = 0, last_collect_time = ? WHERE id = ?";
-            try (var ps = conn.prepareStatement(updateSql)) {
-                ps.setLong(1, now);
-                ps.setLong(2, cave.getId());
-                ps.executeUpdate();
-            }
+            CAVE_DAO.resetSpiritEnergy(conn, cave.getId(), now);
 
             // 在事务内发放灵石，确保灵能重置和灵石发放原子性
             int formationBoost = com.mtxgdn.common.service.ServiceRegistry.getFormationService().getTotalSpiritEnergyBoost(playerId);
@@ -303,16 +261,10 @@ public class CaveService {
                 throw new SQLException("灵石扣除失败");
             }
             int newLevel = cave.getLevel() + 1;
-            String sql = "UPDATE caves SET level = ?, max_spirit_energy = ?, " +
-                    "cultivation_bonus = ?, storage_bonus = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?";
-            try (PreparedStatement ps = conn.prepareStatement(sql)) {
-                ps.setInt(1, newLevel);
-                ps.setInt(2, Cave.getMaxSpiritEnergyForLevel(newLevel));
-                ps.setInt(3, Cave.getCultivationBonusForLevel(newLevel));
-                ps.setInt(4, Cave.getStorageBonusForLevel(newLevel));
-                ps.setLong(5, cave.getId());
-                ps.executeUpdate();
-            }
+            CAVE_DAO.updateCaveLevel(conn, cave.getId(), newLevel,
+                    Cave.getMaxSpiritEnergyForLevel(newLevel),
+                    Cave.getCultivationBonusForLevel(newLevel),
+                    Cave.getStorageBonusForLevel(newLevel));
             return null;
         });
 
@@ -332,32 +284,11 @@ public class CaveService {
         }
         // 内置模块门控：洞府模块停用后暂停灵气自动收集
         if (!com.mtxgdn.plugin.BuiltInPluginRegistry.getInstance().isEnabledOrUnknown("cave")) return;
-        String sql = DatabaseManager.isSqlite()
-                ? "UPDATE caves SET spirit_energy = MIN(max_spirit_energy, spirit_energy + 10)"
-                : "UPDATE caves SET spirit_energy = LEAST(max_spirit_energy, spirit_energy + 10)";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.executeUpdate();
-        } catch (SQLException e) { throw new RuntimeException("更新洞府灵气失败", e); }
+        CAVE_DAO.incrementSpiritEnergy();
     }
 
     public int getStorageBonus(long playerId) {
         Cave cave = getCaveByPlayerId(playerId);
         return cave != null ? cave.getStorageBonus() : 0;
-    }
-
-    private Cave mapCave(ResultSet rs) throws SQLException {
-        Cave cave = new Cave();
-        cave.setId(rs.getLong("id"));
-        cave.setPlayerId(rs.getLong("player_id"));
-        cave.setName(rs.getString("name"));
-        cave.setLevel(rs.getInt("level"));
-        cave.setSpiritEnergy(rs.getLong("spirit_energy"));
-        cave.setMaxSpiritEnergy(rs.getInt("max_spirit_energy"));
-        cave.setCultivationBonus(rs.getInt("cultivation_bonus"));
-        cave.setStorageBonus(rs.getInt("storage_bonus"));
-        cave.setLastCollectTime(rs.getLong("last_collect_time"));
-        cave.setCreatedAt(rs.getString("created_at"));
-        return cave;
     }
 }

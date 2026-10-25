@@ -3,6 +3,7 @@ package com.mtxgdn.game.service;
 import com.mtxgdn.common.service.ServiceRegistry;
 
 import com.mtxgdn.db.DatabaseManager;
+import com.mtxgdn.db.CaveDAO;
 import com.mtxgdn.db.EconomyDAO;
 import com.mtxgdn.entity.Player;
 import com.mtxgdn.game.config.GameConfigLoader;
@@ -29,6 +30,9 @@ public class EconomyService {
     private final ItemService itemService = ServiceRegistry.getItemService();
 
     private static final EconomyDAO ECONOMY_DAO = new EconomyDAO();
+
+    /** 提纯要扣洞府灵气：caves 表归 CaveDAO。 */
+    private static final CaveDAO CAVE_DAO = new CaveDAO();
 
     /**
      * 拍卖行到期结算任务。
@@ -894,7 +898,7 @@ public class EconomyService {
             // 扣除灵石
             itemService.removeItem(conn, playerId, sourceKey, finalStoneCost);
             // 消耗洞府灵气（条件扣减：不足则整笔提纯失败）
-            if (!ECONOMY_DAO.consumeCaveAura(conn, cave.getId(), finalAuraCost)) {
+            if (!CAVE_DAO.consumeSpiritEnergy(conn, cave.getId(), finalAuraCost)) {
                 throw new SQLException("洞府灵气不足");
             }
             // 成功则发放高一级灵石

@@ -443,36 +443,6 @@ public class EconomyDAO {
         }
     }
 
-    /**
-     * 扣除洞府灵气（灵石提纯用）。
-     *
-     * <p><b>表归属说明</b>：这条动的是 {@code caves} 表，而 {@code caves}
-     * 的主要使用者是 {@code CaveService}。放在这里而不是 CaveDAO，是因为
-     * 唯一的调用方是 {@code EconomyService.purifySpiritStone} ——
-     * "提纯要耗灵气"是提纯这条业务规则的组成部分，抽到 CaveDAO 会让
-     * 经济域为了一个条件扣减去依赖洞府域。等 CaveService 抽 DAO 时
-     * 如果出现第二个调用方，再把这条搬过去并保留同样的 WHERE。</p>
-     *
-     * <p><b>只有 Connection 版</b>：提纯是"扣灵石 → 扣灵气 → 发高阶灵石"
-     * 三步，必须共用一条连接。</p>
-     *
-     * <p><b>{@code WHERE ... spirit_energy >= ?} 是条件扣减</b>：
-     * 灵气不足时 {@code executeUpdate()} 命中 0 行，此时整个事务要失败
-     * （服务层抛 {@code "洞府灵气不足"}）。SQLite 没有
-     * {@code GREATEST(0, ...)}，也不能写成
-     * {@code SET spirit_energy = spirit_energy - ?} 再回查 ——
-     * 那会把灵气扣成负数。</p>
-     */
-    public boolean consumeCaveAura(Connection conn, long caveId, long auraCost) throws SQLException {
-        String sql = "UPDATE caves SET spirit_energy = spirit_energy - ? "
-                + "WHERE id = ? AND spirit_energy >= ?";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, auraCost);
-            ps.setLong(2, caveId);
-            ps.setLong(3, auraCost);
-            return ps.executeUpdate() > 0;
-        }
-    }
 
     /** 某玩家的挂单（按创建时间倒序，最多 20 条）。 */    public List<Map<String, Object>> findPlayerAuctionListings(long playerId) {
         try (Connection conn = DatabaseManager.getConnection()) {
