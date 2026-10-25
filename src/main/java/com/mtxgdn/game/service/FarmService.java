@@ -100,47 +100,52 @@ public class FarmService {
 
     public List<FarmPlot> getPlots(long playerId) {
         initPlots(playerId);
-        String sql = "SELECT * FROM farm_plots WHERE player_id = ? ORDER BY plot_index";
-        List<FarmPlot> result = new ArrayList<>();
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
+        // 用事务而不是裸连接：settlePlayerPlots 会推进生长/枯萎/虫害状态（写），
+        // 必须和随后的读取落在同一个事务里，否则读到的是「结算前」的地块
+        return DatabaseManager.runTransaction(conn -> {
             // 读取即结算：把上次访问到现在的生长/枯萎/虫害一次性推进（取代原来的每秒全表扫描）
             settlePlayerPlots(conn, playerId, System.currentTimeMillis());
-            ps.setLong(1, playerId);
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    result.add(mapPlot(rs));
+            String sql = "SELECT * FROM farm_plots WHERE player_id = ? ORDER BY plot_index";
+            List<FarmPlot> result = new ArrayList<>();
+            try (PreparedStatement ps = conn.prepareStatement(sql)) {
+                ps.setLong(1, playerId);
+                try (ResultSet rs = ps.executeQuery()) {
+                    while (rs.next()) {
+                        result.add(mapPlot(rs));
+                    }
                 }
             }
-        } catch (SQLException e) {
-            throw new RuntimeException("查询农田失败", e);
-        }
-        return result;
+            return result;
+        });
     }
 
     private void initPlots(long playerId) {
-        String countSql = "SELECT COUNT(*) as cnt FROM farm_plots WHERE player_id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(countSql)) {
-            ps.setLong(1, playerId);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next() && rs.getInt("cnt") == 0) {
-                    String insertSql = "INSERT INTO farm_plots (player_id, plot_index, state, water_level, fertilizer_level) VALUES (?, ?, ?, ?, ?)";
-                    try (PreparedStatement insPs = conn.prepareStatement(insertSql)) {
-                        for (int i = 0; i < DEFAULT_PLOTS; i++) {
-                            insPs.setLong(1, playerId);
-                            insPs.setInt(2, i);
-                            insPs.setString(3, FarmPlot.PlotState.EMPTY.name());
-                            insPs.setInt(4, WATER_MAX);
-                            insPs.setInt(5, 0);
-                            insPs.executeUpdate();
-                        }
+        // COUNT 与随后的批量 INSERT 必须原子：两个并发首次访问不该各插一套地块
+        Integer inserted = DatabaseManager.runTransaction(conn -> {
+            String countSql = "SELECT COUNT(*) as cnt FROM farm_plots WHERE player_id = ?";
+            try (PreparedStatement ps = conn.prepareStatement(countSql)) {
+                ps.setLong(1, playerId);
+                try (ResultSet rs = ps.executeQuery()) {
+                    if (!rs.next() || rs.getInt("cnt") != 0) {
+                        return 0;
                     }
-                    LOG.info("玩家 " + playerId + " 初始化农田 " + DEFAULT_PLOTS + " 块");
                 }
             }
-        } catch (SQLException e) {
-            throw new RuntimeException("初始化农田失败", e);
+            String insertSql = "INSERT INTO farm_plots (player_id, plot_index, state, water_level, fertilizer_level) VALUES (?, ?, ?, ?, ?)";
+            try (PreparedStatement insPs = conn.prepareStatement(insertSql)) {
+                for (int i = 0; i < DEFAULT_PLOTS; i++) {
+                    insPs.setLong(1, playerId);
+                    insPs.setInt(2, i);
+                    insPs.setString(3, FarmPlot.PlotState.EMPTY.name());
+                    insPs.setInt(4, WATER_MAX);
+                    insPs.setInt(5, 0);
+                    insPs.executeUpdate();
+                }
+            }
+            return DEFAULT_PLOTS;
+        });
+        if (inserted > 0) {
+            LOG.info("玩家 " + playerId + " 初始化农田 " + inserted + " 块");
         }
     }
 
@@ -799,19 +804,18 @@ public class FarmService {
     }
 
     private int countPlayerPlots(long playerId) {
-        String countSql = "SELECT COUNT(*) as cnt FROM farm_plots WHERE player_id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(countSql)) {
-            ps.setLong(1, playerId);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    return rs.getInt("cnt");
+        // 只读一条 COUNT，但仍然走事务：服务层不再自己开连接。
+        // 注意这里是「事务外先数、事务内按数出来的下标插入」——
+        // 两个并发扩建可能挑到同一个 plot_index。这是既有行为，本次不改变它。
+        return DatabaseManager.runTransaction(conn -> {
+            String countSql = "SELECT COUNT(*) as cnt FROM farm_plots WHERE player_id = ?";
+            try (PreparedStatement ps = conn.prepareStatement(countSql)) {
+                ps.setLong(1, playerId);
+                try (ResultSet rs = ps.executeQuery()) {
+                    return rs.next() ? rs.getInt("cnt") : 0;
                 }
             }
-        } catch (SQLException e) {
-            throw new RuntimeException("查询地块数量失败", e);
-        }
-        return 0;
+        });
     }
 
     private long calculateExpandCost(int currentCount) {
