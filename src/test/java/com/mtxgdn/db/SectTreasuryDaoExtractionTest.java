@@ -92,6 +92,42 @@ class SectTreasuryDaoExtractionTest extends DaoExtractionAssertions {
     }
 
     @Test
+    @DisplayName("自取连接版整体委托 Connection 版，SQL 一行都没复制")
+    void selfConnectedOverloadsOnlyDelegate() throws IOException {
+        String dao = stripComments(read(daoPath()));
+        // 基类只查「存在重载」，不查「是否委托」——这里逐个人工地确认每个
+        // 自取连接版的体内只有一次同名调用，没有任何 SQL 字样。
+        for (String self : new String[]{
+                "public void addPrestige(long sectId, long amount)",
+                "public void addTreasury(long sectId, long amount)",
+                "public void setSalaryTier(long sectId, long perMember, long now)",
+                "public boolean deductTreasuryIfEnough(long sectId, long amount, long now)",
+                "public void markSalaryPaid(long sectId, long now)"}) {
+            String body = bodyOf(dao, self);
+            // 方法名 = 参数表 '(' 之前的最后一个空格 到 '(' 之间。
+            // 两个坑都要避开：不能对整个签名用 indexOf(' ')（"public void" 之间
+            // 就有两个空格），也不能用 lastIndexOf(' ')（参数表里也有空格，
+            // "… long amount)" 的最后一个空格在参数里，往后就找不到 '(' 了）。
+            // 所以先定位参数表的 '('，再回头找它前面最后一个空格。
+            int paren = self.indexOf('(');
+            String name = self.substring(self.lastIndexOf(' ', paren) + 1, paren);
+            assertEquals(1, countOccurrences(body, name + "(conn,"),
+                    self + " 必须且只能委托一次 conn 版");
+            assertFalse(body.contains("UPDATE "), self + " 的体内不该再出现 SQL：复制一份就会两份漂移");
+            assertFalse(body.contains("ps.set"), self + " 不该自己绑参数");
+            assertFalse(body.contains("ps.execute"), self + " 不该自己执行语句");
+        }
+        // 委托的实参顺序必须与签名一致：少一个参数就会编译不过，
+        // 但参数写反（amount/sectId 互换）编译得过，所以逐个点名
+        assertTrue(bodyOf(dao, "public boolean deductTreasuryIfEnough(long sectId, long amount, long now)")
+                        .contains("deductTreasuryIfEnough(conn, sectId, amount, now)"),
+                "委托时的实参顺序必须与形参一一对应");
+        assertTrue(bodyOf(dao, "public void setSalaryTier(long sectId, long perMember, long now)")
+                        .contains("setSalaryTier(conn, sectId, perMember, now)"),
+                "setSalaryTier 的三个实参顺序不能换");
+    }
+
+    @Test
     @DisplayName("五处失败都只让服务层降级，DAO 统一抛 RuntimeException")
     void failuresSurfaceAsRuntimeException() throws IOException {
         String dao = stripComments(read(daoPath()));
@@ -112,6 +148,9 @@ class SectTreasuryDaoExtractionTest extends DaoExtractionAssertions {
                 "设定工资失败要打 error 并返回失败文案");
         assertTrue(service.contains("SectSupport.LOG.error(\"宗门工资扣减金库失败: \""),
                 "扣金库失败要打 error 并返回失败文案");
+        // DAO 里的 catch 只包 SQLException，不吞 RuntimeException
+        assertEquals(0, countOccurrences(dao, "catch (RuntimeException"),
+                "DAO 不该捕获 RuntimeException：那会把服务层故意抛出的判断吞掉");
     }
 
     @Test

@@ -148,16 +148,65 @@ class SectWarehouseDaoExtractionTest extends DaoExtractionAssertions {
     }
 
     @Test
-    @DisplayName("行 → 实体的映射留在服务层，DAO 只交扁平记录")
-    void rowMappingStaysInService() throws IOException {
+    @DisplayName("自取连接版整体委托 Connection 版，SQL 一行都没复制")
+    void selfConnectedOverloadsOnlyDelegate() throws IOException {
         String dao = stripComments(read(daoPath()));
-        assertTrue(dao.contains("record WarehouseItemRow"), "DAO 用扁平记录出行，像 MapDAO 那样");
-        assertFalse(dao.contains("SectWarehouseItem"), "DAO 不该构造宗门实体");
-        assertFalse(dao.contains("SectSupport"), "DAO 不该依赖宗门服务包");
-        assertTrue(dao.contains("catch (SQLException ignored) {}"),
-                "老库缺 donated_by_* 列时的容错要跟着记录一起搬过来");
-        String service = stripComments(read(servicePath()));
-        assertTrue(service.contains("new SectWarehouseItem()"), "实体构造仍留在服务层");
-        assertTrue(service.contains("row.donatedByName()"), "服务层从记录里取值");
+        // 基类只查「存在重载」，不查「是否委托」。仓库只有两个读方法有自取连接版，
+        // 其余五个方法天生只有 conn 版（捐献/取出的事务步）。
+        for (String self : new String[]{
+                "public java.util.List<WarehouseItemRow> getWarehouse(long sectId)",
+                "public int getWarehouseItemCount(long sectId, String itemKey)"}) {
+            String body = bodyOf(dao, self);
+            // 方法名 = 参数表 '(' 之前的最后一个空格 到 '(' 之间。
+            // 不能用 lastIndexOf(' ')：参数表里也有空格；也不能用 indexOf(' ')：
+            // "public java.util.List<...>" 之间有多个空格。
+            int paren = self.indexOf('(');
+            String name = self.substring(self.lastIndexOf(' ', paren) + 1, paren);
+            assertEquals(1, countOccurrences(body, name + "(conn,"),
+                    self + " 必须且只能委托一次 conn 版");
+            assertFalse(body.contains("SELECT "), self + " 的体内不该再出现 SQL：复制一份就会两份漂移");
+            assertFalse(body.contains("ps.set"), self + " 不该自己绑参数");
+            assertFalse(body.contains("ps.execute"), self + " 不该自己执行语句");
+        }
+        // 委托实参顺序必须与形参一一对应：写反了编译得过
+        assertTrue(bodyOf(dao, "public java.util.List<WarehouseItemRow> getWarehouse(long sectId)")
+                        .contains("return getWarehouse(conn, sectId);"),
+                "getWarehouse 的委托实参顺序不能换");
+        assertTrue(bodyOf(dao, "public int getWarehouseItemCount(long sectId, String itemKey)")
+                        .contains("return getWarehouseItemCount(conn, sectId, itemKey);"),
+                "getWarehouseItemCount 的委托实参顺序不能换");
+    }
+
+    @Test
+    @DisplayName("事务内的五个方法只有 conn 版：没有自取连接版可误用")
+    void transactionOnlyMethodsHaveNoSelfConnectionOverload() throws IOException {
+        String dao = stripComments(read(daoPath()));
+        // 这五个方法若也有自取连接版，就等于给「事务外单独改一张子表」开了门
+        for (String connOnly : new String[]{
+                "public void upsertWarehouse(Connection conn, long sectId, String itemKey, int quantity, long playerId)",
+                "public void addContribution(Connection conn, long sectId, long playerId, long amount)",
+                "public void addPrestige(Connection conn, long sectId, long amount)",
+                "public boolean deductContributionIfEnough(Connection conn, long memberId, long amount)",
+                "public boolean deductWarehouseIfEnough(Connection conn, long sectId, String itemKey, int quantity)"}) {
+            String body = bodyOf(dao, connOnly);
+            assertEquals(0, countOccurrences(body, "DatabaseManager.getConnection()"),
+                    connOnly + " 只该跑在调用方的连接上");
+        }
+        // 七个 public 的 conn 版都声明 throws SQLException，让调用方（事务）决定回滚。
+        // 逐一点名，不用总数 —— 私有 readRow(ResultSet) 也 throws，但那是实现细节。
+        for (String sig : new String[]{
+                "public java.util.List<WarehouseItemRow> getWarehouse(Connection conn, long sectId)",
+                "public int getWarehouseItemCount(Connection conn, long sectId, String itemKey)",
+                "public void upsertWarehouse(Connection conn,",
+                "public void addContribution(Connection conn,",
+                "public void addPrestige(Connection conn,",
+                "public boolean deductContributionIfEnough(Connection conn,",
+                "public boolean deductWarehouseIfEnough(Connection conn,"}) {
+            assertTrue(dao.contains(sig), sig + " 应该存在");
+            int at = dao.indexOf(sig);
+            String rest = dao.substring(at, Math.min(at + 200, dao.length()));
+            assertTrue(rest.contains("throws SQLException"),
+                    sig + " 必须 throws SQLException，把失败交给调用方的事务");
+        }
     }
 }
