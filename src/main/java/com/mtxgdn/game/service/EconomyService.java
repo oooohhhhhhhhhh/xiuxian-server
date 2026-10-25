@@ -3,13 +3,12 @@ package com.mtxgdn.game.service;
 import com.mtxgdn.common.service.ServiceRegistry;
 
 import com.mtxgdn.db.DatabaseManager;
+import com.mtxgdn.db.EconomyDAO;
 import com.mtxgdn.entity.Player;
 import com.mtxgdn.game.config.GameConfigLoader;
 import com.mtxgdn.game.entity.Cave;
 
 import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -28,6 +27,8 @@ public class EconomyService {
 
     private final PlayerService playerService = ServiceRegistry.getPlayerService();
     private final ItemService itemService = ServiceRegistry.getItemService();
+
+    private static final EconomyDAO ECONOMY_DAO = new EconomyDAO();
 
     /**
      * 拍卖行到期结算任务。
@@ -121,17 +122,11 @@ public class EconomyService {
             Map<String, Object> txResult = new LinkedHashMap<>();
             try {
                 // 事务内行锁复查：防止并发双签（MySQL 行锁/间隙锁，SQLite 单写者串行化）
-                String checkSql = "SELECT last_sign_in FROM player_economy WHERE player_id = ?"
-                        + (DatabaseManager.isSqlite() ? "" : " FOR UPDATE");
-                try (PreparedStatement ps = conn.prepareStatement(checkSql)) {
-                    ps.setLong(1, playerId);
-                    try (ResultSet rs = ps.executeQuery()) {
-                        if (rs.next() && today.equals(rs.getString("last_sign_in"))) {
-                            txResult.put("success", false);
-                            txResult.put("message", I18n.t("economy.you_have_already_checked"));
-                            return txResult;
-                        }
-                    }
+                String lastSignIn = ECONOMY_DAO.findLastSignInForUpdate(conn, playerId);
+                if (today.equals(lastSignIn)) {
+                    txResult.put("success", false);
+                    txResult.put("message", I18n.t("economy.you_have_already_checked"));
+                    return txResult;
                 }
 
                 for (int i = 1; i < reward.length; i += 2) {
@@ -419,20 +414,9 @@ public class EconomyService {
                     throw new SQLException("灵石扣除失败");
                 }
 
-                String sql = "INSERT INTO player_bank (player_id, deposit_type, principal, rate, deposited_at, matures_at) VALUES (?, ?, ?, ?, ?, ?)";
-                try (PreparedStatement ps = conn.prepareStatement(sql, java.sql.Statement.RETURN_GENERATED_KEYS)) {
-                    ps.setLong(1, playerId);
-                    ps.setString(2, type);
-                    ps.setLong(3, amount);
-                    ps.setDouble(4, rate);
-                    ps.setLong(5, System.currentTimeMillis());
-                    ps.setLong(6, maturesAt);
-                    ps.executeUpdate();
-                    try (var rs = ps.getGeneratedKeys()) {
-                        if (rs.next()) return rs.getLong(1);
-                    }
-                }
-                return 0L;
+                long newDepositId = ECONOMY_DAO.insertBankDeposit(conn, playerId, type, amount, rate,
+                        System.currentTimeMillis(), maturesAt);
+                return newDepositId;
             });
         } catch (Exception e) {
             throw new RuntimeException("灵庄存入失败", e);
@@ -518,50 +502,44 @@ public class EconomyService {
         long totalPrincipal = 0, totalPendingInterest = 0;
         long now = System.currentTimeMillis();
 
-        String sql = "SELECT * FROM player_bank WHERE player_id = ? AND status = 'active' ORDER BY created_at DESC";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    Map<String, Object> row = new LinkedHashMap<>();
-                    long id = rs.getLong("id");
-                    String type = rs.getString("deposit_type");
-                    long principal = rs.getLong("principal");
-                    double rate = rs.getDouble("rate");
-                    long depositedAt = rs.getLong("deposited_at");
-                    long maturesAt = rs.getLong("matures_at");
+        // 只取原始行：利息估算与「剩余 N 天」文案依赖「现在」，留在服务层算
+        for (Map<String, Object> rs : ECONOMY_DAO.findActiveBankDeposits(playerId)) {
+            Map<String, Object> row = new LinkedHashMap<>();
+            long id = ((Number) rs.get("id")).longValue();
+            String type = (String) rs.get("deposit_type");
+            long principal = ((Number) rs.get("principal")).longValue();
+            double rate = ((Number) rs.get("rate")).doubleValue();
+            long depositedAt = ((Number) rs.get("deposited_at")).longValue();
+            long maturesAt = ((Number) rs.get("matures_at")).longValue();
 
-                    row.put("id", id);
-                    row.put("principal", principal);
-                    totalPrincipal += principal;
+            row.put("id", id);
+            row.put("principal", principal);
+            totalPrincipal += principal;
 
-                    boolean isCurrent = "current".equals(type);
-                    if (isCurrent) {
-                        int elapsedDays = (int)((now - depositedAt) / 86400000L);
-                        long estimatedInterest = (long)(principal * Math.pow(1 + rate, elapsedDays) - principal);
-                        if (estimatedInterest < 0) estimatedInterest = 0;
-                        row.put("type", "活期");
-                        row.put("estimatedInterest", estimatedInterest);
-                        row.put("note", "已存 " + elapsedDays + " 天，日利 " + String.format("%.1f", rate * 100) + "%");
-                        totalPendingInterest += estimatedInterest;
-                    } else {
-                        int planDays = maturesAt > 0 ? (int)((maturesAt - depositedAt) / 86400000L) : 0;
-                        long remainingMs = maturesAt - now;
-                        row.put("type", planDays + "天定期");
-                        row.put("estimatedInterest", maturesAt > 0 && now >= maturesAt ? (long)(principal * rate) : 0L);
-                        if (remainingMs > 0) {
-                            long remainingDays = remainingMs / 86400000L + 1;
-                            row.put("note", "剩余 " + remainingDays + " 天到期，利率 " + String.format("%.0f", rate * 100) + "%（到期前取款无利息）");
-                        } else {
-                            row.put("note", "已到期！可取款，利率 " + String.format("%.0f", rate * 100) + "%");
-                            totalPendingInterest += (long)(principal * rate);
-                        }
-                    }
-                    deposits.add(row);
+            boolean isCurrent = "current".equals(type);
+            if (isCurrent) {
+                int elapsedDays = (int) ((now - depositedAt) / 86400000L);
+                long estimatedInterest = (long) (principal * Math.pow(1 + rate, elapsedDays) - principal);
+                if (estimatedInterest < 0) estimatedInterest = 0;
+                row.put("type", "活期");
+                row.put("estimatedInterest", estimatedInterest);
+                row.put("note", "已存 " + elapsedDays + " 天，日利 " + String.format("%.1f", rate * 100) + "%");
+                totalPendingInterest += estimatedInterest;
+            } else {
+                int planDays = maturesAt > 0 ? (int) ((maturesAt - depositedAt) / 86400000L) : 0;
+                long remainingMs = maturesAt - now;
+                row.put("type", planDays + "天定期");
+                row.put("estimatedInterest", maturesAt > 0 && now >= maturesAt ? (long) (principal * rate) : 0L);
+                if (remainingMs > 0) {
+                    long remainingDays = remainingMs / 86400000L + 1;
+                    row.put("note", "剩余 " + remainingDays + " 天到期，利率 " + String.format("%.0f", rate * 100) + "%（到期前取款无利息）");
+                } else {
+                    row.put("note", "已到期！可取款，利率 " + String.format("%.0f", rate * 100) + "%");
+                    totalPendingInterest += (long) (principal * rate);
                 }
             }
-        } catch (SQLException e) { throw new RuntimeException("查询灵庄失败", e); }
+            deposits.add(row);
+        }
 
         result.put("deposits", deposits);
         result.put("totalPrincipal", totalPrincipal);
@@ -570,35 +548,23 @@ public class EconomyService {
     }
 
     private BankDeposit getBankDeposit(long depositId) {
-        String sql = "SELECT * FROM player_bank WHERE id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, depositId);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    BankDeposit d = new BankDeposit();
-                    d.id = rs.getLong("id");
-                    d.playerId = rs.getLong("player_id");
-                    d.depositType = rs.getString("deposit_type");
-                    d.principal = rs.getLong("principal");
-                    d.rate = rs.getDouble("rate");
-                    d.depositedAt = rs.getLong("deposited_at");
-                    d.maturesAt = rs.getLong("matures_at");
-                    d.status = rs.getString("status");
-                    return d;
-                }
-            }
-        } catch (SQLException e) { throw new RuntimeException("查询存款失败", e); }
-        return null;
+        // 只按 id 过滤，不带 player_id：归属校验在 bankWithdraw 里做
+        Map<String, Object> row = ECONOMY_DAO.findBankDepositRow(depositId);
+        if (row == null) return null;
+        BankDeposit d = new BankDeposit();
+        d.id = ((Number) row.get("id")).longValue();
+        d.playerId = ((Number) row.get("player_id")).longValue();
+        d.depositType = (String) row.get("deposit_type");
+        d.principal = ((Number) row.get("principal")).longValue();
+        d.rate = ((Number) row.get("rate")).doubleValue();
+        d.depositedAt = ((Number) row.get("deposited_at")).longValue();
+        d.maturesAt = ((Number) row.get("matures_at")).longValue();
+        d.status = (String) row.get("status");
+        return d;
     }
 
     private boolean markBankDepositDone(Connection conn, long depositId, long interest) throws SQLException {
-        String sql = "UPDATE player_bank SET status = 'withdrawn', interest_earned = ? WHERE id = ? AND status = 'active'";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, interest);
-            ps.setLong(2, depositId);
-            return ps.executeUpdate() > 0;
-        }
+        return ECONOMY_DAO.markBankDepositWithdrawn(conn, depositId, interest);
     }
 
     private static class BankDeposit {
@@ -614,36 +580,17 @@ public class EconomyService {
     public Map<String, Object> getEconomyStats() {
         Map<String, Object> stats = new LinkedHashMap<>();
 
-        String totalStonesSql = "SELECT COALESCE(SUM(CASE WHEN item_key = 'mtxgdn:spirit_stone_low' THEN quantity WHEN item_key = 'mtxgdn:spirit_stone_mid' THEN quantity * 1000 WHEN item_key = 'mtxgdn:spirit_stone_high' THEN quantity * 1000000 WHEN item_key = 'mtxgdn:spirit_stone_supreme' THEN quantity * 1000000000 WHEN item_key = 'mtxgdn:spirit_stone' THEN quantity ELSE 0 END), 0) FROM players_items WHERE item_key LIKE 'mtxgdn:spirit_stone%'";
-        String totalGoldSql = "SELECT COALESCE(SUM(gold), 0) FROM players";
-        String totalPlayersSql = "SELECT COUNT(*) FROM players";
-
-        try (Connection conn = DatabaseManager.getConnection()) {
-            try (PreparedStatement ps = conn.prepareStatement(totalStonesSql); ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) stats.put("totalStones", rs.getLong(1));
-            }
-            try (PreparedStatement ps = conn.prepareStatement(totalGoldSql); ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) stats.put("totalGold", rs.getLong(1));
-            }
-            try (PreparedStatement ps = conn.prepareStatement(totalPlayersSql); ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) stats.put("totalPlayers", rs.getInt(1));
-            }
-
-            stats.put("last24hTradeVolume", estimate24hVolume(conn));
+        // 三个标量各一条语句：合并成一条 JOIN 会因为「没有物品的玩家」被丢掉而少算人数
+        try {
+            stats.put("totalStones", ECONOMY_DAO.sumSpiritStones());
+            stats.put("totalGold", ECONOMY_DAO.sumGold());
+            stats.put("totalPlayers", ECONOMY_DAO.countPlayers());
+            stats.put("last24hTradeVolume", ECONOMY_DAO.countSoldTradeListings());
         } catch (Exception e) {
             stats.put("error", e.getMessage());
         }
 
         return stats;
-    }
-
-    private long estimate24hVolume(Connection conn) {
-        try (PreparedStatement ps = conn.prepareStatement(
-                "SELECT COUNT(*) FROM trade_listings WHERE status = 'sold'");
-             ResultSet rs = ps.executeQuery()) {
-            if (rs.next()) return rs.getLong(1);
-        } catch (Exception ignored) {}
-        return 0;
     }
 
     // ==================== 竞拍行 ====================
@@ -663,20 +610,13 @@ public class EconomyService {
         int realHours = Math.min(Math.max(hours, 1), 72);
 
         long endTimeMs = System.currentTimeMillis() + realHours * 3600000L;
-        String sql = "INSERT INTO auction_listings (seller_player_id, item_key, quantity, start_price, fee_rate, end_time) VALUES (?, ?, ?, ?, 0.07, ?)";
         try {
             DatabaseManager.runTransaction(conn -> {
                 if (!itemService.removeItem(conn, playerId, fullKey, quantity)) {
                     throw new SQLException("物品扣除失败");
                 }
-                try (PreparedStatement ps = conn.prepareStatement(sql)) {
-                    ps.setLong(1, playerId);
-                    ps.setString(2, fullKey);
-                    ps.setInt(3, quantity);
-                    ps.setLong(4, startPrice);
-                    ps.setTimestamp(5, new java.sql.Timestamp(endTimeMs));
-                    ps.executeUpdate();
-                }
+                ECONOMY_DAO.insertAuctionListing(conn, playerId, fullKey, quantity, startPrice,
+                        new java.sql.Timestamp(endTimeMs));
                 return null;
             });
         } catch (Exception e) {
@@ -725,21 +665,8 @@ public class EconomyService {
                     throw new SQLException("灵石扣除失败");
                 }
 
-                String bidSql = "INSERT INTO auction_bids (listing_id, bidder_player_id, amount) VALUES (?, ?, ?)";
-                try (PreparedStatement ps = conn.prepareStatement(bidSql)) {
-                    ps.setLong(1, listingId);
-                    ps.setLong(2, bidderPlayerId);
-                    ps.setLong(3, amount);
-                    ps.executeUpdate();
-                }
-                String updSql = "UPDATE auction_listings SET current_bid = ?, current_bidder_id = ? WHERE id = ? AND status = 'active'";
-                try (PreparedStatement ps = conn.prepareStatement(updSql)) {
-                    ps.setLong(1, amount);
-                    ps.setLong(2, bidderPlayerId);
-                    ps.setLong(3, listingId);
-                    if (ps.executeUpdate() == 0) {
-                        throw new SQLException("拍卖已结束");
-                    }
+                if (!ECONOMY_DAO.insertBidAndUpdateListing(conn, listingId, bidderPlayerId, amount)) {
+                    throw new SQLException("拍卖已结束");
                 }
                 return null;
             });
@@ -765,111 +692,97 @@ public class EconomyService {
 
     /** 事务内读取竞拍并加行锁（MySQL 使用 FOR UPDATE；SQLite 在事务内 UPDATE 即隐式写锁）。必须在事务内调用。 */
     private AuctionListing getAuctionListingForUpdate(Connection conn, long listingId) throws SQLException {
-        String sql = DatabaseManager.isSqlite()
-                ? "SELECT * FROM auction_listings WHERE id = ? AND status = 'active'"
-                : "SELECT * FROM auction_listings WHERE id = ? AND status = 'active' FOR UPDATE";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, listingId);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    AuctionListing l = new AuctionListing();
-                    l.id = rs.getLong("id");
-                    l.sellerPlayerId = rs.getLong("seller_player_id");
-                    l.itemKey = rs.getString("item_key");
-                    l.quantity = rs.getInt("quantity");
-                    l.startPrice = rs.getLong("start_price");
-                    l.currentBid = rs.getObject("current_bid") != null ? rs.getLong("current_bid") : null;
-                    l.currentBidderId = rs.getObject("current_bidder_id") != null ? rs.getLong("current_bidder_id") : null;
-                    l.feeRate = rs.getDouble("fee_rate");
-                    return l;
-                }
-            }
-        }
-        return null;
+        EconomyDAO.AuctionListingRow row = ECONOMY_DAO.findAuctionListingForUpdate(conn, listingId);
+        if (row == null) return null;
+        AuctionListing l = new AuctionListing();
+        l.id = row.id;
+        l.sellerPlayerId = row.sellerPlayerId;
+        l.itemKey = row.itemKey;
+        l.quantity = row.quantity;
+        l.startPrice = row.startPrice;
+        l.currentBid = row.currentBid;
+        l.currentBidderId = row.currentBidderId;
+        l.feeRate = row.feeRate;
+        return l;
     }
 
     public List<Map<String, Object>> getActiveAuctionItems() {
         List<Map<String, Object>> result = new ArrayList<>();
         settleExpiredAuctions();
-        String sql = "SELECT * FROM auction_listings WHERE status = 'active' ORDER BY created_at DESC";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql);
-             ResultSet rs = ps.executeQuery()) {
-            while (rs.next()) {
-                Map<String, Object> row = new LinkedHashMap<>();
-                row.put("id", rs.getLong("id"));
-                var item = com.mtxgdn.game.item.ItemRegistry.get(rs.getString("item_key"));
-                row.put("itemName", item != null ? item.getName() : rs.getString("item_key"));
-                row.put("quantity", rs.getInt("quantity"));
-                row.put("startPrice", rs.getLong("start_price"));
-                row.put("currentBid", rs.getObject("current_bid"));
-                row.put("remaining", estimateRemaining(rs.getTimestamp("end_time")));
-                result.add(row);
-            }
-        } catch (SQLException e) { throw new RuntimeException("查询竞拍列表失败", e); }
+        for (Map<String, Object> rs : ECONOMY_DAO.findActiveAuctionListings()) {
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("id", ((Number) rs.get("id")).longValue());
+            var item = com.mtxgdn.game.item.ItemRegistry.get((String) rs.get("item_key"));
+            String itemKey = (String) rs.get("item_key");
+            row.put("itemName", item != null ? item.getName() : itemKey);
+            row.put("quantity", ((Number) rs.get("quantity")).intValue());
+            row.put("startPrice", ((Number) rs.get("start_price")).longValue());
+            row.put("currentBid", rs.get("current_bid"));
+            row.put("remaining", estimateRemaining(toTimestamp(rs.get("end_time"))));
+            result.add(row);
+        }
         return result;
     }
 
     public List<Map<String, Object>> getPlayerAuctionItems(long playerId) {
         List<Map<String, Object>> result = new ArrayList<>();
         settleExpiredAuctions();
-        String sql = "SELECT * FROM auction_listings WHERE seller_player_id = ? ORDER BY created_at DESC LIMIT 20";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    Map<String, Object> row = new LinkedHashMap<>();
-                    row.put("id", rs.getLong("id"));
-                    var item = com.mtxgdn.game.item.ItemRegistry.get(rs.getString("item_key"));
-                    row.put("itemName", item != null ? item.getName() : rs.getString("item_key"));
-                    row.put("quantity", rs.getInt("quantity"));
-                    row.put("currentBid", rs.getObject("current_bid"));
-                    row.put("status", rs.getString("status"));
-                    result.add(row);
-                }
-            }
-        } catch (SQLException e) { throw new RuntimeException("查询个人拍卖失败", e); }
+        for (Map<String, Object> rs : ECONOMY_DAO.findPlayerAuctionListings(playerId)) {
+            Map<String, Object> row = new LinkedHashMap<>();
+            row.put("id", ((Number) rs.get("id")).longValue());
+            var item = com.mtxgdn.game.item.ItemRegistry.get((String) rs.get("item_key"));
+            String itemKey = (String) rs.get("item_key");
+            row.put("itemName", item != null ? item.getName() : itemKey);
+            row.put("quantity", ((Number) rs.get("quantity")).intValue());
+            row.put("currentBid", rs.get("current_bid"));
+            row.put("status", rs.get("status"));
+            result.add(row);
+        }
         return result;
     }
 
+    /**
+     * DAO 交回的行里 {@code end_time} 是 {@code "ts:<毫秒>"} 字符串
+     * （通用行映射为 JSON 序列化设计的），这里还原成 {@link java.sql.Timestamp}
+     * 供 {@link #estimateRemaining} 用。
+     */
+    private static java.sql.Timestamp toTimestamp(Object value) {
+        if (value instanceof java.sql.Timestamp ts) return ts;
+        if (value instanceof String s && s.startsWith("ts:")) {
+            return new java.sql.Timestamp(Long.parseLong(s.substring(3)));
+        }
+        return null;
+    }
+
     private void settleExpiredAuctions() {
-        String selectSql = "SELECT * FROM auction_listings WHERE status = 'active'";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(selectSql);
-             ResultSet rs = ps.executeQuery()) {
-            long now = System.currentTimeMillis();
-            while (rs.next()) {
-                java.sql.Timestamp endTime = rs.getTimestamp("end_time");
-                if (endTime != null && endTime.getTime() > now) continue;
-                final long listingId = rs.getLong("id");
-                final long sellerId = rs.getLong("seller_player_id");
-                final String itemKey = rs.getString("item_key");
-                final int qty = rs.getInt("quantity");
-                final long currentBid = rs.getLong("current_bid");
-                final Long bidderId = rs.getObject("current_bidder_id") != null ? rs.getLong("current_bidder_id") : null;
-                final double feeRate = rs.getDouble("fee_rate");
+        // 「现在」只取一次：一批记录用同一个基准，不会前面的先结算、后面的晚结算
+        long now = System.currentTimeMillis();
+        for (EconomyDAO.AuctionSettlementRow row : ECONOMY_DAO.findActiveAuctionsForSettlement()) {
+            if (row.endTime != null && row.endTime.getTime() > now) continue;
+            final long listingId = row.listingId;
+            final long sellerId = row.sellerPlayerId;
+            final String itemKey = row.itemKey;
+            final int qty = row.quantity;
+            final long currentBid = row.currentBid;
+            final Long bidderId = row.currentBidderId;
+            final double feeRate = row.feeRate;
 
-                DatabaseManager.runTransaction(innerConn -> {
-                    try (PreparedStatement claimPs = innerConn.prepareStatement(
-                            "UPDATE auction_listings SET status = 'ended' WHERE id = ? AND status = 'active'")) {
-                        claimPs.setLong(1, listingId);
-                        int claimed = claimPs.executeUpdate();
-                        if (claimed == 0) return null;
-                    }
+            DatabaseManager.runTransaction(innerConn -> {
+                // 抢占：命中 0 行说明另一个请求（定时任务或另一次惰性结算）已经结过这一条
+                if (!ECONOMY_DAO.markAuctionListingEnded(innerConn, listingId)) return null;
 
-                    if (bidderId != null && currentBid > 0) {
-                        long fee = Math.max(1, (long)(currentBid * feeRate));
-                        // 卖家收到扣除手续费后的灵石；手续费作为系统税费直接销毁（不再记入玩家 0，避免外键失败导致结算回滚）
-                        itemService.addSpiritStones(innerConn, sellerId, currentBid - fee);
-                        itemService.addItem(innerConn, bidderId, itemKey, qty);
-                    } else {
-                        itemService.addItem(innerConn, sellerId, itemKey, qty);
-                    }
-                    return null;
-                });
-            }
-        } catch (SQLException e) { /* 结算失败不影响正常查询 */ }
+                if (bidderId != null && currentBid > 0) {
+                    long fee = Math.max(1, (long)(currentBid * feeRate));
+                    // 卖家收到扣除手续费后的灵石；手续费作为系统税费直接销毁（不再记入玩家 0，避免外键失败导致结算回滚）
+                    itemService.addSpiritStones(innerConn, sellerId, currentBid - fee);
+                    itemService.addItem(innerConn, bidderId, itemKey, qty);
+                } else {
+                    itemService.addItem(innerConn, sellerId, itemKey, qty);
+                }
+                return null;
+            });
+        }
+        // 结算失败不影响正常查询：某一条挂单结算出错时，剩下的和查询本身都要继续
     }
 
     private String estimateRemaining(java.sql.Timestamp endTime) {
@@ -980,15 +893,9 @@ public class EconomyService {
         DatabaseManager.runTransaction(conn -> {
             // 扣除灵石
             itemService.removeItem(conn, playerId, sourceKey, finalStoneCost);
-            // 消耗洞府灵气
-            String auraSql = "UPDATE caves SET spirit_energy = spirit_energy - ? WHERE id = ? AND spirit_energy >= ?";
-            try (PreparedStatement ps = conn.prepareStatement(auraSql)) {
-                ps.setLong(1, finalAuraCost);
-                ps.setLong(2, cave.getId());
-                ps.setLong(3, finalAuraCost);
-                if (ps.executeUpdate() == 0) {
-                    throw new SQLException("洞府灵气不足");
-                }
+            // 消耗洞府灵气（条件扣减：不足则整笔提纯失败）
+            if (!ECONOMY_DAO.consumeCaveAura(conn, cave.getId(), finalAuraCost)) {
+                throw new SQLException("洞府灵气不足");
             }
             // 成功则发放高一级灵石
             if (finalSuccess) {
@@ -1050,34 +957,17 @@ public class EconomyService {
     }
 
     private SignInRecord querySignIn(long playerId) {
-        String sql = "SELECT last_sign_in, streak FROM player_economy WHERE player_id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    SignInRecord r = new SignInRecord();
-                    r.lastSignIn = rs.getString("last_sign_in");
-                    r.streak = rs.getInt("streak");
-                    return r;
-                }
-            }
-        } catch (SQLException ignored) {}
-        return new SignInRecord();
+        // DAO 的 SignInRecord 是 db 包的类型，这里适配成服务层自己的：
+        // getSignInRecord 是 public，返回类型不能变。
+        // 读不到行 / 读失败都返回「从未签到」的空记录（lastSignIn = null、streak = 0）。
+        EconomyDAO.SignInRecord row = ECONOMY_DAO.findSignIn(playerId);
+        SignInRecord r = new SignInRecord();
+        r.lastSignIn = row.getLastSignIn();
+        r.streak = row.getStreak();
+        return r;
     }
 
     private void updateSignIn(Connection conn, long playerId, String today, int streak) throws SQLException {
-        String sql;
-        if (DatabaseManager.isSqlite()) {
-            sql = "INSERT INTO player_economy (player_id, last_sign_in, streak) VALUES (?, ?, ?) ON CONFLICT(player_id) DO UPDATE SET last_sign_in = excluded.last_sign_in, streak = excluded.streak";
-        } else {
-            sql = "INSERT INTO player_economy (player_id, last_sign_in, streak) VALUES (?, ?, ?) ON DUPLICATE KEY UPDATE last_sign_in = VALUES(last_sign_in), streak = VALUES(streak)";
-        }
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            ps.setString(2, today);
-            ps.setInt(3, streak);
-            ps.executeUpdate();
-        }
+        ECONOMY_DAO.upsertSignIn(conn, playerId, today, streak);
     }
 }
