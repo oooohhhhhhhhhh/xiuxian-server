@@ -1,14 +1,9 @@
 package com.mtxgdn.game.service;
 
-import com.mtxgdn.db.DatabaseManager;
+import com.mtxgdn.db.SectQueryDAO;
 import com.mtxgdn.game.entity.Sect;
 import com.mtxgdn.game.entity.SectMember;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.util.ArrayList;
 import java.util.List;
 
 /**
@@ -19,12 +14,20 @@ import java.util.List;
  * 也正因为如此，它们必须<b>保持只读</b>：一旦这里出现写操作，调用方就无法判断
  * "我这一句会不会偷偷落库"。</p>
  *
- * <p>方法体、SQL 字符串、异常文案、返回语义都与拆分前逐字相同 —— 连每处 SQL 的
- * 字符串拼接方式都没有合并成常量，因为"纯结构重构"不该顺手改写查询。事务边界不受影响：
- * 本类不包含任何 {@code DatabaseManager.runTransaction} 调用，每条查询各自一个
- * 短连接，与拆分前完全一致。</p>
+ * <p>方法体、返回语义与拆分前逐字相同 —— SQL 已全部搬进 {@link SectQueryDAO}
+ * （每条 SQL 只在 DAO 里写一份，自取连接版整体委托给 Connection 版），
+ * 本类只负责把调用转给 DAO。事务边界不受影响：本类不包含任何
+ * {@code DatabaseManager.runTransaction} 调用，每条查询各自一个短连接，
+ * 与拆分前完全一致。</p>
+ *
+ * <p><b>DAO 的每个方法都有 Connection 版</b>：这八个查询被五个域共用，
+ * 别域的事务块随时可能想复用同一条语句，那时必须传 {@code conn}，
+ * 自己开连接会撞 {@code SQLITE_BUSY_SNAPSHOT}。</p>
  */
 final class SectQueryDomain {
+
+    /** {@code sects} / {@code sect_members} 的只读查询入口（无状态，可共享）。 */
+    private static final SectQueryDAO QUERY_DAO = new SectQueryDAO();
 
     SectQueryDomain() {
     }
@@ -32,122 +35,37 @@ final class SectQueryDomain {
     // ==================== 宗门查询 ====================
 
     List<Sect> getAllSects() {
-        String sql = "SELECT s.*, p.name AS leader_name, " +
-                "(SELECT COUNT(*) FROM sect_members sm WHERE sm.sect_id = s.id) AS member_count " +
-                "FROM sects s LEFT JOIN players p ON s.leader_player_id = p.id " +
-                "ORDER BY s.prestige DESC, s.level DESC";
-        List<Sect> result = new ArrayList<>();
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql);
-             ResultSet rs = ps.executeQuery()) {
-            while (rs.next()) result.add(SectSupport.mapSect(rs));
-        } catch (SQLException e) { throw new RuntimeException("查询宗门列表失败", e); }
-        return result;
+        return QUERY_DAO.getAllSects();
     }
 
     Sect getSectById(long sectId) {
-        String sql = "SELECT s.*, p.name AS leader_name, " +
-                "(SELECT COUNT(*) FROM sect_members sm WHERE sm.sect_id = s.id) AS member_count " +
-                "FROM sects s LEFT JOIN players p ON s.leader_player_id = p.id WHERE s.id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, sectId);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) return SectSupport.mapSect(rs);
-            }
-        } catch (SQLException e) { throw new RuntimeException("查询宗门失败", e); }
-        return null;
+        return QUERY_DAO.getSectById(sectId);
     }
 
     Sect getSectByName(String name) {
-        String sql = "SELECT s.*, p.name AS leader_name, " +
-                "(SELECT COUNT(*) FROM sect_members sm WHERE sm.sect_id = s.id) AS member_count " +
-                "FROM sects s LEFT JOIN players p ON s.leader_player_id = p.id WHERE s.name = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, name);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) return SectSupport.mapSect(rs);
-            }
-        } catch (SQLException e) { throw new RuntimeException("查询宗门失败", e); }
-        return null;
+        return QUERY_DAO.getSectByName(name);
     }
 
     Sect getPlayerSect(long playerId) {
-        String sql = "SELECT s.*, p.name AS leader_name, " +
-                "(SELECT COUNT(*) FROM sect_members sm WHERE sm.sect_id = s.id) AS member_count " +
-                "FROM sects s JOIN sect_members sm ON s.id = sm.sect_id " +
-                "LEFT JOIN players p ON s.leader_player_id = p.id WHERE sm.player_id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) return SectSupport.mapSect(rs);
-            }
-        } catch (SQLException e) { throw new RuntimeException("查询玩家宗门失败", e); }
-        return null;
+        return QUERY_DAO.getPlayerSect(playerId);
     }
 
     /** 宗门排行（按声望倒序取前 {@code limit} 个）。 */
     List<Sect> getTopSects(int limit) {
-        String sql = "SELECT s.*, p.name AS leader_name, " +
-                "(SELECT COUNT(*) FROM sect_members sm WHERE sm.sect_id = s.id) AS member_count " +
-                "FROM sects s LEFT JOIN players p ON s.leader_player_id = p.id " +
-                "ORDER BY s.prestige DESC LIMIT ?";
-        List<Sect> result = new ArrayList<>();
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, limit);
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) result.add(SectSupport.mapSect(rs));
-            }
-        } catch (SQLException e) { throw new RuntimeException("查询宗门排行失败", e); }
-        return result;
+        return QUERY_DAO.getTopSects(limit);
     }
 
     // ==================== 成员查询 ====================
 
     List<SectMember> getSectMembers(long sectId) {
-        String sql = "SELECT sm.*, p.name AS player_name, p.realm AS player_realm, p.level AS player_level " +
-                "FROM sect_members sm JOIN players p ON sm.player_id = p.id " +
-                "WHERE sm.sect_id = ? ORDER BY " +
-                "CASE sm.role WHEN 'LEADER' THEN 0 WHEN 'VICE_LEADER' THEN 1 WHEN 'ELDER' THEN 2 WHEN 'INNER_MEMBER' THEN 3 ELSE 4 END, sm.joined_at";
-        List<SectMember> result = new ArrayList<>();
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, sectId);
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) result.add(SectSupport.mapMember(rs));
-            }
-        } catch (SQLException e) { throw new RuntimeException("查询宗门成员失败", e); }
-        return result;
+        return QUERY_DAO.getSectMembers(sectId);
     }
 
     SectMember getMember(long sectId, long playerId) {
-        String sql = "SELECT sm.*, p.name AS player_name, p.realm AS player_realm, p.level AS player_level " +
-                "FROM sect_members sm JOIN players p ON sm.player_id = p.id " +
-                "WHERE sm.sect_id = ? AND sm.player_id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, sectId);
-            ps.setLong(2, playerId);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) return SectSupport.mapMember(rs);
-            }
-        } catch (SQLException e) { throw new RuntimeException("查询宗门成员失败", e); }
-        return null;
+        return QUERY_DAO.getMember(sectId, playerId);
     }
 
     SectMember getPlayerMember(long playerId) {
-        String sql = "SELECT sm.*, p.name AS player_name, p.realm AS player_realm, p.level AS player_level " +
-                "FROM sect_members sm JOIN players p ON sm.player_id = p.id WHERE sm.player_id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) return SectSupport.mapMember(rs);
-            }
-        } catch (SQLException e) { throw new RuntimeException("查询宗门成员失败", e); }
-        return null;
+        return QUERY_DAO.getPlayerMember(playerId);
     }
 }
