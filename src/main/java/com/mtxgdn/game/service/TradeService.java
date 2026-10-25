@@ -1,6 +1,7 @@
 package com.mtxgdn.game.service;
 
 import com.mtxgdn.db.DatabaseManager;
+import com.mtxgdn.db.TradeDAO;
 import com.mtxgdn.entity.Player;
 import com.mtxgdn.game.entity.SpiritualRoot;
 import com.mtxgdn.game.item.Item;
@@ -11,8 +12,6 @@ import com.mtxgdn.util.AppConfig;
 import com.mtxgdn.util.GameLogger;
 
 import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.LinkedHashMap;
@@ -110,6 +109,8 @@ public class TradeService {
     private final ItemService itemService;
     private final PlayerService playerService;
 
+    private static final TradeDAO TRADE_DAO = new TradeDAO();
+
     public TradeService() {
         this.itemService = ServiceRegistry.getItemService();
         this.playerService = ServiceRegistry.getPlayerService();
@@ -142,21 +143,13 @@ public class TradeService {
         try {
             DatabaseManager.runTransaction(conn -> {
                 // 在事务内使用锁检查物品数量
-                String checkSql = "SELECT quantity FROM players_items WHERE player_id = ? AND item_key = ? " +
-                    DatabaseManager.getDialect().getForUpdateClause();
-                try (PreparedStatement ps = conn.prepareStatement(checkSql)) {
-                    ps.setLong(1, playerId);
-                    ps.setString(2, fullKey);
-                    try (ResultSet rs = ps.executeQuery()) {
-                        if (!rs.next()) {
-                            throw new SQLException(I18n.t("trade.list.no_item", item.getName()));
-                        }
-                        long currentQuantity = rs.getLong("quantity");
-                        if (currentQuantity < quantity) {
-                            throw new SQLException(I18n.t("trade.list.not_enough",
-                                    item.getName(), currentQuantity, quantity));
-                        }
-                    }
+                long currentQuantity = TRADE_DAO.findPlayerItemQuantityForUpdate(conn, playerId, fullKey);
+                if (currentQuantity < 0) {
+                    throw new SQLException(I18n.t("trade.list.no_item", item.getName()));
+                }
+                if (currentQuantity < quantity) {
+                    throw new SQLException(I18n.t("trade.list.not_enough",
+                            item.getName(), currentQuantity, quantity));
                 }
                 
                 if (!itemService.removeItem(conn, playerId, fullKey, quantity)) {
@@ -235,18 +228,8 @@ public class TradeService {
      * 否则到期后仍可被购买，买家买到"僵尸挂单"、卖家物品却已被回收退回。
      */
     private TradeListing getListingForUpdate(Connection conn, long listingId) throws SQLException {
-        String sql = "SELECT * FROM trade_listings WHERE id = ? AND status = 'active' "
-                + "AND (expires_at IS NULL OR expires_at > ?)";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, listingId);
-            ps.setTimestamp(2, new java.sql.Timestamp(System.currentTimeMillis()));
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    return mapListing(rs);
-                }
-            }
-        }
-        return null;
+        return TRADE_DAO.findActiveListingForUpdate(conn, listingId,
+                new java.sql.Timestamp(System.currentTimeMillis()));
     }
 
     /**
@@ -290,18 +273,11 @@ public class TradeService {
 
     public List<TradeListing> getActiveListings() {
         // 到期挂单不再展示（即使回收任务还没跑到）
-        String sql = "SELECT * FROM trade_listings WHERE status = 'active' "
-                + "AND (expires_at IS NULL OR expires_at > ?) ORDER BY created_at DESC";
-        return queryListings(sql, ps -> ps.setTimestamp(1, new java.sql.Timestamp(System.currentTimeMillis())));
+        return TRADE_DAO.findActiveListings(new java.sql.Timestamp(System.currentTimeMillis()));
     }
 
     public List<TradeListing> getPlayerListings(long playerId) {
-        String sql = "SELECT * FROM trade_listings WHERE seller_player_id = ? AND status = 'active' "
-                + "AND (expires_at IS NULL OR expires_at > ?)";
-        return queryListings(sql, ps -> {
-            ps.setLong(1, playerId);
-            ps.setTimestamp(2, new java.sql.Timestamp(System.currentTimeMillis()));
-        });
+        return TRADE_DAO.findPlayerListings(playerId, new java.sql.Timestamp(System.currentTimeMillis()));
     }
 
     // ==================== 挂单到期回收 ====================
@@ -333,39 +309,22 @@ public class TradeService {
      * 用 Java 计算而非 SQL 日期函数，避免 SQLite/MySQL 方言差异。
      */
     private boolean backfillLegacyExpiry() {
-        String selectSql = "SELECT id, created_at FROM trade_listings "
-                + "WHERE status = 'active' AND expires_at IS NULL";
-        List<Object[]> rows = new ArrayList<>();
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(selectSql);
-             ResultSet rs = ps.executeQuery()) {
-            while (rs.next()) {
-                java.sql.Timestamp created = rs.getTimestamp("created_at");
-                rows.add(new Object[]{rs.getLong("id"), created});
-            }
-        } catch (SQLException e) {
-            LOG.warn("回填历史挂单到期时间失败: " + e.getMessage());
-            return false;
-        }
+        List<TradeDAO.LegacyExpiryRow> rows = TRADE_DAO.findLegacyActiveListings();
         if (rows.isEmpty()) return true;
 
-        String updateSql = "UPDATE trade_listings SET expires_at = ? WHERE id = ? AND expires_at IS NULL";
         long durationMs = LISTING_DURATION_HOURS * 3600_000L;
-        int filled = 0;
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(updateSql)) {
-            for (Object[] row : rows) {
-                long id = (Long) row[0];
-                java.sql.Timestamp created = (java.sql.Timestamp) row[1];
-                // created_at 缺失时以当前时间为基准，避免这些挂单永远不过期
-                long base = created != null ? created.getTime() : System.currentTimeMillis();
-                ps.setTimestamp(1, new java.sql.Timestamp(base + durationMs));
-                ps.setLong(2, id);
-                ps.addBatch();
-                filled++;
-            }
-            ps.executeBatch();
-        } catch (SQLException e) {
+        List<Long> ids = new ArrayList<>();
+        List<java.sql.Timestamp> expiry = new ArrayList<>();
+        for (TradeDAO.LegacyExpiryRow row : rows) {
+            // created_at 缺失时以当前时间为基准，避免这些挂单永远不过期
+            long base = row.createdAt != null ? row.createdAt.getTime() : System.currentTimeMillis();
+            ids.add(row.id);
+            expiry.add(new java.sql.Timestamp(base + durationMs));
+        }
+        int filled;
+        try {
+            filled = TRADE_DAO.backfillLegacyExpiry(expiry, ids);
+        } catch (RuntimeException e) {
             LOG.warn("回填历史挂单到期时间失败: " + e.getMessage());
             return false;
         }
@@ -376,42 +335,19 @@ public class TradeService {
     /** 回收所有已到期挂单，返回成功回收数量。 */
     private int expireDueListings() {
         java.sql.Timestamp now = new java.sql.Timestamp(System.currentTimeMillis());
-        String selectSql = "SELECT id, seller_player_id, item_key, quantity FROM trade_listings "
-                + "WHERE status = 'active' AND expires_at IS NOT NULL AND expires_at <= ?";
-        List<Object[]> due = new ArrayList<>();
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(selectSql)) {
-            ps.setTimestamp(1, now);
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    due.add(new Object[]{
-                            rs.getLong("id"),
-                            rs.getLong("seller_player_id"),
-                            rs.getString("item_key"),
-                            rs.getInt("quantity")
-                    });
-                }
-            }
-        } catch (SQLException e) {
-            LOG.warn("查询到期挂单失败: " + e.getMessage());
-            return 0;
-        }
+        List<TradeDAO.DueListingRow> due = TRADE_DAO.findDueListings(now);
 
         int expired = 0;
-        for (Object[] row : due) {
-            final long listingId = (Long) row[0];
-            final long sellerId = (Long) row[1];
-            final String itemKey = (String) row[2];
-            final int qty = (Integer) row[3];
+        for (TradeDAO.DueListingRow row : due) {
+            final long listingId = row.id;
+            final long sellerId = row.sellerPlayerId;
+            final String itemKey = row.itemKey;
+            final int qty = row.quantity;
             try {
                 Boolean claimed = DatabaseManager.runTransaction(conn -> {
                     // 先抢占：只有把 active 改成 expired 成功的一方负责退回物品。
                     // 否则会与买家并发购买竞争，导致物品被退回两次（复制物品）。
-                    try (PreparedStatement claim = conn.prepareStatement(
-                            "UPDATE trade_listings SET status = 'expired' WHERE id = ? AND status = 'active'")) {
-                        claim.setLong(1, listingId);
-                        if (claim.executeUpdate() == 0) return Boolean.FALSE;
-                    }
+                    if (!TRADE_DAO.markListingExpired(conn, listingId)) return Boolean.FALSE;
                     itemService.addItem(conn, sellerId, itemKey, qty);
                     return Boolean.TRUE;
                 });
@@ -444,27 +380,13 @@ public class TradeService {
         java.sql.Timestamp since =
                 new java.sql.Timestamp(System.currentTimeMillis() - window * DAY_MS);
 
-        long count = 0, min = 0, max = 0, avg = 0, totalQty = 0;
-        String statSql = "SELECT COUNT(*) AS cnt, MIN(unit_price) AS minp, MAX(unit_price) AS maxp, "
-                + "AVG(unit_price) AS avgp, SUM(quantity) AS qty "
-                + "FROM trade_price_history WHERE item_key = ? AND sold_at >= ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(statSql)) {
-            ps.setString(1, fullKey);
-            ps.setTimestamp(2, since);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    count = rs.getLong("cnt");
-                    if (count > 0) {
-                        min = rs.getLong("minp");
-                        max = rs.getLong("maxp");
-                        avg = Math.round(rs.getDouble("avgp"));
-                        totalQty = rs.getLong("qty");
-                    }
-                }
-            }
-        } catch (SQLException e) {
-            LOG.warn("查询价格历史失败: " + e.getMessage());
+        TradeDAO.PriceHistoryStats stats = TRADE_DAO.getPriceHistoryStats(fullKey, since);
+        long count = stats.count, min = 0, max = 0, avg = 0, totalQty = 0;
+        if (count > 0) {
+            min = stats.minUnitPrice;
+            max = stats.maxUnitPrice;
+            avg = Math.round(stats.avgUnitPriceRaw);
+            totalQty = stats.totalQuantity;
         }
 
         out.put("success", true);
@@ -496,37 +418,15 @@ public class TradeService {
 
     /** 当前在售挂单中的最低单价（总价 ÷ 数量），无在售返回 0。 */
     private long lowestActiveUnitPrice(String fullKey) {
-        String sql = "SELECT MIN(CAST(price_spirit_stones AS DOUBLE) / quantity) AS lowest "
-                + "FROM trade_listings WHERE item_key = ? AND status = 'active' AND quantity > 0 "
-                + "AND (expires_at IS NULL OR expires_at > ?)";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, fullKey);
-            ps.setTimestamp(2, new java.sql.Timestamp(System.currentTimeMillis()));
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    return Math.round(rs.getDouble("lowest"));
-                }
-            }
-        } catch (SQLException e) {
-            LOG.warn("查询在售最低价失败: " + e.getMessage());
-        }
-        return 0;
+        return TRADE_DAO.lowestActiveUnitPrice(fullKey,
+                new java.sql.Timestamp(System.currentTimeMillis()));
     }
 
     /** 清理过期的价格历史记录，返回删除行数。 */
     public int cleanupPriceHistory() {
-        String sql = "DELETE FROM trade_price_history WHERE sold_at < ?";
         java.sql.Timestamp cutoff =
                 new java.sql.Timestamp(System.currentTimeMillis() - PRICE_HISTORY_KEEP_DAYS * DAY_MS);
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setTimestamp(1, cutoff);
-            return ps.executeUpdate();
-        } catch (SQLException e) {
-            LOG.warn("清理价格历史失败: " + e.getMessage());
-            return 0;
-        }
+        return TRADE_DAO.cleanupPriceHistory(cutoff);
     }
 
     private long calculateFee(long playerId, long priceSpiritStones) {
@@ -539,19 +439,8 @@ public class TradeService {
 
     private void createListing(Connection conn, long playerId, String itemKey, int quantity,
                                long priceSpiritStones, long fee) throws SQLException {
-        String sql = "INSERT INTO trade_listings "
-                + "(seller_player_id, item_key, quantity, price_spirit_stones, fee, expires_at) "
-                + "VALUES (?, ?, ?, ?, ?, ?)";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            ps.setString(2, itemKey);
-            ps.setInt(3, quantity);
-            ps.setLong(4, priceSpiritStones);
-            ps.setLong(5, fee);
-            ps.setTimestamp(6, new java.sql.Timestamp(
-                    System.currentTimeMillis() + LISTING_DURATION_HOURS * 3600_000L));
-            ps.executeUpdate();
-        }
+        TRADE_DAO.insertListing(conn, playerId, itemKey, quantity, priceSpiritStones, fee,
+                new java.sql.Timestamp(System.currentTimeMillis() + LISTING_DURATION_HOURS * 3600_000L));
     }
 
     /**
@@ -561,19 +450,7 @@ public class TradeService {
      * 记录失败不影响成交本身（成交已完成，历史只是辅助信息），因此单独 try/catch。
      */
     private void recordPriceHistory(Connection conn, String itemKey, int quantity, long totalPrice) {
-        if (quantity <= 0 || totalPrice <= 0) return;
-        long unitPrice = Math.max(1, totalPrice / quantity);
-        String sql = "INSERT INTO trade_price_history (item_key, unit_price, quantity, total_price) "
-                + "VALUES (?, ?, ?, ?)";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, itemKey);
-            ps.setLong(2, unitPrice);
-            ps.setInt(3, quantity);
-            ps.setLong(4, totalPrice);
-            ps.executeUpdate();
-        } catch (SQLException e) {
-            LOG.warn("写入坊市价格历史失败（不影响成交）: " + e.getMessage());
-        }
+        TRADE_DAO.recordPriceHistory(conn, itemKey, quantity, totalPrice);
     }
 
     private void executePurchase(Connection conn, long buyerPlayerId, TradeListing listing) throws SQLException {
@@ -592,43 +469,7 @@ public class TradeService {
     }
 
     private int markListingAsSold(Connection conn, long listingId) throws SQLException {
-        String sql = "UPDATE trade_listings SET status = 'sold' WHERE id = ? AND status = 'active'";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, listingId);
-            return ps.executeUpdate();
-        }
-    }
-
-    private List<TradeListing> queryListings(String sql, SqlParameterSetter setter) {
-        List<TradeListing> result = new ArrayList<>();
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            if (setter != null) {
-                setter.set(ps);
-            }
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    result.add(mapListing(rs));
-                }
-            }
-        } catch (SQLException e) {
-            throw new RuntimeException("获取挂单列表失败", e);
-        }
-        return result;
-    }
-
-    private TradeListing mapListing(ResultSet rs) throws SQLException {
-        TradeListing l = new TradeListing();
-        l.id = rs.getLong("id");
-        l.sellerPlayerId = rs.getLong("seller_player_id");
-        l.itemKey = rs.getString("item_key");
-        l.quantity = rs.getInt("quantity");
-        l.priceSpiritStones = rs.getLong("price_spirit_stones");
-        l.fee = rs.getLong("fee");
-        l.createdAt = rs.getString("created_at");
-        java.sql.Timestamp exp = rs.getTimestamp("expires_at");
-        l.expiresAt = exp != null ? exp.getTime() : 0L; // 0 = 永不过期（历史挂单）
-        return l;
+        return TRADE_DAO.markListingSold(conn, listingId);
     }
 
     private Map<String, Object> createResult(boolean success, String message) {
@@ -636,11 +477,6 @@ public class TradeService {
         result.put("success", success);
         result.put("message", message);
         return result;
-    }
-
-    @FunctionalInterface
-    private interface SqlParameterSetter {
-        void set(PreparedStatement ps) throws SQLException;
     }
 
     public static class TradeListing {
