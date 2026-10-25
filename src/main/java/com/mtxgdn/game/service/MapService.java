@@ -195,16 +195,18 @@ public class MapService {
             eventBias.clear();
             wildernessCache.clear();
             wildernessStubCache.clear();
-            try (Connection conn = DatabaseManager.getConnection()) {
+            // 补齐出厂数据与整张地图的读取必须看到同一个库状态，所以共用一条连接。
+            // 连接由 MAP_DAO 取与归还（服务层不自己开连接）；刻意不用事务：
+            // 加载只往缓存里「加」，而事务在 SQLITE_BUSY 上会重试，重试会把
+            // connections 加重复。
+            MAP_DAO.inLoadConnection(conn -> {
                 repairDefaultData(conn);
                 loadLocations(conn);
                 loadConnections(conn);
                 loadEventBias(conn);
                 // 出入口连边不存在数据库里（野外整个不在库中），加载完已知世界后现挂上
                 attachGatewayLinks();
-            } catch (SQLException e) {
-                throw new RuntimeException("加载地图数据失败", e);
-            }
+            });
         }
     }
 
@@ -911,19 +913,25 @@ public class MapService {
         if (WildernessTerrain.isWildernessId(locationId)) {
             firstVisit = recordWildernessVisit(playerId, locationId, now);
             if (firstVisit) {
-                try (Connection conn = DatabaseManager.getConnection()) {
-                    grantFirstVisitReward(conn, playerId, loc);
-                } catch (SQLException e) {
+                try {
+                    DatabaseManager.runTransaction(conn -> {
+                        grantFirstVisitReward(conn, playerId, loc);
+                        return null;
+                    });
+                } catch (Exception e) {
                     LOG.error("发放野外首达奖励失败 player=" + playerId + " location=" + locationId, e);
                 }
             }
         } else {
-            try (Connection conn = DatabaseManager.getConnection()) {
-                firstVisit = MAP_DAO.insertExplorationIfAbsent(conn, playerId, locationId, now);
-                if (firstVisit) {
-                    grantFirstVisitReward(conn, playerId, loc);
-                }
-            } catch (SQLException e) {
+            try {
+                firstVisit = DatabaseManager.runTransaction(conn -> {
+                    boolean inserted = MAP_DAO.insertExplorationIfAbsent(conn, playerId, locationId, now);
+                    if (inserted) {
+                        grantFirstVisitReward(conn, playerId, loc);
+                    }
+                    return inserted;
+                });
+            } catch (Exception e) {
                 LOG.error("记录探索进度失败 player=" + playerId + " location=" + locationId, e);
                 return null;
             }
@@ -1345,32 +1353,28 @@ public class MapService {
     private void evictIdleChunks(long now, WildernessMapConfig config) {
         long idleLimit = config.getEvictAfterMinutes() * 60L;
         int evicted = 0;
-        try (Connection conn = DatabaseManager.getConnection()) {
-            for (int[] coords : chunkStore.listChunks(MAX_MAINTENANCE_SCAN)) {
-                if (!WildernessTerrain.inBounds(coords[0], coords[1], config)) {
-                    // 硬上限调小之后，外面的分片直接成为历史
-                    chunkStore.delete(coords[0], coords[1]);
-                    evicted++;
-                    continue;
-                }
-                WildernessChunk chunk = chunkStore.load(coords[0], coords[1],
-                        WildernessTerrain.seedHash(config.getWorldSeed(), config.getChunkSize()),
-                        config.getChunkSize(), false, now, config.getRestockIntervalMinutes() * 60L);
-                if (chunk.pinned || chunk.gateway) {
-                    continue;
-                }
-                if (now - chunk.lastActiveAt < idleLimit) {
-                    continue;
-                }
-                if (hasPlayerInChunk(conn, coords[0], coords[1])) {
-                    continue;
-                }
-                if (chunkStore.delete(coords[0], coords[1])) {
-                    evicted++;
-                }
+        for (int[] coords : chunkStore.listChunks(MAX_MAINTENANCE_SCAN)) {
+            if (!WildernessTerrain.inBounds(coords[0], coords[1], config)) {
+                // 硬上限调小之后，外面的分片直接成为历史
+                chunkStore.delete(coords[0], coords[1]);
+                evicted++;
+                continue;
             }
-        } catch (SQLException e) {
-            LOG.warn("回收野外分片时读取在线玩家失败: " + e.getMessage());
+            WildernessChunk chunk = chunkStore.load(coords[0], coords[1],
+                    WildernessTerrain.seedHash(config.getWorldSeed(), config.getChunkSize()),
+                    config.getChunkSize(), false, now, config.getRestockIntervalMinutes() * 60L);
+            if (chunk.pinned || chunk.gateway) {
+                continue;
+            }
+            if (now - chunk.lastActiveAt < idleLimit) {
+                continue;
+            }
+            if (hasPlayerInChunk(coords[0], coords[1])) {
+                continue;
+            }
+            if (chunkStore.delete(coords[0], coords[1])) {
+                evicted++;
+            }
         }
         if (evicted > 0) {
             LOG.info("回收无人涉足的野外分片: " + evicted + " 个");
@@ -1384,12 +1388,12 @@ public class MapService {
      * 不必把玩家逐个取回来比对。这也是当初把 id 设计成
      * {@code ID_BASE + chunkKey * SLOT_STRIDE + slot} 的回报之一。</p>
      */
-    private static boolean hasPlayerInChunk(Connection conn, int chunkX, int chunkY) {
+    private static boolean hasPlayerInChunk(int chunkX, int chunkY) {
         long first = WildernessTerrain.nodeId(chunkX, chunkY, 0);
         long last = first + WildernessTerrain.SLOT_STRIDE;
         try {
-            return MAP_DAO.hasPlayerInLocationRange(conn, first, last);
-        } catch (SQLException e) {
+            return MAP_DAO.hasPlayerInLocationRange(first, last);
+        } catch (RuntimeException e) {
             // 查不出来就当有玩家在：宁可少回收一片，也不能把人脚下的地删了
             return true;
         }
@@ -1512,15 +1516,20 @@ public class MapService {
         chunk.lastActiveAt = now;
         chunkStore.save(chunk);
 
-        try (Connection conn = DatabaseManager.getConnection()) {
-            boolean granted = ServiceRegistry.getItemService().addItem(conn, playerId, itemKey, taken);
+        try {
+            boolean granted = DatabaseManager.runTransaction(conn -> {
+                boolean ok = ServiceRegistry.getItemService().addItem(conn, playerId, itemKey, taken);
+                if (ok) {
+                    MAP_DAO.updateLastGatherTime(conn, playerId, now);
+                }
+                return ok;
+            });
             if (!granted) {
                 chunk.refund(slot, itemKey, taken);
                 chunkStore.save(chunk);
                 return createResult(false, I18n.t("map.gathering_failed_2"));
             }
-            MAP_DAO.updateLastGatherTime(conn, playerId, now);
-        } catch (SQLException e) {
+        } catch (Exception e) {
             chunk.refund(slot, itemKey, taken);
             chunkStore.save(chunk);
             LOG.error("采集失败 player=" + playerId, e);

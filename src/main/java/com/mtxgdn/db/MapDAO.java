@@ -64,6 +64,54 @@ import java.util.Set;
  */
 public class MapDAO {
 
+    /**
+     * 在一条由 DAO 管理的连接上执行一组地图数据操作。
+     *
+     * <p><b>为什么需要这个入口</b>：{@code MapService.loadFromDb} 要先补齐
+     * 出厂数据（写）再把整张地图读进内存缓存，两件事必须看到同一个库状态。
+     * 服务层不能自己开连接（见 {@code JdbcBoundaryTest}），所以"取连接 +
+     * 保证归还"收进 DAO，服务层只提供要执行的内容。</p>
+     *
+     * <p><b>刻意不是 {@code DatabaseManager.runTransaction}</b>：加载流程只往
+     * 内存缓存里<b>加</b>（{@code loadFromDb} 开头清空，之后
+     * {@code loadLocations}/{@code loadConnections} 只 {@code put}/{@code add}），
+     * 而 {@code runTransaction} 在 {@code SQLITE_BUSY} 这类可重试冲突上会自动
+     * 重试 —— 重试会把 {@code connections} 加重复。所以这里要一条<b>自动提交的
+     * 普通连接</b>，与原来的 {@code try (Connection conn = getConnection())}
+     * 逐字等价。</p>
+     *
+     * <p><b>不要拿它当"随手要一条连接"用</b>：事务内的读写请用各方法已有的
+     * {@code (Connection, ...)} 重载。这个方法存在只为"整张地图的一次加载"。</p>
+     */
+    public void inLoadConnection(LoadWork work) {
+        try (Connection conn = DatabaseManager.getConnection()) {
+            inLoadConnection(conn, work);
+        } catch (SQLException e) {
+            throw new RuntimeException("加载地图数据失败", e);
+        }
+    }
+
+    /**
+     * 在<b>调用方的连接</b>上执行加载内容。
+     *
+     * <p>正常路径走自取连接版。这个重载存在是为了满足"每个 DAO 方法都有
+     * Connection 首参版"的一致性约束（否则事务内调用只能另开连接），
+     * 也方便测试注入一条自己控制的连接。</p>
+     */
+    public void inLoadConnection(Connection conn, LoadWork work) {
+        try {
+            work.run(conn);
+        } catch (SQLException e) {
+            throw new RuntimeException("加载地图数据失败", e);
+        }
+    }
+
+    /** {@link #inLoadConnection} 的执行体。允许抛 {@link SQLException} 让 DAO 统一包。 */
+    @FunctionalInterface
+    public interface LoadWork {
+        void run(Connection conn) throws SQLException;
+    }
+
     private static final GameLogger LOG = GameLogger.getLogger(MapDAO.class);
 
     // ==================== 结果载体 ====================
@@ -477,6 +525,64 @@ public class MapDAO {
             ps.setString(2, eventKey);
             ps.setDouble(3, multiplier);
             ps.executeUpdate();
+        }
+    }
+
+    /**
+     * 先删后插地替换某地点某事件的权重偏置。
+     *
+     * <p>两步必须共用同一条连接：中间若另开连接，删与插会落在两次独立提交上，
+     * 崩在中间就留下"偏置被删了却没插回去"的空档 —— 该事件退回默认权重，
+     * 而管理员看到的是"保存成功"。</p>
+     *
+     * <p><b>刻意不用 UPSERT 语法</b>：SQLite 写
+     * {@code ON CONFLICT ... DO UPDATE}，MySQL 写
+     * {@code ON DUPLICATE KEY UPDATE}，两份分支要各自测。而这里对并发不敏感
+     * （管理台手工操作），换一份两端通用的 SQL 更划算。</p>
+     */
+    public void replaceEventBias(long locationId, String eventKey, double multiplier) {
+        try (Connection conn = DatabaseManager.getConnection()) {
+            replaceEventBias(conn, locationId, eventKey, multiplier);
+        } catch (SQLException e) {
+            throw new RuntimeException("保存地图事件偏置失败", e);
+        }
+    }
+
+    /** 事务内版本：只使用传入的连接。 */
+    public void replaceEventBias(Connection conn, long locationId, String eventKey, double multiplier)
+            throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "DELETE FROM map_location_event_bias WHERE location_id = ? AND event_key = ?")) {
+            ps.setLong(1, locationId);
+            ps.setString(2, eventKey);
+            ps.executeUpdate();
+        }
+        try (PreparedStatement ps = conn.prepareStatement(
+                "INSERT INTO map_location_event_bias (location_id, event_key, weight_multiplier) "
+                        + "VALUES (?, ?, ?)")) {
+            ps.setLong(1, locationId);
+            ps.setString(2, eventKey);
+            ps.setDouble(3, multiplier);
+            ps.executeUpdate();
+        }
+    }
+
+    /** 删掉某地点某事件的偏置，返回受影响行数（0 表示本来就没有）。 */
+    public int deleteEventBias(long locationId, String eventKey) {
+        try (Connection conn = DatabaseManager.getConnection()) {
+            return deleteEventBias(conn, locationId, eventKey);
+        } catch (SQLException e) {
+            throw new RuntimeException("删除地图事件偏置失败", e);
+        }
+    }
+
+    /** 事务内版本：只使用传入的连接。 */
+    public int deleteEventBias(Connection conn, long locationId, String eventKey) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "DELETE FROM map_location_event_bias WHERE location_id = ? AND event_key = ?")) {
+            ps.setLong(1, locationId);
+            ps.setString(2, eventKey);
+            return ps.executeUpdate();
         }
     }
 

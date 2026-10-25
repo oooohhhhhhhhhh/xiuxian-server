@@ -74,7 +74,7 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  *       调用方一行都不用改）；</li>
  *   <li><b>服务层不再有 JDBC</b>：{@code MapService} 源码里
  *       {@code PreparedStatement} / {@code ResultSet} / {@code setAutoCommit(} /
- *       {@code runTransaction(} / SQL 关键字一处不剩；
+ *       {@code setAutoCommit(} / {@code rollback(} / SQL 关键字一处不剩；
  *       {@code DatabaseManager.getConnection()} 只允许出现在白名单里那 4 个
  *       "多条语句必须共用同一条连接"的方法中；</li>
  *   <li><b>SQL 守恒</b>：原 {@code MapService} 里的每一条 SQL 都还在
@@ -183,31 +183,32 @@ class MapDaoExtractionTest extends TestBase {
             "public java.util.Map<java.lang.String, java.lang.Object> gather(long)");
 
     /**
-     * 服务层仍然自己开连接的方法 —— <b>只允许这 4 个，共 5 处</b>。
+     * 服务层自己开连接的允许位置 —— <b>现在是空的</b>。
      *
-     * <p>共同点：<b>多条语句必须落在同一条连接上</b>，而其中一部分语句根本不属于地图
-     * （发灵石、发经验、发物品走的是 {@code ItemService} / {@code PlayerService} 的
-     * {@code Connection} 重载）。DAO 不能替它们持连接，服务层也就没有别的写法。
-     * 除此以外任何地方再出现 {@code DatabaseManager.getConnection()} 都算回归：
-     * 请改用 {@link MapDAO} 的重载，而不是往这张表里加一行。</p>
+     * <p>原本这里登记了 4 个方法共 5 处（{@code loadFromDb} / {@code recordFirstVisit} ×2 /
+     * {@code evictIdleChunks} / {@code gather}），理由是"多条语句必须落在同一条连接上，
+     * 而其中一部分语句根本不属于地图（发物品走 {@code ItemService} 的 Connection 重载）"。</p>
+     *
+     * <p>这 5 处后来全部消掉了，各自换了不同的写法：</p>
+     * <ul>
+     *   <li>{@code loadFromDb} → {@link MapDAO#inLoadConnection}：连接由 DAO 取与归还，
+     *       服务层只提供要执行的内容。刻意<b>不用</b> {@code runTransaction} ——
+     *       加载只往缓存里「加」，而事务在 {@code SQLITE_BUSY} 上会重试，
+     *       重试会把 {@code connections} 加重复。</li>
+     *   <li>{@code recordFirstVisit} ×2 与 {@code gather} → {@code runTransaction}：
+     *       这三处本来就是「多步写入必须原子」，用事务比裸连接更正确，
+     *       失败时整体回滚而不是留下半截。</li>
+     *   <li>{@code evictIdleChunks} → {@link MapDAO#hasPlayerInLocationRange} 的自取连接重载：
+     *       那个连接只服务于「分片内是否还有玩家」一个判断，不需要跨语句复用。</li>
+     * </ul>
+     *
+     * <p>这张表留着是为了<b>将来真有例外时</b>有地方登记理由；现在必须是空的。
+     * 往这里加一行之前先问：能不能像上面五处一样换写法。</p>
      */
-    private static final Map<String, String> SERVICE_GET_CONNECTION_WHITELIST =
-            new LinkedHashMap<>(Map.of(
-                    "loadFromDb",
-                    "整段地图加载（补齐 + 读地点 + 读连接 + 读偏置）必须共用一条连接，"
-                            + "否则会读到「刚补齐一半」的库，且每条语句都借还一次连接",
-                    "recordFirstVisit",
-                    "写探索记录与发首达奖励（ItemService/PlayerService 的 Connection 重载）"
-                            + "必须在同一条连接上：野外分支与已知世界分支各一处，共 2 处",
-                    "evictIdleChunks",
-                    "一轮分片扫描最多查 5000 次「分片内是否有玩家」，共用一条连接；"
-                            + "连接打不开时整轮跳过并记 warn，语义依赖这条 try-with-resources",
-                    "gather",
-                    "发物品（ItemService.addItem 的 Connection 重载）与写 last_gather_time "
-                            + "必须在同一条连接上：发物品失败要把库存退回去"));
+    private static final Map<String, String> SERVICE_GET_CONNECTION_WHITELIST = new LinkedHashMap<>();
 
     /** 服务层 {@code DatabaseManager.getConnection()} 的允许出现次数（与白名单逐条对应）。 */
-    private static final int EXPECTED_SERVICE_GET_CONNECTION_COUNT = 5;
+    private static final int EXPECTED_SERVICE_GET_CONNECTION_COUNT = 0;
 
     /**
      * 原 {@code MapService.java} 里的全部 SQL（逐条抄录，去空白后比对）。
@@ -261,6 +262,11 @@ class MapDaoExtractionTest extends TestBase {
             "SELECT COUNT(*) FROM map_location_event_bias WHERE location_id = ? AND event_key = ?",
             "INSERT INTO map_location_event_bias (location_id, event_key, weight_multiplier) VALUES (?, ?, ?)",
             "SELECT location_id, event_key, weight_multiplier FROM map_location_event_bias",
+            // 下面两条来自 AdminMapEventBiasResource（管理台的事件偏置 CRUD），
+            // 原本写在 rest 包里。MapDAO 从"只服务 MapService"变成也服务 Admin 资源之后，
+            // 这两条必须登记进来，否则 daoInventsNoNewSql 会把它们误判成自创语句。
+            // 语句本身逐字未改，只是换了落脚点。
+            "DELETE FROM map_location_event_bias WHERE location_id = ? AND event_key = ?",
             // ---- 加载地点 ----
             "SELECT * FROM map_locations ORDER BY id",
             // ---- 玩家位置 ----
@@ -355,7 +361,7 @@ class MapDaoExtractionTest extends TestBase {
     // ==================== 2. 服务层不再有 JDBC ====================
 
     @Test
-    @DisplayName("服务层: DatabaseManager.getConnection() 只剩白名单里那 4 个方法（共 5 处）")
+    @DisplayName("服务层: 不再自己开连接，DatabaseManager 只剩事务边界")
     void serviceLayerOnlyOpensConnectionsWhereItMust() throws IOException {
         String source = stripComments(read(MAP_SERVICE));
         List<String[]> bodies = methodBodies(source);
@@ -387,15 +393,18 @@ class MapDaoExtractionTest extends TestBase {
                     "白名单里的 " + whitelisted + " 已经不在服务层开连接了，请从白名单里删掉它");
         }
 
-        // 除了 getConnection，服务层不该再碰 DatabaseManager 的任何其它能力（方言判断已进 DAO）
-        assertEquals(countOccurrences(source, "DatabaseManager.getConnection("),
+        // 服务层碰 DatabaseManager 的唯一理由是声明事务边界。方言判断、连接获取、
+        // 表名工具都属于 DAO，不该再出现。
+        assertEquals(countOccurrences(source, "DatabaseManager.runTransaction("),
                 countOccurrences(source, "DatabaseManager."),
-                "服务层只该用 DatabaseManager.getConnection()（且受白名单约束）；"
-                        + "方言判断、事务、表名工具都属于 DAO");
+                "服务层只该用 DatabaseManager.runTransaction()（声明「这段要原子」）；"
+                        + "方言判断、连接获取、表名工具都属于 DAO");
+        assertFalse(source.contains("setAutoCommit("), "服务层不碰事务原语");
+        assertFalse(source.contains("rollback("), "服务层不碰事务原语");
     }
 
     @Test
-    @DisplayName("服务层: MapService 里 PreparedStatement / ResultSet / 事务 / SQL 字面量一处不剩")
+    @DisplayName("服务层: MapService 里 PreparedStatement / ResultSet / 事务原语 / SQL 字面量一处不剩")
     void serviceLayerContainsNoJdbc() throws IOException {
         String source = stripComments(read(MAP_SERVICE));
 
@@ -408,7 +417,6 @@ class MapDaoExtractionTest extends TestBase {
                 "executeUpdate(",
                 "createStatement(",
                 "setAutoCommit(",
-                "runTransaction(",
                 "rollback(",
                 "java.sql.PreparedStatement",
                 "java.sql.ResultSet")) {
