@@ -9,7 +9,9 @@ import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
 import java.util.HashSet;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 
 /**
@@ -1049,6 +1051,270 @@ public class MapDAO {
             return value;
         } catch (SQLException e) {
             return 1.0;
+        }
+    }
+    // ==================== 后台编辑：地点 / 连接的直接增删改 ====================
+    //
+    // 这一段服务 /admin 的地图编辑器。与上面的"玩家路径"方法刻意分开：
+    // 玩家路径只读、只改自己的位置；这里动的是地图定义本身，会连带清理
+    // 指向它的连接/偏置/探索记录，并把还站在这里的玩家送回出生点。
+
+    /**
+     * 按列集合更新一个地点（列名由调用方给，必须是<b>字面量白名单</b>）。
+     *
+     * <p><b>为什么列名是拼进去的</b>：{@code UPDATE ... SET ? = ?} 不是合法 SQL，
+     * 列名不能绑参。调用方（后台资源）的列名全部来自自己的字面量分支，
+     * 不是用户输入，因此没有注入面；这条约定必须跟着方法一起写在文档里，
+     * 否则下一个人很可能把请求里的 key 直接拼进来。</p>
+     *
+     * <p><b>值按类型绑参</b>：{@code Boolean} / {@code Integer} / {@code Double}
+     * 各有对应的 setter，其余一律当字符串。SQLite 的类型是动态的，
+     * 用错 setter 会把 {@code is_safe_zone} 写成字符串 {@code "true"}。</p>
+     *
+     * @return 受影响行数（0 表示这个 id 不存在，调用方据此回 404）
+     */
+    public int updateLocationFields(Connection conn, long id, Map<String, Object> updates) throws SQLException {
+        if (updates == null || updates.isEmpty()) {
+            return 0;
+        }
+        String sql = "UPDATE map_locations SET "
+                + String.join(", ", updates.keySet().stream().map(col -> col + " = ?").toList())
+                + " WHERE id = ?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            int index = 1;
+            for (Object value : updates.values()) {
+                if (value instanceof Boolean b) {
+                    ps.setBoolean(index++, b);
+                } else if (value instanceof Integer i) {
+                    ps.setInt(index++, i);
+                } else if (value instanceof Double d) {
+                    ps.setDouble(index++, d);
+                } else {
+                    ps.setString(index++, (String) value);
+                }
+            }
+            ps.setLong(index, id);
+            return ps.executeUpdate();
+        }
+    }
+
+    /**
+     * 后台新建一个<b>已知世界</b>地点（{@code is_wilderness} 写死 0）。
+     *
+     * <p>{@code is_wilderness = 0} 是字面量而不是参数：野外节点由坐标推导、
+     * 由刷新逻辑自己维护，管理员新建的永远是已知世界的地点。
+     * 把它做成参数只会让人误以为可以手建野外节点。</p>
+     */
+    public void insertAdminLocation(Connection conn, long id, String name, String description,
+                                    String region, int minRealm, boolean safeZone,
+                                    double cultivationBonus, double explorationBonus, int dangerLevel)
+            throws SQLException {
+        String sql = "INSERT INTO map_locations "
+                + "(id, name, description, region, min_realm, is_safe_zone, cultivation_bonus,"
+                + " exploration_bonus, danger_level, is_wilderness) "
+                + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setLong(1, id);
+            ps.setString(2, name);
+            ps.setString(3, description);
+            ps.setString(4, region);
+            ps.setInt(5, minRealm);
+            ps.setBoolean(6, safeZone);
+            ps.setDouble(7, cultivationBonus);
+            ps.setDouble(8, explorationBonus);
+            ps.setInt(9, dangerLevel);
+            ps.executeUpdate();
+        }
+    }
+
+    /** 取地点名；不存在返回 {@code null}（删除前要拿它写日志）。 */
+    public String findLocationName(Connection conn, long id) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement("SELECT name FROM map_locations WHERE id = ?")) {
+            ps.setLong(1, id);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getString(1) : null;
+            }
+        }
+    }
+
+    /**
+     * 把一个地点的<b>安全区 / 危险度</b>读出来。
+     *
+     * <p>调用方拿它和"本次请求要改的值"合并后再校验不变式 ——
+     * 只改其中一个字段同样能造出矛盾数据（例如给已是安全区的地点填危险度 3）。</p>
+     *
+     * <p>{@code danger_level} 用 {@code COALESCE(..., 0)} 兜底：老库可能还没有这一列的值。</p>
+     *
+     * @return 行不存在时返回 {@code null}；列缺失等 SQL 错误照常抛出，
+     *         由调用方决定是否放过（后台编辑器的做法是放过，把错误留给随后的 UPDATE）
+     */
+    public DangerRow findDangerInfo(Connection conn, long id) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT is_safe_zone, COALESCE(danger_level, 0) FROM map_locations WHERE id = ?")) {
+            ps.setLong(1, id);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (!rs.next()) {
+                    return null;
+                }
+                return new DangerRow(rs.getBoolean(1), rs.getInt(2));
+            }
+        }
+    }
+
+    /** 一个地点的安全区标志与危险度。 */
+    public record DangerRow(boolean safeZone, int dangerLevel) {
+    }
+
+    /**
+     * 数一下除自己以外还有没有同名地点。
+     *
+     * <p>地点名是 {@code /地图 go <地名>} 的唯一解析依据，重名会让其中一个
+     * 永远无法通过指令抵达（{@code getLocationByName} 只返回第一个）。</p>
+     *
+     * @param excludeId 更新场景下排除自身；新建传 0
+     */
+    public int countLocationsByNameExceptId(Connection conn, String name, long excludeId) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT COUNT(*) FROM map_locations WHERE name = ? AND id <> ?")) {
+            ps.setString(1, name);
+            ps.setLong(2, excludeId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() ? rs.getInt(1) : 0;
+            }
+        }
+    }
+
+    /**
+     * 已知世界范围内（{@code id < wildernessFloor}）的下一个空闲 id。
+     *
+     * <p>结果被夹在 {@code [1, wildernessFloor - 1]}：{@code MAX(id) + 1} 在表空时是 1，
+     * 但如果已知世界已经排到边界，再加一就会落进野外 id 段 ——
+     * 那一段由坐标推导，手填进去的地点会在下次野外刷新时被当成过期节点删掉。</p>
+     */
+    public long findNextKnownWorldLocationId(Connection conn, long wildernessFloor) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT COALESCE(MAX(id), 0) + 1 FROM map_locations WHERE id < ?")) {
+            ps.setLong(1, wildernessFloor);
+            try (ResultSet rs = ps.executeQuery()) {
+                long next = rs.next() ? rs.getLong(1) : 1L;
+                return Math.max(1L, Math.min(next, wildernessFloor - 1));
+            }
+        }
+    }
+
+    /**
+     * 删地点前把还站在这里的玩家送回出生点。
+     *
+     * <p><b>必须先于删除执行</b>：留在已删除地点上的存档会在下次读取时
+     * 被判为异常位置。{@code last_travel_time} 一并清零，免得残留的冷却
+     * 让玩家刚被送回就动不了。</p>
+     *
+     * @return 被挪走的玩家数（调用方据此记 warn）
+     */
+    public int relocatePlayersToSpawn(Connection conn, long locationId) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "UPDATE players SET current_location_id = 1, last_travel_time = 0 "
+                        + "WHERE current_location_id = ?")) {
+            ps.setLong(1, locationId);
+            return ps.executeUpdate();
+        }
+    }
+
+    /** 删掉所有<b>一端</b>是这个地点的连接（无向意义上的清场）。 */
+    public int deleteConnectionsTouching(Connection conn, long locationId) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "DELETE FROM map_connections WHERE from_location_id = ? OR to_location_id = ?")) {
+            ps.setLong(1, locationId);
+            ps.setLong(2, locationId);
+            return ps.executeUpdate();
+        }
+    }
+
+    /** 删掉某地点的全部事件偏置。 */
+    public int deleteEventBiasByLocation(Connection conn, long locationId) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "DELETE FROM map_location_event_bias WHERE location_id = ?")) {
+            ps.setLong(1, locationId);
+            return ps.executeUpdate();
+        }
+    }
+
+    /**
+     * 删掉某地点的全部探索记录。
+     *
+     * <p>不删的话会留下指向不存在地点的孤儿行；同一个 id 被复用时，
+     * 新地点会直接显示成"已探索"，首达奖励也就永远发不出来。</p>
+     */
+    public int deleteExplorationByLocation(Connection conn, long locationId) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "DELETE FROM player_map_exploration WHERE location_id = ?")) {
+            ps.setLong(1, locationId);
+            return ps.executeUpdate();
+        }
+    }
+
+    /** 删掉地点本身，返回受影响行数。 */
+    public int deleteLocationById(Connection conn, long id) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement("DELETE FROM map_locations WHERE id = ?")) {
+            ps.setLong(1, id);
+            return ps.executeUpdate();
+        }
+    }
+
+    /**
+     * 删一条<b>有向</b>连接；{@code bothWays} 时连反向边一起删。
+     *
+     * <p>{@code bothWays} 是默认行为：地图的邻接是双向可达的，
+     * 只删单向会留下"只能来不能回"的路，而库里历史上就出现过这种数据
+     * （{@code repairReverseConnections} 一直在兜）。</p>
+     *
+     * <p>两条 SQL 的差别只在 {@code WHERE}：{@code bothWays} 那条用
+     * {@code (from,to) OR (to,from)} 一次删完，不分成两次往返。</p>
+     *
+     * @return 受影响行数（0 表示这条连接不存在，调用方据此回 404）
+     */
+    public int deleteConnectionPair(Connection conn, long from, long to, boolean bothWays) throws SQLException {
+        String sql = bothWays
+                ? "DELETE FROM map_connections WHERE (from_location_id = ? AND to_location_id = ?)"
+                + " OR (from_location_id = ? AND to_location_id = ?)"
+                : "DELETE FROM map_connections WHERE from_location_id = ? AND to_location_id = ?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setLong(1, from);
+            ps.setLong(2, to);
+            if (bothWays) {
+                ps.setLong(3, to);
+                ps.setLong(4, from);
+            }
+            return ps.executeUpdate();
+        }
+    }
+
+    /**
+     * 覆盖写一条<b>有向</b>连接：先删同向的旧边，再插入新边。
+     *
+     * <p><b>为什么是"先删再插"而不是 {@code INSERT OR REPLACE}</b>：
+     * {@code map_connections} 没有唯一约束（历史上允许重复边，
+     * {@code repairReverseConnections} 会去重），{@code INSERT OR REPLACE}
+     * 在没有唯一键时等价于纯插入，删不掉旧边 —— 结果是同一个方向出现两条
+     * 不同时长的路，走哪条取决于查询顺序。</p>
+     *
+     * <p>两步必须由调用方放在同一个事务里（本方法不自己开事务）：
+     * 删完插失败会留下一条不存在的路。</p>
+     */
+    public void replaceConnection(Connection conn, long from, long to, int travelSeconds) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement(
+                "DELETE FROM map_connections WHERE from_location_id = ? AND to_location_id = ?")) {
+            ps.setLong(1, from);
+            ps.setLong(2, to);
+            ps.executeUpdate();
+        }
+        try (PreparedStatement ps = conn.prepareStatement(
+                "INSERT INTO map_connections (from_location_id, to_location_id, travel_time_seconds) "
+                        + "VALUES (?, ?, ?)")) {
+            ps.setLong(1, from);
+            ps.setLong(2, to);
+            ps.setInt(3, travelSeconds);
+            ps.executeUpdate();
         }
     }
 }

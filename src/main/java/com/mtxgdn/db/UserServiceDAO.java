@@ -405,6 +405,34 @@ public class UserServiceDAO {
     }
 
     /**
+     * 后台改密：写新密码<b>并同时解锁</b>，返回是否命中了这个账号。
+     *
+     * <p>与 {@link #resetPassword} 的区别只是<b>返回值</b>：后台端点要区分
+     * 「改成功了」与「这个 userId 不存在」（404 vs 200），
+     * 而邮箱重置那条路径是先查过账号的，不需要。SQL 逐字相同。</p>
+     *
+     * <p><b>为什么顺手解锁</b>：管理员给某个账号改密，通常正是因为那人
+     * 被锁在外面。只改密码不解锁，等于改完还是进不去。</p>
+     */
+    public boolean adminResetPassword(long userId, String hashedPassword) {
+        try (Connection conn = DatabaseManager.getConnection()) {
+            return adminResetPassword(conn, userId, hashedPassword);
+        } catch (SQLException e) {
+            throw new RuntimeException("修改密码失败", e);
+        }
+    }
+
+    /** 事务内版本：只使用传入的连接。 */
+    public boolean adminResetPassword(Connection conn, long userId, String hashedPassword) throws SQLException {
+        String sql = "UPDATE users SET password = ?, failed_attempts = 0, locked_until = NULL WHERE id = ?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setString(1, hashedPassword);
+            ps.setLong(2, userId);
+            return ps.executeUpdate() > 0;
+        }
+    }
+
+    /**
      * 记一次登录失败：计数 +1，达到 {@code maxAttempts} 时把 {@code locked_until} 设成
      * {@code lockedUntil}。
      *

@@ -3,7 +3,7 @@ package com.mtxgdn.rest;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.mtxgdn.common.service.ServiceRegistry;
-import com.mtxgdn.db.DatabaseManager;
+import com.mtxgdn.db.PlayerDAO;
 import com.mtxgdn.game.item.Item;
 import com.mtxgdn.game.item.ItemRegistry;
 import com.mtxgdn.game.service.TradeService;
@@ -17,10 +17,6 @@ import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
@@ -44,6 +40,8 @@ import static com.mtxgdn.rest.AdminSupport.gson;
  */
 @Path("/admin")
 public class AdminMarketResource {
+
+    private static final PlayerDAO PLAYER_DAO = new PlayerDAO();
 
     // ==================== 坊市管理（挂单 / 成交行情） ====================
 
@@ -152,25 +150,13 @@ public class AdminMarketResource {
 
     /** 批量查询玩家名（playerId → name）；查不到的玩家不入 map，避免逐行查库。 */
     private static Map<Long, String> loadPlayerNames(List<Long> playerIds) {
-        Map<Long, String> names = new LinkedHashMap<>();
-        if (playerIds == null || playerIds.isEmpty()) return names;
-        String placeholders = String.join(",", java.util.Collections.nCopies(playerIds.size(), "?"));
-        String sql = "SELECT id, name FROM players WHERE id IN (" + placeholders + ")";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            for (int i = 0; i < playerIds.size(); i++) {
-                ps.setLong(i + 1, playerIds.get(i));
-            }
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    names.put(rs.getLong("id"), rs.getString("name"));
-                }
-            }
-        } catch (SQLException e) {
+        try {
+            return PLAYER_DAO.findNamesByIds(playerIds);
+        } catch (RuntimeException e) {
             // 玩家名查不到不影响挂单列表本身，管理员仍能看到 id 与物品
             LOG.warn("批量查询玩家名失败: " + e.getMessage());
+            return new LinkedHashMap<>();
         }
-        return names;
     }
 
     /** 剩余毫秒 → "3天2小时" 这类可读文本。 */

@@ -211,7 +211,7 @@ class MapDaoExtractionTest extends TestBase {
     private static final int EXPECTED_SERVICE_GET_CONNECTION_COUNT = 0;
 
     /**
-     * 原 {@code MapService.java} 里的全部 SQL（逐条抄录，去空白后比对）。
+     * 抽出 MapDAO 时搬过来的全部 SQL（逐条抄录，去空白后比对）。
      *
      * <p>这批字符串是"重构前的真身"：只要有一条在 {@link MapDAO} 里找不到，
      * 就说明搬运时改了字面量（表名/列名/条件/ORDER BY/COALESCE/参数顺序），
@@ -262,11 +262,25 @@ class MapDaoExtractionTest extends TestBase {
             "SELECT COUNT(*) FROM map_location_event_bias WHERE location_id = ? AND event_key = ?",
             "INSERT INTO map_location_event_bias (location_id, event_key, weight_multiplier) VALUES (?, ?, ?)",
             "SELECT location_id, event_key, weight_multiplier FROM map_location_event_bias",
-            // 下面两条来自 AdminMapEventBiasResource（管理台的事件偏置 CRUD），
+            // 下面一条来自 AdminMapEventBiasResource（管理台的事件偏置 CRUD），
             // 原本写在 rest 包里。MapDAO 从"只服务 MapService"变成也服务 Admin 资源之后，
-            // 这两条必须登记进来，否则 daoInventsNoNewSql 会把它们误判成自创语句。
+            // 这一条必须登记进来，否则 daoInventsNoNewSql 会把它们误判成自创语句。
             // 语句本身逐字未改，只是换了落脚点。
             "DELETE FROM map_location_event_bias WHERE location_id = ? AND event_key = ?",
+            // ---- 后台地图编辑器（来自 AdminMapResource） ----
+            // 同样是"换了落脚点、字面量逐字未改"。这批语句原先散在
+            // AdminMapResource 的 7 处 getConnection 里，抽 DAO 时原样搬过来。
+            "SELECT name FROM map_locations WHERE id = ?",
+            "SELECT is_safe_zone, COALESCE(danger_level, 0) FROM map_locations WHERE id = ?",
+            "SELECT COUNT(*) FROM map_locations WHERE name = ? AND id <> ?",
+            "SELECT COALESCE(MAX(id), 0) + 1 FROM map_locations WHERE id < ?",
+            "UPDATE players SET current_location_id = 1, last_travel_time = 0 ",
+            "DELETE FROM map_connections WHERE from_location_id = ? OR to_location_id = ?",
+            "DELETE FROM map_connections WHERE (from_location_id = ? AND to_location_id = ?)",
+            " OR (from_location_id = ? AND to_location_id = ?)",
+            "DELETE FROM map_connections WHERE from_location_id = ? AND to_location_id = ?",
+            "DELETE FROM player_map_exploration WHERE location_id = ?",
+            "DELETE FROM map_locations WHERE id = ?",
             // ---- 加载地点 ----
             "SELECT * FROM map_locations ORDER BY id",
             // ---- 玩家位置 ----
@@ -515,7 +529,7 @@ class MapDaoExtractionTest extends TestBase {
             }
         }
         assertTrue(invented.isEmpty(),
-                "这些语句在重构前的 MapService 里不存在（本次重构不许新增/改写 SQL）：\n"
+                "这些语句既不在原 MapService 里、也不在原 AdminMapResource 里（抽 DAO 不许新增/改写 SQL）：\n"
                         + String.join("\n---\n", invented));
     }
 

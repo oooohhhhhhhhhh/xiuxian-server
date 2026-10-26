@@ -3,6 +3,9 @@ package com.mtxgdn.rest;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.mtxgdn.db.DatabaseManager;
+import com.mtxgdn.db.PermissionDAO;
+import com.mtxgdn.db.UserServiceDAO;
+import com.mtxgdn.entity.User;
 import com.mtxgdn.i18n.I18n;
 import com.mtxgdn.permission.PermissionCode;
 import com.mtxgdn.permission.PermissionService;
@@ -20,10 +23,6 @@ import jakarta.ws.rs.core.Response;
 
 import org.mindrot.jbcrypt.BCrypt;
 
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
 import java.util.List;
 import java.util.Map;
 import java.util.Set;
@@ -49,6 +48,10 @@ import static com.mtxgdn.rest.AdminSupport.gson;
  */
 @Path("/admin")
 public class AdminUserResource {
+
+    /** users 表归 UserServiceDAO，user_roles/user_permissions 归 PermissionDAO。 */
+    private static final UserServiceDAO USER_DAO = new UserServiceDAO();
+    private static final PermissionDAO PERMISSION_DAO = new PermissionDAO();
 
     @GET
     @Path("/roles")
@@ -462,52 +465,44 @@ public class AdminUserResource {
             return Response.status(400).entity(gson.toJson(err)).build();
         }
 
-        String sql = "SELECT id FROM users WHERE username = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, username);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    JsonObject err = new JsonObject();
-                    err.addProperty("code", 409);
-                    err.addProperty("message", I18n.t("admin.username_already_exists"));
-                    return Response.status(409).entity(gson.toJson(err)).build();
-                }
+        try {
+            // users 表归 UserServiceDAO：这里只编排「建号 + 分配角色」
+            if (USER_DAO.existsByUsername(username)) {
+                JsonObject err = new JsonObject();
+                err.addProperty("code", 409);
+                err.addProperty("message", I18n.t("admin.username_already_exists"));
+                return Response.status(409).entity(gson.toJson(err)).build();
             }
 
             String hashedPassword = BCrypt.hashpw(password, BCrypt.gensalt());
-            String insertSql = "INSERT INTO users (username, password) VALUES (?, ?)";
-            try (PreparedStatement ips = conn.prepareStatement(insertSql, java.sql.Statement.RETURN_GENERATED_KEYS)) {
-                ips.setString(1, username);
-                ips.setString(2, hashedPassword);
-                ips.executeUpdate();
-                try (ResultSet keys = ips.getGeneratedKeys()) {
-                    if (keys.next()) {
-                        long userId = keys.getLong(1);
-                        PermissionService.assignRole(userId, role);
-                        PermissionService.assignRole(userId, "PLAYER");
-
-                        JsonObject result = new JsonObject();
-                        result.addProperty("code", 200);
-                        result.addProperty("message", I18n.t("admin.admin_account_created"));
-                        result.addProperty("userId", userId);
-                        result.addProperty("username", username);
-                        result.addProperty("role", role);
-                        return Response.ok(gson.toJson(result)).build();
-                    }
-                }
+            // 后台建号不写邮箱：传空串而不是 null —— users.email 的列默认值是 ''
+            // （见 DatabaseSchema.createUsersTable），原来的 INSERT 没列 email 这一列，
+            // 落库就是 ''。传 null 会把它写成 NULL，那是另一个值。
+            User created = USER_DAO.insertUser(username, hashedPassword, "");
+            if (created == null) {
+                JsonObject err = new JsonObject();
+                err.addProperty("code", 500);
+                err.addProperty("message", I18n.t("admin.creation_failed"));
+                return Response.status(500).entity(gson.toJson(err)).build();
             }
-        } catch (SQLException e) {
+
+            long userId = created.getId();
+            PermissionService.assignRole(userId, role);
+            PermissionService.assignRole(userId, "PLAYER");
+
+            JsonObject result = new JsonObject();
+            result.addProperty("code", 200);
+            result.addProperty("message", I18n.t("admin.admin_account_created"));
+            result.addProperty("userId", userId);
+            result.addProperty("username", username);
+            result.addProperty("role", role);
+            return Response.ok(gson.toJson(result)).build();
+        } catch (RuntimeException e) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 500);
             err.addProperty("message", I18n.t("admin.creation_failed_2", e.getMessage()));
             return Response.status(500).entity(gson.toJson(err)).build();
         }
-
-        JsonObject err = new JsonObject();
-        err.addProperty("code", 500);
-        err.addProperty("message", I18n.t("admin.creation_failed"));
-        return Response.status(500).entity(gson.toJson(err)).build();
     }
 
     @POST
@@ -527,13 +522,11 @@ public class AdminUserResource {
         }
 
         String hashedPassword = BCrypt.hashpw(newPassword, BCrypt.gensalt());
-        String sql = "UPDATE users SET password = ?, failed_attempts = 0, locked_until = NULL WHERE id = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, hashedPassword);
-            ps.setLong(2, userId);
-            int affected = ps.executeUpdate();
-            if (affected == 0) {
+        try {
+            // SQL 与 UserServiceDAO.resetPassword 逐字相同，区别只是要返回值：
+            // 后台要能区分「改成功了」与「这个 userId 不存在」。
+            // 顺手解锁是既有语义：管理员改密通常正是因为那人被锁在外面。
+            if (!USER_DAO.adminResetPassword(userId, hashedPassword)) {
                 JsonObject err = new JsonObject();
                 err.addProperty("code", 404);
                 err.addProperty("message", I18n.t("admin.user_does_not_exist"));
@@ -544,7 +537,7 @@ public class AdminUserResource {
             result.addProperty("code", 200);
             result.addProperty("message", I18n.t("admin.password_changed_successfully"));
             return Response.ok(gson.toJson(result)).build();
-        } catch (SQLException e) {
+        } catch (RuntimeException e) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 500);
             err.addProperty("message", I18n.t("admin.modification_failed_2", e.getMessage()));
@@ -557,42 +550,28 @@ public class AdminUserResource {
     @Produces(MediaType.APPLICATION_JSON)
     @RequirePermission("admin.users.manage")
     public Response deleteUser(@PathParam("userId") long userId) {
-        try (Connection conn = DatabaseManager.getConnection()) {
-            conn.setAutoCommit(false);
-            try {
-                try (PreparedStatement ps = conn.prepareStatement("DELETE FROM user_roles WHERE user_id = ?")) {
-                    ps.setLong(1, userId);
-                    ps.executeUpdate();
-                }
-                try (PreparedStatement ps = conn.prepareStatement("DELETE FROM user_permissions WHERE user_id = ?")) {
-                    ps.setLong(1, userId);
-                    ps.executeUpdate();
-                }
-                String sql = "DELETE FROM users WHERE id = ?";
-                try (PreparedStatement ps = conn.prepareStatement(sql)) {
-                    ps.setLong(1, userId);
-                    int affected = ps.executeUpdate();
-                    if (affected == 0) {
-                        conn.rollback();
-                        JsonObject err = new JsonObject();
-                        err.addProperty("code", 404);
-                        err.addProperty("message", I18n.t("admin.user_does_not_exist"));
-                        return Response.status(404).entity(gson.toJson(err)).build();
-                    }
-                }
-                conn.commit();
+        try {
+            // 三步必须在同一个事务里：先摘角色与直接权限，再删账号本身。
+            // 中间失败留下「账号还在、角色没了」或「账号没了、权限还在」，
+            // 后者更糟 —— 同一个 id 被复用时新账号会莫名继承这些权限。
+            Boolean deleted = DatabaseManager.runTransaction(conn -> {
+                PERMISSION_DAO.deleteAllUserRoles(conn, userId);
+                PERMISSION_DAO.deleteAllUserPermissions(conn, userId);
+                return USER_DAO.deleteUserById(conn, userId);
+            });
 
-                JsonObject result = new JsonObject();
-                result.addProperty("code", 200);
-                result.addProperty("message", I18n.t("admin.user_deleted"));
-                return Response.ok(gson.toJson(result)).build();
-            } catch (Exception e) {
-                conn.rollback();
-                throw e;
-            } finally {
-                conn.setAutoCommit(true);
+            if (!Boolean.TRUE.equals(deleted)) {
+                JsonObject err = new JsonObject();
+                err.addProperty("code", 404);
+                err.addProperty("message", I18n.t("admin.user_does_not_exist"));
+                return Response.status(404).entity(gson.toJson(err)).build();
             }
-        } catch (SQLException e) {
+
+            JsonObject result = new JsonObject();
+            result.addProperty("code", 200);
+            result.addProperty("message", I18n.t("admin.user_deleted"));
+            return Response.ok(gson.toJson(result)).build();
+        } catch (RuntimeException e) {
             JsonObject err = new JsonObject();
             err.addProperty("code", 500);
             err.addProperty("message", I18n.t("admin.delete_failed_2", e.getMessage()));

@@ -4,6 +4,7 @@ import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.mtxgdn.common.service.ServiceRegistry;
 import com.mtxgdn.db.DatabaseManager;
+import com.mtxgdn.db.MapDAO;
 import com.mtxgdn.game.config.GameConfigLoader;
 import com.mtxgdn.game.map.WildernessTerrain;
 import com.mtxgdn.i18n.I18n;
@@ -22,8 +23,6 @@ import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 
 import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.LinkedHashMap;
 import java.util.Map;
@@ -56,6 +55,9 @@ import static com.mtxgdn.rest.AdminSupport.reloadMapCacheIfNeeded;
  */
 @Path("/admin")
 public class AdminMapResource {
+
+    /** map_locations / map_connections / 探索记录都归 MapDAO。 */
+    private static final MapDAO MAP_DAO = new MapDAO();
 
     // ==================== 地图管理 ====================
 
@@ -228,27 +230,8 @@ public class AdminMapResource {
                 checkMapLocationNameAvailable((String) update.get("name"), id);
             }
 
-            String sql = "UPDATE map_locations SET "
-                    + String.join(", ", update.keySet().stream().map(col -> col + " = ?").toList())
-                    + " WHERE id = ?";
-            int affected;
-            try (Connection conn = DatabaseManager.getConnection();
-                 PreparedStatement ps = conn.prepareStatement(sql)) {
-                int index = 1;
-                for (Object value : update.values()) {
-                    if (value instanceof Boolean b) {
-                        ps.setBoolean(index++, b);
-                    } else if (value instanceof Integer i) {
-                        ps.setInt(index++, i);
-                    } else if (value instanceof Double d) {
-                        ps.setDouble(index++, d);
-                    } else {
-                        ps.setString(index++, (String) value);
-                    }
-                }
-                ps.setLong(index, id);
-                affected = ps.executeUpdate();
-            }
+            int affected = DatabaseManager.runTransaction(conn ->
+                    MAP_DAO.updateLocationFields(conn, id, update));
 
             if (affected == 0) {
                 out.addProperty("code", 404);
@@ -335,41 +318,30 @@ public class AdminMapResource {
             // 野外的 id 不再是"保留段"，而是按坐标算出来的极大值；管理员新建地点时
             // 只需避开这一段，防止 id 撞上某个真实存在的野外节点
             long wildernessFloor = WildernessTerrain.ID_BASE;
-            long createdId;
-            try (Connection conn = DatabaseManager.getConnection()) {
+            // 「查 id 是否占用 / 查名字是否重名 / 插入」三步在同一个事务里：
+            // 否则两个管理员同时新建会挑到同一个 id（后插入的那个直接失败）。
+            long createdId = DatabaseManager.runTransaction(conn -> {
+                long id;
                 if (hasJsonValue(req, "id")) {
-                    createdId = req.get("id").getAsLong();
-                    if (createdId <= 0) throw new IllegalArgumentException("地点 id 必须为正数");
-                    if (WildernessTerrain.isWildernessId(createdId)) {
-                        throw new IllegalArgumentException("id " + createdId + " 落在野外 id 段（≥ "
+                    id = req.get("id").getAsLong();
+                    if (id <= 0) throw new IllegalArgumentException("地点 id 必须为正数");
+                    if (WildernessTerrain.isWildernessId(id)) {
+                        throw new IllegalArgumentException("id " + id + " 落在野外 id 段（≥ "
                                 + WildernessTerrain.ID_BASE + "），该段由坐标推导、不属于已知世界；"
                                 + "请改用 1~" + (WildernessTerrain.ID_BASE - 1) + " 或省略 id 由系统分配");
                     }
-                    if (mapLocationExists(conn, createdId)) {
-                        throw new IllegalArgumentException("地点 id " + createdId + " 已存在");
+                    if (MAP_DAO.existsLocation(conn, id)) {
+                        throw new IllegalArgumentException("地点 id " + id + " 已存在");
                     }
                 } else {
-                    createdId = nextKnownWorldLocationId(conn, wildernessFloor);
+                    id = MAP_DAO.findNextKnownWorldLocationId(conn, wildernessFloor);
                 }
-                checkMapLocationNameAvailable(name, 0);
+                checkMapLocationNameAvailable(conn, name, 0);
 
-                String sql = "INSERT INTO map_locations "
-                        + "(id, name, description, region, min_realm, is_safe_zone, cultivation_bonus,"
-                        + " exploration_bonus, danger_level, is_wilderness) "
-                        + "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, 0)";
-                try (PreparedStatement ps = conn.prepareStatement(sql)) {
-                    ps.setLong(1, createdId);
-                    ps.setString(2, name);
-                    ps.setString(3, description);
-                    ps.setString(4, region);
-                    ps.setInt(5, minRealm);
-                    ps.setBoolean(6, safeZone);
-                    ps.setDouble(7, cultivation);
-                    ps.setDouble(8, exploration);
-                    ps.setInt(9, dangerLevel);
-                    ps.executeUpdate();
-                }
-            }
+                MAP_DAO.insertAdminLocation(conn, id, name, description, region,
+                        minRealm, safeZone, cultivation, exploration, dangerLevel);
+                return id;
+            });
 
             reloadMapCacheIfNeeded("map_locations");
 
@@ -403,53 +375,27 @@ public class AdminMapResource {
         try {
             if (id <= 0) throw new IllegalArgumentException("地点 id 必须为正数");
 
-            int affected;
-            try (Connection conn = DatabaseManager.getConnection()) {
-                String name = null;
-                try (PreparedStatement ps = conn.prepareStatement("SELECT name FROM map_locations WHERE id = ?")) {
-                    ps.setLong(1, id);
-                    try (ResultSet rs = ps.executeQuery()) {
-                        if (rs.next()) name = rs.getString(1);
-                    }
-                }
-                if (name == null) {
-                    out.addProperty("code", 404);
-                    out.addProperty("message", I18n.t("admin.location_not_found", id));
-                    return Response.ok(gson.toJson(out)).build();
-                }
-
-                // 玩家先安置：留在已删除地点上的存档会在下次读取时被判为异常位置
-                try (PreparedStatement ps = conn.prepareStatement(
-                        "UPDATE players SET current_location_id = 1, last_travel_time = 0 "
-                                + "WHERE current_location_id = ?")) {
-                    ps.setLong(1, id);
-                    int moved = ps.executeUpdate();
-                    if (moved > 0) {
-                        LOG.warn("删除地点「" + name + "」(id=" + id + ") 时把 " + moved
-                                + " 名玩家送回了出生点");
-                    }
-                }
-                try (PreparedStatement ps = conn.prepareStatement(
-                        "DELETE FROM map_connections WHERE from_location_id = ? OR to_location_id = ?")) {
-                    ps.setLong(1, id);
-                    ps.setLong(2, id);
-                    ps.executeUpdate();
-                }
-                try (PreparedStatement ps = conn.prepareStatement(
-                        "DELETE FROM map_location_event_bias WHERE location_id = ?")) {
-                    ps.setLong(1, id);
-                    ps.executeUpdate();
-                }
-                try (PreparedStatement ps = conn.prepareStatement(
-                        "DELETE FROM player_map_exploration WHERE location_id = ?")) {
-                    ps.setLong(1, id);
-                    ps.executeUpdate();
-                }
-                try (PreparedStatement ps = conn.prepareStatement("DELETE FROM map_locations WHERE id = ?")) {
-                    ps.setLong(1, id);
-                    affected = ps.executeUpdate();
-                }
+            String name = DatabaseManager.runTransaction(conn -> MAP_DAO.findLocationName(conn, id));
+            if (name == null) {
+                out.addProperty("code", 404);
+                out.addProperty("message", I18n.t("admin.location_not_found", id));
+                return Response.ok(gson.toJson(out)).build();
             }
+
+            // 清场五步必须原子：中间失败会留下「连接还在、地点没了」或
+            // 「玩家被挪走了、地点还在」这类半截状态。
+            int affected = DatabaseManager.runTransaction(conn -> {
+                // 玩家先安置：留在已删除地点上的存档会在下次读取时被判为异常位置
+                int moved = MAP_DAO.relocatePlayersToSpawn(conn, id);
+                if (moved > 0) {
+                    LOG.warn("删除地点「" + name + "」(id=" + id + ") 时把 " + moved
+                            + " 名玩家送回了出生点");
+                }
+                MAP_DAO.deleteConnectionsTouching(conn, id);
+                MAP_DAO.deleteEventBiasByLocation(conn, id);
+                MAP_DAO.deleteExplorationByLocation(conn, id);
+                return MAP_DAO.deleteLocationById(conn, id);
+            });
 
             reloadMapCacheIfNeeded("map_locations");
 
@@ -493,14 +439,15 @@ public class AdminMapResource {
             }
             boolean oneWay = hasJsonValue(req, "oneWay") && req.get("oneWay").getAsBoolean();
 
-            try (Connection conn = DatabaseManager.getConnection()) {
-                if (!mapLocationExists(conn, from)) throw new IllegalArgumentException("起点不存在: " + from);
-                if (!mapLocationExists(conn, to)) throw new IllegalArgumentException("终点不存在: " + to);
-                upsertConnection(conn, from, to, travelSeconds);
+            DatabaseManager.runTransaction(conn -> {
+                if (!MAP_DAO.existsLocation(conn, from)) throw new IllegalArgumentException("起点不存在: " + from);
+                if (!MAP_DAO.existsLocation(conn, to)) throw new IllegalArgumentException("终点不存在: " + to);
+                MAP_DAO.replaceConnection(conn, from, to, travelSeconds);
                 if (!oneWay) {
-                    upsertConnection(conn, to, from, travelSeconds);
+                    MAP_DAO.replaceConnection(conn, to, from, travelSeconds);
                 }
-            }
+                return null;
+            });
 
             reloadMapCacheIfNeeded("map_connections");
 
@@ -535,20 +482,8 @@ public class AdminMapResource {
         JsonObject out = new JsonObject();
         try {
             if (from <= 0 || to <= 0) throw new IllegalArgumentException("from 与 to 都必须为正数");
-            int affected;
-            try (Connection conn = DatabaseManager.getConnection();
-                 PreparedStatement ps = conn.prepareStatement(bothWays
-                         ? "DELETE FROM map_connections WHERE (from_location_id = ? AND to_location_id = ?)"
-                         + " OR (from_location_id = ? AND to_location_id = ?)"
-                         : "DELETE FROM map_connections WHERE from_location_id = ? AND to_location_id = ?")) {
-                ps.setLong(1, from);
-                ps.setLong(2, to);
-                if (bothWays) {
-                    ps.setLong(3, to);
-                    ps.setLong(4, from);
-                }
-                affected = ps.executeUpdate();
-            }
+            int affected = DatabaseManager.runTransaction(conn ->
+                    MAP_DAO.deleteConnectionPair(conn, from, to, bothWays));
             if (affected == 0) {
                 out.addProperty("code", 404);
                 out.addProperty("message", I18n.t("admin.connection_not_found", from, to));
@@ -585,20 +520,16 @@ public class AdminMapResource {
      * <p>行不存在时静默返回，由 UPDATE 的 affected==0 统一给出 404。</p>
      */
     private static void checkDangerConsistencyOnUpdate(long id, Map<String, Object> update) {
-        boolean nextSafe;
-        int nextDanger;
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(
-                     "SELECT is_safe_zone, COALESCE(danger_level, 0) FROM map_locations WHERE id = ?")) {
-            ps.setLong(1, id);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (!rs.next()) return;
-                nextSafe = rs.getBoolean(1);
-                nextDanger = rs.getInt(2);
-            }
-        } catch (SQLException e) {
+        MapDAO.DangerRow row;
+        try {
+            row = DatabaseManager.runTransaction(conn -> MAP_DAO.findDangerInfo(conn, id));
+        } catch (RuntimeException e) {
             return; // 列缺失等异常交给后续 UPDATE 报错，不在这里掩盖
         }
+        if (row == null) return;
+
+        boolean nextSafe = row.safeZone();
+        int nextDanger = row.dangerLevel();
         if (update.containsKey("is_safe_zone")) nextSafe = (Boolean) update.get("is_safe_zone");
         if (update.containsKey("danger_level")) nextDanger = (Integer) update.get("danger_level");
         requireDangerConsistent(nextSafe, nextDanger);
@@ -611,57 +542,23 @@ public class AdminMapResource {
      *
      * @param excludeId 更新场景下排除自身；新建传 0
      */
-    private static void checkMapLocationNameAvailable(String name, long excludeId) throws SQLException {
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(
-                     "SELECT COUNT(*) FROM map_locations WHERE name = ? AND id <> ?")) {
-            ps.setString(1, name);
-            ps.setLong(2, excludeId);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next() && rs.getInt(1) > 0) {
-                    throw new IllegalArgumentException("已存在同名地点「" + name
-                            + "」，重名会导致其中一个无法通过 /地图 go 抵达");
-                }
-            }
+    private static void checkMapLocationNameAvailable(String name, long excludeId) {
+        boolean taken = DatabaseManager.runTransaction(conn ->
+                MAP_DAO.countLocationsByNameExceptId(conn, name, excludeId) > 0);
+        if (taken) {
+            throw new IllegalArgumentException("已存在同名地点「" + name
+                    + "」，重名会导致其中一个无法通过 /地图 go 抵达");
         }
     }
 
-    private static boolean mapLocationExists(Connection conn, long id) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement("SELECT COUNT(*) FROM map_locations WHERE id = ?")) {
-            ps.setLong(1, id);
-            try (ResultSet rs = ps.executeQuery()) {
-                return rs.next() && rs.getInt(1) > 0;
-            }
-        }
-    }
-
-    /** 已知世界范围内（id &lt; 野外 idBase）的下一个空闲 id。 */
-    private static long nextKnownWorldLocationId(Connection conn, long wildernessFloor) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement(
-                "SELECT COALESCE(MAX(id), 0) + 1 FROM map_locations WHERE id < ?")) {
-            ps.setLong(1, wildernessFloor);
-            try (ResultSet rs = ps.executeQuery()) {
-                long next = rs.next() ? rs.getLong(1) : 1L;
-                return Math.max(1L, Math.min(next, wildernessFloor - 1));
-            }
-        }
-    }
-
-    private static void upsertConnection(Connection conn, long from, long to, int travelSeconds)
+    /** 事务内版本：名字占用检查与随后的插入要落在同一条连接上（避免查完就被别人抢注）。 */
+    private static void checkMapLocationNameAvailable(Connection conn, String name, long excludeId)
             throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement(
-                "DELETE FROM map_connections WHERE from_location_id = ? AND to_location_id = ?")) {
-            ps.setLong(1, from);
-            ps.setLong(2, to);
-            ps.executeUpdate();
-        }
-        try (PreparedStatement ps = conn.prepareStatement(
-                "INSERT INTO map_connections (from_location_id, to_location_id, travel_time_seconds) "
-                        + "VALUES (?, ?, ?)")) {
-            ps.setLong(1, from);
-            ps.setLong(2, to);
-            ps.setInt(3, travelSeconds);
-            ps.executeUpdate();
+        if (MAP_DAO.countLocationsByNameExceptId(conn, name, excludeId) > 0) {
+            throw new IllegalArgumentException("已存在同名地点「" + name
+                    + "」，重名会导致其中一个无法通过 /地图 go 抵达");
         }
     }
+
+
 }

@@ -13,7 +13,9 @@ import java.sql.PreparedStatement;
 import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.ArrayList;
+import java.util.LinkedHashMap;
 import java.util.List;
+import java.util.Map;
 
 /**
  * {@code players} 表（角色聚合根）上的全部读写。
@@ -876,6 +878,48 @@ public class PlayerDAO {
             }
         }
         return players;
+    }
+
+    /**
+     * 按一批角色 id 批量取"id → 名字"。
+     *
+     * <p><b>为什么要批量</b>：后台挂单列表要先拿到一批 {@code seller_player_id}
+     * 再显示卖家名。逐行查库是 N+1 —— 一页 20 条挂单就是 20 次往返，
+     * 在 1C 的机器上这比查一次 {@code IN (...)} 慢一个数量级。</p>
+     *
+     * <p><b>查不到的 id 不出现在返回的 map 里</b>（不是映射成 {@code null}）：
+     * 卖家账号被删、角色被清空都会走到这里，调用方据此显示原始 id 即可，
+     * 不该让整个列表因为一行缺失而失败。</p>
+     *
+     * <p><b>空入参返回空 map，不发 SQL</b>：{@code IN ()} 是语法错误。</p>
+     */
+    public Map<Long, String> findNamesByIds(List<Long> playerIds) {
+        try (Connection conn = DatabaseManager.getConnection()) {
+            return findNamesByIds(conn, playerIds);
+        } catch (SQLException e) {
+            throw new RuntimeException("批量查询玩家名失败", e);
+        }
+    }
+
+    /** 事务内版本：只使用传入的连接。 */
+    public Map<Long, String> findNamesByIds(Connection conn, List<Long> playerIds) throws SQLException {
+        Map<Long, String> names = new LinkedHashMap<>();
+        if (playerIds == null || playerIds.isEmpty()) {
+            return names;
+        }
+        String placeholders = String.join(",", java.util.Collections.nCopies(playerIds.size(), "?"));
+        String sql = "SELECT id, name FROM players WHERE id IN (" + placeholders + ")";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            for (int i = 0; i < playerIds.size(); i++) {
+                ps.setLong(i + 1, playerIds.get(i));
+            }
+            try (ResultSet rs = ps.executeQuery()) {
+                while (rs.next()) {
+                    names.put(rs.getLong("id"), rs.getString("name"));
+                }
+            }
+        }
+        return names;
     }
 
     /** 按名字模糊搜索（{@code LIKE %name%}），同样按等级/经验排序。 */

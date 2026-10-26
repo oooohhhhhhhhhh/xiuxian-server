@@ -1,7 +1,8 @@
 package com.mtxgdn.rest;
 
-import com.mtxgdn.db.DatabaseManager;
 import com.mtxgdn.permission.PermissionCode;
+import com.mtxgdn.db.UserServiceDAO;
+import com.mtxgdn.entity.User;
 import com.mtxgdn.permission.PermissionService;
 import com.mtxgdn.util.AppConfig;
 import com.mtxgdn.util.JwtUtil;
@@ -22,11 +23,6 @@ import org.mindrot.jbcrypt.BCrypt;
 import javax.crypto.SecretKey;
 import java.nio.charset.StandardCharsets;
 import java.security.SecureRandom;
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
-import java.sql.Statement;
 import java.util.Date;
 import java.util.HashSet;
 import java.util.List;
@@ -36,6 +32,8 @@ import java.util.concurrent.ConcurrentHashMap;
 @Provider
 @Priority(Priorities.AUTHENTICATION)
 public class AdminAuthFilter implements ContainerRequestFilter {
+
+    private static final UserServiceDAO USER_DAO = new UserServiceDAO();
 
     /**
      * 用 GameLogger 而不是 System.out/err。
@@ -334,23 +332,18 @@ public class AdminAuthFilter implements ContainerRequestFilter {
     }
 
     private static boolean validateDbCredentials(String username, String password) {
-        String sql = "SELECT id, password FROM users WHERE username = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, username);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    String hashedPassword = rs.getString("password");
-                    if (BCrypt.checkpw(password, hashedPassword)) {
-                        long userId = rs.getLong("id");
-                        return hasAdminLoginPermission(userId);
-                    }
-                }
-            }
-        } catch (SQLException e) {
+        // users 表归 UserServiceDAO：这里只做 BCrypt 比对与权限判定。
+        User user;
+        try {
+            user = USER_DAO.findByUsername(username);
+        } catch (RuntimeException e) {
             LOG.error("数据库验证失败: " + e.getMessage());
+            return false;
         }
-        return false;
+        if (user == null || !BCrypt.checkpw(password, user.getPassword())) {
+            return false;
+        }
+        return hasAdminLoginPermission(user.getId());
     }
 
     private static boolean hasAdminLoginPermission(long userId) {
@@ -381,18 +374,12 @@ public class AdminAuthFilter implements ContainerRequestFilter {
     }
 
     public static Long getUserIdByUsername(String username) {
-        String sql = "SELECT id FROM users WHERE username = ?";
-        try (Connection conn = DatabaseManager.getConnection();
-             PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, username);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    return rs.getLong("id");
-                }
-            }
-        } catch (SQLException e) {
+        try {
+            User user = USER_DAO.findByUsername(username);
+            return user != null ? user.getId() : null;
+        } catch (RuntimeException e) {
             LOG.error("查询用户ID失败: " + e.getMessage());
+            return null;
         }
-        return null;
     }
 }

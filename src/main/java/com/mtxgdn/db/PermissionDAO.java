@@ -525,6 +525,50 @@ public class PermissionDAO {
         }
     }
 
+    /**
+     * 摘掉用户的<b>全部</b>角色（后台删号时清场用）。
+     *
+     * <p>与 {@link #deleteUserRole} 的区别是少了 {@code role_name} 条件：
+     * 删号时不该要求调用方先把角色逐个查出来再一个个删。</p>
+     */
+    public void deleteAllUserRoles(long userId) {
+        try (Connection conn = DatabaseManager.getConnection()) {
+            deleteAllUserRoles(conn, userId);
+        } catch (SQLException e) {
+            throw new RuntimeException("清除用户角色失败", e);
+        }
+    }
+
+    /** 事务内版本：只使用传入的连接。 */
+    public void deleteAllUserRoles(Connection conn, long userId) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement("DELETE FROM user_roles WHERE user_id = ?")) {
+            ps.setLong(1, userId);
+            ps.executeUpdate();
+        }
+    }
+
+    /**
+     * 摘掉用户的<b>全部</b>直接权限（后台删号时清场用）。
+     *
+     * <p>角色删了但直接权限还在的话，会留下指向不存在账号的孤儿行；
+     * 更糟的是同一个 id 被复用时，新账号会莫名继承这些权限。</p>
+     */
+    public void deleteAllUserPermissions(long userId) {
+        try (Connection conn = DatabaseManager.getConnection()) {
+            deleteAllUserPermissions(conn, userId);
+        } catch (SQLException e) {
+            throw new RuntimeException("清除用户权限失败", e);
+        }
+    }
+
+    /** 事务内版本：只使用传入的连接。 */
+    public void deleteAllUserPermissions(Connection conn, long userId) throws SQLException {
+        try (PreparedStatement ps = conn.prepareStatement("DELETE FROM user_permissions WHERE user_id = ?")) {
+            ps.setLong(1, userId);
+            ps.executeUpdate();
+        }
+    }
+
     // ==================== 7. 写入：用户 → 直接权限（user_permissions） ====================
 
     /** 给用户单独授予一个权限码（已存在则跳过）。 */

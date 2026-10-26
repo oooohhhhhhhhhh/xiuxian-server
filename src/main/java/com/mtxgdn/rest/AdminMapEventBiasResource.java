@@ -1,7 +1,7 @@
 package com.mtxgdn.rest;
 
 import com.google.gson.JsonObject;
-import com.mtxgdn.db.DatabaseManager;
+import com.mtxgdn.db.MapDAO;
 import com.mtxgdn.i18n.I18n;
 import com.mtxgdn.permission.RequirePermission;
 
@@ -13,11 +13,6 @@ import jakarta.ws.rs.Produces;
 import jakarta.ws.rs.QueryParam;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
-
-import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
-import java.sql.SQLException;
 
 import static com.mtxgdn.rest.AdminSupport.gson;
 import static com.mtxgdn.rest.AdminSupport.hasJsonValue;
@@ -42,6 +37,8 @@ import static com.mtxgdn.rest.AdminSupport.reloadMapCacheIfNeeded;
 @Path("/admin")
 public class AdminMapEventBiasResource {
 
+    private static final MapDAO MAP_DAO = new MapDAO();
+
     /** 新增或更新某地点的事件权重偏置（事件 key → 倍率）。 */
     @POST
     @Path("/map/event-bias")
@@ -61,27 +58,14 @@ public class AdminMapEventBiasResource {
                 throw new IllegalArgumentException("权重倍率应在 0~100 之间且大于 0");
             }
 
-            try (Connection conn = DatabaseManager.getConnection()) {
-                if (!mapLocationExists(conn, locationId)) {
-                    throw new IllegalArgumentException("地点不存在: " + locationId);
-                }
-                // 先删后插而不是依赖 UPSERT 语法：SQLite 与 MySQL 的 upsert 写法不同，
-                // 而这里对并发不敏感（管理台手工操作），换来一份两端通用的 SQL。
-                try (PreparedStatement ps = conn.prepareStatement(
-                        "DELETE FROM map_location_event_bias WHERE location_id = ? AND event_key = ?")) {
-                    ps.setLong(1, locationId);
-                    ps.setString(2, eventKey);
-                    ps.executeUpdate();
-                }
-                try (PreparedStatement ps = conn.prepareStatement(
-                        "INSERT INTO map_location_event_bias (location_id, event_key, weight_multiplier) "
-                                + "VALUES (?, ?, ?)")) {
-                    ps.setLong(1, locationId);
-                    ps.setString(2, eventKey);
-                    ps.setDouble(3, multiplier);
-                    ps.executeUpdate();
-                }
+            // 地点必须先存在：否则会往一个不存在的地点挂偏置，
+            // 而偏置查询是按地点 id 关联的，永远读不回来。
+            if (!MAP_DAO.existsLocation(locationId)) {
+                throw new IllegalArgumentException("地点不存在: " + locationId);
             }
+            // 先删后插由 DAO 的 replaceEventBias 完成，两步共用一条连接。
+            // 「不用 UPSERT 语法」的理由写在 MapDAO.replaceEventBias 的注释里。
+            MAP_DAO.replaceEventBias(locationId, eventKey, multiplier);
 
             reloadMapCacheIfNeeded("map_location_event_bias");
 
@@ -114,14 +98,7 @@ public class AdminMapEventBiasResource {
             if (locationId <= 0) throw new IllegalArgumentException("locationId 必须为正数");
             if (eventKey == null || eventKey.isBlank()) throw new IllegalArgumentException("eventKey 不能为空");
 
-            int affected;
-            try (Connection conn = DatabaseManager.getConnection();
-                 PreparedStatement ps = conn.prepareStatement(
-                         "DELETE FROM map_location_event_bias WHERE location_id = ? AND event_key = ?")) {
-                ps.setLong(1, locationId);
-                ps.setString(2, eventKey.trim());
-                affected = ps.executeUpdate();
-            }
+            int affected = MAP_DAO.deleteEventBias(locationId, eventKey.trim());
             if (affected == 0) {
                 out.addProperty("code", 404);
                 out.addProperty("message", I18n.t("admin.this_location_has_no_such"));
@@ -143,14 +120,5 @@ public class AdminMapEventBiasResource {
             out.addProperty("message", I18n.t("admin.failed_to_delete_event_bias", e.getMessage()));
         }
         return Response.ok(gson.toJson(out)).build();
-    }
-
-    private static boolean mapLocationExists(Connection conn, long id) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement("SELECT COUNT(*) FROM map_locations WHERE id = ?")) {
-            ps.setLong(1, id);
-            try (ResultSet rs = ps.executeQuery()) {
-                return rs.next() && rs.getInt(1) > 0;
-            }
-        }
     }
 }
