@@ -83,8 +83,17 @@ class QqOfficialAdapterSplitTest extends TestBase {
             "ctx", "apiClient", "sender", "accountFlow", "router", "events", "gateway"
     };
 
-    /** 拆分后 QQ 官方通道里 {@code DatabaseManager.getConnection()} 的调用点总数（拆分前也是 3 处）。 */
-    private static final int EXPECTED_JDBC_CALL_SITES = 3;
+    /**
+     * QQ 官方通道里 {@code DatabaseManager.getConnection()} 的调用点总数 —— 现在是 <b>0</b>。
+     *
+     * <p>拆分前是 3 处（凭据查询 / 失败计数 / 失败计数清零）。后来这三处的 SQL
+     * 都收进了 {@link com.mtxgdn.db.UserServiceDAO}：{@code users} 表归它，
+     * 而 {@code QqAccountFlow} 只保留认证策略（限流、锁定判定、BCrypt 比对）。
+     * 那个 DAO 自己有一整套测试钉着 SQL 字面量，所以这里不再重复钉，
+     * 改为钉「qq 包里不许再出现这些 SQL」（见 {@code jdbcCallSiteCountIsUnchanged}）——
+     * 那才是这次搬动真正的回归面：SQL 被复制回 qq 包就等于有了两份实现。</p>
+     */
+    private static final int EXPECTED_JDBC_CALL_SITES = 0;
 
     // ==================== 1. 门面 API 逐字不变 ====================
 
@@ -203,8 +212,14 @@ class QqOfficialAdapterSplitTest extends TestBase {
                 "登录限流的 key 前缀不能变（改了等于把限流清零）");
         assertTrue(flow.contains("RateLimiter.allow(rateLimitKey, 5, 60)"),
                 "同一用户名 5 次/分钟的登录限流不能丢");
-        assertTrue(flow.contains("locked_until"),
-                "账号锁定（连续 5 次错误锁 15 分钟）不能丢");
+        // 锁定判定的 SQL 已进 UserServiceDAO（DAO 版多带 failed_attempts，判定逻辑不变），
+        // 但「先看 locked_until 有没有过期」这一步必须还在账号流程里。
+        assertTrue(flow.contains("getLockedUntil()"),
+                "账号锁定（连续 5 次错误锁 15 分钟）不能丢：过期判定要留在账号流程");
+        assertTrue(flow.contains("recordFailedAttempt("),
+                "输错密码要计数（连续 5 次触发锁定）");
+        assertTrue(flow.contains("clearFailedAttempts("),
+                "登录成功要清零失败计数");
 
         String gateway = stripComments(read(QQ_DIR.resolve("QqGatewayClient.java")));
         assertTrue(gateway.contains("reconnecting.compareAndSet(false, true)"),
@@ -246,15 +261,19 @@ class QqOfficialAdapterSplitTest extends TestBase {
             total += countOccurrences(source, "DatabaseManager.getConnection()");
         }
         assertEquals(EXPECTED_JDBC_CALL_SITES, total,
-                "QQ 官方通道的短连接数量变了 —— 要么把两条 SQL 并进了一个连接（改了事务/连接语义），"
-                        + "要么漏搬了一条 SQL");
+                "QQ 官方通道不该再自己开连接：凭据校验的三条 SQL 都在 UserServiceDAO 里。"
+                        + "这里出现 getConnection 说明有人把 SQL 复制回了 qq 包");
         String code = all.toString();
-        assertTrue(code.contains("SELECT id, password, locked_until FROM users WHERE username = ?"),
-                "凭据查询 SQL 必须逐字保留");
-        assertTrue(code.contains("UPDATE users SET failed_attempts = failed_attempts + 1"),
-                "失败次数累加 + 锁定 SQL 必须逐字保留");
-        assertTrue(code.contains("UPDATE users SET failed_attempts = 0, locked_until = NULL WHERE id = ?"),
-                "失败次数重置 SQL 必须逐字保留");
+
+        // 三条 SQL 搬进 UserServiceDAO 之后，这里要钉的是「没有被复制回 qq 包」。
+        // 逐字比对的是 SQL 片段，复制回来任何一条都会命中。
+        assertFalse(code.contains("FROM users WHERE username = ?"),
+                "凭据查询 SQL 不该再出现在 qq 包（它在 UserServiceDAO.findByUsernameWithLockInfo）");
+        assertFalse(code.contains("failed_attempts = failed_attempts + 1"),
+                "失败次数累加 SQL 不该再出现在 qq 包（它在 UserServiceDAO.recordFailedAttempt）");
+        assertFalse(code.contains("failed_attempts = 0, locked_until = NULL"),
+                "失败次数重置 SQL 不该再出现在 qq 包（它在 UserServiceDAO.clearFailedAttempts）");
+
         assertEquals(1, countOccurrences(code, "CommandExecutor.submit"),
                 "指令投递点只能有一处（拆分前也是一处）");
     }
