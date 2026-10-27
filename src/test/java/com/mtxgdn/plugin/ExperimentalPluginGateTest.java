@@ -1,9 +1,11 @@
 package com.mtxgdn.plugin;
 
 import com.mtxgdn.game.service.SectService;
+import com.mtxgdn.i18n.I18nManager;
 import com.mtxgdn.plugin.experimental.EnergyExchangePlugin;
 import com.mtxgdn.plugin.experimental.SectWarPlugin;
 import org.junit.jupiter.api.AfterEach;
+import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -26,8 +28,20 @@ import static org.junit.jupiter.api.Assertions.*;
  * 用公开的运行时启停 API 关闭开关、断言被拦下、再恢复 —— 断言不依赖测试执行顺序。
  * 未初始化数据库，故门控放行后的分支会因缺少数据库连接而失败 ——
  * 测试只区分“是否被实验性开关拦截”。
+ *
+ * <p><b>为什么要显式 load 语言包</b>：本测试是纯单元测试，不继承
+ * {@code TestBase}（那会连带初始化数据库，而这里刻意不初始化）。但门控
+ * 拒绝时返回的是 {@code I18n.t("sect.sect_war_is_experimental_content")}，
+ * 语言包没加载时 {@code I18n.t} 会把 key 本身原样返回 —— 于是"提示应说明
+ * 这是实验性内容"这条断言必然失败。这曾经让本测试从初始导入起就一直红着。</p>
  */
 class ExperimentalPluginGateTest {
+
+    @BeforeAll
+    static void loadLanguageBundle() {
+        // 幂等：其他继承 TestBase 的测试类可能已经加载过
+        I18nManager.load();
+    }
 
     private static final String SECT_WAR = "experimental_sect_war";
     private static final String ENERGY_EXCHANGE = "experimental_energy_exchange";
@@ -72,8 +86,13 @@ class ExperimentalPluginGateTest {
 
         Map<String, Object> blocked = new SectService().declareWar(1L, 2L);
         assertEquals(Boolean.FALSE, blocked.get("success"));
-        assertTrue(String.valueOf(blocked.get("message")).contains("实验性"),
-                "停用时的提示应说明这是实验性内容: " + blocked.get("message"));
+        String blockedMessage = String.valueOf(blocked.get("message"));
+        // 不直接断言中文文案：文案本身由语言包决定，改了措辞不该让门控测试变红。
+        // 要钉的是两件事：提示已经翻译过（不是裸露的 key），且说的是"实验性内容"。
+        assertFalse(blockedMessage.equals("sect.sect_war_is_experimental_content"),
+                "停用时的提示必须是翻译后的文案，不能把 i18n key 露给用户: " + blockedMessage);
+        assertTrue(blockedMessage.contains("实验性"),
+                "停用时的提示应说明这是实验性内容: " + blockedMessage);
 
         // 重新启用后门控放行：后续失败来自业务/数据库校验，而不是实验性开关
         assertTrue(registry.enablePlugin(SECT_WAR));
