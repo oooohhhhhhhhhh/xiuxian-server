@@ -3,6 +3,7 @@ package com.mtxgdn.game.service;
 import com.mtxgdn.common.service.ServiceRegistry;
 
 import com.mtxgdn.db.DatabaseManager;
+import com.mtxgdn.db.FarmDAO;
 import com.mtxgdn.game.entity.CropConfig;
 import com.mtxgdn.game.entity.FarmPlot;
 import com.mtxgdn.game.entity.Season;
@@ -12,8 +13,6 @@ import com.mtxgdn.game.item.ItemRegistry;
 import com.mtxgdn.util.GameLogger;
 
 import java.sql.Connection;
-import java.sql.PreparedStatement;
-import java.sql.ResultSet;
 import java.sql.SQLException;
 import java.util.*;
 import com.mtxgdn.i18n.I18n;
@@ -35,12 +34,9 @@ public class FarmService {
     /** 病虫害出现后 30 分钟未处理则升级为严重 */
     private static final long PEST_UPGRADE_MS = 30 * 60 * 1000L;
 
-    /** 行锁子句：MySQL 使用 FOR UPDATE，SQLite 不支持则留空（事务内写锁已保证一致性） */
-    private static String lockClause() {
-        return DatabaseManager.isSqlite() ? "" : " FOR UPDATE";
-    }
-
     private final PlayerService playerService = ServiceRegistry.getPlayerService();
+    /** farm_plots 表归 FarmDAO：服务层只剩"先结算、再校验、再写入"的编排。 */
+    private final FarmDAO farmDAO = new FarmDAO();
     private final ItemService itemService = ServiceRegistry.getItemService();
     private static final Random random = new Random();
 
@@ -105,42 +101,18 @@ public class FarmService {
         return DatabaseManager.runTransaction(conn -> {
             // 读取即结算：把上次访问到现在的生长/枯萎/虫害一次性推进（取代原来的每秒全表扫描）
             settlePlayerPlots(conn, playerId, System.currentTimeMillis());
-            String sql = "SELECT * FROM farm_plots WHERE player_id = ? ORDER BY plot_index";
-            List<FarmPlot> result = new ArrayList<>();
-            try (PreparedStatement ps = conn.prepareStatement(sql)) {
-                ps.setLong(1, playerId);
-                try (ResultSet rs = ps.executeQuery()) {
-                    while (rs.next()) {
-                        result.add(mapPlot(rs));
-                    }
-                }
-            }
-            return result;
+            return farmDAO.findByPlayerId(conn, playerId);
         });
     }
 
     private void initPlots(long playerId) {
         // COUNT 与随后的批量 INSERT 必须原子：两个并发首次访问不该各插一套地块
         Integer inserted = DatabaseManager.runTransaction(conn -> {
-            String countSql = "SELECT COUNT(*) as cnt FROM farm_plots WHERE player_id = ?";
-            try (PreparedStatement ps = conn.prepareStatement(countSql)) {
-                ps.setLong(1, playerId);
-                try (ResultSet rs = ps.executeQuery()) {
-                    if (!rs.next() || rs.getInt("cnt") != 0) {
-                        return 0;
-                    }
-                }
+            if (farmDAO.countPlots(conn, playerId) != 0) {
+                return 0;
             }
-            String insertSql = "INSERT INTO farm_plots (player_id, plot_index, state, water_level, fertilizer_level) VALUES (?, ?, ?, ?, ?)";
-            try (PreparedStatement insPs = conn.prepareStatement(insertSql)) {
-                for (int i = 0; i < DEFAULT_PLOTS; i++) {
-                    insPs.setLong(1, playerId);
-                    insPs.setInt(2, i);
-                    insPs.setString(3, FarmPlot.PlotState.EMPTY.name());
-                    insPs.setInt(4, WATER_MAX);
-                    insPs.setInt(5, 0);
-                    insPs.executeUpdate();
-                }
+            for (int i = 0; i < DEFAULT_PLOTS; i++) {
+                farmDAO.insertPlot(conn, playerId, i, FarmPlot.PlotState.EMPTY.name(), WATER_MAX, 0);
             }
             return DEFAULT_PLOTS;
         });
@@ -231,13 +203,8 @@ public class FarmService {
         if (plot.getWiltedTime() > 0 && (now - plot.getWiltedTime()) / 1000 > WILTED_DEAD_SECONDS) {
             return createResult(false, I18n.t("farm.the_crop_has_been_withered"));
         }
-        String updateSql = "UPDATE farm_plots SET state = ?, water_level = ?, wilted_time = ? WHERE id = ?";
-        try (PreparedStatement ps = conn.prepareStatement(updateSql)) {
-            ps.setString(1, FarmPlot.PlotState.GROWING.name());
-            ps.setInt(2, 50);
-            ps.setLong(3, 0);
-            ps.setLong(4, plot.getId());
-            ps.executeUpdate();
+        try {
+            farmDAO.reviveWiltedPlot(conn, plot.getId(), FarmPlot.PlotState.GROWING.name(), 50);
         } catch (SQLException e) {
             return createResult(false, I18n.t("farm.failed_to_restore_the_crop"));
         }
@@ -423,36 +390,31 @@ public class FarmService {
         return DatabaseManager.runTransaction(conn -> {
             // 先结算：枯萎地块要先判定死亡时限，成熟地块要先变成 READY
             settlePlayerPlots(conn, playerId, System.currentTimeMillis());
-            String sql = "SELECT plot_index, state, water_level, wilted_time FROM farm_plots WHERE player_id = ? AND state != 'EMPTY'" + lockClause();
             int wateredCount = 0;
             int wiltedCount = 0;
             long now = System.currentTimeMillis();
 
-            try (PreparedStatement ps = conn.prepareStatement(sql)) {
-                ps.setLong(1, playerId);
-                try (ResultSet rs = ps.executeQuery()) {
-                    while (rs.next()) {
-                        String state = rs.getString("state");
-                        int waterLevel = rs.getInt("water_level");
-                        int plotIndex = rs.getInt("plot_index");
-
-                        if ("WILTED".equals(state)) {
-                            long wiltedTime = rs.getLong("wilted_time");
-                            if (wiltedTime > 0 && (now - wiltedTime) / 1000 <= WILTED_DEAD_SECONDS) {
-                                updatePlotState(conn, playerId, plotIndex, FarmPlot.PlotState.GROWING.name());
-                                updateWaterLevel(conn, playerId, plotIndex, 50);
-                                resetWiltedTime(conn, playerId, plotIndex);
-                                wiltedCount++;
-                            }
-                        } else if (waterLevel < WATER_MAX) {
-                            int newWater = Math.min(WATER_MAX, waterLevel + 30);
-                            updateWaterLevel(conn, playerId, plotIndex, newWater);
-                            wateredCount++;
-                        }
-                    }
-                }
+            List<FarmDAO.WaterRow> rows;
+            try {
+                rows = farmDAO.findNonEmptyForWatering(conn, playerId);
             } catch (SQLException e) {
                 return createResult(false, I18n.t("farm.watering_failed"));
+            }
+
+            for (FarmDAO.WaterRow row : rows) {
+                if ("WILTED".equals(row.state())) {
+                    if (row.wiltedTime() > 0 && (now - row.wiltedTime()) / 1000 <= WILTED_DEAD_SECONDS) {
+                        farmDAO.updatePlotState(conn, playerId, row.plotIndex(),
+                                FarmPlot.PlotState.GROWING.name());
+                        farmDAO.updateWaterLevel(conn, playerId, row.plotIndex(), 50);
+                        farmDAO.resetWiltedTime(conn, playerId, row.plotIndex());
+                        wiltedCount++;
+                    }
+                } else if (row.waterLevel() < WATER_MAX) {
+                    int newWater = Math.min(WATER_MAX, row.waterLevel() + 30);
+                    farmDAO.updateWaterLevel(conn, playerId, row.plotIndex(), newWater);
+                    wateredCount++;
+                }
             }
 
             StringBuilder msg = new StringBuilder();
@@ -485,17 +447,9 @@ public class FarmService {
         return DatabaseManager.runTransaction(conn -> {
             // 先结算：确保待施肥地块的状态是最新的
             settlePlayerPlots(conn, playerId, System.currentTimeMillis());
-            String sql = "SELECT plot_index, fertilizer_level FROM farm_plots WHERE player_id = ? AND state != 'EMPTY' AND fertilizer_level < ?" + lockClause();
-            List<Integer> plotsToFertilize = new ArrayList<>();
-
-            try (PreparedStatement ps = conn.prepareStatement(sql)) {
-                ps.setLong(1, playerId);
-                ps.setInt(2, FERTILIZER_MAX);
-                try (ResultSet rs = ps.executeQuery()) {
-                    while (rs.next()) {
-                        plotsToFertilize.add(rs.getInt("plot_index"));
-                    }
-                }
+            List<Integer> plotsToFertilize;
+            try {
+                plotsToFertilize = farmDAO.findUnderFertilizedPlotIndexes(conn, playerId, FERTILIZER_MAX);
             } catch (SQLException e) {
                 return createResult(false, I18n.t("farm.failed_to_query_the_plots"));
             }
@@ -512,20 +466,10 @@ public class FarmService {
 
             itemService.removeItem(conn, playerId, fertilizerKey, plotsToFertilize.size());
 
-            String updateSql = DatabaseManager.isSqlite()
-                    ? "UPDATE farm_plots SET fertilizer_level = MIN(fertilizer_level + ?, ?) WHERE player_id = ? AND plot_index = ?"
-                    : "UPDATE farm_plots SET fertilizer_level = LEAST(fertilizer_level + ?, ?) WHERE player_id = ? AND plot_index = ?";
-
-            int fertilizedCount = 0;
-            try (PreparedStatement ps = conn.prepareStatement(updateSql)) {
-                for (int plotIndex : plotsToFertilize) {
-                    ps.setInt(1, bonusAmount);
-                    ps.setInt(2, FERTILIZER_MAX);
-                    ps.setLong(3, playerId);
-                    ps.setInt(4, plotIndex);
-                    ps.executeUpdate();
-                    fertilizedCount++;
-                }
+            int fertilizedCount;
+            try {
+                fertilizedCount = farmDAO.addFertilizerUpToAll(
+                        conn, playerId, plotsToFertilize, bonusAmount, FERTILIZER_MAX);
             } catch (SQLException e) {
                 return createResult(false, I18n.t("farm.fertilizing_failed"));
             }
@@ -539,27 +483,26 @@ public class FarmService {
         return DatabaseManager.runTransaction(conn -> {
             // 先结算：本来就要靠定时器把成熟地块刷成 READY，现在改在收获前一次性结算
             settlePlayerPlots(conn, playerId, System.currentTimeMillis());
-            String sql = "SELECT * FROM farm_plots WHERE player_id = ? AND state = 'READY'" + lockClause();
             Map<String, Integer> harvestResults = new LinkedHashMap<>();
             int harvestedCount = 0;
 
-            try (PreparedStatement ps = conn.prepareStatement(sql)) {
-                ps.setLong(1, playerId);
-                try (ResultSet rs = ps.executeQuery()) {
-                    while (rs.next()) {
-                        FarmPlot plot = mapPlot(rs);
-                        CropConfig config = CropConfig.get(plot.getSeedKey());
-                        if (config != null) {
-                            int yield = calculateYield(plot, config);
-                            itemService.addItem(conn, playerId, plot.getCropKey(), yield);
-                            harvestResults.merge(plot.getCropKey(), yield, Integer::sum);
-                            resetPlot(conn, playerId, plot.getPlotIndex());
-                            harvestedCount++;
-                        }
-                    }
-                }
+            List<FarmPlot> ready;
+            try {
+                ready = farmDAO.findReadyByPlayerId(conn, playerId);
             } catch (SQLException e) {
                 return createResult(false, I18n.t("farm.harvest_failed"));
+            }
+
+            for (FarmPlot plot : ready) {
+                CropConfig config = CropConfig.get(plot.getSeedKey());
+                if (config == null) {
+                    continue;
+                }
+                int yield = calculateYield(plot, config);
+                itemService.addItem(conn, playerId, plot.getCropKey(), yield);
+                harvestResults.merge(plot.getCropKey(), yield, Integer::sum);
+                resetPlot(conn, playerId, plot.getPlotIndex());
+                harvestedCount++;
             }
 
             if (harvestedCount == 0) {
@@ -609,15 +552,9 @@ public class FarmService {
         // 内置模块门控：农场模块停用后不推进生长（与旧后台任务的门控语义一致）
         if (!com.mtxgdn.plugin.BuiltInPluginRegistry.getInstance().isEnabledOrUnknown("farm")) return;
 
-        String sql = "SELECT * FROM farm_plots WHERE player_id = ? AND state IN ('PLANTED', 'GROWING')";
-        List<FarmPlot> plots = new ArrayList<>();
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            try (ResultSet rs = ps.executeQuery()) {
-                while (rs.next()) {
-                    plots.add(mapPlot(rs));
-                }
-            }
+        List<FarmPlot> plots;
+        try {
+            plots = farmDAO.findGrowingByPlayerId(conn, playerId);
         } catch (SQLException e) {
             LOG.error("农田惰性结算读取失败 player=" + playerId, e);
             return;
@@ -757,24 +694,7 @@ public class FarmService {
 
     /** 把结算结果一次性落库（单条 UPDATE：状态/阶段/水分/枯萎/虫害/品质/结算时刻）。 */
     private void persistSettledPlot(Connection conn, FarmPlot plot) throws SQLException {
-        String sql = """
-            UPDATE farm_plots SET state = ?, growth_stage = ?, water_level = ?, wilted_time = ?,
-                pest_state = ?, pest_time = ?, crop_quality = ?, settled_time = ?
-            WHERE id = ?
-            """;
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, plot.getState().name());
-            ps.setInt(2, plot.getGrowthStage());
-            ps.setInt(3, plot.getWaterLevel());
-            ps.setLong(4, plot.getWiltedTime());
-            ps.setString(5, plot.getPestState() == null
-                    ? FarmPlot.PestState.CLEAN.name() : plot.getPestState().name());
-            ps.setLong(6, plot.getPestTime());
-            ps.setString(7, plot.getCropQuality() == null ? null : plot.getCropQuality().name());
-            ps.setLong(8, plot.getSettledTime());
-            ps.setLong(9, plot.getId());
-            ps.executeUpdate();
-        }
+        farmDAO.persistSettledPlot(conn, plot);
     }
 
     private static FarmPlot.CropQuality determineQuality(FarmPlot plot) {
@@ -807,15 +727,7 @@ public class FarmService {
         // 只读一条 COUNT，但仍然走事务：服务层不再自己开连接。
         // 注意这里是「事务外先数、事务内按数出来的下标插入」——
         // 两个并发扩建可能挑到同一个 plot_index。这是既有行为，本次不改变它。
-        return DatabaseManager.runTransaction(conn -> {
-            String countSql = "SELECT COUNT(*) as cnt FROM farm_plots WHERE player_id = ?";
-            try (PreparedStatement ps = conn.prepareStatement(countSql)) {
-                ps.setLong(1, playerId);
-                try (ResultSet rs = ps.executeQuery()) {
-                    return rs.next() ? rs.getInt("cnt") : 0;
-                }
-            }
-        });
+        return DatabaseManager.runTransaction(conn -> farmDAO.countPlots(conn, playerId));
     }
 
     private long calculateExpandCost(int currentCount) {
@@ -823,72 +735,34 @@ public class FarmService {
     }
 
     private FarmPlot getPlotForUpdate(Connection conn, long playerId, int plotIndex) {
-        String sql = "SELECT * FROM farm_plots WHERE player_id = ? AND plot_index = ?" + lockClause();
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            ps.setInt(2, plotIndex);
-            try (ResultSet rs = ps.executeQuery()) {
-                if (rs.next()) {
-                    return mapPlot(rs);
-                }
-            }
+        try {
+            return farmDAO.findPlotForUpdate(conn, playerId, plotIndex);
         } catch (SQLException e) {
             throw new RuntimeException("查询地块失败", e);
         }
-        return null;
     }
 
     private void updatePlotToPlanted(Connection conn, FarmPlot plot, CropConfig config, String seedKey,
                                       long now, long harvestTime, int yield, double rootBonus, double seasonModifier) {
-        String updateSql = """
-            UPDATE farm_plots SET state = ?, seed_key = ?, crop_key = ?,
-                planted_time = ?, harvest_time = ?, growth_stage = ?,
-                water_level = ?, fertilizer_level = ?, yield = ?, root_bonus = ?, season_modifier = ?,
-                settled_time = ?, pest_state = ?, pest_time = ?, crop_quality = ?, wilted_time = 0
-            WHERE id = ?
-            """;
-        try (PreparedStatement ps = conn.prepareStatement(updateSql)) {
-            ps.setString(1, FarmPlot.PlotState.PLANTED.name());
-            ps.setString(2, seedKey);
-            ps.setString(3, config.getCropKey());
-            ps.setLong(4, now);
-            ps.setLong(5, harvestTime);
-            ps.setInt(6, 1);
-            ps.setInt(7, WATER_MAX);
-            ps.setInt(8, 0);
-            ps.setInt(9, Math.max(yield, 1));
-            ps.setDouble(10, rootBonus);
-            ps.setDouble(11, seasonModifier);
-            ps.setLong(12, now);
-            ps.setString(13, FarmPlot.PestState.CLEAN.name());
-            ps.setLong(14, 0);
-            ps.setString(15, null);
-            ps.setLong(16, plot.getId());
-            ps.executeUpdate();
+        try {
+            farmDAO.updatePlotToPlanted(conn, plot, config, seedKey, now, harvestTime, yield,
+                    rootBonus, seasonModifier);
         } catch (SQLException e) {
             throw new RuntimeException("种植失败", e);
         }
     }
 
     private void updateWaterLevel(Connection conn, long playerId, int plotIndex, int waterLevel) {
-        String sql = "UPDATE farm_plots SET water_level = ? WHERE player_id = ? AND plot_index = ?";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, waterLevel);
-            ps.setLong(2, playerId);
-            ps.setInt(3, plotIndex);
-            ps.executeUpdate();
+        try {
+            farmDAO.updateWaterLevel(conn, playerId, plotIndex, waterLevel);
         } catch (SQLException e) {
             throw new RuntimeException("更新水分失败", e);
         }
     }
 
     private void updateFertilizerLevel(Connection conn, long playerId, int plotIndex, int fertilizerLevel) {
-        String sql = "UPDATE farm_plots SET fertilizer_level = ? WHERE player_id = ? AND plot_index = ?";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setInt(1, fertilizerLevel);
-            ps.setLong(2, playerId);
-            ps.setInt(3, plotIndex);
-            ps.executeUpdate();
+        try {
+            farmDAO.updateFertilizerLevel(conn, playerId, plotIndex, fertilizerLevel);
         } catch (SQLException e) {
             throw new RuntimeException("更新肥力失败", e);
         }
@@ -896,110 +770,46 @@ public class FarmService {
 
     /** 修复：按玩家 + 地块索引更新状态（原实现只按地块索引，会误改其他玩家同索引的地块） */
     private void updatePlotState(Connection conn, long playerId, int plotIndex, String state) {
-        String sql = "UPDATE farm_plots SET state = ? WHERE player_id = ? AND plot_index = ?";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, state);
-            ps.setLong(2, playerId);
-            ps.setInt(3, plotIndex);
-            ps.executeUpdate();
+        try {
+            farmDAO.updatePlotState(conn, playerId, plotIndex, state);
         } catch (SQLException e) {
             throw new RuntimeException("更新地块状态失败", e);
         }
     }
 
     private void resetWiltedTime(Connection conn, long playerId, int plotIndex) {
-        String sql = "UPDATE farm_plots SET wilted_time = 0 WHERE player_id = ? AND plot_index = ?";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            ps.setInt(2, plotIndex);
-            ps.executeUpdate();
+        try {
+            farmDAO.resetWiltedTime(conn, playerId, plotIndex);
         } catch (SQLException e) {
             throw new RuntimeException("重置枯萎时间失败", e);
         }
     }
 
     private void clearPestState(Connection conn, long playerId, int plotIndex) {
-        String sql = "UPDATE farm_plots SET pest_state = ?, pest_time = ? WHERE player_id = ? AND plot_index = ?";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, FarmPlot.PestState.CLEAN.name());
-            ps.setLong(2, 0);
-            ps.setLong(3, playerId);
-            ps.setInt(4, plotIndex);
-            ps.executeUpdate();
+        try {
+            farmDAO.clearPestState(conn, playerId, plotIndex);
         } catch (SQLException e) {
             throw new RuntimeException("清除病虫害失败", e);
         }
     }
 
     private void resetPlot(Connection conn, long playerId, int plotIndex) {
-        String sql = """
-            UPDATE farm_plots SET state = ?, seed_key = ?, crop_key = ?,
-                planted_time = ?, harvest_time = ?, growth_stage = ?,
-                water_level = ?, fertilizer_level = ?, yield = ?,
-                wilted_time = 0, settled_time = 0,
-                pest_state = ?, pest_time = 0, crop_quality = ?
-            WHERE player_id = ? AND plot_index = ?
-            """;
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setString(1, FarmPlot.PlotState.EMPTY.name());
-            ps.setString(2, null);
-            ps.setString(3, null);
-            ps.setLong(4, 0);
-            ps.setLong(5, 0);
-            ps.setInt(6, 0);
-            ps.setInt(7, WATER_MAX);
-            ps.setInt(8, 0);
-            ps.setInt(9, 0);
-            ps.setString(10, FarmPlot.PestState.CLEAN.name());
-            ps.setString(11, null);
-            ps.setLong(12, playerId);
-            ps.setInt(13, plotIndex);
-            ps.executeUpdate();
+        try {
+            farmDAO.resetPlot(conn, playerId, plotIndex, FarmPlot.PlotState.EMPTY.name(),
+                    WATER_MAX, FarmPlot.PestState.CLEAN.name());
         } catch (SQLException e) {
             throw new RuntimeException("重置地块失败", e);
         }
     }
 
     private void createNewPlot(Connection conn, long playerId, int plotIndex) {
-        String sql = "INSERT INTO farm_plots (player_id, plot_index, state, water_level, fertilizer_level) VALUES (?, ?, ?, ?, ?)";
-        try (PreparedStatement ps = conn.prepareStatement(sql)) {
-            ps.setLong(1, playerId);
-            ps.setInt(2, plotIndex);
-            ps.setString(3, FarmPlot.PlotState.EMPTY.name());
-            ps.setInt(4, WATER_MAX);
-            ps.setInt(5, 0);
-            ps.executeUpdate();
+        try {
+            farmDAO.insertPlot(conn, playerId, plotIndex, FarmPlot.PlotState.EMPTY.name(), WATER_MAX, 0);
         } catch (SQLException e) {
             throw new RuntimeException("创建地块失败", e);
         }
     }
 
-    private static FarmPlot mapPlot(ResultSet rs) throws SQLException {
-        FarmPlot plot = new FarmPlot();
-        plot.setId(rs.getLong("id"));
-        plot.setPlayerId(rs.getLong("player_id"));
-        plot.setPlotIndex(rs.getInt("plot_index"));
-        plot.setState(FarmPlot.PlotState.valueOf(rs.getString("state")));
-        plot.setSeedKey(rs.getString("seed_key"));
-        plot.setCropKey(rs.getString("crop_key"));
-        plot.setPlantedTime(rs.getLong("planted_time"));
-        plot.setHarvestTime(rs.getLong("harvest_time"));
-        plot.setWiltedTime(rs.getLong("wilted_time"));
-        plot.setGrowthStage(rs.getInt("growth_stage"));
-        plot.setWaterLevel(rs.getInt("water_level"));
-        plot.setFertilizerLevel(rs.getInt("fertilizer_level"));
-        plot.setYield(rs.getInt("yield"));
-        plot.setRootBonus(rs.getDouble("root_bonus"));
-        plot.setSeasonModifier(rs.getDouble("season_modifier"));
-        plot.setPestState(FarmPlot.PestState.valueOf(rs.getString("pest_state")));
-        plot.setPestTime(rs.getLong("pest_time"));
-        String qualityStr = rs.getString("crop_quality");
-        if (qualityStr != null) {
-            plot.setCropQuality(FarmPlot.CropQuality.valueOf(qualityStr));
-        }
-        plot.setSettledTime(rs.getLong("settled_time"));
-        return plot;
-    }
 
     private Map<String, Object> createResult(boolean success, String message) {
         Map<String, Object> result = new LinkedHashMap<>();
