@@ -104,7 +104,7 @@ import java.util.List;
  *       没有 {@code System.currentTimeMillis()}，也没有 {@code CURRENT_TIMESTAMP}。</li>
  * </ul>
  *
- * <p>业务规则（成员上限、职位权限、国际化文案、{@code SectOperationResult} 组装）
+ * <p>业务规则（成员上限、职位权限、国际化文案、{@code OperationResult} 组装）
  * 一律留在服务层，不进 DAO —— 这个域原本就只有查询，所以服务层剩下的
  * 只有"把调用转给 DAO"这一层。</p>
  */

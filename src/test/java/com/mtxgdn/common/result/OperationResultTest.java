@@ -1,4 +1,4 @@
-package com.mtxgdn.game.sect;
+package com.mtxgdn.common.result;
 
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -33,10 +33,10 @@ import static org.junit.jupiter.api.Assertions.assertTrue;
  * </ul>
  *
  * <p>已把 6 个"键集合恰好是 success + message"的方法改成返回
- * {@link SectOperationResult}。需要额外带数据的方法（要返回宗门、申请列表、
+ * {@link OperationResult}。需要额外带数据的方法（要返回宗门、申请列表、
  * 战报的方法）各自仍是 Map —— 那是有意的，报告里逐条列了理由。</p>
  */
-class SectOperationResultTest {
+class OperationResultTest {
 
     private static final Path MEMBERSHIP_DOMAIN =
             Paths.get("src/main/java/com/mtxgdn/game/service/SectMembershipDomain.java");
@@ -51,8 +51,8 @@ class SectOperationResultTest {
     @Test
     @DisplayName("DTO 本身有类型化字段，且提供旧调用方风格的访问器")
     void dtoIsTyped() {
-        SectOperationResult ok = new SectOperationResult(true, "成功");
-        SectOperationResult fail = new SectOperationResult(false, "失败");
+        OperationResult ok = new OperationResult(true, "成功");
+        OperationResult fail = new OperationResult(false, "失败");
 
         assertTrue(ok.success(), "success 字段应可读");
         assertTrue(ok.isSuccess(), "isSuccess() 是给旧调用方挪用的兼容访问器");
@@ -65,13 +65,13 @@ class SectOperationResultTest {
     @DisplayName("DTO 的字段名必须与原来的 Map 键一致，否则 HTTP 响应体会变")
     void dtoFieldsMatchTheOldMapKeys() {
         // 序列化出来的 JSON 键由 record 组件名决定，必须还是 success / message
-        SectOperationResult sample = new SectOperationResult(true, "msg");
+        OperationResult sample = new OperationResult(true, "msg");
         assertEquals(List.of("success", "message"), List.of(
                 "success", "message"),
                 "record 的组件名必须仍是 success/message，前端才能拿到同样的字段");
 
         // 用反射确认组件名（gson 按这个序列化）
-        List<String> components = java.util.Arrays.stream(SectOperationResult.class.getRecordComponents())
+        List<String> components = java.util.Arrays.stream(OperationResult.class.getRecordComponents())
                 .map(java.lang.reflect.RecordComponent::getName)
                 .toList();
         assertEquals(List.of("success", "message"), components,
@@ -79,12 +79,12 @@ class SectOperationResultTest {
     }
 
     @Test
-    @DisplayName("6 个操作方法已改用 SectOperationResult 返回")
+    @DisplayName("6 个操作方法已改用 OperationResult 返回")
     void membershipDomainMethodsReturnDto() throws IOException {
         String code = stripComments(Files.readString(MEMBERSHIP_DOMAIN, StandardCharsets.UTF_8));
         for (String method : DTO_METHODS) {
-            assertTrue(code.contains("SectOperationResult " + method + "("),
-                    method + "() 应返回 SectOperationResult，而不是 Map<String, Object>");
+            assertTrue(code.contains("OperationResult " + method + "("),
+                    method + "() 应返回 OperationResult，而不是 Map<String, Object>");
         }
     }
 
@@ -105,8 +105,8 @@ class SectOperationResultTest {
     void facadeReturnsDtoWithoutUnwrapping() throws IOException {
         String code = stripComments(Files.readString(FACADE, StandardCharsets.UTF_8));
         for (String method : DTO_METHODS) {
-            assertTrue(code.contains("SectOperationResult " + method + "("),
-                    "门面的 " + method + "() 应保持返回 SectOperationResult");
+            assertTrue(code.contains("OperationResult " + method + "("),
+                    "门面的 " + method + "() 应保持返回 OperationResult");
             assertFalse(code.contains("Map<String, Object> " + method + "("),
                     "门面不应把 " + method + "() 的返回类型退回 Map");
         }

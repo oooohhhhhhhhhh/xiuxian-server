@@ -4,7 +4,7 @@ import com.mtxgdn.TestBase;
 import com.mtxgdn.db.DatabaseManager;
 import com.mtxgdn.game.entity.Sect;
 import com.mtxgdn.game.entity.SectMember;
-import com.mtxgdn.game.sect.SectOperationResult;
+import com.mtxgdn.common.result.OperationResult;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
 

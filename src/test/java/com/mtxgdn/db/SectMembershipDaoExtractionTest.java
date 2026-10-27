@@ -43,7 +43,7 @@ class SectMembershipDaoExtractionTest extends DaoExtractionAssertions {
                 "canManage()",
                 "canKickOrAppoint(",
                 "TitleService",
-                "SectOperationResult",
+                "OperationResult",
                 "\"未知\"",
                 "sect.role_already",
                 "DatabaseManager.runTransaction(");
@@ -51,7 +51,7 @@ class SectMembershipDaoExtractionTest extends DaoExtractionAssertions {
 
     @Override
     protected List<String> daoForbiddenTokens() {
-        return List.of("I18n", "SectOperationResult", "TitleService", "SectSupport");
+        return List.of("I18n", "OperationResult", "TitleService", "SectSupport");
     }
 
     @Test
@@ -178,7 +178,7 @@ class SectMembershipDaoExtractionTest extends DaoExtractionAssertions {
     @DisplayName("成员数门槛与解散的事务边界留在服务层")
     void membershipRulesStayInService() throws IOException {
         String service = stripComments(read(servicePath()));
-        String leaveBody = bodyOf(service, "SectOperationResult leaveSect(long playerId)");
+        String leaveBody = bodyOf(service, "OperationResult leaveSect(long playerId)");
         assertTrue(leaveBody.contains("MEMBERSHIP_DAO.countMembers(sect.getId()) > 1"),
                 "「只剩一个人就不许退」是业务规则，判断必须留在服务层");
         assertTrue(leaveBody.contains("DatabaseManager.runTransaction(conn -> {"),
@@ -191,7 +191,7 @@ class SectMembershipDaoExtractionTest extends DaoExtractionAssertions {
                 "deleteMember 必须在事务之前单独执行 —— 位置与拆分前一致，挪进事务会改变提交边界");
         assertFalse(leaveBody.contains("getConnection("), "服务层不该再自己开连接");
 
-        String applyBody = bodyOf(service, "SectOperationResult applyToSect(long playerId, long sectId, String message)");
+        String applyBody = bodyOf(service, "OperationResult applyToSect(long playerId, long sectId, String message)");
         assertTrue(applyBody.contains("members.size() >= maxMembers"),
                 "成员上限判断必须留在服务层");
         assertTrue(applyBody.contains("MEMBERSHIP_DAO.hasPendingApplication(sectId, playerId)"),
@@ -205,7 +205,7 @@ class SectMembershipDaoExtractionTest extends DaoExtractionAssertions {
     @DisplayName("审批的称号授予与文案组装仍在服务层")
     void approvalSideEffectsStayInService() throws IOException {
         String service = stripComments(read(servicePath()));
-        String body = bodyOf(service, "SectOperationResult approveApplication(long approverPlayerId, long applicationId, boolean approved)");
+        String body = bodyOf(service, "OperationResult approveApplication(long approverPlayerId, long applicationId, boolean approved)");
         assertTrue(body.contains("new com.mtxgdn.game.service.TitleService().grantTitle(app.getPlayerId(), \"senior_disciple\")"),
                 "首次入宗授予「首席弟子」称号是业务副作用，必须留在服务层");
         assertTrue(body.contains("msg = \"已通过玩家【\" + app.getPlayerName() + \"】的加入申请\""),
@@ -221,7 +221,7 @@ class SectMembershipDaoExtractionTest extends DaoExtractionAssertions {
     void daoStaysPurePersistence() throws IOException {
         String code = stripComments(read(daoPath()));
         assertFalse(code.contains("I18n"), "DAO 不该做文案组装");
-        assertFalse(code.contains("SectOperationResult"), "DAO 不该知道返回值 DTO");
+        assertFalse(code.contains("OperationResult"), "DAO 不该知道返回值 DTO");
         assertFalse(code.contains("TitleService"), "DAO 不该授予称号");
         assertFalse(code.contains("Sect.getMaxMembersForLevel"), "DAO 不该判成员上限");
         assertFalse(code.contains("canManage"), "DAO 不该做权限判断");

@@ -58,7 +58,7 @@ import java.util.List;
  * 原本写在服务包的 {@code SectSupport} 里。DAO 的职责就是把行变成实体，
  * 所以这里原样搬了一份；列顺序、每列各自的容错、都没有改动。</p>
  *
- * <p>业务规则（成员上限、权限判断、称号授予、{@code SectOperationResult} 组装）
+ * <p>业务规则（成员上限、权限判断、称号授予、{@code OperationResult} 组装）
  * 一律留在服务层，不进 DAO。</p>
  */
 public class SectMembershipDAO {

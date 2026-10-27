@@ -6,7 +6,7 @@ import com.mtxgdn.entity.Player;
 import com.mtxgdn.game.entity.Sect;
 import com.mtxgdn.game.entity.SectApplication;
 import com.mtxgdn.game.entity.SectMember;
-import com.mtxgdn.game.sect.SectOperationResult;
+import com.mtxgdn.common.result.OperationResult;
 import com.mtxgdn.i18n.I18n;
 
 import java.util.ArrayList;
@@ -32,7 +32,7 @@ import java.util.List;
  * {@code PreparedStatement} / {@code ResultSet}。每个 DAO 方法一对重载 ——
  * 事务内一律传 {@code conn}，绝不在事务里另开连接（SQLite 下会
  * {@code SQLITE_BUSY_SNAPSHOT}）。业务规则（成员上限、职位权限、称号授予、
- * {@code SectOperationResult} 组装）留在本类。</p>
+ * {@code OperationResult} 组装）留在本类。</p>
  */
 final class SectMembershipDomain {
 
@@ -49,56 +49,56 @@ final class SectMembershipDomain {
 
     // ==================== 申请管理 ====================
 
-    SectOperationResult applyToSect(long playerId, long sectId, String message) {
+    OperationResult applyToSect(long playerId, long sectId, String message) {
 
         Player player = playerService.getPlayerById(playerId);
         if (player == null) {
-            return new SectOperationResult(false, I18n.t("sect.character_does_not_exist"));
+            return new OperationResult(false, I18n.t("sect.character_does_not_exist"));
         }
 
         Sect sect = queryDomain.getSectById(sectId);
         if (sect == null) {
-            return new SectOperationResult(false, I18n.t("sect.sect_does_not_exist"));
+            return new OperationResult(false, I18n.t("sect.sect_does_not_exist"));
         }
 
         if (queryDomain.getPlayerSect(playerId) != null) {
-            return new SectOperationResult(false, I18n.t("sect.you_already_belong"));
+            return new OperationResult(false, I18n.t("sect.you_already_belong"));
         }
 
         List<SectMember> members = queryDomain.getSectMembers(sectId);
         int maxMembers = Sect.getMaxMembersForLevel(sect.getLevel());
         if (members.size() >= maxMembers) {
-            return new SectOperationResult(false, I18n.t("sect.is_full", sect.getName(), members.size(), maxMembers));
+            return new OperationResult(false, I18n.t("sect.is_full", sect.getName(), members.size(), maxMembers));
         }
 
         if (MEMBERSHIP_DAO.hasPendingApplication(sectId, playerId)) {
-            return new SectOperationResult(false, I18n.t("sect.you_have_already_applied"));
+            return new OperationResult(false, I18n.t("sect.you_have_already_applied"));
         }
 
         MEMBERSHIP_DAO.insertApplication(sectId, playerId, message);
 
-        return new SectOperationResult(true, I18n.t("sect.applied_to_join", sect.getName()));
+        return new OperationResult(true, I18n.t("sect.applied_to_join", sect.getName()));
     }
 
     List<SectApplication> getPendingApplications(long sectId) {
         return MEMBERSHIP_DAO.findPendingApplications(sectId);
     }
 
-    SectOperationResult approveApplication(long approverPlayerId, long applicationId, boolean approved) {
+    OperationResult approveApplication(long approverPlayerId, long applicationId, boolean approved) {
 
         SectApplication app = MEMBERSHIP_DAO.findApplicationById(applicationId);
         if (app == null || !"pending".equals(app.getStatus())) {
-            return new SectOperationResult(false, I18n.t("sect.the_application_does_not_exist"));
+            return new OperationResult(false, I18n.t("sect.the_application_does_not_exist"));
         }
 
         Sect sect = queryDomain.getSectById(app.getSectId());
         if (sect == null) {
-            return new SectOperationResult(false, I18n.t("sect.sect_does_not_exist"));
+            return new OperationResult(false, I18n.t("sect.sect_does_not_exist"));
         }
 
         SectMember approver = queryDomain.getMember(sect.getId(), approverPlayerId);
         if (approver == null || !approver.canManage()) {
-            return new SectOperationResult(false, I18n.t("sect.you_are_not_allowed"));
+            return new OperationResult(false, I18n.t("sect.you_are_not_allowed"));
         }
 
         String status;
@@ -107,7 +107,7 @@ final class SectMembershipDomain {
             List<SectMember> members = queryDomain.getSectMembers(sect.getId());
             int maxMembers = Sect.getMaxMembersForLevel(sect.getLevel());
             if (members.size() >= maxMembers) {
-                return new SectOperationResult(false, I18n.t("sect.the_sect_is_full"));
+                return new OperationResult(false, I18n.t("sect.the_sect_is_full"));
             }
             status = "accepted";
             msg = "已通过玩家【" + app.getPlayerName() + "】的加入申请";
@@ -124,25 +124,25 @@ final class SectMembershipDomain {
 
         MEMBERSHIP_DAO.updateApplicationStatus(applicationId, status);
 
-        return new SectOperationResult(true, msg);
+        return new OperationResult(true, msg);
     }
 
     // ==================== 退出/踢人 ====================
 
-    SectOperationResult leaveSect(long playerId) {
+    OperationResult leaveSect(long playerId) {
         SectMember member = queryDomain.getPlayerMember(playerId);
         if (member == null) {
-            return new SectOperationResult(false, I18n.t("sect.you_have_not_joined_any"));
+            return new OperationResult(false, I18n.t("sect.you_have_not_joined_any"));
         }
 
         Sect sect = queryDomain.getSectById(member.getSectId());
         if (sect == null) {
-            return new SectOperationResult(false, I18n.t("sect.sect_does_not_exist"));
+            return new OperationResult(false, I18n.t("sect.sect_does_not_exist"));
         }
 
         if (member.isLeader()) {
             if (MEMBERSHIP_DAO.countMembers(sect.getId()) > 1) {
-                return new SectOperationResult(false, I18n.t("sect.leave_leader_blocked"));
+                return new OperationResult(false, I18n.t("sect.leave_leader_blocked"));
             }
         }
 
@@ -156,43 +156,43 @@ final class SectMembershipDomain {
                 MEMBERSHIP_DAO.deleteSectCascade(conn, sect.getId());
                 return null;
             });
-            return new SectOperationResult(true, I18n.t("sect.you_disbanded_the_sect", sect.getName()));
+            return new OperationResult(true, I18n.t("sect.you_disbanded_the_sect", sect.getName()));
         } else {
-            return new SectOperationResult(true, I18n.t("sect.member_left", playerName, sect.getName()));
+            return new OperationResult(true, I18n.t("sect.member_left", playerName, sect.getName()));
         }
     }
 
-    SectOperationResult kickMember(long kickerPlayerId, long targetPlayerId) {
+    OperationResult kickMember(long kickerPlayerId, long targetPlayerId) {
         SectMember kicker = queryDomain.getPlayerMember(kickerPlayerId);
         if (kicker == null) {
-            return new SectOperationResult(false, I18n.t("sect.you_have_not_joined_any"));
+            return new OperationResult(false, I18n.t("sect.you_have_not_joined_any"));
         }
         if (!kicker.canManage()) {
-            return new SectOperationResult(false, I18n.t("sect.only_the_sect_leader_vice_3"));
+            return new OperationResult(false, I18n.t("sect.only_the_sect_leader_vice_3"));
         }
 
         SectMember target = queryDomain.getMember(kicker.getSectId(), targetPlayerId);
         if (target == null) {
-            return new SectOperationResult(false, I18n.t("sect.that_player"));
+            return new OperationResult(false, I18n.t("sect.that_player"));
         }
         if (target.isLeader()) {
-            return new SectOperationResult(false, I18n.t("sect.you_cannot_remove_the_sect"));
+            return new OperationResult(false, I18n.t("sect.you_cannot_remove_the_sect"));
         }
         if (target.isViceLeader() && !kicker.isLeader()) {
-            return new SectOperationResult(false, I18n.t("sect.only_the_sect_leader_4"));
+            return new OperationResult(false, I18n.t("sect.only_the_sect_leader_4"));
         }
         if (!kicker.canKickOrAppoint(target)) {
-            return new SectOperationResult(false, I18n.t("sect.you_cannot_remove_members"));
+            return new OperationResult(false, I18n.t("sect.you_cannot_remove_members"));
         }
 
         MEMBERSHIP_DAO.deleteMember(kicker.getSectId(), targetPlayerId);
-        return new SectOperationResult(true, I18n.t("sect.expelled_from_the_sect", target.getPlayerName()));
+        return new OperationResult(true, I18n.t("sect.expelled_from_the_sect", target.getPlayerName()));
     }
 
-    SectOperationResult appointMember(long appointerPlayerId, long targetPlayerId, String newRole) {
+    OperationResult appointMember(long appointerPlayerId, long targetPlayerId, String newRole) {
         SectMember appointer = queryDomain.getPlayerMember(appointerPlayerId);
         if (appointer == null || !appointer.canManage()) {
-            return new SectOperationResult(false, I18n.t("sect.only_the_sect_leader_vice_2"));
+            return new OperationResult(false, I18n.t("sect.only_the_sect_leader_vice_2"));
         }
 
         // 先解析目标角色
@@ -203,51 +203,51 @@ final class SectMembershipDomain {
             case "内门", "内门弟子", "inner", "inner_member": role = SectMember.ROLE_INNER_MEMBER; break;
             case "外门", "外门弟子", "outer", "outer_member": role = SectMember.ROLE_OUTER_MEMBER; break;
             default:
-                return new SectOperationResult(false, I18n.t("sect.invalid_position"));
+                return new OperationResult(false, I18n.t("sect.invalid_position"));
         }
 
         // 权限检查
         if (appointer.isElder()) {
             if (!role.equals(SectMember.ROLE_INNER_MEMBER) && !role.equals(SectMember.ROLE_OUTER_MEMBER)) {
-                return new SectOperationResult(false, I18n.t("sect.elders_can_only_appoint_inner"));
+                return new OperationResult(false, I18n.t("sect.elders_can_only_appoint_inner"));
             }
         }
         if (appointer.isViceLeader() && role.equals(SectMember.ROLE_VICE_LEADER)) {
-            return new SectOperationResult(false, I18n.t("sect.the_vice_leader_cannot_appoint"));
+            return new OperationResult(false, I18n.t("sect.the_vice_leader_cannot_appoint"));
         }
 
         SectMember target = queryDomain.getMember(appointer.getSectId(), targetPlayerId);
         if (target == null) {
-            return new SectOperationResult(false, I18n.t("sect.that_player"));
+            return new OperationResult(false, I18n.t("sect.that_player"));
         }
         if (target.isLeader()) {
-            return new SectOperationResult(false, I18n.t("sect.you_cannot_change_the_sect"));
+            return new OperationResult(false, I18n.t("sect.you_cannot_change_the_sect"));
         }
         if (target.isViceLeader() && !appointer.isLeader()) {
-            return new SectOperationResult(false, I18n.t("sect.only_the_sect_leader_3"));
+            return new OperationResult(false, I18n.t("sect.only_the_sect_leader_3"));
         }
         if (target.isElder() && appointer.isElder()) {
-            return new SectOperationResult(false, I18n.t("sect.elders_cannot_act_on_members"));
+            return new OperationResult(false, I18n.t("sect.elders_cannot_act_on_members"));
         }
 
         if (role.equals(target.getRole())) {
-            return new SectOperationResult(false, I18n.t("sect.role_already",
+            return new OperationResult(false, I18n.t("sect.role_already",
                     target.getPlayerName(), SectMember.getRoleDisplayName(role)));
         }
 
         MEMBERSHIP_DAO.setMemberRole(appointer.getSectId(), targetPlayerId, role);
 
-        return new SectOperationResult(true, I18n.t("sect.appointed", target.getPlayerName(), SectMember.getRoleDisplayName(role), SectMember.getRoleDisplayName(target.getRole())));
+        return new OperationResult(true, I18n.t("sect.appointed", target.getPlayerName(), SectMember.getRoleDisplayName(role), SectMember.getRoleDisplayName(target.getRole())));
     }
 
     // ==================== 贡献系统 ====================
 
-    SectOperationResult addContribution(long sectId, long playerId, long amount) {
+    OperationResult addContribution(long sectId, long playerId, long amount) {
         int updated = MEMBERSHIP_DAO.addContribution(sectId, playerId, amount);
         if (updated > 0) {
-            return new SectOperationResult(true, I18n.t("sect.contribution_updated"));
+            return new OperationResult(true, I18n.t("sect.contribution_updated"));
         } else {
-            return new SectOperationResult(false, I18n.t("sect.update_failed"));
+            return new OperationResult(false, I18n.t("sect.update_failed"));
         }
     }
 }
