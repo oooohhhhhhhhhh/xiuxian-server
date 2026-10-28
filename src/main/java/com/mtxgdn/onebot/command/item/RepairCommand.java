@@ -1,5 +1,6 @@
 package com.mtxgdn.onebot.command.item;
 
+import com.mtxgdn.common.result.OperationResult;
 import com.mtxgdn.common.command.Command;
 import com.mtxgdn.common.command.CommandContext;
 import com.mtxgdn.common.service.ServiceRegistry;
@@ -53,8 +54,8 @@ public class RepairCommand extends Command {
     }
 
     private void doRepair(CommandContext ctx, PlayerInfo p, String slot) {
-        Map<String, Object> result = ServiceRegistry.getDurabilityService().repair(p.getId(), slot);
-        ctx.reply(String.valueOf(result.get("message")));
+        OperationResult result = ServiceRegistry.getDurabilityService().repair(p.getId(), slot);
+        ctx.reply(result.message());
     }
 
     private String buildPanel(PlayerInfo p) {

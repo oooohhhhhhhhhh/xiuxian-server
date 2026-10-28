@@ -1,5 +1,6 @@
 package com.mtxgdn.game.service;
 
+import com.mtxgdn.common.result.OperationResult;
 import com.mtxgdn.common.service.ServiceRegistry;
 import com.mtxgdn.db.DurabilityDAO;
 import com.mtxgdn.game.item.BuffEffect;
@@ -173,20 +174,15 @@ public class DurabilityService {
      *
      * @param slot 槽位名，或 {@code all} / {@code 全部} 表示修理全部装备
      */
-    public Map<String, Object> repair(long playerId, String slot) {
-        Map<String, Object> result = new LinkedHashMap<>();
+    public OperationResult repair(long playerId, String slot) {
         boolean all = "all".equalsIgnoreCase(slot) || "全部".equals(slot) || "所有".equals(slot);
 
         Map<String, String> equipment = ServiceRegistry.getItemService().getEquipment(playerId);
         if (equipment.isEmpty()) {
-            result.put("success", false);
-            result.put("message", I18n.t("equip.repair_no_equipment"));
-            return result;
+            return OperationResult.fail(I18n.t("equip.repair_no_equipment"));
         }
         if (!all && !equipment.containsKey(slot)) {
-            result.put("success", false);
-            result.put("message", I18n.t("equip.repair_slot_empty", getSlotDisplayName(slot)));
-            return result;
+            return OperationResult.fail(I18n.t("equip.repair_slot_empty", getSlotDisplayName(slot)));
         }
 
         int max = getMaxDurability();
@@ -215,32 +211,22 @@ public class DurabilityService {
         }
 
         if (toRepair.isEmpty()) {
-            result.put("success", false);
-            result.put("message", I18n.t("equip.repair_full"));
-            return result;
+            return OperationResult.fail(I18n.t("equip.repair_full"));
         }
 
         ItemService itemService = ServiceRegistry.getItemService();
         if (!itemService.removeSpiritStones(playerId, totalCost)) {
-            result.put("success", false);
-            result.put("message", I18n.t("equip.repair_no_stones", totalCost));
-            return result;
+            return OperationResult.fail(I18n.t("equip.repair_no_stones", totalCost));
         }
 
         try {
             DURABILITY_DAO.repairToMax(playerId, toRepair.keySet(), max);
         } catch (RuntimeException e) {
             LOG.error("修理装备写库失败: " + e.getMessage());
-            result.put("success", false);
-            result.put("message", I18n.t("equip.repair_failed"));
-            return result;
+            return OperationResult.fail(I18n.t("equip.repair_failed"));
         }
 
-        result.put("success", true);
-        result.put("cost", totalCost);
-        result.put("restored", totalMissing);
-        result.put("message", I18n.t("equip.repair_ok", detail.toString(), totalCost));
-        return result;
+        return OperationResult.ok(I18n.t("equip.repair_ok", detail.toString(), totalCost));
     }
 
     /**

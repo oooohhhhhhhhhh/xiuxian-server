@@ -98,8 +98,6 @@ class ResultMapDebtTest {
             // ---- 每日 ----
             "com/mtxgdn/game/service/DailyService.java#doMorningCultivation",
             "com/mtxgdn/game/service/DailyService.java#getDailyInfo",
-            // ---- 耐久 ----
-            "com/mtxgdn/game/service/DurabilityService.java#repair",
             // ---- 经济 ----
             "com/mtxgdn/game/service/EconomyService.java#signIn",
             "com/mtxgdn/game/service/EconomyService.java#recycleItem",
