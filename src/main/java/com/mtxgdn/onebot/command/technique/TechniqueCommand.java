@@ -7,6 +7,7 @@ import com.mtxgdn.common.command.CommandContext;
 import com.mtxgdn.common.command.RouteDefinition;
 import com.mtxgdn.game.entity.PlayerInfo;
 import com.mtxgdn.game.entity.Technique;
+import com.mtxgdn.common.result.OperationResult;
 import com.mtxgdn.common.service.ServiceRegistry;
 
 import java.util.List;
@@ -79,8 +80,8 @@ public class TechniqueCommand extends Command {
         try { techniqueId = Long.parseLong(parts[1]); } catch (NumberFormatException e) { ctx.reply(I18n.t("technique.invalid_technique_id")); return; }
 
         var service = ServiceRegistry.getTechniqueService();
-        Map<String, Object> result = service.learnTechnique(p.getId(), techniqueId);
-        ctx.reply((String) result.get("message"));
+        OperationResult result = service.learnTechnique(p.getId(), techniqueId);
+        ctx.reply(result.message());
     }
 
     private void equipTechnique(CommandContext ctx, PlayerInfo p, String[] parts) {
@@ -89,8 +90,8 @@ public class TechniqueCommand extends Command {
         try { techniqueId = Long.parseLong(parts[1]); } catch (NumberFormatException e) { ctx.reply(I18n.t("technique.invalid_technique_id")); return; }
 
         var service = ServiceRegistry.getTechniqueService();
-        Map<String, Object> result = service.equipTechnique(p.getId(), techniqueId);
-        ctx.reply((String) result.get("message"));
+        OperationResult result = service.equipTechnique(p.getId(), techniqueId);
+        ctx.reply(result.message());
     }
 
     private void unequipTechnique(CommandContext ctx, PlayerInfo p, String[] parts) {
@@ -99,8 +100,8 @@ public class TechniqueCommand extends Command {
         try { techniqueId = Long.parseLong(parts[1]); } catch (NumberFormatException e) { ctx.reply(I18n.t("technique.invalid_technique_id")); return; }
 
         var service = ServiceRegistry.getTechniqueService();
-        Map<String, Object> result = service.unequipTechnique(p.getId(), techniqueId);
-        ctx.reply((String) result.get("message"));
+        OperationResult result = service.unequipTechnique(p.getId(), techniqueId);
+        ctx.reply(result.message());
     }
 
     private void upgradeTechnique(CommandContext ctx, PlayerInfo p, String[] parts) {
@@ -109,8 +110,8 @@ public class TechniqueCommand extends Command {
         try { techniqueId = Long.parseLong(parts[1]); } catch (NumberFormatException e) { ctx.reply(I18n.t("technique.invalid_technique_id")); return; }
 
         var service = ServiceRegistry.getTechniqueService();
-        Map<String, Object> result = service.upgradeTechnique(p.getId(), techniqueId);
-        ctx.reply((String) result.get("message"));
+        OperationResult result = service.upgradeTechnique(p.getId(), techniqueId);
+        ctx.reply(result.message());
     }
 
     private String typeLabel(Technique.Type type) {
@@ -200,10 +201,10 @@ public class TechniqueCommand extends Command {
                 return result;
             }
             var service = ServiceRegistry.getTechniqueService();
-            Map<String, Object> data = service.learnTechnique(ctx.playerId(), techniqueId);
-            result.addProperty("code", (boolean) data.get("success") ? 200 : 400);
-            result.addProperty("success", (boolean) data.get("success"));
-            result.addProperty("message", (String) data.get("message"));
+            OperationResult data = service.learnTechnique(ctx.playerId(), techniqueId);
+            result.addProperty("code", data.success() ? 200 : 400);
+            result.addProperty("success", data.success());
+            result.addProperty("message", data.message());
         } catch (Exception e) {
             result.addProperty("code", 500);
             result.addProperty("message", I18n.t("technique.server_error", e.getMessage()));
@@ -234,16 +235,16 @@ public class TechniqueCommand extends Command {
                 return result;
             }
             var service = ServiceRegistry.getTechniqueService();
-            Map<String, Object> data = switch (op) {
+            OperationResult data = switch (op) {
                 case "equip" -> service.equipTechnique(ctx.playerId(), techniqueId);
                 case "unequip" -> service.unequipTechnique(ctx.playerId(), techniqueId);
                 case "upgrade" -> service.upgradeTechnique(ctx.playerId(), techniqueId);
                 default -> null;
             };
             if (data != null) {
-                result.addProperty("code", (boolean) data.get("success") ? 200 : 400);
-                result.addProperty("success", (boolean) data.get("success"));
-                result.addProperty("message", (String) data.get("message"));
+                result.addProperty("code", data.success() ? 200 : 400);
+                result.addProperty("success", data.success());
+                result.addProperty("message", data.message());
             }
         } catch (Exception e) {
             result.addProperty("code", 500);

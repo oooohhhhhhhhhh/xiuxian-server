@@ -1,5 +1,6 @@
 package com.mtxgdn.game.service;
 
+import com.mtxgdn.common.result.OperationResult;
 import com.mtxgdn.common.service.ServiceRegistry;
 import com.mtxgdn.db.DatabaseManager;
 import com.mtxgdn.db.TechniqueDAO;
@@ -10,9 +11,7 @@ import com.mtxgdn.i18n.I18n;
 import com.mtxgdn.util.GameLogger;
 
 import java.sql.SQLException;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * 功法系统的业务入口。
@@ -93,32 +92,31 @@ public class TechniqueService {
         return total;
     }
 
-    public Map<String, Object> learnTechnique(long playerId, long techniqueId) {
-        Map<String, Object> result = new LinkedHashMap<>();
+    public OperationResult learnTechnique(long playerId, long techniqueId) {
         Technique technique = TECHNIQUE_DAO.findById(techniqueId);
         if (technique == null) {
-            result.put("success", false); result.put("message", I18n.t("technique.technique_does_not_exist")); return result;
+            return OperationResult.fail(I18n.t("technique.technique_does_not_exist"));
         }
 
         Player player = playerService.getPlayerById(playerId);
         if (player == null) {
-            result.put("success", false); result.put("message", I18n.t("technique.character_does_not_exist")); return result;
+            return OperationResult.fail(I18n.t("technique.character_does_not_exist"));
         }
 
         if (TECHNIQUE_DAO.hasTechnique(playerId, techniqueId)) {
-            result.put("success", false); result.put("message", I18n.t("technique.you_have_already_learned", technique.getName())); return result;
+            return OperationResult.fail(I18n.t("technique.you_have_already_learned", technique.getName()));
         }
 
         if (player.getRealm() < technique.getRequiredRealm()) {
-            result.put("success", false); result.put("message", I18n.t("technique.your_realm_is_too_low", technique.getName())); return result;
+            return OperationResult.fail(I18n.t("technique.your_realm_is_too_low", technique.getName()));
         }
 
         if (player.getGold() < technique.getLearnCostGold()) {
-            result.put("success", false); result.put("message", I18n.t("technique.not_enough_gold", technique.getLearnCostGold())); return result;
+            return OperationResult.fail(I18n.t("technique.not_enough_gold", technique.getLearnCostGold()));
         }
 
         if (itemService.getSpiritStoneCount(playerId) < technique.getLearnCostSpiritStones()) {
-            result.put("success", false); result.put("message", I18n.t("technique.not_enough_spirit_stones", technique.getLearnCostSpiritStones())); return result;
+            return OperationResult.fail(I18n.t("technique.not_enough_spirit_stones", technique.getLearnCostSpiritStones()));
         }
 
         try {
@@ -132,33 +130,27 @@ public class TechniqueService {
                 return null;
             });
         } catch (Exception e) {
-            result.put("success", false);
-            result.put("message", I18n.t("technique.failed_to_learn_the_technique", e.getMessage()));
-            return result;
+            return OperationResult.fail(I18n.t("technique.failed_to_learn_the_technique", e.getMessage()));
         }
 
         // 学习不直接加属性；属性只在「装备」时生效（避免重复叠加）
 
-        result.put("success", true);
-        result.put("message", I18n.t("technique.successfully_learned_the_technique", technique.getName()));
-        result.put("technique", technique);
-        return result;
+        return OperationResult.ok(I18n.t("technique.successfully_learned_the_technique", technique.getName()));
     }
 
-    public Map<String, Object> equipTechnique(long playerId, long techniqueId) {
-        Map<String, Object> result = new LinkedHashMap<>();
+    public OperationResult equipTechnique(long playerId, long techniqueId) {
         if (!TECHNIQUE_DAO.hasTechnique(playerId, techniqueId)) {
-            result.put("success", false); result.put("message", I18n.t("technique.you_have_not_learned")); return result;
+            return OperationResult.fail(I18n.t("technique.you_have_not_learned"));
         }
         Technique tech = TECHNIQUE_DAO.findPlayerTechniqueDetail(playerId, techniqueId);
         if (tech == null) {
-            result.put("success", false); result.put("message", I18n.t("technique.you_have_not_learned")); return result;
+            return OperationResult.fail(I18n.t("technique.you_have_not_learned"));
         }
         if (tech.isEquipped()) {
-            result.put("success", false); result.put("message", I18n.t("technique.is_already_being_circulated", tech.getName())); return result;
+            return OperationResult.fail(I18n.t("technique.is_already_being_circulated", tech.getName()));
         }
         if (TECHNIQUE_DAO.countEquipped(playerId) >= MAX_EQUIPPED) {
-            result.put("success", false); result.put("message", I18n.t("technique.you_can_circulate_at_most", MAX_EQUIPPED)); return result;
+            return OperationResult.fail(I18n.t("technique.you_can_circulate_at_most", MAX_EQUIPPED));
         }
 
         TECHNIQUE_DAO.setEquipped(playerId, techniqueId, true);
@@ -167,22 +159,19 @@ public class TechniqueService {
         applyTechniqueBonuses(player, tech);
         playerService.updatePlayer(playerId, player);
 
-        result.put("success", true);
-        result.put("message", I18n.t("technique.started_circulating_the_technique", tech.getName()));
-        return result;
+        return OperationResult.ok(I18n.t("technique.started_circulating_the_technique", tech.getName()));
     }
 
-    public Map<String, Object> unequipTechnique(long playerId, long techniqueId) {
-        Map<String, Object> result = new LinkedHashMap<>();
+    public OperationResult unequipTechnique(long playerId, long techniqueId) {
         if (!TECHNIQUE_DAO.hasTechnique(playerId, techniqueId)) {
-            result.put("success", false); result.put("message", I18n.t("technique.you_have_not_learned")); return result;
+            return OperationResult.fail(I18n.t("technique.you_have_not_learned"));
         }
         Technique tech = TECHNIQUE_DAO.findPlayerTechniqueDetail(playerId, techniqueId);
         if (tech == null) {
-            result.put("success", false); result.put("message", I18n.t("technique.you_have_not_learned")); return result;
+            return OperationResult.fail(I18n.t("technique.you_have_not_learned"));
         }
         if (!tech.isEquipped()) {
-            result.put("success", false); result.put("message", I18n.t("technique.is_not_being_circulated", tech.getName())); return result;
+            return OperationResult.fail(I18n.t("technique.is_not_being_circulated", tech.getName()));
         }
 
         TECHNIQUE_DAO.setEquipped(playerId, techniqueId, false);
@@ -192,22 +181,19 @@ public class TechniqueService {
         removeTechniqueBonuses(player, tech);
         playerService.updatePlayer(playerId, player);
 
-        result.put("success", true);
-        result.put("message", I18n.t("technique.stopped_circulating_the_technique", tech.getName()));
-        return result;
+        return OperationResult.ok(I18n.t("technique.stopped_circulating_the_technique", tech.getName()));
     }
 
-    public Map<String, Object> upgradeTechnique(long playerId, long techniqueId) {
-        Map<String, Object> result = new LinkedHashMap<>();
+    public OperationResult upgradeTechnique(long playerId, long techniqueId) {
         if (!TECHNIQUE_DAO.hasTechnique(playerId, techniqueId)) {
-            result.put("success", false); result.put("message", I18n.t("technique.you_have_not_learned")); return result;
+            return OperationResult.fail(I18n.t("technique.you_have_not_learned"));
         }
         Technique tech = TECHNIQUE_DAO.findPlayerTechniqueDetail(playerId, techniqueId);
         if (tech == null) {
-            result.put("success", false); result.put("message", I18n.t("technique.you_have_not_learned")); return result;
+            return OperationResult.fail(I18n.t("technique.you_have_not_learned"));
         }
         if (tech.getLevel() >= tech.getMaxLevel()) {
-            result.put("success", false); result.put("message", I18n.t("technique.has_reached_its_maximum_level", tech.getName())); return result;
+            return OperationResult.fail(I18n.t("technique.has_reached_its_maximum_level", tech.getName()));
         }
 
         int costGold = tech.getUpgradeBaseCostGold() * tech.getLevel();
@@ -215,11 +201,11 @@ public class TechniqueService {
 
         Player player = playerService.getPlayerById(playerId);
         if (player.getGold() < costGold) {
-            result.put("success", false); result.put("message", I18n.t("technique.not_enough_gold_2", costGold)); return result;
+            return OperationResult.fail(I18n.t("technique.not_enough_gold_2", costGold));
         }
         long ssCount = itemService.getSpiritStoneCount(playerId);
         if (ssCount < costSS) {
-            result.put("success", false); result.put("message", I18n.t("technique.not_enough_spirit_stones_2", costSS)); return result;
+            return OperationResult.fail(I18n.t("technique.not_enough_spirit_stones_2", costSS));
         }
 
         try {
@@ -233,9 +219,7 @@ public class TechniqueService {
                 return null;
             });
         } catch (Exception e) {
-            result.put("success", false);
-            result.put("message", I18n.t("technique.failed_to_upgrade_the_technique", e.getMessage()));
-            return result;
+            return OperationResult.fail(I18n.t("technique.failed_to_upgrade_the_technique", e.getMessage()));
         }
 
         // 已装备的功法升级后，按新旧等级补差属性（先回退旧加成，再施加新加成）
@@ -246,9 +230,7 @@ public class TechniqueService {
             playerService.updatePlayer(playerId, player);
         }
 
-        result.put("success", true);
-        result.put("message", I18n.t("technique.level_up", tech.getName(), tech.getLevel() + 1));
-        return result;
+        return OperationResult.ok(I18n.t("technique.level_up", tech.getName(), tech.getLevel() + 1));
     }
 
     public void addProficiency(long playerId, long techniqueId, int amount) {

@@ -1,5 +1,6 @@
 package com.mtxgdn.rest;
 
+import com.mtxgdn.common.result.OperationResult;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.mtxgdn.common.GameErrorCode;
@@ -138,11 +139,11 @@ public class GameTechniqueResource {
         }
         JsonObject req = gson.fromJson(body, JsonObject.class);
         long techniqueId = req.get("techniqueId").getAsLong();
-        Map<String, Object> result = techniqueService.learnTechnique(player.getId(), techniqueId);
-        if (Boolean.TRUE.equals(result.get("success"))) {
-            return Response.ok(GameMessage.restOk((String) result.get("message"), null).toString()).build();
+        OperationResult result = techniqueService.learnTechnique(player.getId(), techniqueId);
+        if (result.success()) {
+            return Response.ok(GameMessage.restOk(result.message(), null).toString()).build();
         }
-        return Response.ok(GameMessage.restError(400, (String) result.get("message")).toString()).build();
+        return Response.ok(GameMessage.restError(400, result.message()).toString()).build();
     }
 
     @POST
@@ -158,11 +159,11 @@ public class GameTechniqueResource {
         }
         JsonObject req = gson.fromJson(body, JsonObject.class);
         long techniqueId = req.get("techniqueId").getAsLong();
-        Map<String, Object> result = techniqueService.equipTechnique(player.getId(), techniqueId);
-        if (Boolean.TRUE.equals(result.get("success"))) {
-            return Response.ok(GameMessage.restOk((String) result.get("message"), null).toString()).build();
+        OperationResult result = techniqueService.equipTechnique(player.getId(), techniqueId);
+        if (result.success()) {
+            return Response.ok(GameMessage.restOk(result.message(), null).toString()).build();
         }
-        return Response.ok(GameMessage.restError(400, (String) result.get("message")).toString()).build();
+        return Response.ok(GameMessage.restError(400, result.message()).toString()).build();
     }
 
     @POST
@@ -178,11 +179,11 @@ public class GameTechniqueResource {
         }
         JsonObject req = gson.fromJson(body, JsonObject.class);
         long techniqueId = req.get("techniqueId").getAsLong();
-        Map<String, Object> result = techniqueService.unequipTechnique(player.getId(), techniqueId);
-        if (Boolean.TRUE.equals(result.get("success"))) {
-            return Response.ok(GameMessage.restOk((String) result.get("message"), null).toString()).build();
+        OperationResult result = techniqueService.unequipTechnique(player.getId(), techniqueId);
+        if (result.success()) {
+            return Response.ok(GameMessage.restOk(result.message(), null).toString()).build();
         }
-        return Response.ok(GameMessage.restError(400, (String) result.get("message")).toString()).build();
+        return Response.ok(GameMessage.restError(400, result.message()).toString()).build();
     }
 
     @POST
@@ -198,11 +199,11 @@ public class GameTechniqueResource {
         }
         JsonObject req = gson.fromJson(body, JsonObject.class);
         long techniqueId = req.get("techniqueId").getAsLong();
-        Map<String, Object> result = techniqueService.upgradeTechnique(player.getId(), techniqueId);
-        if (Boolean.TRUE.equals(result.get("success"))) {
-            return Response.ok(GameMessage.restOk((String) result.get("message"), null).toString()).build();
+        OperationResult result = techniqueService.upgradeTechnique(player.getId(), techniqueId);
+        if (result.success()) {
+            return Response.ok(GameMessage.restOk(result.message(), null).toString()).build();
         }
-        return Response.ok(GameMessage.restError(400, (String) result.get("message")).toString()).build();
+        return Response.ok(GameMessage.restError(400, result.message()).toString()).build();
     }
 
     @GET

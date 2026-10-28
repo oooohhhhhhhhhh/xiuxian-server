@@ -1,5 +1,6 @@
 package com.mtxgdn.websocket;
 
+import com.mtxgdn.common.result.OperationResult;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.mtxgdn.common.GameErrorCode;
@@ -111,11 +112,11 @@ final class WsTechniqueHandler extends WsHandler {
             return;
         }
         long techniqueId = data.get("techniqueId").getAsLong();
-        Map<String, Object> result = techniqueService.learnTechnique(player.getId(), techniqueId);
-        if (Boolean.TRUE.equals(result.get("success"))) {
-            socket.send(GameMessage.ok(msgId, "technique_learn", (String) result.get("message"), null).toJson());
+        OperationResult result = techniqueService.learnTechnique(player.getId(), techniqueId);
+        if (result.success()) {
+            socket.send(GameMessage.ok(msgId, "technique_learn", result.message(), null).toJson());
         } else {
-            socket.send(GameMessage.error(msgId, "technique_learn", 400, (String) result.get("message")).toJson());
+            socket.send(GameMessage.error(msgId, "technique_learn", 400, result.message()).toJson());
         }
     }
 
@@ -130,11 +131,11 @@ final class WsTechniqueHandler extends WsHandler {
             return;
         }
         long techniqueId = data.get("techniqueId").getAsLong();
-        Map<String, Object> result = techniqueService.equipTechnique(player.getId(), techniqueId);
-        if (Boolean.TRUE.equals(result.get("success"))) {
-            socket.send(GameMessage.ok(msgId, "technique_equip", (String) result.get("message"), null).toJson());
+        OperationResult result = techniqueService.equipTechnique(player.getId(), techniqueId);
+        if (result.success()) {
+            socket.send(GameMessage.ok(msgId, "technique_equip", result.message(), null).toJson());
         } else {
-            socket.send(GameMessage.error(msgId, "technique_equip", 400, (String) result.get("message")).toJson());
+            socket.send(GameMessage.error(msgId, "technique_equip", 400, result.message()).toJson());
         }
     }
 
@@ -149,11 +150,11 @@ final class WsTechniqueHandler extends WsHandler {
             return;
         }
         long techniqueId = data.get("techniqueId").getAsLong();
-        Map<String, Object> result = techniqueService.unequipTechnique(player.getId(), techniqueId);
-        if (Boolean.TRUE.equals(result.get("success"))) {
-            socket.send(GameMessage.ok(msgId, "technique_unequip", (String) result.get("message"), null).toJson());
+        OperationResult result = techniqueService.unequipTechnique(player.getId(), techniqueId);
+        if (result.success()) {
+            socket.send(GameMessage.ok(msgId, "technique_unequip", result.message(), null).toJson());
         } else {
-            socket.send(GameMessage.error(msgId, "technique_unequip", 400, (String) result.get("message")).toJson());
+            socket.send(GameMessage.error(msgId, "technique_unequip", 400, result.message()).toJson());
         }
     }
 
@@ -168,11 +169,11 @@ final class WsTechniqueHandler extends WsHandler {
             return;
         }
         long techniqueId = data.get("techniqueId").getAsLong();
-        Map<String, Object> result = techniqueService.upgradeTechnique(player.getId(), techniqueId);
-        if (Boolean.TRUE.equals(result.get("success"))) {
-            socket.send(GameMessage.ok(msgId, "technique_upgrade", (String) result.get("message"), null).toJson());
+        OperationResult result = techniqueService.upgradeTechnique(player.getId(), techniqueId);
+        if (result.success()) {
+            socket.send(GameMessage.ok(msgId, "technique_upgrade", result.message(), null).toJson());
         } else {
-            socket.send(GameMessage.error(msgId, "technique_upgrade", 400, (String) result.get("message")).toJson());
+            socket.send(GameMessage.error(msgId, "technique_upgrade", 400, result.message()).toJson());
         }
     }
 }

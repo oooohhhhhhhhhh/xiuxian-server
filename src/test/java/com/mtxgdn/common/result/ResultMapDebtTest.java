@@ -168,11 +168,6 @@ class ResultMapDebtTest {
             "com/mtxgdn/game/service/SkillService.java#learnSkill",
             "com/mtxgdn/game/service/SkillService.java#learnSkillFromBook",
             "com/mtxgdn/game/service/SkillService.java#addProficiency",
-            // ---- 功法 ----
-            "com/mtxgdn/game/service/TechniqueService.java#learnTechnique",
-            "com/mtxgdn/game/service/TechniqueService.java#equipTechnique",
-            "com/mtxgdn/game/service/TechniqueService.java#unequipTechnique",
-            "com/mtxgdn/game/service/TechniqueService.java#upgradeTechnique",
             // ---- 称号 ----
             "com/mtxgdn/game/service/TitleService.java#grantTitle",
             "com/mtxgdn/game/service/TitleService.java#revokeTitle",

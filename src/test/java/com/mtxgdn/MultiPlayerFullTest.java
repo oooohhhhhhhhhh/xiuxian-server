@@ -1,5 +1,6 @@
 package com.mtxgdn;
 
+import com.mtxgdn.common.result.OperationResult;
 import com.mtxgdn.common.service.ServiceRegistry;
 import com.mtxgdn.db.DatabaseManager;
 import com.mtxgdn.game.item.ItemScanner;
@@ -591,8 +592,8 @@ public class MultiPlayerFullTest {
         System.out.println("  ✓ 功法总数=" + allTech.size());
         if (!allTech.isEmpty()) {
             long techId = allTech.get(0).getId();
-            Map<String,Object> learn = techniqueService.learnTechnique(p1.playerId, techId);
-            System.out.println("  " + (Boolean.TRUE.equals(learn.get("success"))?"✓":"○") + " 学习功法: " + learn.get("message"));
+            OperationResult learn = techniqueService.learnTechnique(p1.playerId, techId);
+            System.out.println("  " + (learn.success()?"✓":"○") + " 学习功法: " + learn.message());
         }
 
         List<Skill> allSkills = skillService.getAllSkills();
