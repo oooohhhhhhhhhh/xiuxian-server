@@ -138,10 +138,10 @@ public class FormationCommand extends Command {
             }
 
             var data = formationService.placeFormation(ctx.playerId(), key, level);
-            boolean ok = Boolean.TRUE.equals(data.get("success"));
+            boolean ok = data.success();
             result.addProperty("code", ok ? 200 : 400);
             result.addProperty("success", ok);
-            result.addProperty("message", String.valueOf(data.get("message")));
+            result.addProperty("message", data.message());
         } catch (Exception e) {
             result.addProperty("code", 500);
             result.addProperty("success", false);
@@ -154,12 +154,11 @@ public class FormationCommand extends Command {
         JsonObject result = new JsonObject();
         try {
             var data = formationService.upgradeFormation(ctx.playerId());
-            boolean ok = Boolean.TRUE.equals(data.get("success"));
+            boolean ok = data.success();
             result.addProperty("code", ok ? 200 : 400);
             result.addProperty("success", ok);
-            result.addProperty("message", String.valueOf(data.get("message")));
-            Object nl = data.get("newLevel");
-            if (nl instanceof Number n) result.addProperty("newLevel", n);
+            result.addProperty("message", data.message());
+            if (data.success()) result.addProperty("newLevel", data.newLevel());
         } catch (Exception e) {
             result.addProperty("code", 500);
             result.addProperty("success", false);
@@ -172,10 +171,10 @@ public class FormationCommand extends Command {
         JsonObject result = new JsonObject();
         try {
             var data = formationService.removeFormation(ctx.playerId());
-            boolean ok = Boolean.TRUE.equals(data.get("success"));
+            boolean ok = data.success();
             result.addProperty("code", ok ? 200 : 400);
             result.addProperty("success", ok);
-            result.addProperty("message", String.valueOf(data.get("message")));
+            result.addProperty("message", data.message());
         } catch (Exception e) {
             result.addProperty("code", 500);
             result.addProperty("success", false);
@@ -226,7 +225,7 @@ public class FormationCommand extends Command {
         }
 
         var result = formationService.placeFormation(p.getId(), formationKey, level);
-        ctx.reply((String) result.get("message"));
+        ctx.reply(result.message());
     }
 
     private void handleInfo(CommandContext ctx, PlayerInfo p, String[] parts) {
@@ -262,12 +261,12 @@ public class FormationCommand extends Command {
 
     private void handleUpgrade(CommandContext ctx, PlayerInfo p, String[] parts) {
         var result = formationService.upgradeFormation(p.getId());
-        ctx.reply((String) result.get("message"));
+        ctx.reply(result.message());
     }
 
     private void handleRemove(CommandContext ctx, PlayerInfo p, String[] parts) {
         var result = formationService.removeFormation(p.getId());
-        ctx.reply((String) result.get("message"));
+        ctx.reply(result.message());
     }
 
     private void handleList(CommandContext ctx, PlayerInfo p, String[] parts) {

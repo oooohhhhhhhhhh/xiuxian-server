@@ -128,9 +128,6 @@ class ResultMapDebtTest {
             "com/mtxgdn/game/service/FarmService.java#fertilizeAll",
             "com/mtxgdn/game/service/FarmService.java#harvestAll",
             // ---- 阵法 ----
-            "com/mtxgdn/game/service/FormationService.java#placeFormation",
-            "com/mtxgdn/game/service/FormationService.java#upgradeFormation",
-            "com/mtxgdn/game/service/FormationService.java#removeFormation",
             "com/mtxgdn/game/service/FormationService.java#placeFormationFromTreasure",
             // ---- 好友 ----
             "com/mtxgdn/game/service/FriendService.java#visitFriend",

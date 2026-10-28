@@ -1,11 +1,13 @@
 package com.mtxgdn.game.service;
 
+import com.mtxgdn.common.result.OperationResult;
 import com.mtxgdn.common.service.ServiceRegistry;
 
 import com.mtxgdn.db.DatabaseManager;
 import com.mtxgdn.db.FormationDAO;
 import com.mtxgdn.entity.Player;
 import com.mtxgdn.game.entity.Formation;
+import com.mtxgdn.game.formation.FormationUpgradeResult;
 import com.mtxgdn.util.GameLogger;
 
 import java.util.LinkedHashMap;
@@ -48,35 +50,26 @@ public class FormationService {
         return f;
     }
 
-    public Map<String, Object> placeFormation(long playerId, String formationKey, int level) {
+    public OperationResult placeFormation(long playerId, String formationKey, int level) {
         com.mtxgdn.playerdata.PlayerDataService.markDirty(playerId);
-        Map<String, Object> result = new LinkedHashMap<>();
 
         Player player = playerService.getPlayerById(playerId);
         if (player == null) {
-            result.put("success", false);
-            result.put("message", I18n.t("formation.character_not_found"));
-            return result;
+            return OperationResult.fail(I18n.t("formation.character_not_found"));
         }
 
         if (com.mtxgdn.common.service.ServiceRegistry.getCaveService().getCaveByPlayerId(playerId) == null) {
-            result.put("success", false);
-            result.put("message", I18n.t("formation.you_do"));
-            return result;
+            return OperationResult.fail(I18n.t("formation.you_do"));
         }
 
         if (getActiveFormation(playerId) != null) {
-            result.put("success", false);
-            result.put("message", I18n.t("formation.you_have_already_set_up"));
-            return result;
+            return OperationResult.fail(I18n.t("formation.you_have_already_set_up"));
         }
 
         long cost = Formation.getPlaceCost(formationKey, level);
         long spiritStones = itemService.getSpiritStoneCount(playerId);
         if (spiritStones < cost) {
-            result.put("success", false);
-            result.put("message", I18n.t("formation.not_enough_spirit_stones_2", cost, spiritStones));
-            return result;
+            return OperationResult.fail(I18n.t("formation.not_enough_spirit_stones_2", cost, spiritStones));
         }
 
         DatabaseManager.runTransaction(conn -> {
@@ -96,36 +89,26 @@ public class FormationService {
         });
 
         Formation formation = getActiveFormation(playerId);
-        result.put("success", true);
-        result.put("message", I18n.t("formation.successfully_set_up", formation.getName(), cost, formation.getDurationMinutes(), formation.getSpiritEnergyBoost(), formation.getCultivationBonus()));
-        result.put("formation", formation);
-        return result;
+        return OperationResult.ok(I18n.t("formation.successfully_set_up", formation.getName(), cost, formation.getDurationMinutes(), formation.getSpiritEnergyBoost(), formation.getCultivationBonus()));
     }
 
-    public Map<String, Object> upgradeFormation(long playerId) {
+    public FormationUpgradeResult upgradeFormation(long playerId) {
         com.mtxgdn.playerdata.PlayerDataService.markDirty(playerId);
-        Map<String, Object> result = new LinkedHashMap<>();
 
         Formation formation = getActiveFormation(playerId);
         if (formation == null) {
-            result.put("success", false);
-            result.put("message", I18n.t("formation.you_have_not_set_up"));
-            return result;
+            return FormationUpgradeResult.fail(I18n.t("formation.you_have_not_set_up"));
         }
 
         if (formation.getLevel() >= Formation.MAX_LEVEL) {
-            result.put("success", false);
-            result.put("message", I18n.t("formation.the_formation_is_already", Formation.MAX_LEVEL));
-            return result;
+            return FormationUpgradeResult.fail(I18n.t("formation.the_formation_is_already", Formation.MAX_LEVEL));
         }
 
         int newLevel = formation.getLevel() + 1;
         long cost = Formation.getPlaceCost(formation.getFormationKey(), newLevel);
         long spiritStones = itemService.getSpiritStoneCount(playerId);
         if (spiritStones < cost) {
-            result.put("success", false);
-            result.put("message", I18n.t("formation.not_enough_spirit_stones", cost, spiritStones));
-            return result;
+            return FormationUpgradeResult.fail(I18n.t("formation.not_enough_spirit_stones", cost, spiritStones));
         }
 
         DatabaseManager.runTransaction(conn -> {
@@ -140,22 +123,16 @@ public class FormationService {
             return null;
         });
 
-        result.put("success", true);
-        result.put("message", I18n.t("formation.upgraded",
-                formation.getName(), newLevel, cost));
-        result.put("newLevel", newLevel);
-        return result;
+        return FormationUpgradeResult.ok(I18n.t("formation.upgraded",
+                formation.getName(), newLevel, cost), newLevel);
     }
 
-    public Map<String, Object> removeFormation(long playerId) {
+    public OperationResult removeFormation(long playerId) {
         com.mtxgdn.playerdata.PlayerDataService.markDirty(playerId);
-        Map<String, Object> result = new LinkedHashMap<>();
 
         Formation formation = getActiveFormation(playerId);
         if (formation == null) {
-            result.put("success", false);
-            result.put("message", I18n.t("formation.you_have_not_set_up"));
-            return result;
+            return OperationResult.fail(I18n.t("formation.you_have_not_set_up"));
         }
 
         DatabaseManager.runTransaction(conn -> {
@@ -163,9 +140,7 @@ public class FormationService {
             return null;
         });
 
-        result.put("success", true);
-        result.put("message", I18n.t("formation.dismantled", formation.getName()));
-        return result;
+        return OperationResult.ok(I18n.t("formation.dismantled", formation.getName()));
     }
 
     public static void tickFormations() {
