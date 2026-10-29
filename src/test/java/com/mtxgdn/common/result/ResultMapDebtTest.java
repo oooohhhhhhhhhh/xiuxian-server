@@ -90,19 +90,6 @@ class ResultMapDebtTest {
             // ---- 洞府 ----
             // ---- 每日 ----
             // ---- 经济 ----
-            "com/mtxgdn/game/service/EconomyService.java#signIn",
-            "com/mtxgdn/game/service/EconomyService.java#recycleItem",
-            "com/mtxgdn/game/service/EconomyService.java#buyFromShop",
-            "com/mtxgdn/game/service/EconomyService.java#boostCultivation",
-            "com/mtxgdn/game/service/EconomyService.java#exchangeGoldToStones",
-            "com/mtxgdn/game/service/EconomyService.java#exchangeStonesToGold",
-            "com/mtxgdn/game/service/EconomyService.java#bankDeposit",
-            "com/mtxgdn/game/service/EconomyService.java#bankWithdraw",
-            "com/mtxgdn/game/service/EconomyService.java#getBankInfo",
-            "com/mtxgdn/game/service/EconomyService.java#getEconomyStats",
-            "com/mtxgdn/game/service/EconomyService.java#createAuction",
-            "com/mtxgdn/game/service/EconomyService.java#placeBid",
-            "com/mtxgdn/game/service/EconomyService.java#purifySpiritStone",
             // ---- 农田 ----
             // ---- 阵法 ----
             // ---- 物品 ----

@@ -1,5 +1,6 @@
 package com.mtxgdn;
 
+import com.mtxgdn.game.economy.SignInResult;
 import com.mtxgdn.game.farm.FarmResult;
 import com.mtxgdn.game.item.UseItemResult;
 import com.mtxgdn.game.item.EquipResult;
@@ -554,11 +555,11 @@ public class MultiPlayerFullTest {
         System.out.println("─────────────────────────────────────────────");
         TestPlayer p1 = PLAYERS.get("p1");
 
-        Map<String,Object> sign = economyService.signIn(p1.playerId);
-        if (Boolean.TRUE.equals(sign.get("success"))) {
-            System.out.println("  ✓ 签到成功: " + sign.get("message"));
+        SignInResult sign = economyService.signIn(p1.playerId);
+        if (sign.success()) {
+            System.out.println("  ✓ 签到成功: " + sign.message());
         } else {
-            System.out.println("  ○ 签到: " + sign.get("message"));
+            System.out.println("  ○ 签到: " + sign.message());
         }
     }
 

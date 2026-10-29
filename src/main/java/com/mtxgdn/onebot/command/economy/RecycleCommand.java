@@ -1,5 +1,6 @@
 package com.mtxgdn.onebot.command.economy;
 
+import com.mtxgdn.game.economy.RecycleResult;
 import com.google.gson.JsonObject;
 import com.mtxgdn.common.command.Command;
 import com.mtxgdn.common.command.CommandContext;
@@ -48,8 +49,8 @@ public class RecycleCommand extends Command {
         if (item == null) { ctx.reply(I18n.t("economy.item_not_found_3")); return; }
 
         var eco = ServiceRegistry.getEconomyService();
-        var result = eco.recycleItem(p.getId(), itemName, quantity);
-        ctx.reply((String) result.get("message"));
+        RecycleResult result = eco.recycleItem(p.getId(), itemName, quantity);
+        ctx.reply(result.message());
     }
 
     // ==================== REST API ====================
@@ -80,13 +81,13 @@ public class RecycleCommand extends Command {
             }
 
             var eco = ServiceRegistry.getEconomyService();
-            Map<String, Object> data = eco.recycleItem(ctx.playerId(), itemKey, quantity);
-            boolean success = Boolean.TRUE.equals(data.get("success"));
+            RecycleResult data = eco.recycleItem(ctx.playerId(), itemKey, quantity);
+            boolean success = data.success();
             result.addProperty("code", success ? 200 : 400);
             result.addProperty("success", success);
-            result.addProperty("message", String.valueOf(data.getOrDefault("message", "")));
-            if (data.containsKey("stonesGained")) result.addProperty("stonesGained", ((Number) data.get("stonesGained")).longValue());
-            if (data.containsKey("recycled")) result.addProperty("recycled", String.valueOf(data.get("recycled")));
+            result.addProperty("message", String.valueOf(data.message()));
+            if (data.stonesGained() != null) result.addProperty("stonesGained", data.stonesGained());
+            if (data.recycled() != null) result.addProperty("recycled", data.recycled());
         } catch (Exception e) {
             result.addProperty("code", 500);
             result.addProperty("message", I18n.t("economy.server_error", e.getMessage()));

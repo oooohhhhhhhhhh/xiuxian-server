@@ -1,5 +1,6 @@
 package com.mtxgdn.onebot.command.economy;
 
+import com.mtxgdn.game.economy.CurrencyExchangeResult;
 import com.mtxgdn.common.service.ServiceRegistry;
 
 import com.mtxgdn.common.command.Command;
@@ -65,7 +66,7 @@ public class CurrencyExchangeCommand extends Command {
         }
 
         String direction = parts[0];
-        Map<String, Object> result;
+        CurrencyExchangeResult result;
         if ("金币".equals(direction) || "gold".equalsIgnoreCase(direction)) {
             result = economyService.exchangeGoldToStones(p.getId(), amount);
         } else if ("灵石".equals(direction) || "stone".equalsIgnoreCase(direction) || "stones".equalsIgnoreCase(direction)) {
@@ -75,7 +76,7 @@ public class CurrencyExchangeCommand extends Command {
             return;
         }
 
-        ctx.reply((String) result.get("message"));
+        ctx.reply(result.message());
     }
 
     private void showHelp(CommandContext ctx, PlayerInfo p) {

@@ -1,5 +1,6 @@
 package com.mtxgdn.onebot.command.economy;
 
+import com.mtxgdn.game.economy.PurifyResult;
 import com.google.gson.JsonObject;
 import com.mtxgdn.common.command.Command;
 import com.mtxgdn.common.command.CommandContext;
@@ -54,8 +55,8 @@ public class PurifyCommand extends Command {
             return;
         }
 
-        Map<String, Object> result = economyService().purifySpiritStone(p.getId(), grade);
-        ctx.reply((String) result.get("message"));
+        PurifyResult result = economyService().purifySpiritStone(p.getId(), grade);
+        ctx.reply(result.message());
     }
 
     private int parseGrade(String name) {
@@ -80,15 +81,15 @@ public class PurifyCommand extends Command {
                 result.addProperty("message", I18n.t("economy.please_provide_a_valid_grade"));
                 return result;
             }
-            Map<String, Object> data = ServiceRegistry.getEconomyService().purifySpiritStone(ctx.playerId(), grade);
-            result.addProperty("code", Boolean.TRUE.equals(data.get("success")) ? 200 : 400);
-            result.addProperty("success", Boolean.TRUE.equals(data.get("success")));
-            result.addProperty("purifySuccess", data.containsKey("purifySuccess") && Boolean.TRUE.equals(data.get("purifySuccess")));
-            result.addProperty("message", (String) data.get("message"));
-            if (data.containsKey("targetName")) {
-                result.addProperty("sourceName", (String) data.get("sourceName"));
-                result.addProperty("targetName", (String) data.get("targetName"));
-                result.addProperty("successRate", ((Number) data.get("successRate")).doubleValue());
+            PurifyResult data = ServiceRegistry.getEconomyService().purifySpiritStone(ctx.playerId(), grade);
+            result.addProperty("code", data.success() ? 200 : 400);
+            result.addProperty("success", data.success());
+            result.addProperty("purifySuccess", Boolean.TRUE.equals(data.purifySuccess()));
+            result.addProperty("message", data.message());
+            if (data.targetName() != null) {
+                result.addProperty("sourceName", data.sourceName());
+                result.addProperty("targetName", data.targetName());
+                result.addProperty("successRate", data.successRate());
             }
         } catch (Exception e) {
             result.addProperty("code", 500);

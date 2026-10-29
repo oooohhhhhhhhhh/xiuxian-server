@@ -1,5 +1,6 @@
 package com.mtxgdn.onebot.command.economy;
 
+import com.mtxgdn.game.economy.AuctionResult;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.mtxgdn.common.command.Command;
@@ -97,8 +98,8 @@ public class AuctionCommand extends Command {
         }
 
         var eco = ServiceRegistry.getEconomyService();
-        var result = eco.createAuction(p.getId(), itemName, qty, startPrice, hours);
-        ctx.reply((String) result.get("message"));
+        AuctionResult result = eco.createAuction(p.getId(), itemName, qty, startPrice, hours);
+        ctx.reply(result.message());
     }
 
     private void placeBid(CommandContext ctx, PlayerInfo p, String[] parts) {
@@ -112,8 +113,8 @@ public class AuctionCommand extends Command {
         } catch (NumberFormatException e) { ctx.reply(I18n.t("economy.invalid_id_or_price")); return; }
 
         var eco = ServiceRegistry.getEconomyService();
-        var result = eco.placeBid(p.getId(), listingId, amount);
-        ctx.reply((String) result.get("message"));
+        AuctionResult result = eco.placeBid(p.getId(), listingId, amount);
+        ctx.reply(result.message());
     }
 
     private void myAuctions(CommandContext ctx, PlayerInfo p) {
@@ -202,11 +203,11 @@ public class AuctionCommand extends Command {
                 return result;
             }
             var eco = ServiceRegistry.getEconomyService();
-            var data = eco.createAuction(ctx.playerId(), itemKey, quantity, startPrice, hours);
-            result.addProperty("code", (boolean) data.get("success") ? 200 : 400);
-            result.addProperty("success", (boolean) data.get("success"));
-            result.addProperty("message", (String) data.get("message"));
-            if (data.containsKey("listingId")) result.addProperty("listingId", (long) data.get("listingId"));
+            AuctionResult data = eco.createAuction(ctx.playerId(), itemKey, quantity, startPrice, hours);
+            result.addProperty("code", data.success() ? 200 : 400);
+            result.addProperty("success", data.success());
+            result.addProperty("message", data.message());
+            
         } catch (Exception e) {
             result.addProperty("code", 500);
             result.addProperty("message", I18n.t("economy.server_error", e.getMessage()));
@@ -226,10 +227,10 @@ public class AuctionCommand extends Command {
                 return result;
             }
             var eco = ServiceRegistry.getEconomyService();
-            var data = eco.placeBid(ctx.playerId(), listingId, amount);
-            result.addProperty("code", (boolean) data.get("success") ? 200 : 400);
-            result.addProperty("success", (boolean) data.get("success"));
-            result.addProperty("message", (String) data.get("message"));
+            AuctionResult data = eco.placeBid(ctx.playerId(), listingId, amount);
+            result.addProperty("code", data.success() ? 200 : 400);
+            result.addProperty("success", data.success());
+            result.addProperty("message", data.message());
         } catch (Exception e) {
             result.addProperty("code", 500);
             result.addProperty("message", I18n.t("economy.server_error", e.getMessage()));

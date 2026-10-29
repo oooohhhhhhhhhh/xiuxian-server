@@ -1,5 +1,6 @@
 package com.mtxgdn.rest;
 
+import com.mtxgdn.game.economy.CurrencyExchangeResult;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.mtxgdn.common.GameErrorCode;
@@ -19,7 +20,6 @@ import jakarta.ws.rs.core.Context;
 import jakarta.ws.rs.core.MediaType;
 import jakarta.ws.rs.core.Response;
 
-import java.util.HashMap;
 import java.util.Map;
 
 import static com.mtxgdn.rest.GameSupport.gson;
@@ -227,21 +227,17 @@ public class GameEconomyResource {
         }
 
         EconomyService economyService = ServiceRegistry.getEconomyService();
-        Map<String, Object> result;
+        CurrencyExchangeResult result;
         switch (type) {
             case "goldToStones" -> result = economyService.exchangeGoldToStones(player.getId(), amount);
             case "stonesToGold" -> result = economyService.exchangeStonesToGold(player.getId(), amount);
-            default -> {
-                Map<String, Object> err = new HashMap<>();
-                err.put("success", false);
-                err.put("message", I18n.t("game.type_must_be_either_goldtostones"));
-                result = err;
-            }
+            default -> result = CurrencyExchangeResult.rejected(
+                    I18n.t("game.type_must_be_either_goldtostones"));
         }
 
-        if (!Boolean.TRUE.equals(result.get("success"))) {
-            return Response.ok(GameMessage.restError(400, String.valueOf(result.get("message"))).toString()).build();
+        if (!result.success()) {
+            return Response.ok(GameMessage.restError(400, result.message()).toString()).build();
         }
-        return Response.ok(GameMessage.restOk(String.valueOf(result.get("message")), null).toString()).build();
+        return Response.ok(GameMessage.restOk(result.message(), null).toString()).build();
     }
 }

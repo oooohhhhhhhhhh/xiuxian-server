@@ -1,5 +1,6 @@
 package com.mtxgdn.onebot.command.economy;
 
+import com.mtxgdn.game.economy.ShopPurchaseResult;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.mtxgdn.common.command.Command;
@@ -40,12 +41,12 @@ public class ShopCommand extends Command {
 
         try {
             int index = Integer.parseInt(arg.trim());
-            var result = eco.buyFromShop(p.getId(), index);
+            ShopPurchaseResult result = eco.buyFromShop(p.getId(), index);
             StringBuilder sb = new StringBuilder();
-            if ((boolean) result.get("success")) {
-                sb.append("✅ ").append(result.get("message"));
+            if (result.success()) {
+                sb.append("✅ ").append(result.message());
             } else {
-                sb.append("❌ ").append(result.get("message"));
+                sb.append("❌ ").append(result.message());
             }
             ctx.reply(sb.toString());
         } catch (NumberFormatException e) {
@@ -98,10 +99,10 @@ public class ShopCommand extends Command {
             }
             int index = body.get("id").getAsInt();
             var eco = ServiceRegistry.getEconomyService();
-            var data = eco.buyFromShop(ctx.playerId(), index);
-            result.addProperty("code", (boolean) data.get("success") ? 200 : 400);
-            result.addProperty("success", (boolean) data.get("success"));
-            result.addProperty("message", (String) data.get("message"));
+            ShopPurchaseResult data = eco.buyFromShop(ctx.playerId(), index);
+            result.addProperty("code", data.success() ? 200 : 400);
+            result.addProperty("success", data.success());
+            result.addProperty("message", data.message());
         } catch (Exception e) {
             result.addProperty("code", 500);
             result.addProperty("success", false);

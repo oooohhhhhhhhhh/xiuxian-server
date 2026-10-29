@@ -1,5 +1,17 @@
 package com.mtxgdn.game.service;
 
+import com.mtxgdn.game.economy.AuctionResult;
+import com.mtxgdn.game.economy.BankDepositResult;
+import com.mtxgdn.game.economy.BankInfo;
+import com.mtxgdn.game.economy.BankWithdrawResult;
+import com.mtxgdn.game.economy.BoostResult;
+import com.mtxgdn.game.economy.CurrencyExchangeResult;
+import com.mtxgdn.game.economy.DepositView;
+import com.mtxgdn.game.economy.EconomyStats;
+import com.mtxgdn.game.economy.PurifyResult;
+import com.mtxgdn.game.economy.RecycleResult;
+import com.mtxgdn.game.economy.ShopPurchaseResult;
+import com.mtxgdn.game.economy.SignInResult;
 import com.mtxgdn.common.service.ServiceRegistry;
 
 import com.mtxgdn.db.DatabaseManager;
@@ -93,19 +105,16 @@ public class EconomyService {
         {"下品灵石 x350 + 修炼丹 x1", "mtxgdn:spirit_stone_low", "350", "mtxgdn:cultivation_elixir", "1"},
     };
 
-    public Map<String, Object> signIn(long playerId) {
+    public SignInResult signIn(long playerId) {
         com.mtxgdn.playerdata.PlayerDataService.markDirty(playerId);
-        Map<String, Object> result = new LinkedHashMap<>();
         Player player = playerService.getPlayerById(playerId);
-        if (player == null) { result.put("success", false); result.put("message", I18n.t("economy.character_not_found")); return result; }
+        if (player == null) return SignInResult.rejected(I18n.t("economy.character_not_found"));
 
         SignInRecord rec = getSignInRecord(playerId);
         String today = java.time.LocalDate.now().toString();
 
         if (rec.lastSignIn != null && rec.lastSignIn.equals(today)) {
-            result.put("success", false);
-            result.put("message", I18n.t("economy.you_have_already_checked"));
-            return result;
+            return SignInResult.rejected(I18n.t("economy.you_have_already_checked"));
         }
 
         int newStreak;
@@ -123,14 +132,11 @@ public class EconomyService {
         String[] reward = SIGN_IN_REWARDS[newStreak - 1];
 
         return DatabaseManager.runTransaction(conn -> {
-            Map<String, Object> txResult = new LinkedHashMap<>();
             try {
                 // 事务内行锁复查：防止并发双签（MySQL 行锁/间隙锁，SQLite 单写者串行化）
                 String lastSignIn = ECONOMY_DAO.findLastSignInForUpdate(conn, playerId);
                 if (today.equals(lastSignIn)) {
-                    txResult.put("success", false);
-                    txResult.put("message", I18n.t("economy.you_have_already_checked"));
-                    return txResult;
+                    return SignInResult.rejected(I18n.t("economy.you_have_already_checked"));
                 }
 
                 for (int i = 1; i < reward.length; i += 2) {
@@ -141,16 +147,12 @@ public class EconomyService {
 
                 updateSignIn(conn, playerId, today, newStreak);
 
-                txResult.put("success", true);
-                txResult.put("day", newStreak);
-                txResult.put("streak", newStreak);
-                txResult.put("reward", reward[0]);
-                txResult.put("message", I18n.t("economy.check_in_successful", newStreak, reward[0]));
+                return SignInResult.signed(
+                        I18n.t("economy.check_in_successful", newStreak, reward[0]),
+                        newStreak, newStreak, reward[0]);
             } catch (SQLException e) {
-                txResult.put("success", false);
-                txResult.put("message", I18n.t("economy.check_in_failed", e.getMessage()));
+                return SignInResult.rejected(I18n.t("economy.check_in_failed", e.getMessage()));
             }
-            return txResult;
         });
     }
 
@@ -162,24 +164,23 @@ public class EconomyService {
 
     private static final double RECYCLE_RATE = 0.30;
 
-    public Map<String, Object> recycleItem(long playerId, String itemKey, int quantity) {
+    public RecycleResult recycleItem(long playerId, String itemKey, int quantity) {
         com.mtxgdn.playerdata.PlayerDataService.markDirty(playerId);
-        Map<String, Object> result = new LinkedHashMap<>();
 
         var item = com.mtxgdn.game.item.ItemRegistry.resolve(itemKey);
-        if (item == null) { result.put("success", false); result.put("message", I18n.t("economy.item_not_found_5")); return result; }
+        if (item == null) return RecycleResult.rejected(I18n.t("economy.item_not_found_5"));
 
         String fullKey = item.getFullKey();
         if (fullKey.startsWith("mtxgdn:spirit_stone")) {
-            result.put("success", false); result.put("message", I18n.t("economy.spirit_stones_are_already_currency")); return result;
+            return RecycleResult.rejected(I18n.t("economy.spirit_stones_are_already_currency"));
         }
         if (!item.isTradeable()) {
-            result.put("success", false); result.put("message", I18n.t("economy.this_item_cannot_be_traded")); return result;
+            return RecycleResult.rejected(I18n.t("economy.this_item_cannot_be_traded"));
         }
 
         long owned = itemService.getItemCount(playerId, fullKey);
         if (owned < quantity) {
-            result.put("success", false); result.put("message", I18n.t("economy.your_backpack", owned, item.getName())); return result;
+            return RecycleResult.rejected(I18n.t("economy.your_backpack", owned, item.getName()));
         }
 
         int basePrice = item.getPrice();
@@ -193,11 +194,9 @@ public class EconomyService {
             return null;
         });
 
-        result.put("success", true);
-        result.put("recycled", item.getName() + " x" + quantity);
-        result.put("stonesGained", recycleValue);
-        result.put("message", I18n.t("economy.recycled_x_and_received_low", item.getName(), quantity, recycleValue));
-        return result;
+        return RecycleResult.recycled(
+                I18n.t("economy.recycled_x_and_received_low", item.getName(), quantity, recycleValue),
+                item.getName() + " x" + quantity, recycleValue);
     }
 
     // ==================== 商店 ====================
@@ -225,11 +224,10 @@ public class EconomyService {
         {"天山雪莲种子", "mtxgdn:tianshan_snow_lotus_seed", "1000", "种植天山雪莲，420秒成熟（传说）"},
     };
 
-    public Map<String, Object> buyFromShop(long playerId, int shopIndex) {
+    public ShopPurchaseResult buyFromShop(long playerId, int shopIndex) {
         com.mtxgdn.playerdata.PlayerDataService.markDirty(playerId);
-        Map<String, Object> result = new LinkedHashMap<>();
         if (shopIndex < 1 || shopIndex > SHOP_ITEMS.length) {
-            result.put("success", false); result.put("message", I18n.t("economy.item_does_not_exist", SHOP_ITEMS.length)); return result;
+            return ShopPurchaseResult.rejected(I18n.t("economy.item_does_not_exist", SHOP_ITEMS.length));
         }
 
         String[] entry = SHOP_ITEMS[shopIndex - 1];
@@ -239,9 +237,7 @@ public class EconomyService {
 
         long stones = itemService.getSpiritStoneCount(playerId);
         if (stones < price) {
-            result.put("success", false);
-            result.put("message", I18n.t("economy.not_enough_spirit_stones_2", price, stones));
-            return result;
+            return ShopPurchaseResult.rejected(I18n.t("economy.not_enough_spirit_stones_2", price, stones));
         }
 
         DatabaseManager.runTransaction(conn -> {
@@ -250,12 +246,9 @@ public class EconomyService {
             return null;
         });
 
-        result.put("success", true);
-        result.put("item", item != null ? item.getName() : itemKey);
-        result.put("cost", price);
-        result.put("message", I18n.t("economy.market.buy", price,
-                item != null ? item.getName() : itemKey));
-        return result;
+        String displayName = item != null ? item.getName() : itemKey;
+        return ShopPurchaseResult.bought(
+                I18n.t("economy.market.buy", price, displayName), displayName, price);
     }
 
     public String[][] getShopItems() { return SHOP_ITEMS; }
@@ -265,22 +258,21 @@ public class EconomyService {
     private static final int STONES_PER_BOOST = 100;
     private static final double BOOST_MULTIPLIER = 1.5;
 
-    public Map<String, Object> boostCultivation(long playerId, int stonesToBurn) {
+    public BoostResult boostCultivation(long playerId, int stonesToBurn) {
         com.mtxgdn.playerdata.PlayerDataService.markDirty(playerId);
-        Map<String, Object> result = new LinkedHashMap<>();
 
         Player player = playerService.getPlayerById(playerId);
-        if (player == null) { result.put("success", false); result.put("message", I18n.t("economy.character_not_found")); return result; }
+        if (player == null) return BoostResult.rejected(I18n.t("economy.character_not_found"));
         if (!player.isCultivating()) {
-            result.put("success", false); result.put("message", I18n.t("economy.start_cultivation_first_before_using")); return result;
+            return BoostResult.rejected(I18n.t("economy.start_cultivation_first_before_using"));
         }
         if (stonesToBurn < STONES_PER_BOOST) {
-            result.put("success", false); result.put("message", I18n.t("economy.at_least_low_grade_spirit", STONES_PER_BOOST)); return result;
+            return BoostResult.rejected(I18n.t("economy.at_least_low_grade_spirit", STONES_PER_BOOST));
         }
 
         long currentStones = itemService.getSpiritStoneCount(playerId);
         if (currentStones < stonesToBurn) {
-            result.put("success", false); result.put("message", I18n.t("economy.not_enough_spirit_stones_3", stonesToBurn, currentStones)); return result;
+            return BoostResult.rejected(I18n.t("economy.not_enough_spirit_stones_3", stonesToBurn, currentStones));
         }
 
         int boostHours = stonesToBurn / STONES_PER_BOOST;
@@ -300,12 +292,9 @@ public class EconomyService {
             return null;
         });
 
-        result.put("success", true);
-        result.put("stonesSpent", stonesToBurn);
-        result.put("boostHours", boostHours);
-        result.put("bonusExp", bonusExp);
-        result.put("message", I18n.t("economy.you_burn_low_grade_spirit", stonesToBurn, boostHours, BOOST_MULTIPLIER, bonusExp));
-        return result;
+        return BoostResult.boosted(
+                I18n.t("economy.you_burn_low_grade_spirit", stonesToBurn, boostHours, BOOST_MULTIPLIER, bonusExp),
+                stonesToBurn, boostHours, bonusExp);
     }
 
     // ==================== 金币灵石互通 ====================
@@ -313,16 +302,15 @@ public class EconomyService {
     private static final long GOLD_TO_STONE_RATE = 10;
     private static final long STONE_TO_GOLD_RATE = 5;
 
-    public Map<String, Object> exchangeGoldToStones(long playerId, long goldAmount) {
+    public CurrencyExchangeResult exchangeGoldToStones(long playerId, long goldAmount) {
         com.mtxgdn.playerdata.PlayerDataService.markDirty(playerId);
-        Map<String, Object> result = new LinkedHashMap<>();
         Player player = playerService.getPlayerById(playerId);
-        if (player == null) { result.put("success", false); result.put("message", I18n.t("economy.character_not_found")); return result; }
+        if (player == null) return CurrencyExchangeResult.rejected(I18n.t("economy.character_not_found"));
         if (goldAmount < GOLD_TO_STONE_RATE) {
-            result.put("success", false); result.put("message", I18n.t("economy.at_least_gold_is_required", GOLD_TO_STONE_RATE)); return result;
+            return CurrencyExchangeResult.rejected(I18n.t("economy.at_least_gold_is_required", GOLD_TO_STONE_RATE));
         }
         if (player.getGold() < goldAmount) {
-            result.put("success", false); result.put("message", I18n.t("economy.not_enough_gold", goldAmount, player.getGold())); return result;
+            return CurrencyExchangeResult.rejected(I18n.t("economy.not_enough_gold", goldAmount, player.getGold()));
         }
 
         long stones = goldAmount / GOLD_TO_STONE_RATE;
@@ -332,22 +320,18 @@ public class EconomyService {
             return null;
         });
 
-        result.put("success", true);
-        result.put("goldSpent", goldAmount);
-        result.put("stonesGained", stones);
-        result.put("message", I18n.t("economy.exchange_successful_2", goldAmount, stones));
-        return result;
+        return CurrencyExchangeResult.goldToStones(
+                I18n.t("economy.exchange_successful_2", goldAmount, stones), goldAmount, stones);
     }
 
-    public Map<String, Object> exchangeStonesToGold(long playerId, long stoneAmount) {
+    public CurrencyExchangeResult exchangeStonesToGold(long playerId, long stoneAmount) {
         com.mtxgdn.playerdata.PlayerDataService.markDirty(playerId);
-        Map<String, Object> result = new LinkedHashMap<>();
         long currentStones = itemService.getSpiritStoneCount(playerId);
         if (stoneAmount < 1) {
-            result.put("success", false); result.put("message", I18n.t("economy.at_least_1_low_grade")); return result;
+            return CurrencyExchangeResult.rejected(I18n.t("economy.at_least_1_low_grade"));
         }
         if (currentStones < stoneAmount) {
-            result.put("success", false); result.put("message", I18n.t("economy.not_enough_spirit_stones", stoneAmount, currentStones)); return result;
+            return CurrencyExchangeResult.rejected(I18n.t("economy.not_enough_spirit_stones", stoneAmount, currentStones));
         }
 
         long gold = stoneAmount * STONE_TO_GOLD_RATE;
@@ -357,11 +341,8 @@ public class EconomyService {
             return null;
         });
 
-        result.put("success", true);
-        result.put("stonesSpent", stoneAmount);
-        result.put("goldGained", gold);
-        result.put("message", I18n.t("economy.exchange_successful_4", stoneAmount, gold));
-        return result;
+        return CurrencyExchangeResult.stonesToGold(
+                I18n.t("economy.exchange_successful_4", stoneAmount, gold), stoneAmount, gold);
     }
 
     // ==================== 灵庄 ====================
@@ -375,17 +356,18 @@ public class EconomyService {
     /** 活期日利率 0.2%（30 天复利约 6.2%，低于定期，保证定期产品有意义） */
     private static final double CURRENT_DAILY_RATE = 0.002;
 
-    public Map<String, Object> bankDeposit(long playerId, String type, long amount) {
+    public BankDepositResult bankDeposit(long playerId, String type, long amount) {
         com.mtxgdn.playerdata.PlayerDataService.markDirty(playerId);
-        Map<String, Object> result = new LinkedHashMap<>();
         Player player = playerService.getPlayerById(playerId);
-        if (player == null) { result.put("success", false); result.put("message", I18n.t("economy.character_not_found")); return result; }
+        if (player == null) return BankDepositResult.rejected(I18n.t("economy.character_not_found"));
 
         long currentStones = itemService.getSpiritStoneCount(playerId);
         if (currentStones < amount) {
-            result.put("success", false); result.put("message", I18n.t("economy.not_enough_spirit_stones_3", amount, currentStones)); return result;
+            return BankDepositResult.rejected(I18n.t("economy.not_enough_spirit_stones_3", amount, currentStones));
         }
-        if (amount < 100) { result.put("success", false); result.put("message", I18n.t("economy.spirit_bank_deposits_start")); return result; }
+        if (amount < 100) {
+            return BankDepositResult.rejected(I18n.t("economy.spirit_bank_deposits_start"));
+        }
 
         double rate;
         int days = 0;
@@ -401,7 +383,9 @@ public class EconomyService {
                 case "fixed_7" -> 0; case "fixed_30" -> 1; case "fixed_90" -> 2;
                 default -> -1;
             };
-            if (planIdx < 0) { result.put("success", false); result.put("message", I18n.t("economy.unknown_deposit_type", type)); return result; }
+            if (planIdx < 0) {
+                return BankDepositResult.rejected(I18n.t("economy.unknown_deposit_type", type));
+            }
 
             Object[] plan = FIXED_DEPOSIT_PLANS[planIdx];
             days = (int) plan[0];
@@ -426,30 +410,27 @@ public class EconomyService {
             throw new RuntimeException("灵庄存入失败", e);
         }
 
-        result.put("success", true);
+        String message;
         if ("current".equals(type)) {
-            result.put("message", I18n.t("economy.bank.deposit", amount,
-                    String.format("%.1f", rate * 100), depositId));
+            message = I18n.t("economy.bank.deposit", amount,
+                    String.format("%.1f", rate * 100), depositId);
         } else {
             long expectedInterest = (long)(amount * rate);
-            result.put("message", I18n.t("economy.deposited_low_grade_spirit_stones", amount, typeName, days, expectedInterest, depositId));
+            message = I18n.t("economy.deposited_low_grade_spirit_stones",
+                    amount, typeName, days, expectedInterest, depositId);
         }
-        result.put("principal", amount);
-        result.put("depositType", type);
-        result.put("depositId", depositId);
-        return result;
+        return BankDepositResult.deposited(message, amount, type, depositId);
     }
 
-    public Map<String, Object> bankWithdraw(long playerId, long depositId) {
+    public BankWithdrawResult bankWithdraw(long playerId, long depositId) {
         com.mtxgdn.playerdata.PlayerDataService.markDirty(playerId);
-        Map<String, Object> result = new LinkedHashMap<>();
 
         BankDeposit dep = getBankDeposit(depositId);
         if (dep == null || dep.playerId != playerId) {
-            result.put("success", false); result.put("message", I18n.t("economy.that_deposit_does_not_exist")); return result;
+            return BankWithdrawResult.rejected(I18n.t("economy.that_deposit_does_not_exist"));
         }
         if (!"active".equals(dep.status)) {
-            result.put("success", false); result.put("message", I18n.t("economy.that_deposit_has_already_been_2")); return result;
+            return BankWithdrawResult.rejected(I18n.t("economy.that_deposit_has_already_been_2"));
         }
 
         boolean isCurrent = "current".equals(dep.depositType);
@@ -483,32 +464,25 @@ public class EconomyService {
             });
         } catch (Exception e) {
             if (e.getMessage() != null && e.getMessage().contains("存款已被取出")) {
-                result.put("success", false);
-                result.put("message", I18n.t("economy.that_deposit_has_already_been"));
-                return result;
+                return BankWithdrawResult.rejected(I18n.t("economy.that_deposit_has_already_been"));
             }
             throw new RuntimeException("取款失败", e);
         }
 
-        result.put("success", true);
-        result.put("principal", dep.principal);
-        result.put("interest", interest);
-        result.put("total", dep.principal + interest);
         // note 是一个可空尾巴（提前支取时会带扣息说明），整体交给 {3}
-        result.put("message", I18n.t("economy.bank.withdraw", dep.principal, interest,
-                dep.principal + interest, note));
-        return result;
+        return BankWithdrawResult.withdrawn(
+                I18n.t("economy.bank.withdraw", dep.principal, interest,
+                        dep.principal + interest, note),
+                dep.principal, interest, dep.principal + interest);
     }
 
-    public Map<String, Object> getBankInfo(long playerId) {
-        Map<String, Object> result = new LinkedHashMap<>();
-        List<Map<String, Object>> deposits = new ArrayList<>();
+    public BankInfo getBankInfo(long playerId) {
+        List<DepositView> deposits = new ArrayList<>();
         long totalPrincipal = 0, totalPendingInterest = 0;
         long now = System.currentTimeMillis();
 
         // 只取原始行：利息估算与「剩余 N 天」文案依赖「现在」，留在服务层算
         for (Map<String, Object> rs : ECONOMY_DAO.findActiveBankDeposits(playerId)) {
-            Map<String, Object> row = new LinkedHashMap<>();
             long id = ((Number) rs.get("id")).longValue();
             String type = (String) rs.get("deposit_type");
             long principal = ((Number) rs.get("principal")).longValue();
@@ -516,8 +490,6 @@ public class EconomyService {
             long depositedAt = ((Number) rs.get("deposited_at")).longValue();
             long maturesAt = ((Number) rs.get("matures_at")).longValue();
 
-            row.put("id", id);
-            row.put("principal", principal);
             totalPrincipal += principal;
 
             boolean isCurrent = "current".equals(type);
@@ -525,30 +497,27 @@ public class EconomyService {
                 int elapsedDays = (int) ((now - depositedAt) / 86400000L);
                 long estimatedInterest = (long) (principal * Math.pow(1 + rate, elapsedDays) - principal);
                 if (estimatedInterest < 0) estimatedInterest = 0;
-                row.put("type", "活期");
-                row.put("estimatedInterest", estimatedInterest);
-                row.put("note", "已存 " + elapsedDays + " 天，日利 " + String.format("%.1f", rate * 100) + "%");
+                deposits.add(new DepositView(id, "活期", principal, estimatedInterest,
+                        "已存 " + elapsedDays + " 天，日利 " + String.format("%.1f", rate * 100) + "%"));
                 totalPendingInterest += estimatedInterest;
             } else {
                 int planDays = maturesAt > 0 ? (int) ((maturesAt - depositedAt) / 86400000L) : 0;
                 long remainingMs = maturesAt - now;
-                row.put("type", planDays + "天定期");
-                row.put("estimatedInterest", maturesAt > 0 && now >= maturesAt ? (long) (principal * rate) : 0L);
+                long estimatedInterest = maturesAt > 0 && now >= maturesAt ? (long) (principal * rate) : 0L;
+                String note;
                 if (remainingMs > 0) {
                     long remainingDays = remainingMs / 86400000L + 1;
-                    row.put("note", "剩余 " + remainingDays + " 天到期，利率 " + String.format("%.0f", rate * 100) + "%（到期前取款无利息）");
+                    note = "剩余 " + remainingDays + " 天到期，利率 "
+                            + String.format("%.0f", rate * 100) + "%（到期前取款无利息）";
                 } else {
-                    row.put("note", "已到期！可取款，利率 " + String.format("%.0f", rate * 100) + "%");
+                    note = "已到期！可取款，利率 " + String.format("%.0f", rate * 100) + "%";
                     totalPendingInterest += (long) (principal * rate);
                 }
+                deposits.add(new DepositView(id, planDays + "天定期", principal, estimatedInterest, note));
             }
-            deposits.add(row);
         }
 
-        result.put("deposits", deposits);
-        result.put("totalPrincipal", totalPrincipal);
-        result.put("totalPendingInterest", totalPendingInterest);
-        return result;
+        return new BankInfo(deposits, totalPrincipal, totalPendingInterest);
     }
 
     private BankDeposit getBankDeposit(long depositId) {
@@ -581,34 +550,32 @@ public class EconomyService {
 
     // ==================== 经济数据面板 ====================
 
-    public Map<String, Object> getEconomyStats() {
-        Map<String, Object> stats = new LinkedHashMap<>();
-
+    public EconomyStats getEconomyStats() {
         // 三个标量各一条语句：合并成一条 JOIN 会因为「没有物品的玩家」被丢掉而少算人数
         try {
-            stats.put("totalStones", ECONOMY_DAO.sumSpiritStones());
-            stats.put("totalGold", ECONOMY_DAO.sumGold());
-            stats.put("totalPlayers", ECONOMY_DAO.countPlayers());
-            stats.put("last24hTradeVolume", ECONOMY_DAO.countSoldTradeListings());
+            return EconomyStats.of(
+                    ECONOMY_DAO.sumSpiritStones(),
+                    ECONOMY_DAO.sumGold(),
+                    ECONOMY_DAO.countPlayers(),
+                    ECONOMY_DAO.countSoldTradeListings());
         } catch (Exception e) {
-            stats.put("error", e.getMessage());
+            return EconomyStats.failed(e.getMessage());
         }
-
-        return stats;
     }
 
     // ==================== 竞拍行 ====================
 
-    public Map<String, Object> createAuction(long playerId, String itemKey, int quantity, long startPrice, int hours) {
+    public AuctionResult createAuction(long playerId, String itemKey, int quantity, long startPrice, int hours) {
         com.mtxgdn.playerdata.PlayerDataService.markDirty(playerId);
-        Map<String, Object> result = new LinkedHashMap<>();
         var item = com.mtxgdn.game.item.ItemRegistry.resolve(itemKey);
-        if (item == null) { result.put("success", false); result.put("message", I18n.t("economy.item_not_found_5")); return result; }
-        if (quantity <= 0 || startPrice <= 0) { result.put("success", false); result.put("message", I18n.t("economy.quantity_and_starting_bid_must")); return result; }
+        if (item == null) return AuctionResult.fail(I18n.t("economy.item_not_found_5"));
+        if (quantity <= 0 || startPrice <= 0) {
+            return AuctionResult.fail(I18n.t("economy.quantity_and_starting_bid_must"));
+        }
 
         String fullKey = item.getFullKey();
         if (!itemService.hasItem(playerId, fullKey, quantity)) {
-            result.put("success", false); result.put("message", I18n.t("economy.not_enough_in_your_backpack", item.getName())); return result;
+            return AuctionResult.fail(I18n.t("economy.not_enough_in_your_backpack", item.getName()));
         }
 
         int realHours = Math.min(Math.max(hours, 1), 72);
@@ -627,18 +594,14 @@ public class EconomyService {
             throw new RuntimeException("创建拍卖失败", e);
         }
 
-        result.put("success", true);
-        result.put("message", I18n.t("economy.listed_on_the_auction_house", item.getName(), quantity, startPrice, realHours));
-        return result;
+        return AuctionResult.ok(
+                I18n.t("economy.listed_on_the_auction_house", item.getName(), quantity, startPrice, realHours));
     }
 
-    public Map<String, Object> placeBid(long bidderPlayerId, long listingId, long amount) {
+    public AuctionResult placeBid(long bidderPlayerId, long listingId, long amount) {
         com.mtxgdn.playerdata.PlayerDataService.markDirty(bidderPlayerId);
-        Map<String, Object> result = new LinkedHashMap<>();
         if (amount <= 0) {
-            result.put("success", false);
-            result.put("message", I18n.t("economy.the_bid_must_be_greater"));
-            return result;
+            return AuctionResult.fail(I18n.t("economy.the_bid_must_be_greater"));
         }
 
         // 竞态修复：listing 读取与校验全部移入事务内并加锁，避免事务外快照导致
@@ -675,14 +638,10 @@ public class EconomyService {
                 return null;
             });
         } catch (Exception e) {
-            result.put("success", false);
-            result.put("message", I18n.t("economy.bid_failed", rootMessage(e)));
-            return result;
+            return AuctionResult.fail(I18n.t("economy.bid_failed", rootMessage(e)));
         }
 
-        result.put("success", true);
-        result.put("message", I18n.t("economy.bid_placed", amount, listingId));
-        return result;
+        return AuctionResult.ok(I18n.t("economy.bid_placed", amount, listingId));
     }
 
     /** 解包 runTransaction 包装的 RuntimeException，返回业务异常的真实原因消息。 */
@@ -830,19 +789,14 @@ public class EconomyService {
      *
      * @param grade 源灵石等级（0=下品→中品，1=中品→上品，2=上品→极品）
      */
-    public Map<String, Object> purifySpiritStone(long playerId, int grade) {
+    public PurifyResult purifySpiritStone(long playerId, int grade) {
         com.mtxgdn.playerdata.PlayerDataService.markDirty(playerId);
-        Map<String, Object> result = new LinkedHashMap<>();
         Player player = playerService.getPlayerById(playerId);
         if (player == null) {
-            result.put("success", false);
-            result.put("message", I18n.t("economy.character_not_found"));
-            return result;
+            return PurifyResult.rejected(I18n.t("economy.character_not_found"));
         }
         if (grade < 0 || grade > 2) {
-            result.put("success", false);
-            result.put("message", I18n.t("economy.invalid_spirit_stone_grade"));
-            return result;
+            return PurifyResult.rejected(I18n.t("economy.invalid_spirit_stone_grade"));
         }
 
         int targetGrade = grade + 1;
@@ -855,18 +809,14 @@ public class EconomyService {
                     ? GameConfigLoader.getRealmConfig(player.getRealm(), 0).getFullName() : "凡人";
             String requiredName = GameConfigLoader.getRealmConfig(PURIFY_REALM[grade], 0) != null
                     ? GameConfigLoader.getRealmConfig(PURIFY_REALM[grade], 0).getFullName() : "未知境界";
-            result.put("success", false);
-            result.put("message", I18n.t("economy.realm_too_low", targetName, requiredName, realmName));
-            return result;
+            return PurifyResult.rejected(I18n.t("economy.realm_too_low", targetName, requiredName, realmName));
         }
 
         // 灵石数量
         String sourceKey = com.mtxgdn.game.item.CurrencyEffect.getStoneKey(grade);
         if (itemService.getItemCount(playerId, sourceKey) < PURIFY_STONE_COST) {
-            result.put("success", false);
-            result.put("message", I18n.t("economy.purify.short_stone", sourceName,
+            return PurifyResult.rejected(I18n.t("economy.purify.short_stone", sourceName,
                     PURIFY_STONE_COST, itemService.getItemCount(playerId, sourceKey)));
-            return result;
         }
 
         // 洞府灵气（"灵气"资源）
@@ -874,14 +824,10 @@ public class EconomyService {
         CaveService caveService = ServiceRegistry.getCaveService();
         Cave cave = caveService.getCaveByPlayerId(playerId);
         if (cave == null) {
-            result.put("success", false);
-            result.put("message", I18n.t("economy.refining_spirit_stones_requires_cave"));
-            return result;
+            return PurifyResult.rejected(I18n.t("economy.refining_spirit_stones_requires_cave"));
         }
         if (cave.getSpiritEnergy() < auraCost) {
-            result.put("success", false);
-            result.put("message", I18n.t("economy.not_enough_cave_dwelling_spiritual", targetName, auraCost, cave.getSpiritEnergy()));
-            return result;
+            return PurifyResult.rejected(I18n.t("economy.not_enough_cave_dwelling_spiritual", targetName, auraCost, cave.getSpiritEnergy()));
         }
 
         // 成功率：基础 + 灵力加成（上限 +15%）
@@ -909,21 +855,11 @@ public class EconomyService {
         });
 
         int ratePercent = (int) Math.round(finalRate * 100);
-        result.put("success", true);
-        result.put("purifySuccess", success);
-        result.put("grade", grade);
-        result.put("targetGrade", targetGrade);
-        result.put("sourceName", sourceName);
-        result.put("targetName", targetName);
-        result.put("auraCost", auraCost);
-        result.put("stoneCost", PURIFY_STONE_COST);
-        result.put("successRate", finalRate);
-        if (success) {
-            result.put("message", I18n.t("economy.refine_successful", PURIFY_STONE_COST, sourceName, auraCost, targetName, ratePercent));
-        } else {
-            result.put("message", I18n.t("economy.refine_failed", PURIFY_STONE_COST, sourceName, auraCost, ratePercent));
-        }
-        return result;
+        String message = success
+                ? I18n.t("economy.refine_successful", PURIFY_STONE_COST, sourceName, auraCost, targetName, ratePercent)
+                : I18n.t("economy.refine_failed", PURIFY_STONE_COST, sourceName, auraCost, ratePercent);
+        return PurifyResult.purified(message, success, grade, targetGrade,
+                sourceName, targetName, auraCost, PURIFY_STONE_COST, finalRate);
     }
 
     /** 提纯帮助信息（供 QQ 指令展示） */

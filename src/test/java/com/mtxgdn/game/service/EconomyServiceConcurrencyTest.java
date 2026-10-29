@@ -1,5 +1,6 @@
 package com.mtxgdn.game.service;
 
+import com.mtxgdn.game.economy.AuctionResult;
 import com.mtxgdn.TestBase;
 import com.mtxgdn.common.service.ServiceRegistry;
 import com.mtxgdn.service.UserService;
@@ -143,22 +144,22 @@ class EconomyServiceConcurrencyTest extends TestBase {
         itemService.addSpiritStones(bidderB, 100_000);
         itemService.addSpiritStones(bidderC, 100_000);
 
-        Map<String, Object> created = economyService.createAuction(seller, "mtxgdn:spirit_grass", 1, 100, 1);
-        assertTrue(Boolean.TRUE.equals(created.get("success")), "创建拍卖应成功: " + created.get("message"));
+        AuctionResult created = economyService.createAuction(seller, "mtxgdn:spirit_grass", 1, 100, 1);
+        assertTrue(created.success(), "创建拍卖应成功: " + created.message());
         long auctionId = activeAuctionId(seller);
 
         final long[] bidders = {bidderA, bidderB, bidderC};
         final java.util.concurrent.atomic.AtomicInteger seq = new java.util.concurrent.atomic.AtomicInteger();
         long groupBefore = spiritSum(bidders);
 
-        List<Map<String, Object>> results = runConcurrently(3, () -> {
+        List<AuctionResult> results = runConcurrently(3, () -> {
             long me = bidders[seq.getAndIncrement() % bidders.length];
             return economyService.placeBid(me, auctionId, 500);
         });
 
         long groupAfter = spiritSum(bidders);
         long okCount = results.stream()
-                .filter(r -> r != null && Boolean.TRUE.equals(r.get("success"))).count();
+                .filter(r -> r != null && r.success()).count();
 
         // 硬不变量：无论并发时序如何，竞拍人群体被冻结的灵石总额
         // 必须恰好等于"当前最高出价"这一笔，绝不能是 okCount 笔。
@@ -185,19 +186,19 @@ class EconomyServiceConcurrencyTest extends TestBase {
         itemService.addSpiritStones(bidderA, 100_000);
         itemService.addSpiritStones(bidderB, 100_000);
 
-        Map<String, Object> created = economyService.createAuction(seller, "mtxgdn:spirit_grass", 1, 100, 1);
-        assertTrue(Boolean.TRUE.equals(created.get("success")), "创建拍卖应成功");
+        AuctionResult created = economyService.createAuction(seller, "mtxgdn:spirit_grass", 1, 100, 1);
+        assertTrue(created.success(), "创建拍卖应成功");
         long auctionId = activeAuctionId(seller);
 
         long beforeA = itemService.getSpiritStoneCount(bidderA);
         long beforeB = itemService.getSpiritStoneCount(bidderB);
 
         // A 先出 500，B 后出 800：A 应被全额退还，只冻结 B 的 800
-        assertTrue(Boolean.TRUE.equals(economyService.placeBid(bidderA, auctionId, 500).get("success")),
+        assertTrue(economyService.placeBid(bidderA, auctionId, 500).success(),
                 "A 出价应成功");
         assertEquals(beforeA - 500, itemService.getSpiritStoneCount(bidderA), "A 首次出价应冻结 500");
 
-        assertTrue(Boolean.TRUE.equals(economyService.placeBid(bidderB, auctionId, 800).get("success")),
+        assertTrue(economyService.placeBid(bidderB, auctionId, 800).success(),
                 "B 出价应成功");
         assertEquals(beforeA, itemService.getSpiritStoneCount(bidderA), "A 应被全额退还 500");
         assertEquals(beforeB - 800, itemService.getSpiritStoneCount(bidderB), "B 应冻结 800");
@@ -224,18 +225,18 @@ class EconomyServiceConcurrencyTest extends TestBase {
             itemService.addItem(seller, "mtxgdn:spirit_grass", 100);
             itemService.addSpiritStones(bidder, 100_000);
 
-            Map<String, Object> created = economyService.createAuction(seller, "mtxgdn:spirit_grass", 1, 100, 1);
-            assertTrue(Boolean.TRUE.equals(created.get("success")), "创建拍卖应成功");
+            AuctionResult created = economyService.createAuction(seller, "mtxgdn:spirit_grass", 1, 100, 1);
+            assertTrue(created.success(), "创建拍卖应成功");
             long auctionId = activeAuctionId(seller);
 
             long before = itemService.getSpiritStoneCount(bidder);
 
-            List<Map<String, Object>> results = runConcurrently(threads, () ->
+            List<AuctionResult> results = runConcurrently(threads, () ->
                     economyService.placeBid(bidder, auctionId, 777), threads + 2);
 
             long after = itemService.getSpiritStoneCount(bidder);
             long okCount = results.stream()
-                    .filter(r -> r != null && Boolean.TRUE.equals(r.get("success"))).count();
+                    .filter(r -> r != null && r.success()).count();
 
             assertTrue(okCount >= 1, "第 " + round + " 轮：至少应有一次出价成功");
             // 同一出价人连续出价会"退还上一笔 + 扣新一笔"，净冻结恒为一笔。
@@ -255,14 +256,14 @@ class EconomyServiceConcurrencyTest extends TestBase {
         long seller = makePlayer("ecoseller3", "拍主丙");
         itemService.addItem(seller, "mtxgdn:spirit_grass", 100);
 
-        Map<String, Object> created = economyService.createAuction(seller, "mtxgdn:spirit_grass", 1, 100, 1);
-        assertTrue(Boolean.TRUE.equals(created.get("success")), "创建拍卖应成功");
+        AuctionResult created = economyService.createAuction(seller, "mtxgdn:spirit_grass", 1, 100, 1);
+        assertTrue(created.success(), "创建拍卖应成功");
         long auctionId = activeAuctionId(seller);
 
-        Map<String, Object> selfBid = economyService.placeBid(seller, auctionId, 500);
-        assertTrue(Boolean.FALSE.equals(selfBid.get("success")), "不应允许竞拍自己的物品");
-        assertTrue(String.valueOf(selfBid.get("message")).contains("自己"),
-                "错误信息应说明不能竞拍自己的物品，实际: " + selfBid.get("message"));
+        AuctionResult selfBid = economyService.placeBid(seller, auctionId, 500);
+        assertTrue(Boolean.FALSE.equals(selfBid.success()), "不应允许竞拍自己的物品");
+        assertTrue(String.valueOf(selfBid.message()).contains("自己"),
+                "错误信息应说明不能竞拍自己的物品，实际: " + selfBid.message());
     }
 
     @Test
@@ -276,26 +277,26 @@ class EconomyServiceConcurrencyTest extends TestBase {
         itemService.addItem(seller, "mtxgdn:spirit_grass", 100);
         itemService.addSpiritStones(bidder, 100_000);
 
-        Map<String, Object> created = economyService.createAuction(seller, "mtxgdn:spirit_grass", 1, 1000, 1);
-        assertTrue(Boolean.TRUE.equals(created.get("success")), "创建拍卖应成功");
+        AuctionResult created = economyService.createAuction(seller, "mtxgdn:spirit_grass", 1, 1000, 1);
+        assertTrue(created.success(), "创建拍卖应成功");
         long auctionId = activeAuctionId(seller);
 
         // 低于起拍价
-        Map<String, Object> low = economyService.placeBid(bidder, auctionId, 999);
-        assertTrue(Boolean.FALSE.equals(low.get("success")), "低于起拍价应被拒绝");
+        AuctionResult low = economyService.placeBid(bidder, auctionId, 999);
+        assertTrue(Boolean.FALSE.equals(low.success()), "低于起拍价应被拒绝");
 
         // 合法出价
-        Map<String, Object> ok = economyService.placeBid(bidder, auctionId, 1000);
-        assertTrue(Boolean.TRUE.equals(ok.get("success")), "等于起拍价应被接受: " + ok.get("message"));
+        AuctionResult ok = economyService.placeBid(bidder, auctionId, 1000);
+        assertTrue(Boolean.TRUE.equals(ok.success()), "等于起拍价应被接受: " + ok.message());
 
         // 低于当前价
-        Map<String, Object> lower = economyService.placeBid(bidder, auctionId, 1000);
-        assertTrue(Boolean.FALSE.equals(lower.get("success")),
-                "不高于当前出价应被拒绝，实际: " + lower.get("message"));
+        AuctionResult lower = economyService.placeBid(bidder, auctionId, 1000);
+        assertTrue(Boolean.FALSE.equals(lower.success()),
+                "不高于当前出价应被拒绝，实际: " + lower.message());
 
         // 恰好高 1 应被接受
-        Map<String, Object> higher = economyService.placeBid(bidder, auctionId, 1001);
-        assertTrue(Boolean.TRUE.equals(higher.get("success")), "高 1 灵石应被接受: " + higher.get("message"));
+        AuctionResult higher = economyService.placeBid(bidder, auctionId, 1001);
+        assertTrue(Boolean.TRUE.equals(higher.success()), "高 1 灵石应被接受: " + higher.message());
     }
 
     @Test
@@ -310,12 +311,12 @@ class EconomyServiceConcurrencyTest extends TestBase {
         // 新角色默认灵石很少，起拍价设高一点确保不足
         long poorBefore = itemService.getSpiritStoneCount(poor);
 
-        Map<String, Object> created = economyService.createAuction(seller, "mtxgdn:spirit_grass", 1, 999_999, 1);
-        assertTrue(Boolean.TRUE.equals(created.get("success")), "创建拍卖应成功");
+        AuctionResult created = economyService.createAuction(seller, "mtxgdn:spirit_grass", 1, 999_999, 1);
+        assertTrue(created.success(), "创建拍卖应成功");
         long auctionId = activeAuctionId(seller);
 
-        Map<String, Object> bid = economyService.placeBid(poor, auctionId, 999_999);
-        assertTrue(Boolean.FALSE.equals(bid.get("success")), "灵石不足应被拒绝");
+        AuctionResult bid = economyService.placeBid(poor, auctionId, 999_999);
+        assertTrue(Boolean.FALSE.equals(bid.success()), "灵石不足应被拒绝");
         assertEquals(poorBefore, itemService.getSpiritStoneCount(poor),
                 "失败的出价不得改变玩家灵石");
     }

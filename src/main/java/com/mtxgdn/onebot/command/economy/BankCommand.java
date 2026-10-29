@@ -1,5 +1,9 @@
 package com.mtxgdn.onebot.command.economy;
 
+import com.mtxgdn.game.economy.DepositView;
+import com.mtxgdn.game.economy.BankWithdrawResult;
+import com.mtxgdn.game.economy.BankInfo;
+import com.mtxgdn.game.economy.BankDepositResult;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.mtxgdn.common.command.Command;
@@ -55,30 +59,27 @@ public class BankCommand extends Command {
 
     private void showAccount(CommandContext ctx, PlayerInfo p) {
         var eco = ServiceRegistry.getEconomyService();
-        var info = eco.getBankInfo(p.getId());
+        BankInfo info = eco.getBankInfo(p.getId());
         long stones = ServiceRegistry.getItemService().getSpiritStoneCount(p.getId());
 
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> deposits = (List<Map<String, Object>>) info.get("deposits");
-        long totalPrincipal = (long) info.get("totalPrincipal");
-        long totalInterest = (long) info.get("totalPendingInterest");
+        List<DepositView> deposits = info.deposits();
+        long totalPrincipal = info.totalPrincipal();
+        long totalInterest = info.totalPendingInterest();
 
         StringBuilder sb = new StringBuilder();
         sb.append("🏦 灵庄\n");
         sb.append("随身灵石: ").append(stones).append("\n");
 
-        if (deposits == null || deposits.isEmpty()) {
+        if (deposits.isEmpty()) {
             sb.append("\n暂无存款。\n\n");
         } else {
             sb.append("存于灵庄: ").append(totalPrincipal).append("（预估利息 +").append(totalInterest).append("）\n");
             sb.append("────────\n");
-            for (var dep : deposits) {
-                long id = (long) dep.get("id");
-                sb.append("#").append(id).append(" ")
-                  .append(dep.get("type")).append(" | 本金 ").append(dep.get("principal")).append(" | ");
-                long interest = (long) dep.get("estimatedInterest");
-                if (interest > 0) sb.append("预估利息 +").append(interest);
-                sb.append("\n  ").append(dep.get("note")).append("\n");
+            for (DepositView dep : deposits) {
+                sb.append("#").append(dep.id()).append(" ")
+                  .append(dep.type()).append(" | 本金 ").append(dep.principal()).append(" | ");
+                if (dep.estimatedInterest() > 0) sb.append("预估利息 +").append(dep.estimatedInterest());
+                sb.append("\n  ").append(dep.note()).append("\n");
             }
         }
 
@@ -114,8 +115,8 @@ public class BankCommand extends Command {
         }
 
         var eco = ServiceRegistry.getEconomyService();
-        var result = eco.bankDeposit(p.getId(), type, amount);
-        ctx.reply((String) result.get("message"));
+        BankDepositResult result = eco.bankDeposit(p.getId(), type, amount);
+        ctx.reply(result.message());
     }
 
     private void doWithdraw(CommandContext ctx, PlayerInfo p, String[] parts) {
@@ -130,8 +131,8 @@ public class BankCommand extends Command {
         }
 
         var eco = ServiceRegistry.getEconomyService();
-        var result = eco.bankWithdraw(p.getId(), depositId);
-        ctx.reply((String) result.get("message"));
+        BankWithdrawResult result = eco.bankWithdraw(p.getId(), depositId);
+        ctx.reply(result.message());
     }
 
     private void showRates(CommandContext ctx, PlayerInfo p, String[] parts) {
@@ -157,27 +158,23 @@ public class BankCommand extends Command {
         JsonObject result = new JsonObject();
         try {
             var eco = ServiceRegistry.getEconomyService();
-            var info = eco.getBankInfo(ctx.playerId());
+            BankInfo info = eco.getBankInfo(ctx.playerId());
             long stones = ServiceRegistry.getItemService().getSpiritStoneCount(ctx.playerId());
 
-            @SuppressWarnings("unchecked")
-            List<Map<String, Object>> deposits = (List<Map<String, Object>>) info.get("deposits");
             JsonArray arr = new JsonArray();
-            if (deposits != null) {
-                for (var dep : deposits) {
-                    JsonObject io = new JsonObject();
-                    io.addProperty("id", (long) dep.get("id"));
-                    io.addProperty("type", (String) dep.get("type"));
-                    io.addProperty("principal", (long) dep.get("principal"));
-                    io.addProperty("estimatedInterest", (long) dep.get("estimatedInterest"));
-                    io.addProperty("note", (String) dep.get("note"));
-                    arr.add(io);
-                }
+            for (DepositView dep : info.deposits()) {
+                JsonObject io = new JsonObject();
+                io.addProperty("id", dep.id());
+                io.addProperty("type", dep.type());
+                io.addProperty("principal", dep.principal());
+                io.addProperty("estimatedInterest", dep.estimatedInterest());
+                io.addProperty("note", dep.note());
+                arr.add(io);
             }
             result.addProperty("code", 200);
             result.addProperty("spiritStones", stones);
-            result.addProperty("totalPrincipal", (long) info.get("totalPrincipal"));
-            result.addProperty("totalPendingInterest", (long) info.get("totalPendingInterest"));
+            result.addProperty("totalPrincipal", info.totalPrincipal());
+            result.addProperty("totalPendingInterest", info.totalPendingInterest());
             result.add("deposits", arr);
         } catch (Exception e) {
             result.addProperty("code", 500);
@@ -198,10 +195,10 @@ public class BankCommand extends Command {
                 return result;
             }
             var eco = ServiceRegistry.getEconomyService();
-            var data = eco.bankDeposit(ctx.playerId(), type, amount);
-            result.addProperty("code", (boolean) data.get("success") ? 200 : 400);
-            result.addProperty("success", (boolean) data.get("success"));
-            result.addProperty("message", (String) data.get("message"));
+            BankDepositResult data = eco.bankDeposit(ctx.playerId(), type, amount);
+            result.addProperty("code", data.success() ? 200 : 400);
+            result.addProperty("success", data.success());
+            result.addProperty("message", data.message());
         } catch (Exception e) {
             result.addProperty("code", 500);
             result.addProperty("message", I18n.t("economy.server_error", e.getMessage()));
@@ -220,12 +217,12 @@ public class BankCommand extends Command {
                 return result;
             }
             var eco = ServiceRegistry.getEconomyService();
-            var data = eco.bankWithdraw(ctx.playerId(), depositId);
-            result.addProperty("code", (boolean) data.get("success") ? 200 : 400);
-            result.addProperty("success", (boolean) data.get("success"));
-            result.addProperty("message", (String) data.get("message"));
-            if (data.containsKey("interest")) result.addProperty("interest", (long) data.get("interest"));
-            if (data.containsKey("principal")) result.addProperty("principal", (long) data.get("principal"));
+            BankWithdrawResult data = eco.bankWithdraw(ctx.playerId(), depositId);
+            result.addProperty("code", data.success() ? 200 : 400);
+            result.addProperty("success", data.success());
+            result.addProperty("message", data.message());
+            if (data.interest() != null) result.addProperty("interest", data.interest());
+            if (data.principal() != null) result.addProperty("principal", data.principal());
         } catch (Exception e) {
             result.addProperty("code", 500);
             result.addProperty("message", I18n.t("economy.server_error", e.getMessage()));

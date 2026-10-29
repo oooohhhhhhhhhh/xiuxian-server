@@ -1,5 +1,6 @@
 package com.mtxgdn.onebot.command.economy;
 
+import com.mtxgdn.game.economy.BoostResult;
 import com.google.gson.JsonObject;
 import com.mtxgdn.common.command.Command;
 import com.mtxgdn.common.command.CommandContext;
@@ -41,8 +42,8 @@ public class CultivateBoostCommand extends Command {
                 return;
             }
             var eco = ServiceRegistry.getEconomyService();
-            var result = eco.boostCultivation(p.getId(), stonesToBurn);
-            ctx.reply((String) result.get("message"));
+            BoostResult result = eco.boostCultivation(p.getId(), stonesToBurn);
+            ctx.reply(result.message());
         } catch (NumberFormatException e) {
             ctx.reply(I18n.t("economy.please_enter_a_valid_number"));
         }
@@ -61,10 +62,10 @@ public class CultivateBoostCommand extends Command {
                 return result;
             }
             var eco = ServiceRegistry.getEconomyService();
-            Map<String, Object> data = eco.boostCultivation(ctx.playerId(), stonesToBurn);
-            result.addProperty("code", (boolean) data.get("success") ? 200 : 400);
-            result.addProperty("success", (boolean) data.get("success"));
-            result.addProperty("message", (String) data.get("message"));
+            BoostResult data = eco.boostCultivation(ctx.playerId(), stonesToBurn);
+            result.addProperty("code", data.success() ? 200 : 400);
+            result.addProperty("success", data.success());
+            result.addProperty("message", data.message());
         } catch (Exception e) {
             result.addProperty("code", 500);
             result.addProperty("message", I18n.t("economy.server_error", e.getMessage()));

@@ -1,5 +1,6 @@
 package com.mtxgdn.onebot.command.economy;
 
+import com.mtxgdn.game.economy.SignInResult;
 import com.google.gson.JsonObject;
 import com.mtxgdn.common.command.Command;
 import com.mtxgdn.common.command.CommandContext;
@@ -26,14 +27,14 @@ public class SignInCommand extends Command {
         if (p == null) return;
 
         var eco = ServiceRegistry.getEconomyService();
-        var result = eco.signIn(p.getId());
+        SignInResult result = eco.signIn(p.getId());
 
         StringBuilder sb = new StringBuilder();
-        if (Boolean.TRUE.equals(result.get("success"))) {
-            int streak = result.get("streak") instanceof Number ? ((Number) result.get("streak")).intValue() : 0;
+        if (result.success()) {
+            int streak = result.streak() != null ? result.streak() : 0;
             sb.append("☀ 签到成功！\n");
             sb.append("连续签到第 ").append(streak).append(" 天\n");
-            sb.append(result.get("reward"));
+            sb.append(result.reward());
 
             // 展示签到进度条
             sb.append("\n\n📅 本周进度: ");
@@ -42,7 +43,7 @@ public class SignInCommand extends Command {
                 else sb.append("○");
             }
         } else {
-            sb.append(result.get("message"));
+            sb.append(result.message());
         }
         ctx.reply(sb.toString());
     }
@@ -53,14 +54,14 @@ public class SignInCommand extends Command {
         JsonObject result = new JsonObject();
         try {
             var eco = ServiceRegistry.getEconomyService();
-            var data = eco.signIn(ctx.playerId());
-            boolean success = Boolean.TRUE.equals(data.get("success"));
+            SignInResult data = eco.signIn(ctx.playerId());
+            boolean success = data.success();
             result.addProperty("code", success ? 200 : 400);
             result.addProperty("success", success);
-            result.addProperty("message", String.valueOf(data.getOrDefault("message", "")));
-            if (data.containsKey("day")) result.addProperty("day", (int) data.get("day"));
-            if (data.containsKey("streak")) result.addProperty("streak", (int) data.get("streak"));
-            if (data.containsKey("reward")) result.addProperty("reward", (String) data.get("reward"));
+            result.addProperty("message", String.valueOf(data.message()));
+            if (data.day() != null) result.addProperty("day", data.day());
+            if (data.streak() != null) result.addProperty("streak", data.streak());
+            if (data.reward() != null) result.addProperty("reward", data.reward());
         } catch (Exception e) {
             result.addProperty("code", 500);
             result.addProperty("message", I18n.t("economy.server_error", e.getMessage()));
