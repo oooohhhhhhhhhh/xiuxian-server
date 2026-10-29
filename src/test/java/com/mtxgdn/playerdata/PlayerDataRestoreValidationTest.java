@@ -13,6 +13,7 @@ import java.util.Map;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 /**
@@ -47,14 +48,14 @@ class PlayerDataRestoreValidationTest extends TestBase {
                  "tables": {"players; DROP TABLE users; --": [{"id": %d}]}}
                 """.formatted(playerId, n, playerId);
 
-        Map<String, Object> result = service.restorePlayer(playerId, json, true);
+        PlayerDataResult result = service.restorePlayer(playerId, json, true);
 
-        assertEquals(Boolean.FALSE, result.get("success"),
+        assertFalse(result.success(),
                 "表名含分号/空格的数据文件必须被拒收，实际: " + result);
         assertEquals(userCountBefore, countUsers(),
                 "users 表必须还在（注入语句不能被执行）");
-        assertTrue(String.valueOf(result.get("message")).contains("表名"),
-                "错误信息应指出是表名非法，实际: " + result.get("message"));
+        assertTrue(result.message().contains("表名"),
+                "错误信息应指出是表名非法，实际: " + result.message());
     }
 
     @Test
@@ -71,14 +72,14 @@ class PlayerDataRestoreValidationTest extends TestBase {
                  ]}}
                 """.formatted(playerId, n);
 
-        Map<String, Object> result = service.restorePlayer(playerId, json, true);
+        PlayerDataResult result = service.restorePlayer(playerId, json, true);
 
-        assertEquals(Boolean.FALSE, result.get("success"),
+        assertFalse(result.success(),
                 "列名含括号/分号的数据文件必须被拒收，实际: " + result);
         assertEquals(userCountBefore, countUsers(),
                 "users 表必须还在（注入语句不能被执行）");
-        assertTrue(String.valueOf(result.get("message")).contains("列名"),
-                "错误信息应指出是列名非法，实际: " + result.get("message"));
+        assertTrue(result.message().contains("列名"),
+                "错误信息应指出是列名非法，实际: " + result.message());
     }
 
     @Test
@@ -92,9 +93,9 @@ class PlayerDataRestoreValidationTest extends TestBase {
                  "tables": {"players": [{"id": %d, "name": "还原后%d"}]}}
                 """.formatted(playerId, n, playerId, n);
 
-        Map<String, Object> result = service.restorePlayer(playerId, json, true);
+        PlayerDataResult result = service.restorePlayer(playerId, json, true);
 
-        assertEquals(Boolean.TRUE, result.get("success"),
+        assertTrue(result.success(),
                 "结构合法的备份必须能正常还原，实际: " + result);
         assertEquals("还原后" + n, playerName(playerId), "还原应写回 name");
     }

@@ -1,5 +1,8 @@
 package com.mtxgdn.rest;
 
+import com.mtxgdn.playerdata.PlayerDataVerifyResult;
+import com.mtxgdn.playerdata.PlayerDataExportAllResult;
+import com.mtxgdn.playerdata.PlayerDataResult;
 import com.google.gson.Gson;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
@@ -43,10 +46,10 @@ public class AdminPlayerDataResource {
     @RequirePermission("admin.database.clear_players")
     public Response exportPlayerData(@PathParam("playerId") long playerId) {
         PlayerDataService dataService = new PlayerDataService();
-        Map<String, Object> result = dataService.exportPlayer(playerId);
+        PlayerDataResult result = dataService.exportPlayer(playerId);
         JsonObject out = new JsonObject();
-        out.addProperty("code", Boolean.TRUE.equals(result.get("success")) ? 200 : 400);
-        out.addProperty("message", (String) result.get("message"));
+        out.addProperty("code", result.success() ? 200 : 400);
+        out.addProperty("message", result.message());
         return Response.ok(gson.toJson(out)).build();
     }
 
@@ -56,12 +59,12 @@ public class AdminPlayerDataResource {
     @RequirePermission("admin.database.clear_players")
     public Response exportAllPlayerData() {
         PlayerDataService dataService = new PlayerDataService();
-        Map<String, Object> result = dataService.exportAllPlayers();
+        PlayerDataExportAllResult result = dataService.exportAllPlayers();
         JsonObject out = new JsonObject();
         out.addProperty("code", 200);
         out.addProperty("message",
-                I18n.t("admin.player_data.exported", result.get("exported"), result.get("failed")));
-        out.addProperty("dir", (String) result.get("dir"));
+                I18n.t("admin.player_data.exported", result.exported(), result.failed()));
+        out.addProperty("dir", result.dir());
         return Response.ok(gson.toJson(out)).build();
     }
 
@@ -100,14 +103,13 @@ public class AdminPlayerDataResource {
     @RequirePermission("admin.database.clear_players")
     public Response verifyPlayerData(@PathParam("playerId") long playerId) {
         PlayerDataService dataService = new PlayerDataService();
-        Map<String, Object> result = dataService.verifyFile(playerId);
+        PlayerDataVerifyResult result = dataService.verifyFile(playerId);
         JsonObject out = new JsonObject();
-        out.addProperty("code", Boolean.TRUE.equals(result.get("success")) ? 200 : 400);
-        out.addProperty("message", (String) result.get("message"));
-        out.addProperty("legacy", Boolean.TRUE.equals(result.get("legacy")));
-        Object rows = result.get("rowCount");
-        if (rows instanceof Number n) {
-            out.addProperty("rowCount", n.intValue());
+        out.addProperty("code", result.success() ? 200 : 400);
+        out.addProperty("message", result.message());
+        out.addProperty("legacy", Boolean.TRUE.equals(result.legacy()));
+        if (result.rowCount() != null) {
+            out.addProperty("rowCount", result.rowCount());
         }
         return Response.ok(gson.toJson(out)).build();
     }

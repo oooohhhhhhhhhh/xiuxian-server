@@ -1,5 +1,6 @@
 package com.mtxgdn.rest;
 
+import com.mtxgdn.playerdata.PlayerDataResult;
 import com.mtxgdn.game.cultivation.HealResult;
 import com.mtxgdn.game.buff.ActiveBuffView;
 import com.mtxgdn.game.buff.ActiveBuffsResult;
@@ -389,16 +390,16 @@ public class GamePlayerResource {
             return Response.ok(GameMessage.restError(GameErrorCode.PLAYER_NOT_FOUND).toString()).build();
         }
         com.mtxgdn.playerdata.PlayerDataService dataService = new com.mtxgdn.playerdata.PlayerDataService();
-        Map<String, Object> result = dataService.exportPlayer(player.getId());
-        if (!Boolean.TRUE.equals(result.get("success"))) {
-            return Response.ok(GameMessage.restError(400, (String) result.get("message")).toString()).build();
+        PlayerDataResult result = dataService.exportPlayer(player.getId());
+        if (!result.success()) {
+            return Response.ok(GameMessage.restError(400, result.message()).toString()).build();
         }
         JsonObject data = new JsonObject();
         data.addProperty("playerId", player.getId());
-        data.addProperty("filePath", (String) result.get("filePath"));
-        data.addProperty("exportedAt", ((Number) result.get("exportedAt")).longValue());
-        data.addProperty("message", (String) result.get("message"));
-        return Response.ok(GameMessage.restOk((String) result.get("message"), data).toString()).build();
+        data.addProperty("filePath", result.filePath());
+        data.addProperty("exportedAt", result.exportedAt());
+        data.addProperty("message", result.message());
+        return Response.ok(GameMessage.restOk(result.message(), data).toString()).build();
     }
 
     @POST
@@ -416,10 +417,10 @@ public class GamePlayerResource {
             return Response.ok(GameMessage.restError(403, I18n.t("player_data.self_restore_disabled")).toString()).build();
         }
         com.mtxgdn.playerdata.PlayerDataService dataService = new com.mtxgdn.playerdata.PlayerDataService();
-        Map<String, Object> result = dataService.restorePlayer(player.getId(), body);
-        if (!Boolean.TRUE.equals(result.get("success"))) {
-            return Response.ok(GameMessage.restError(400, (String) result.get("message")).toString()).build();
+        PlayerDataResult result = dataService.restorePlayer(player.getId(), body);
+        if (!result.success()) {
+            return Response.ok(GameMessage.restError(400, result.message()).toString()).build();
         }
-        return Response.ok(GameMessage.restOk((String) result.get("message"), null).toString()).build();
+        return Response.ok(GameMessage.restOk(result.message(), null).toString()).build();
     }
 }

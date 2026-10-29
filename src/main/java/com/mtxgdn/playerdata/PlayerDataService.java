@@ -163,12 +163,9 @@ public class PlayerDataService {
      *       这样"新快照是坏的但校验没抓到"这类极端情况还有退路。</li>
      * </ol>
      */
-    public Map<String, Object> exportPlayer(long playerId) {
-        Map<String, Object> result = new LinkedHashMap<>();
+    public PlayerDataResult exportPlayer(long playerId) {
         if (!ENABLED) {
-            result.put("success", false);
-            result.put("message", I18n.t("playerdata.file_based_player_data"));
-            return result;
+            return PlayerDataResult.fail(I18n.t("playerdata.file_based_player_data"));
         }
 
         PlayerData data;
@@ -177,14 +174,10 @@ public class PlayerDataService {
         } catch (RuntimeException e) {
             // 读表失败：绝不产出不完整的快照
             recordExportFailure("采集玩家 " + playerId + " 数据失败: " + e.getMessage());
-            result.put("success", false);
-            result.put("message", I18n.t("playerdata.export_read_failed", e.getMessage()));
-            return result;
+            return PlayerDataResult.fail(I18n.t("playerdata.export_read_failed", e.getMessage()));
         }
         if (data == null) {
-            result.put("success", false);
-            result.put("message", I18n.t("playerdata.player_not_found", playerId));
-            return result;
+            return PlayerDataResult.fail(I18n.t("playerdata.player_not_found", playerId));
         }
 
         data.schemaVersion = SCHEMA_VERSION;
@@ -205,16 +198,12 @@ public class PlayerDataService {
             } catch (Exception e) {
                 Files.deleteIfExists(tmp);
                 recordExportFailure("玩家 " + playerId + " 快照解析失败: " + e.getMessage());
-                result.put("success", false);
-                result.put("message", I18n.t("playerdata.export_verify_failed", e.getMessage()));
-                return result;
+                return PlayerDataResult.fail(I18n.t("playerdata.export_verify_failed", e.getMessage()));
             }
             if (canonical == null || canonical.tables == null) {
                 Files.deleteIfExists(tmp);
                 recordExportFailure("玩家 " + playerId + " 快照内容为空");
-                result.put("success", false);
-                result.put("message", I18n.t("playerdata.export_verify_failed", "内容为空"));
-                return result;
+                return PlayerDataResult.fail(I18n.t("playerdata.export_verify_failed", "内容为空"));
             }
             canonical.playerId = data.playerId;
             canonical.userId = data.userId;
@@ -230,9 +219,7 @@ public class PlayerDataService {
             if (verifyError != null) {
                 Files.deleteIfExists(tmp);
                 recordExportFailure("玩家 " + playerId + " 快照回读校验失败: " + verifyError);
-                result.put("success", false);
-                result.put("message", I18n.t("playerdata.export_verify_failed", verifyError));
-                return result;
+                return PlayerDataResult.fail(I18n.t("playerdata.export_verify_failed", verifyError));
             }
             data = canonical;
 
@@ -248,19 +235,13 @@ public class PlayerDataService {
             Files.move(tmp, target, StandardCopyOption.REPLACE_EXISTING, StandardCopyOption.ATOMIC_MOVE);
         } catch (IOException e) {
             recordExportFailure("玩家 " + playerId + " 快照落盘失败: " + e.getMessage());
-            result.put("success", false);
-            result.put("message", I18n.t("playerdata.failed_to_write_the_player", e.getMessage()));
-            return result;
+            return PlayerDataResult.fail(I18n.t("playerdata.failed_to_write_the_player", e.getMessage()));
         }
 
         EXPORT_OK.incrementAndGet();
-        result.put("success", true);
-        result.put("message", I18n.t("playerdata.data_for_player_has_been", data.playerName, playerId, filePath(playerId)));
-        result.put("filePath", filePath(playerId));
-        result.put("exportedAt", data.exportedAt);
-        result.put("rowCount", data.rowCount);
-        result.put("checksum", data.checksum);
-        return result;
+        return PlayerDataResult.exported(
+                I18n.t("playerdata.data_for_player_has_been", data.playerName, playerId, filePath(playerId)),
+                filePath(playerId), data.exportedAt, data.rowCount, data.checksum);
     }
 
     /** 统计所有表的行数。 */
@@ -321,23 +302,21 @@ public class PlayerDataService {
     }
 
     /** 导出/还原的运行统计，供管理后台展示。 */
-    public static Map<String, Object> getStats() {
-        Map<String, Object> stats = new LinkedHashMap<>();
-        stats.put("enabled", ENABLED);
-        stats.put("dir", DATA_DIR.toAbsolutePath().toString());
-        stats.put("exportOk", EXPORT_OK.get());
-        stats.put("exportFail", EXPORT_FAIL.get());
-        stats.put("restoreOk", RESTORE_OK.get());
-        stats.put("restoreFail", RESTORE_FAIL.get());
-        stats.put("pendingDirty", dirtyPlayers.size());
-        stats.put("lastError", lastError);
-        stats.put("lastErrorAt", lastErrorAt);
-        return stats;
+    public static PlayerDataStats getStats() {
+        return new PlayerDataStats(
+                ENABLED,
+                DATA_DIR.toAbsolutePath().toString(),
+                EXPORT_OK.get(),
+                EXPORT_FAIL.get(),
+                RESTORE_OK.get(),
+                RESTORE_FAIL.get(),
+                dirtyPlayers.size(),
+                lastError,
+                lastErrorAt);
     }
 
     /** 导出全部玩家（迁移/备份用） */
-    public Map<String, Object> exportAllPlayers() {
-        Map<String, Object> result = new LinkedHashMap<>();
+    public PlayerDataExportAllResult exportAllPlayers() {
         int ok = 0;
         int fail = 0;
         for (long id : cacheDao.listPlayerIds()) {
@@ -349,11 +328,7 @@ public class PlayerDataService {
                 LOG.warn("导出玩家 " + id + " 失败: " + e.getMessage());
             }
         }
-        result.put("success", true);
-        result.put("exported", ok);
-        result.put("failed", fail);
-        result.put("dir", DATA_DIR.toAbsolutePath().toString());
-        return result;
+        return new PlayerDataExportAllResult(true, ok, fail, DATA_DIR.toAbsolutePath().toString());
     }
 
     /** 列出所有玩家数据文件 */
@@ -446,7 +421,7 @@ public class PlayerDataService {
     // ==================== 还原（导入）====================
 
     /** 用玩家数据 JSON 还原该玩家（管理员接口；自我恢复受 self-restore 开关控制） */
-    public Map<String, Object> restorePlayer(long playerId, String jsonData) {
+    public PlayerDataResult restorePlayer(long playerId, String jsonData) {
         return restorePlayer(playerId, jsonData, false);
     }
 
@@ -455,31 +430,22 @@ public class PlayerDataService {
      *
      * @param force true = 跳过"玩家在线"保护（仅在管理员明确知道后果时使用）
      */
-    public Map<String, Object> restorePlayer(long playerId, String jsonData, boolean force) {
-        Map<String, Object> result = new LinkedHashMap<>();
+    public PlayerDataResult restorePlayer(long playerId, String jsonData, boolean force) {
         if (!ENABLED) {
-            result.put("success", false);
-            result.put("message", I18n.t("playerdata.file_based_player_data"));
-            return result;
+            return PlayerDataResult.fail(I18n.t("playerdata.file_based_player_data"));
         }
         PlayerData data;
         try {
             data = GSON.fromJson(jsonData, PlayerData.class);
         } catch (Exception e) {
             recordRestoreFailure("解析玩家 " + playerId + " 数据失败: " + e.getMessage());
-            result.put("success", false);
-            result.put("message", I18n.t("playerdata.failed_to_parse_the_player", e.getMessage()));
-            return result;
+            return PlayerDataResult.fail(I18n.t("playerdata.failed_to_parse_the_player", e.getMessage()));
         }
         if (data == null || data.tables == null || data.tables.isEmpty()) {
-            result.put("success", false);
-            result.put("message", I18n.t("playerdata.the_player_data_is_empty"));
-            return result;
+            return PlayerDataResult.fail(I18n.t("playerdata.the_player_data_is_empty"));
         }
         if (data.playerId != playerId) {
-            result.put("success", false);
-            result.put("message", I18n.t("playerdata.the_player_in_the_data", data.playerId, playerId));
-            return result;
+            return PlayerDataResult.fail(I18n.t("playerdata.the_player_in_the_data", data.playerId, playerId));
         }
 
         // 完整性校验：老版本导出的文件没有 checksum，只做行数粗校验；
@@ -488,25 +454,19 @@ public class PlayerDataService {
             String actual = computeChecksum(data);
             if (!data.checksum.equals(actual)) {
                 recordRestoreFailure("玩家 " + playerId + " 数据文件校验失败：摘要不匹配");
-                result.put("success", false);
-                result.put("message", I18n.t("playerdata.restore_checksum_mismatch"));
-                return result;
+                return PlayerDataResult.fail(I18n.t("playerdata.restore_checksum_mismatch"));
             }
             int rows = countRows(data);
             if (data.rowCount > 0 && rows != data.rowCount) {
                 recordRestoreFailure("玩家 " + playerId + " 数据文件校验失败：行数不一致");
-                result.put("success", false);
-                result.put("message", I18n.t("playerdata.restore_checksum_mismatch"));
-                return result;
+                return PlayerDataResult.fail(I18n.t("playerdata.restore_checksum_mismatch"));
             }
         }
 
         // 在线保护：正在玩的角色被回滚会直接覆盖内存里/正在写入的进度，
         // 而且玩家本人毫无察觉。默认拒绝，要求先下线。
         if (!force && isPlayerOnline(data.userId)) {
-            result.put("success", false);
-            result.put("message", I18n.t("playerdata.restore_online"));
-            return result;
+            return PlayerDataResult.fail(I18n.t("playerdata.restore_online"));
         }
 
         // 标识符校验：表名/列名来自这份 JSON，而它们要拼进 SQL 文本（无法参数化）。
@@ -514,9 +474,7 @@ public class PlayerDataService {
         String invalidStructure = validateTableStructure(data.tables);
         if (invalidStructure != null) {
             recordRestoreFailure("玩家 " + playerId + " 数据文件结构非法: " + invalidStructure);
-            result.put("success", false);
-            result.put("message", I18n.t("playerdata.restore_failed", invalidStructure));
-            return result;
+            return PlayerDataResult.fail(I18n.t("playerdata.restore_failed", invalidStructure));
         }
 
         // 事务边界走 DatabaseManager.runTransaction：还原是"删旧行 → 逐行插回"的
@@ -559,17 +517,14 @@ public class PlayerDataService {
             });
         } catch (RuntimeException e) {
             recordRestoreFailure("玩家 " + playerId + " 数据还原失败: " + rootMessage(e));
-            result.put("success", false);
-            result.put("message", I18n.t("playerdata.restore_failed_and_was_rolled", rootMessage(e)));
-            return result;
+            return PlayerDataResult.fail(
+                    I18n.t("playerdata.restore_failed_and_was_rolled", rootMessage(e)));
         }
         int restored = restoredBox[0];
 
         RESTORE_OK.incrementAndGet();
-        result.put("success", true);
-        result.put("restored", restored);
-        result.put("message", I18n.t("playerdata.player_data_restored_successfully", playerId, restored));
-        return result;
+        return PlayerDataResult.restored(
+                I18n.t("playerdata.player_data_restored_successfully", playerId, restored), restored);
     }
 
     private static void recordRestoreFailure(String message) {
@@ -612,7 +567,7 @@ public class PlayerDataService {
     }
 
     /** 从文件还原（管理员：把某个玩家的数据文件写回数据库） */
-    public Map<String, Object> restoreFromFile(long playerId) {
+    public PlayerDataResult restoreFromFile(long playerId) {
         return restoreFromFile(playerId, false, false);
     }
 
@@ -622,61 +577,49 @@ public class PlayerDataService {
      * @param useBackup true = 改用 {@code <id>.json.bak}（当前快照损坏时的退路）
      * @param force     true = 跳过在线保护
      */
-    public Map<String, Object> restoreFromFile(long playerId, boolean useBackup, boolean force) {
-        Map<String, Object> result = new LinkedHashMap<>();
+    public PlayerDataResult restoreFromFile(long playerId, boolean useBackup, boolean force) {
         Path file = DATA_DIR.resolve(playerId + (useBackup ? ".json.bak" : ".json"));
         if (!Files.exists(file)) {
-            result.put("success", false);
-            result.put("message", I18n.t("playerdata.the_player_data_file_does", file.toAbsolutePath()));
-            return result;
+            return PlayerDataResult.fail(
+                    I18n.t("playerdata.the_player_data_file_does", file.toAbsolutePath()));
         }
         try {
             String json = Files.readString(file, StandardCharsets.UTF_8);
             return restorePlayer(playerId, json, force);
         } catch (IOException e) {
             recordRestoreFailure("读取玩家 " + playerId + " 数据文件失败: " + e.getMessage());
-            result.put("success", false);
-            result.put("message", I18n.t("playerdata.failed_to_read_the_player", e.getMessage()));
-            return result;
+            return PlayerDataResult.fail(
+                    I18n.t("playerdata.failed_to_read_the_player", e.getMessage()));
         }
     }
 
     /**
      * 校验某个玩家的数据文件是否完整（不写库）。供管理后台"体检"使用。
      */
-    public Map<String, Object> verifyFile(long playerId) {
-        Map<String, Object> result = new LinkedHashMap<>();
+    public PlayerDataVerifyResult verifyFile(long playerId) {
         Path file = DATA_DIR.resolve(playerId + ".json");
         if (!Files.exists(file)) {
-            result.put("success", false);
-            result.put("message", I18n.t("playerdata.the_player_data_file_does", file.toAbsolutePath()));
-            return result;
+            return PlayerDataVerifyResult.fail(
+                    I18n.t("playerdata.the_player_data_file_does", file.toAbsolutePath()));
         }
         try {
             PlayerData data = GSON.fromJson(Files.readString(file, StandardCharsets.UTF_8), PlayerData.class);
             if (data == null || data.tables == null) {
-                result.put("success", false);
-                result.put("message", I18n.t("playerdata.restore_checksum_mismatch"));
-                return result;
+                return PlayerDataVerifyResult.fail(I18n.t("playerdata.restore_checksum_mismatch"));
             }
             if (data.checksum == null) {
-                result.put("success", true);
-                result.put("legacy", true);
-                result.put("rowCount", countRows(data));
-                result.put("message", I18n.t("playerdata.verify_legacy"));
-                return result;
+                return PlayerDataVerifyResult.legacyOk(
+                        I18n.t("playerdata.verify_legacy"), countRows(data));
             }
             boolean ok = data.checksum.equals(computeChecksum(data));
-            result.put("success", ok);
-            result.put("legacy", false);
-            result.put("rowCount", countRows(data));
-            result.put("checksum", data.checksum);
-            result.put("message", ok ? I18n.t("playerdata.verify_ok") : I18n.t("playerdata.restore_checksum_mismatch"));
-            return result;
+            if (!ok) {
+                return PlayerDataVerifyResult.fail(I18n.t("playerdata.restore_checksum_mismatch"));
+            }
+            return PlayerDataVerifyResult.verified(
+                    I18n.t("playerdata.verify_ok"), countRows(data), data.checksum);
         } catch (IOException e) {
-            result.put("success", false);
-            result.put("message", I18n.t("playerdata.failed_to_read_the_player", e.getMessage()));
-            return result;
+            return PlayerDataVerifyResult.fail(
+                    I18n.t("playerdata.failed_to_read_the_player", e.getMessage()));
         }
     }
 

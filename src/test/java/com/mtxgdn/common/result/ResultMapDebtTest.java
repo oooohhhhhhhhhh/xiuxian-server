@@ -86,24 +86,7 @@ class ResultMapDebtTest {
      * <p>每一条都应该在未来的某次按服务重构里变成字段有类型的 record。
      * 改完一个就从这里删一行 —— 删不掉说明清单和代码不一致，测试会红。</p>
      */
-    private static final List<String> PENDING_DTO = List.of(
-            // ---- 洞府 ----
-            // ---- 每日 ----
-            // ---- 经济 ----
-            // ---- 农田 ----
-            // ---- 阵法 ----
-            // ---- 物品 ----
-            // ---- 地图 ----
-            // ---- 玩家 ----
-            // ---- 宗门（带额外数据的那些，成员域 6 个已改） ----
-            // ---- 坊市 ----
-            // ---- 存档 ----
-            "com/mtxgdn/playerdata/PlayerDataService.java#exportPlayer",
-            "com/mtxgdn/playerdata/PlayerDataService.java#exportAllPlayers",
-            "com/mtxgdn/playerdata/PlayerDataService.java#getStats",
-            "com/mtxgdn/playerdata/PlayerDataService.java#restorePlayer",
-            "com/mtxgdn/playerdata/PlayerDataService.java#restoreFromFile",
-            "com/mtxgdn/playerdata/PlayerDataService.java#verifyFile");
+    private static final List<String> PENDING_DTO = List.of();
 
     @Test
     @DisplayName("棘轮: 返回无类型 Map 的 public 方法只能变少，不能变多")
