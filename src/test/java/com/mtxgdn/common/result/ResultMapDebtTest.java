@@ -157,10 +157,6 @@ class ResultMapDebtTest {
             "com/mtxgdn/game/service/SectService.java#getTreasuryInfo",
             "com/mtxgdn/game/service/SectService.java#setSalary",
             "com/mtxgdn/game/service/SectService.java#paySalariesNow",
-            // ---- 技能 ----
-            "com/mtxgdn/game/service/SkillService.java#learnSkill",
-            "com/mtxgdn/game/service/SkillService.java#learnSkillFromBook",
-            "com/mtxgdn/game/service/SkillService.java#addProficiency",
             // ---- 称号 ----
             "com/mtxgdn/game/service/TitleService.java#grantTitle",
             "com/mtxgdn/game/service/TitleService.java#revokeTitle",

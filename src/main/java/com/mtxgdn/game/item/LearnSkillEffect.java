@@ -29,7 +29,7 @@ public class LearnSkillEffect extends ItemEffect {
     public String execute(long playerId, PlayerService playerService, ItemService itemService) {
         SkillService skillService = ServiceRegistry.getSkillService();
         var result = skillService.learnSkillFromBook(playerId, skillId);
-        return (String) result.getOrDefault("message", "");
+        return result.message();
     }
 
     public static LearnSkillEffect of(long skillId) {

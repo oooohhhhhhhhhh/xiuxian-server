@@ -1,5 +1,6 @@
 package com.mtxgdn.rest;
 
+import com.mtxgdn.game.skill.LearnSkillResult;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.mtxgdn.common.GameErrorCode;
@@ -321,20 +322,18 @@ public class GameInventoryResource {
         }
 
         Skill skill = skillService.getSkillById(skillId);
-        Map<String, Object> learnResult = skillService.learnSkill(playerId, skillId);
+        LearnSkillResult learnResult = skillService.learnSkill(playerId, skillId);
 
         JsonObject data = gson.toJsonTree(learnResult).getAsJsonObject();
-        boolean success = (boolean) learnResult.getOrDefault("success", false);
 
         String skillName = skill != null ? skill.getName() : "技能ID:" + skillId;
-        actionLog.logSkillLearn(userId, getPlayerName(userId), skillName, success,
-                (String) learnResult.getOrDefault("message", ""));
+        actionLog.logSkillLearn(userId, getPlayerName(userId), skillName, learnResult.success(),
+                learnResult.message());
 
-        if (success) {
-            return Response.ok(GameMessage.restOk((String) learnResult.get("message"), data).toString()).build();
+        if (learnResult.success()) {
+            return Response.ok(GameMessage.restOk(learnResult.message(), data).toString()).build();
         } else {
-            int code = learnResult.containsKey("code") ? ((Number) learnResult.get("code")).intValue() : 6104;
-            return Response.ok(GameMessage.restError(code, (String) learnResult.get("message")).toString()).build();
+            return Response.ok(GameMessage.restError(learnResult.code(), learnResult.message()).toString()).build();
         }
     }
 }

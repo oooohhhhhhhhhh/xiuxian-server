@@ -1,5 +1,6 @@
 package com.mtxgdn.game.service;
 
+import com.mtxgdn.game.skill.LearnSkillResult;
 import com.mtxgdn.TestBase;
 import com.mtxgdn.common.service.ServiceRegistry;
 import com.mtxgdn.db.DatabaseManager;
@@ -90,8 +91,8 @@ class PlayerIdDomainTest extends TestBase {
 
         long skillId = insertFreeSkill("测试技能" + n);
 
-        Map<String, Object> result = new SkillService().learnSkill(playerId, skillId);
-        assertEquals(Boolean.TRUE, result.get("success"),
+        LearnSkillResult result = new SkillService().learnSkill(playerId, skillId);
+        assertTrue(result.success(),
                 "learnSkill(playerId) 应成功；若失败且 message 是「角色不存在」，说明又按 user_id 查了：" + result);
         assertTrue(new SkillService().hasSkill(playerId, skillId), "技能应已写入 players_skills");
     }

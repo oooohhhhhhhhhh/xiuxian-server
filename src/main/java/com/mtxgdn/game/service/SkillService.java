@@ -7,6 +7,9 @@ import com.mtxgdn.db.SkillDAO;
 import com.mtxgdn.game.config.SkillDefaults;
 import com.mtxgdn.entity.Player;
 import com.mtxgdn.game.entity.Skill;
+import com.mtxgdn.game.skill.LearnSkillFromBookResult;
+import com.mtxgdn.game.skill.LearnSkillResult;
+import com.mtxgdn.game.skill.SkillProficiencyResult;
 import com.mtxgdn.game.entity.SpiritualRoot;
 import com.mtxgdn.util.GameLogger;
 import java.sql.SQLException;
@@ -55,53 +58,38 @@ public class SkillService {
         return SKILL_DAO.hasSkill(playerId, skillId);
     }
 
-    public Map<String, Object> learnSkill(long playerId, long skillId) {
-        Map<String, Object> result = new LinkedHashMap<>();
-
+    public LearnSkillResult learnSkill(long playerId, long skillId) {
         Skill skill = getSkillById(skillId);
         if (skill == null) {
-            result.put("success", false);
-            result.put("message", I18n.t("skill.skill_does_not_exist"));
-            result.put("code", 6101);
-            return result;
+            return LearnSkillResult.fail(I18n.t("skill.skill_does_not_exist"), 6101);
         }
 
         if (hasSkill(playerId, skillId)) {
-            result.put("success", false);
-            result.put("message", I18n.t("skill.you_have_already_learned", skill.getName()));
-            result.put("code", 6102);
-            return result;
+            return LearnSkillResult.fail(
+                    I18n.t("skill.you_have_already_learned", skill.getName()), 6102);
         }
 
         Player player = playerService.getPlayerById(playerId);
         if (player == null) {
-            result.put("success", false);
-            result.put("message", I18n.t("skill.character_does_not_exist"));
-            result.put("code", 3001);
-            return result;
+            return LearnSkillResult.fail(I18n.t("skill.character_does_not_exist"), 3001);
         }
 
         if (player.getRealm() < skill.getRequiredRealm()) {
-            result.put("success", false);
-            result.put("message", I18n.t("skill.your_realm_is_too_low", skill.getName()));
-            result.put("code", 6103);
-            return result;
+            return LearnSkillResult.fail(
+                    I18n.t("skill.your_realm_is_too_low", skill.getName()), 6103);
         }
 
         if (player.getGold() < skill.getLearnCostGold()) {
-            result.put("success", false);
-            result.put("message", I18n.t("skill.not_enough_gold", skill.getName(), skill.getLearnCostGold()));
-            result.put("code", 6104);
-            return result;
+            return LearnSkillResult.fail(I18n.t(
+                    "skill.not_enough_gold", skill.getName(), skill.getLearnCostGold()), 6104);
         }
 
         if (skill.getLearnCostSpiritStones() > 0) {
             long spiritStoneCount = itemService.getSpiritStoneCount(playerId);
             if (spiritStoneCount < skill.getLearnCostSpiritStones()) {
-                result.put("success", false);
-                result.put("message", I18n.t("skill.not_enough_spirit_stones", skill.getName(), skill.getLearnCostSpiritStones()));
-                result.put("code", 6104);
-                return result;
+                return LearnSkillResult.fail(I18n.t(
+                        "skill.not_enough_spirit_stones",
+                        skill.getName(), skill.getLearnCostSpiritStones()), 6104);
             }
         }
 
@@ -121,15 +109,10 @@ public class SkillService {
                 return null;
             });
         } catch (Exception e) {
-            result.put("success", false);
-            result.put("message", I18n.t("skill.failed_to_learn_the_skill", e.getMessage()));
-            result.put("code", 6106);
-            return result;
+            return LearnSkillResult.fail(
+                    I18n.t("skill.failed_to_learn_the_skill", e.getMessage()), 6106);
         }
 
-        result.put("success", true);
-        result.put("message", I18n.t("skill.successfully_learned", skill.getName()));
-        result.put("skill", skill);
         ServiceRegistry.getDailyService().onSkillLearn(playerId);
 
         // 学会第一个技能授予「剑道学徒」
@@ -137,30 +120,24 @@ public class SkillService {
             new com.mtxgdn.game.service.TitleService().grantTitle(playerId, "sword_student");
         } catch (Exception ignored) {
         }
-        return result;
+        return LearnSkillResult.ok(
+                I18n.t("skill.successfully_learned", skill.getName()), skill);
     }
 
-    public Map<String, Object> learnSkillFromBook(long playerId, long skillId) {
-        Map<String, Object> result = new LinkedHashMap<>();
-
+    public LearnSkillFromBookResult learnSkillFromBook(long playerId, long skillId) {
         Skill skill = getSkillById(skillId);
         if (skill == null) {
-            result.put("success", false);
-            result.put("message", I18n.t("skill.the_skill_recorded"));
-            return result;
+            return LearnSkillFromBookResult.fail(I18n.t("skill.the_skill_recorded"));
         }
 
         Player player = playerService.getPlayerById(playerId);
         if (player == null) {
-            result.put("success", false);
-            result.put("message", I18n.t("skill.character_does_not_exist"));
-            return result;
+            return LearnSkillFromBookResult.fail(I18n.t("skill.character_does_not_exist"));
         }
 
         if (player.getRealm() < skill.getRequiredRealm()) {
-            result.put("success", false);
-            result.put("message", I18n.t("skill.your_realm_is_too_low_2", skill.getName()));
-            return result;
+            return LearnSkillFromBookResult.fail(
+                    I18n.t("skill.your_realm_is_too_low_2", skill.getName()));
         }
 
         Skill existingSkill = getPlayerSkill(playerId, skillId);
@@ -168,38 +145,30 @@ public class SkillService {
             int currentLevel = existingSkill.getLevel();
             int maxLevel = skill.getMaxLevel();
             if (currentLevel >= maxLevel) {
-                result.put("success", false);
-                result.put("message", I18n.t("skill.has_reached_max_level_so", skill.getName(), maxLevel));
-                return result;
+                return LearnSkillFromBookResult.fail(
+                        I18n.t("skill.has_reached_max_level_so", skill.getName(), maxLevel));
             }
             int newLevel = currentLevel + 1;
             SKILL_DAO.updateLevel(playerId, skillId, newLevel);
-            result.put("success", true);
-            result.put("message", I18n.t("skill.comprehension_successful_2", skill.getName(), newLevel));
-            result.put("skill", skill);
-            result.put("newLevel", newLevel);
-            return result;
+            return LearnSkillFromBookResult.leveledUp(
+                    I18n.t("skill.comprehension_successful_2", skill.getName(), newLevel),
+                    skill, newLevel);
         }
 
         SKILL_DAO.insertPlayerSkill(playerId, skillId);
 
-        result.put("success", true);
-        result.put("message", I18n.t("skill.comprehension_successful", skill.getName()));
-        result.put("skill", skill);
-        return result;
+        return LearnSkillFromBookResult.ok(
+                I18n.t("skill.comprehension_successful", skill.getName()), skill);
     }
 
     public int getProficiencyForNextLevel(int currentLevel) {
         return currentLevel * 100;
     }
 
-    public Map<String, Object> addProficiency(long playerId, long skillId, int amount) {
-        Map<String, Object> result = new LinkedHashMap<>();
+    public SkillProficiencyResult addProficiency(long playerId, long skillId, int amount) {
         Skill skill = getPlayerSkill(playerId, skillId);
         if (skill == null) {
-            result.put("success", false);
-            result.put("leveledUp", false);
-            return result;
+            return SkillProficiencyResult.fail();
         }
 
         Player player = playerService.getPlayerById(playerId);
@@ -211,10 +180,7 @@ public class SkillService {
         int currentLevel = skill.getLevel();
         int maxLevel = skill.getMaxLevel();
         if (currentLevel >= maxLevel) {
-            result.put("success", true);
-            result.put("leveledUp", false);
-            result.put("level", currentLevel);
-            return result;
+            return SkillProficiencyResult.maxed(currentLevel);
         }
 
         int newProficiency = skill.getProficiency() + amount;
@@ -238,12 +204,9 @@ public class SkillService {
 
         SKILL_DAO.updateLevelAndProficiency(playerId, skillId, currentLevel, newProficiency);
 
-        result.put("success", true);
-        result.put("leveledUp", leveledUp);
-        result.put("level", currentLevel);
-        result.put("proficiency", newProficiency);
-        result.put("proficiencyForNext", getProficiencyForNextLevel(currentLevel));
-        return result;
+        return SkillProficiencyResult.of(
+                leveledUp, currentLevel, newProficiency,
+                getProficiencyForNextLevel(currentLevel));
     }
 
 
