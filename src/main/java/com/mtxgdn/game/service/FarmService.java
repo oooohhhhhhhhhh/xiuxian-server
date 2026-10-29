@@ -1,5 +1,6 @@
 package com.mtxgdn.game.service;
 
+import com.mtxgdn.game.farm.FarmResult;
 import com.mtxgdn.common.service.ServiceRegistry;
 
 import com.mtxgdn.db.DatabaseManager;
@@ -121,26 +122,26 @@ public class FarmService {
         }
     }
 
-    public Map<String, Object> plant(long playerId, int plotIndex, String seedKey) {
+    public FarmResult plant(long playerId, int plotIndex, String seedKey) {
         com.mtxgdn.playerdata.PlayerDataService.markDirty(playerId);
         CropConfig config = CropConfig.get(seedKey);
         if (config == null) {
-            return createResult(false, I18n.t("farm.unknown_seed"));
+            return FarmResult.rejected(I18n.t("farm.unknown_seed"));
         }
 
         return DatabaseManager.runTransaction(conn -> {
             // 先结算：地块可能在这段时间里已经枯萎，必须先落到最新状态再校验
             settlePlayerPlots(conn, playerId, System.currentTimeMillis());
             if (itemService.getItemCount(conn, playerId, seedKey) < 1) {
-                return createResult(false, I18n.t("farm.not_enough_seeds", getItemName(seedKey)));
+                return FarmResult.rejected(I18n.t("farm.not_enough_seeds", getItemName(seedKey)));
             }
 
             FarmPlot plot = getPlotForUpdate(conn, playerId, plotIndex);
             if (plot == null) {
-                return createResult(false, I18n.t("farm.plot_not_found"));
+                return FarmResult.rejected(I18n.t("farm.plot_not_found"));
             }
             if (plot.getState() != FarmPlot.PlotState.EMPTY) {
-                return createResult(false, I18n.t("farm.that_plot_is_already_occupied"));
+                return FarmResult.rejected(I18n.t("farm.that_plot_is_already_occupied"));
             }
 
             itemService.removeItem(conn, playerId, seedKey, 1);
@@ -164,23 +165,21 @@ public class FarmService {
                 msg.append("（当前" + currentSeason.getDisplayName() + "不利于此作物生长，可考虑更换种子）");
             }
 
-            Map<String, Object> result = createResult(true, msg.toString());
-            result.put("harvestTime", harvestTime);
-            return result;
+            return FarmResult.planted(msg.toString(), harvestTime);
         });
     }
 
-    public Map<String, Object> water(long playerId, int plotIndex) {
+    public FarmResult water(long playerId, int plotIndex) {
         com.mtxgdn.playerdata.PlayerDataService.markDirty(playerId);
         return DatabaseManager.runTransaction(conn -> {
             settlePlayerPlots(conn, playerId, System.currentTimeMillis());
             FarmPlot plot = getPlotForUpdate(conn, playerId, plotIndex);
             if (plot == null) {
-                return createResult(false, I18n.t("farm.plot_not_found"));
+                return FarmResult.rejected(I18n.t("farm.plot_not_found"));
             }
 
             if (plot.getState() == FarmPlot.PlotState.EMPTY) {
-                return createResult(false, I18n.t("farm.an_empty_plot_does"));
+                return FarmResult.rejected(I18n.t("farm.an_empty_plot_does"));
             }
 
             if (plot.getState() == FarmPlot.PlotState.WILTED) {
@@ -188,58 +187,58 @@ public class FarmService {
             }
 
             if (plot.getWaterLevel() >= WATER_MAX) {
-                return createResult(false, I18n.t("farm.moisture_is_already_sufficient"));
+                return FarmResult.rejected(I18n.t("farm.moisture_is_already_sufficient"));
             }
 
             int newWater = Math.min(WATER_MAX, plot.getWaterLevel() + 30);
             updateWaterLevel(conn, playerId, plotIndex, newWater);
 
-            return createResult(true, I18n.t("farm.watering_successful_2", newWater));
+            return FarmResult.ok(I18n.t("farm.watering_successful_2", newWater));
         });
     }
 
-    private Map<String, Object> handleWiltedPlotWatering(Connection conn, FarmPlot plot, int plotIndex) {
+    private FarmResult handleWiltedPlotWatering(Connection conn, FarmPlot plot, int plotIndex) {
         long now = System.currentTimeMillis();
         if (plot.getWiltedTime() > 0 && (now - plot.getWiltedTime()) / 1000 > WILTED_DEAD_SECONDS) {
-            return createResult(false, I18n.t("farm.the_crop_has_been_withered"));
+            return FarmResult.rejected(I18n.t("farm.the_crop_has_been_withered"));
         }
         try {
             farmDAO.reviveWiltedPlot(conn, plot.getId(), FarmPlot.PlotState.GROWING.name(), 50);
         } catch (SQLException e) {
-            return createResult(false, I18n.t("farm.failed_to_restore_the_crop"));
+            return FarmResult.rejected(I18n.t("farm.failed_to_restore_the_crop"));
         }
-        return createResult(true, I18n.t("farm.watering_successful"));
+        return FarmResult.ok(I18n.t("farm.watering_successful"));
     }
 
-    public Map<String, Object> fertilize(long playerId, int plotIndex) {
+    public FarmResult fertilize(long playerId, int plotIndex) {
         com.mtxgdn.playerdata.PlayerDataService.markDirty(playerId);
         return fertilize(playerId, plotIndex, "mtxgdn:low_grade_fertilizer");
     }
 
-    public Map<String, Object> fertilize(long playerId, int plotIndex, String fertilizerKey) {
+    public FarmResult fertilize(long playerId, int plotIndex, String fertilizerKey) {
         com.mtxgdn.playerdata.PlayerDataService.markDirty(playerId);
         int bonusAmount = getFertilizerBonus(fertilizerKey);
         if (bonusAmount == 0) {
-            return createResult(false, I18n.t("farm.invalid_fertilizer_type"));
+            return FarmResult.rejected(I18n.t("farm.invalid_fertilizer_type"));
         }
 
         if (itemService.getItemCount(playerId, fertilizerKey) < 1) {
-            return createResult(false, I18n.t("farm.not_enough_fertilizer", getItemName(fertilizerKey)));
+            return FarmResult.rejected(I18n.t("farm.not_enough_fertilizer", getItemName(fertilizerKey)));
         }
 
         return DatabaseManager.runTransaction(conn -> {
             settlePlayerPlots(conn, playerId, System.currentTimeMillis());
             FarmPlot plot = getPlotForUpdate(conn, playerId, plotIndex);
             if (plot == null) {
-                return createResult(false, I18n.t("farm.plot_not_found"));
+                return FarmResult.rejected(I18n.t("farm.plot_not_found"));
             }
 
             if (plot.getState() == FarmPlot.PlotState.EMPTY) {
-                return createResult(false, I18n.t("farm.an_empty_plot_does_2"));
+                return FarmResult.rejected(I18n.t("farm.an_empty_plot_does_2"));
             }
 
             if (plot.getFertilizerLevel() >= FERTILIZER_MAX) {
-                return createResult(false, I18n.t("farm.fertility_is_already_sufficient"));
+                return FarmResult.rejected(I18n.t("farm.fertility_is_already_sufficient"));
             }
 
             itemService.removeItem(conn, playerId, fertilizerKey, 1);
@@ -247,7 +246,7 @@ public class FarmService {
             int newFertilizer = Math.min(FERTILIZER_MAX, plot.getFertilizerLevel() + bonusAmount);
             updateFertilizerLevel(conn, playerId, plotIndex, newFertilizer);
 
-            return createResult(true, I18n.t("farm.fertilizing_successful", getItemName(fertilizerKey), newFertilizer));
+            return FarmResult.ok(I18n.t("farm.fertilizing_successful", getItemName(fertilizerKey), newFertilizer));
         });
     }
 
@@ -260,22 +259,22 @@ public class FarmService {
         };
     }
 
-    public Map<String, Object> harvest(long playerId, int plotIndex) {
+    public FarmResult harvest(long playerId, int plotIndex) {
         com.mtxgdn.playerdata.PlayerDataService.markDirty(playerId);
         return DatabaseManager.runTransaction(conn -> {
             settlePlayerPlots(conn, playerId, System.currentTimeMillis());
             FarmPlot plot = getPlotForUpdate(conn, playerId, plotIndex);
             if (plot == null) {
-                return createResult(false, I18n.t("farm.plot_not_found"));
+                return FarmResult.rejected(I18n.t("farm.plot_not_found"));
             }
 
             if (plot.getState() != FarmPlot.PlotState.READY) {
-                return createResult(false, I18n.t("farm.the_crop_is_not_ripe"));
+                return FarmResult.rejected(I18n.t("farm.the_crop_is_not_ripe"));
             }
 
             CropConfig config = CropConfig.get(plot.getSeedKey());
             if (config == null) {
-                return createResult(false, I18n.t("farm.unknown_crop"));
+                return FarmResult.rejected(I18n.t("farm.unknown_crop"));
             }
 
             int yield = calculateYield(plot, config);
@@ -287,9 +286,7 @@ public class FarmService {
             msg.append(getItemName(plot.getCropKey())).append(" x").append(yield);
             appendQualityBonus(msg, plot.getCropQuality());
 
-            Map<String, Object> result = createResult(true, msg.toString());
-            result.put("yield", yield);
-            return result;
+            return FarmResult.harvested(msg.toString(), yield);
         });
     }
 
@@ -319,60 +316,60 @@ public class FarmService {
         };
     }
 
-    public Map<String, Object> clearPlot(long playerId, int plotIndex) {
+    public FarmResult clearPlot(long playerId, int plotIndex) {
         com.mtxgdn.playerdata.PlayerDataService.markDirty(playerId);
         return DatabaseManager.runTransaction(conn -> {
             settlePlayerPlots(conn, playerId, System.currentTimeMillis());
             FarmPlot plot = getPlotForUpdate(conn, playerId, plotIndex);
             if (plot == null) {
-                return createResult(false, I18n.t("farm.plot_not_found"));
+                return FarmResult.rejected(I18n.t("farm.plot_not_found"));
             }
 
             if (plot.getState() == FarmPlot.PlotState.EMPTY) {
-                return createResult(false, I18n.t("farm.that_plot_is_already_empty"));
+                return FarmResult.rejected(I18n.t("farm.that_plot_is_already_empty"));
             }
 
             resetPlot(conn, playerId, plotIndex);
-            return createResult(true, I18n.t("farm.plot_cleared"));
+            return FarmResult.ok(I18n.t("farm.plot_cleared"));
         });
     }
 
-    public Map<String, Object> usePesticide(long playerId, int plotIndex) {
+    public FarmResult usePesticide(long playerId, int plotIndex) {
         com.mtxgdn.playerdata.PlayerDataService.markDirty(playerId);
         if (itemService.getItemCount(playerId, "mtxgdn:pesticide") < 1) {
-            return createResult(false, I18n.t("farm.not_enough_pesticide"));
+            return FarmResult.rejected(I18n.t("farm.not_enough_pesticide"));
         }
 
         return DatabaseManager.runTransaction(conn -> {
             settlePlayerPlots(conn, playerId, System.currentTimeMillis());
             FarmPlot plot = getPlotForUpdate(conn, playerId, plotIndex);
             if (plot == null) {
-                return createResult(false, I18n.t("farm.plot_not_found"));
+                return FarmResult.rejected(I18n.t("farm.plot_not_found"));
             }
 
             if (plot.getPestState() == FarmPlot.PestState.CLEAN) {
-                return createResult(false, I18n.t("farm.that_plot_has_no_pests"));
+                return FarmResult.rejected(I18n.t("farm.that_plot_has_no_pests"));
             }
 
             itemService.removeItem(conn, playerId, "mtxgdn:pesticide", 1);
             clearPestState(conn, playerId, plotIndex);
 
-            return createResult(true, I18n.t("farm.pesticide_applied"));
+            return FarmResult.ok(I18n.t("farm.pesticide_applied"));
         });
     }
 
-    public Map<String, Object> expandPlot(long playerId) {
+    public FarmResult expandPlot(long playerId) {
         com.mtxgdn.playerdata.PlayerDataService.markDirty(playerId);
         int currentCount = countPlayerPlots(playerId);
 
         if (currentCount >= MAX_PLOTS) {
-            return createResult(false, I18n.t("farm.the_maximum_number_of_plots"));
+            return FarmResult.rejected(I18n.t("farm.the_maximum_number_of_plots"));
         }
 
         long cost = calculateExpandCost(currentCount);
         com.mtxgdn.entity.Player player = playerService.getPlayerById(playerId);
         if (player == null || player.getGold() < cost) {
-            return createResult(false, I18n.t("farm.not_enough_gold", cost));
+            return FarmResult.rejected(I18n.t("farm.not_enough_gold", cost));
         }
 
         final int plotIndex = currentCount;
@@ -381,11 +378,11 @@ public class FarmService {
         return DatabaseManager.runTransaction(conn -> {
             playerService.addGold(conn, playerId, -finalCost);
             createNewPlot(conn, playerId, plotIndex);
-            return createResult(true, I18n.t("farm.expansion_successful", finalCost));
+            return FarmResult.ok(I18n.t("farm.expansion_successful", finalCost));
         });
     }
 
-    public Map<String, Object> waterAll(long playerId) {
+    public FarmResult waterAll(long playerId) {
         com.mtxgdn.playerdata.PlayerDataService.markDirty(playerId);
         return DatabaseManager.runTransaction(conn -> {
             // 先结算：枯萎地块要先判定死亡时限，成熟地块要先变成 READY
@@ -398,7 +395,7 @@ public class FarmService {
             try {
                 rows = farmDAO.findNonEmptyForWatering(conn, playerId);
             } catch (SQLException e) {
-                return createResult(false, I18n.t("farm.watering_failed"));
+                return FarmResult.rejected(I18n.t("farm.watering_failed"));
             }
 
             for (FarmDAO.WaterRow row : rows) {
@@ -425,23 +422,23 @@ public class FarmService {
             }
 
             if (msg.length() > 0) {
-                return createResult(true, msg.toString());
+                return FarmResult.ok(msg.toString());
             } else {
-                return createResult(false, I18n.t("farm.no_plots_need_watering"));
+                return FarmResult.rejected(I18n.t("farm.no_plots_need_watering"));
             }
         });
     }
 
-    public Map<String, Object> fertilizeAll(long playerId) {
+    public FarmResult fertilizeAll(long playerId) {
         com.mtxgdn.playerdata.PlayerDataService.markDirty(playerId);
         return fertilizeAll(playerId, "mtxgdn:low_grade_fertilizer");
     }
 
-    public Map<String, Object> fertilizeAll(long playerId, String fertilizerKey) {
+    public FarmResult fertilizeAll(long playerId, String fertilizerKey) {
         com.mtxgdn.playerdata.PlayerDataService.markDirty(playerId);
         int bonusAmount = getFertilizerBonus(fertilizerKey);
         if (bonusAmount == 0) {
-            return createResult(false, I18n.t("farm.invalid_fertilizer_type"));
+            return FarmResult.rejected(I18n.t("farm.invalid_fertilizer_type"));
         }
 
         return DatabaseManager.runTransaction(conn -> {
@@ -451,16 +448,16 @@ public class FarmService {
             try {
                 plotsToFertilize = farmDAO.findUnderFertilizedPlotIndexes(conn, playerId, FERTILIZER_MAX);
             } catch (SQLException e) {
-                return createResult(false, I18n.t("farm.failed_to_query_the_plots"));
+                return FarmResult.rejected(I18n.t("farm.failed_to_query_the_plots"));
             }
 
             if (plotsToFertilize.isEmpty()) {
-                return createResult(false, I18n.t("farm.no_plots_need_fertilizing"));
+                return FarmResult.rejected(I18n.t("farm.no_plots_need_fertilizing"));
             }
 
             long fertilizerCount = itemService.getItemCount(playerId, fertilizerKey);
             if (fertilizerCount < plotsToFertilize.size()) {
-                return createResult(false, I18n.t("farm.fertilizer_not_enough",
+                return FarmResult.rejected(I18n.t("farm.fertilizer_not_enough",
                         getItemName(fertilizerKey), plotsToFertilize.size()));
             }
 
@@ -471,14 +468,14 @@ public class FarmService {
                 fertilizedCount = farmDAO.addFertilizerUpToAll(
                         conn, playerId, plotsToFertilize, bonusAmount, FERTILIZER_MAX);
             } catch (SQLException e) {
-                return createResult(false, I18n.t("farm.fertilizing_failed"));
+                return FarmResult.rejected(I18n.t("farm.fertilizing_failed"));
             }
 
-            return createResult(true, I18n.t("farm.fertilized_plots_consuming_x", fertilizedCount, getItemName(fertilizerKey), fertilizedCount));
+            return FarmResult.ok(I18n.t("farm.fertilized_plots_consuming_x", fertilizedCount, getItemName(fertilizerKey), fertilizedCount));
         });
     }
 
-    public Map<String, Object> harvestAll(long playerId) {
+    public FarmResult harvestAll(long playerId) {
         com.mtxgdn.playerdata.PlayerDataService.markDirty(playerId);
         return DatabaseManager.runTransaction(conn -> {
             // 先结算：本来就要靠定时器把成熟地块刷成 READY，现在改在收获前一次性结算
@@ -490,7 +487,7 @@ public class FarmService {
             try {
                 ready = farmDAO.findReadyByPlayerId(conn, playerId);
             } catch (SQLException e) {
-                return createResult(false, I18n.t("farm.harvest_failed"));
+                return FarmResult.rejected(I18n.t("farm.harvest_failed"));
             }
 
             for (FarmPlot plot : ready) {
@@ -506,7 +503,7 @@ public class FarmService {
             }
 
             if (harvestedCount == 0) {
-                return createResult(false, I18n.t("farm.there_are_no_crops"));
+                return FarmResult.rejected(I18n.t("farm.there_are_no_crops"));
             }
 
             StringBuilder msg = new StringBuilder("收获成功！获得：");
@@ -515,10 +512,7 @@ public class FarmService {
             }
             msg.setLength(msg.length() - 1);
 
-            Map<String, Object> result = createResult(true, msg.toString());
-            result.put("harvestedCount", harvestedCount);
-            result.put("details", harvestResults);
-            return result;
+            return FarmResult.harvestedAll(msg.toString(), harvestedCount, harvestResults);
         });
     }
 
@@ -811,12 +805,6 @@ public class FarmService {
     }
 
 
-    private Map<String, Object> createResult(boolean success, String message) {
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("success", success);
-        result.put("message", message);
-        return result;
-    }
 
     private String getItemName(String itemKey) {
         Item item = ItemRegistry.get(itemKey);

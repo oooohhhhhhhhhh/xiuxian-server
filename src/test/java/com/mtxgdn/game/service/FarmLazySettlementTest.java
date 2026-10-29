@@ -1,5 +1,6 @@
 package com.mtxgdn.game.service;
 
+import com.mtxgdn.game.farm.FarmResult;
 import com.mtxgdn.TestBase;
 import com.mtxgdn.common.service.ServiceRegistry;
 import com.mtxgdn.db.DatabaseManager;
@@ -262,10 +263,10 @@ class FarmLazySettlementTest extends TestBase {
         insertPlantedPlot(playerId, 0, now - 600_000, now - 30_000, 100, now - 600_000);
 
         long before = countItem(playerId, CROP);
-        Map<String, Object> result = farmService.harvestAll(playerId);
+        FarmResult result = farmService.harvestAll(playerId);
 
-        assertTrue(Boolean.TRUE.equals(result.get("success")),
-                "成熟地块应能直接收获（结算发生在收获之前）: " + result.get("message"));
+        assertTrue(result.success(),
+                "成熟地块应能直接收获（结算发生在收获之前）: " + result.message());
         assertTrue(countItem(playerId, CROP) > before, "收获应发放作物");
         assertEquals("EMPTY", rawPlot(playerId, 0)[0], "收获后地块应回到空地");
     }

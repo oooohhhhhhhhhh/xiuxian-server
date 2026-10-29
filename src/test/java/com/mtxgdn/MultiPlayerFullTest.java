@@ -1,5 +1,6 @@
 package com.mtxgdn;
 
+import com.mtxgdn.game.farm.FarmResult;
 import com.mtxgdn.game.item.UseItemResult;
 import com.mtxgdn.game.item.EquipResult;
 import com.mtxgdn.game.map.TravelResult;
@@ -574,11 +575,11 @@ public class MultiPlayerFullTest {
         // 添加种子
         itemService.addItem(p3.playerId, "mtxgdn:spirit_grass_seed", 3);
 
-        Map<String,Object> plant = farmService.plant(p3.playerId, 0, "mtxgdn:spirit_grass_seed");
-        System.out.println("  " + (Boolean.TRUE.equals(plant.get("success"))?"✓":"○") + " 种植: " + plant.get("message"));
+        FarmResult plant = farmService.plant(p3.playerId, 0, "mtxgdn:spirit_grass_seed");
+        System.out.println("  " + (plant.success() ? "✓" : "○") + " 种植: " + plant.message());
 
-        Map<String,Object> water = farmService.water(p3.playerId, 0);
-        System.out.println("  " + (Boolean.TRUE.equals(water.get("success"))?"✓":"○") + " 浇水: " + water.get("message"));
+        FarmResult water = farmService.water(p3.playerId, 0);
+        System.out.println("  " + (water.success() ? "✓" : "○") + " 浇水: " + water.message());
 
         List<FarmPlot> plots = farmService.getPlots(p3.playerId);
         System.out.println("  ✓ 地块数=" + plots.size());

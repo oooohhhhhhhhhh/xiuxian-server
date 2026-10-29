@@ -1,5 +1,6 @@
 package com.mtxgdn.rest;
 
+import com.mtxgdn.game.farm.FarmResult;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.mtxgdn.common.GameErrorCode;
@@ -117,12 +118,12 @@ public class GameFarmResource {
         }
 
         FarmService farmService = ServiceRegistry.getFarmService();
-        Map<String, Object> result = farmService.plant(playerId, plotIndex, seedKey);
+        FarmResult result = farmService.plant(playerId, plotIndex, seedKey);
 
-        if (Boolean.TRUE.equals(result.get("success"))) {
-            return Response.ok(GameMessage.restOk((String) result.get("message"), gson.toJsonTree(result).getAsJsonObject()).toString()).build();
+        if (result.success()) {
+            return Response.ok(GameMessage.restOk(result.message(), gson.toJsonTree(result).getAsJsonObject()).toString()).build();
         }
-        return Response.ok(GameMessage.restError(400, (String) result.get("message")).toString()).build();
+        return Response.ok(GameMessage.restError(400, result.message()).toString()).build();
     }
 
     @POST
@@ -142,12 +143,12 @@ public class GameFarmResource {
         }
 
         FarmService farmService = ServiceRegistry.getFarmService();
-        Map<String, Object> result = farmService.water(playerId, plotIndex);
+        FarmResult result = farmService.water(playerId, plotIndex);
 
-        if (Boolean.TRUE.equals(result.get("success"))) {
-            return Response.ok(GameMessage.restOk((String) result.get("message"), gson.toJsonTree(result).getAsJsonObject()).toString()).build();
+        if (result.success()) {
+            return Response.ok(GameMessage.restOk(result.message(), gson.toJsonTree(result).getAsJsonObject()).toString()).build();
         }
-        return Response.ok(GameMessage.restError(400, (String) result.get("message")).toString()).build();
+        return Response.ok(GameMessage.restError(400, result.message()).toString()).build();
     }
 
     @POST
@@ -167,12 +168,12 @@ public class GameFarmResource {
         }
 
         FarmService farmService = ServiceRegistry.getFarmService();
-        Map<String, Object> result = farmService.fertilize(playerId, plotIndex);
+        FarmResult result = farmService.fertilize(playerId, plotIndex);
 
-        if (Boolean.TRUE.equals(result.get("success"))) {
-            return Response.ok(GameMessage.restOk((String) result.get("message"), gson.toJsonTree(result).getAsJsonObject()).toString()).build();
+        if (result.success()) {
+            return Response.ok(GameMessage.restOk(result.message(), gson.toJsonTree(result).getAsJsonObject()).toString()).build();
         }
-        return Response.ok(GameMessage.restError(400, (String) result.get("message")).toString()).build();
+        return Response.ok(GameMessage.restError(400, result.message()).toString()).build();
     }
 
     @POST
@@ -192,12 +193,12 @@ public class GameFarmResource {
         }
 
         FarmService farmService = ServiceRegistry.getFarmService();
-        Map<String, Object> result = farmService.harvest(playerId, plotIndex);
+        FarmResult result = farmService.harvest(playerId, plotIndex);
 
-        if (Boolean.TRUE.equals(result.get("success"))) {
-            return Response.ok(GameMessage.restOk((String) result.get("message"), gson.toJsonTree(result).getAsJsonObject()).toString()).build();
+        if (result.success()) {
+            return Response.ok(GameMessage.restOk(result.message(), gson.toJsonTree(result).getAsJsonObject()).toString()).build();
         }
-        return Response.ok(GameMessage.restError(400, (String) result.get("message")).toString()).build();
+        return Response.ok(GameMessage.restError(400, result.message()).toString()).build();
     }
 
     @POST
@@ -217,12 +218,12 @@ public class GameFarmResource {
         }
 
         FarmService farmService = ServiceRegistry.getFarmService();
-        Map<String, Object> result = farmService.clearPlot(playerId, plotIndex);
+        FarmResult result = farmService.clearPlot(playerId, plotIndex);
 
-        if (Boolean.TRUE.equals(result.get("success"))) {
-            return Response.ok(GameMessage.restOk((String) result.get("message"), null).toString()).build();
+        if (result.success()) {
+            return Response.ok(GameMessage.restOk(result.message(), null).toString()).build();
         }
-        return Response.ok(GameMessage.restError(400, (String) result.get("message")).toString()).build();
+        return Response.ok(GameMessage.restError(400, result.message()).toString()).build();
     }
 
     @POST
@@ -234,12 +235,12 @@ public class GameFarmResource {
         int playerId = getPlayerIdByUserId(userId);
 
         FarmService farmService = ServiceRegistry.getFarmService();
-        Map<String, Object> result = farmService.expandPlot(playerId);
+        FarmResult result = farmService.expandPlot(playerId);
 
-        if (Boolean.TRUE.equals(result.get("success"))) {
-            return Response.ok(GameMessage.restOk((String) result.get("message"), gson.toJsonTree(result).getAsJsonObject()).toString()).build();
+        if (result.success()) {
+            return Response.ok(GameMessage.restOk(result.message(), gson.toJsonTree(result).getAsJsonObject()).toString()).build();
         }
-        return Response.ok(GameMessage.restError(400, (String) result.get("message")).toString()).build();
+        return Response.ok(GameMessage.restError(400, result.message()).toString()).build();
     }
 
     @POST
@@ -251,12 +252,12 @@ public class GameFarmResource {
         int playerId = getPlayerIdByUserId(userId);
 
         FarmService farmService = ServiceRegistry.getFarmService();
-        Map<String, Object> result = farmService.waterAll(playerId);
+        FarmResult result = farmService.waterAll(playerId);
 
-        if (Boolean.TRUE.equals(result.get("success"))) {
-            return Response.ok(GameMessage.restOk((String) result.get("message"), gson.toJsonTree(result).getAsJsonObject()).toString()).build();
+        if (result.success()) {
+            return Response.ok(GameMessage.restOk(result.message(), gson.toJsonTree(result).getAsJsonObject()).toString()).build();
         }
-        return Response.ok(GameMessage.restError(400, (String) result.get("message")).toString()).build();
+        return Response.ok(GameMessage.restError(400, result.message()).toString()).build();
     }
 
     @POST
@@ -272,12 +273,12 @@ public class GameFarmResource {
         String fertilizerKey = json.has("fertilizerKey") ? json.get("fertilizerKey").getAsString() : "mtxgdn:low_grade_fertilizer";
 
         FarmService farmService = ServiceRegistry.getFarmService();
-        Map<String, Object> result = farmService.fertilizeAll(playerId, fertilizerKey);
+        FarmResult result = farmService.fertilizeAll(playerId, fertilizerKey);
 
-        if (Boolean.TRUE.equals(result.get("success"))) {
-            return Response.ok(GameMessage.restOk((String) result.get("message"), gson.toJsonTree(result).getAsJsonObject()).toString()).build();
+        if (result.success()) {
+            return Response.ok(GameMessage.restOk(result.message(), gson.toJsonTree(result).getAsJsonObject()).toString()).build();
         }
-        return Response.ok(GameMessage.restError(400, (String) result.get("message")).toString()).build();
+        return Response.ok(GameMessage.restError(400, result.message()).toString()).build();
     }
 
     @POST
@@ -289,12 +290,12 @@ public class GameFarmResource {
         int playerId = getPlayerIdByUserId(userId);
 
         FarmService farmService = ServiceRegistry.getFarmService();
-        Map<String, Object> result = farmService.harvestAll(playerId);
+        FarmResult result = farmService.harvestAll(playerId);
 
-        if (Boolean.TRUE.equals(result.get("success"))) {
-            return Response.ok(GameMessage.restOk((String) result.get("message"), gson.toJsonTree(result).getAsJsonObject()).toString()).build();
+        if (result.success()) {
+            return Response.ok(GameMessage.restOk(result.message(), gson.toJsonTree(result).getAsJsonObject()).toString()).build();
         }
-        return Response.ok(GameMessage.restError(400, (String) result.get("message")).toString()).build();
+        return Response.ok(GameMessage.restError(400, result.message()).toString()).build();
     }
 
     @POST
@@ -314,12 +315,12 @@ public class GameFarmResource {
         }
 
         FarmService farmService = ServiceRegistry.getFarmService();
-        Map<String, Object> result = farmService.usePesticide(playerId, plotIndex);
+        FarmResult result = farmService.usePesticide(playerId, plotIndex);
 
-        if (Boolean.TRUE.equals(result.get("success"))) {
-            return Response.ok(GameMessage.restOk((String) result.get("message"), null).toString()).build();
+        if (result.success()) {
+            return Response.ok(GameMessage.restOk(result.message(), null).toString()).build();
         }
-        return Response.ok(GameMessage.restError(400, (String) result.get("message")).toString()).build();
+        return Response.ok(GameMessage.restError(400, result.message()).toString()).build();
     }
 
     // ==================== 全局季节系统 ====================

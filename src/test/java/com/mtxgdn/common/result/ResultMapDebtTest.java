@@ -104,16 +104,6 @@ class ResultMapDebtTest {
             "com/mtxgdn/game/service/EconomyService.java#placeBid",
             "com/mtxgdn/game/service/EconomyService.java#purifySpiritStone",
             // ---- 农田 ----
-            "com/mtxgdn/game/service/FarmService.java#plant",
-            "com/mtxgdn/game/service/FarmService.java#water",
-            "com/mtxgdn/game/service/FarmService.java#fertilize",
-            "com/mtxgdn/game/service/FarmService.java#harvest",
-            "com/mtxgdn/game/service/FarmService.java#clearPlot",
-            "com/mtxgdn/game/service/FarmService.java#usePesticide",
-            "com/mtxgdn/game/service/FarmService.java#expandPlot",
-            "com/mtxgdn/game/service/FarmService.java#waterAll",
-            "com/mtxgdn/game/service/FarmService.java#fertilizeAll",
-            "com/mtxgdn/game/service/FarmService.java#harvestAll",
             // ---- 阵法 ----
             // ---- 物品 ----
             // ---- 地图 ----

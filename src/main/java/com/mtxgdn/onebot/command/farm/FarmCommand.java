@@ -1,5 +1,6 @@
 package com.mtxgdn.onebot.command.farm;
 
+import com.mtxgdn.game.farm.FarmResult;
 import com.mtxgdn.common.service.ServiceRegistry;
 
 import com.mtxgdn.common.command.Command;
@@ -161,8 +162,8 @@ public class FarmCommand extends Command {
             if (seedKey == null) {
                 return "未知种子: " + seedInput + "\n可用种子: " + listAvailableSeeds(playerId);
             }
-            Map<String, Object> result = farmService.plant(playerId, plotIndex, seedKey);
-            return (String) result.get("message");
+            FarmResult result = farmService.plant(playerId, plotIndex, seedKey);
+            return result.message();
         } catch (NumberFormatException e) {
             return "地块索引必须是数字";
         }
@@ -191,8 +192,8 @@ public class FarmCommand extends Command {
 
         try {
             int plotIndex = Integer.parseInt(args[1]);
-            Map<String, Object> result = farmService.water(playerId, plotIndex);
-            return (String) result.get("message");
+            FarmResult result = farmService.water(playerId, plotIndex);
+            return result.message();
         } catch (NumberFormatException e) {
             return "地块索引必须是数字";
         }
@@ -206,8 +207,8 @@ public class FarmCommand extends Command {
         try {
             int plotIndex = Integer.parseInt(args[1]);
             String fertilizerKey = parseFertilizerKey(args);
-            Map<String, Object> result = farmService.fertilize(playerId, plotIndex, fertilizerKey);
-            return (String) result.get("message");
+            FarmResult result = farmService.fertilize(playerId, plotIndex, fertilizerKey);
+            return result.message();
         } catch (NumberFormatException e) {
             return "地块索引必须是数字";
         }
@@ -220,8 +221,8 @@ public class FarmCommand extends Command {
 
         try {
             int plotIndex = Integer.parseInt(args[1]);
-            Map<String, Object> result = farmService.harvest(playerId, plotIndex);
-            return (String) result.get("message");
+            FarmResult result = farmService.harvest(playerId, plotIndex);
+            return result.message();
         } catch (NumberFormatException e) {
             return "地块索引必须是数字";
         }
@@ -234,32 +235,32 @@ public class FarmCommand extends Command {
 
         try {
             int plotIndex = Integer.parseInt(args[1]);
-            Map<String, Object> result = farmService.clearPlot(playerId, plotIndex);
-            return (String) result.get("message");
+            FarmResult result = farmService.clearPlot(playerId, plotIndex);
+            return result.message();
         } catch (NumberFormatException e) {
             return "地块索引必须是数字";
         }
     }
 
     private String expandPlot(long playerId) {
-        Map<String, Object> result = farmService.expandPlot(playerId);
-        return (String) result.get("message");
+        FarmResult result = farmService.expandPlot(playerId);
+            return result.message();
     }
 
     private String waterAll(long playerId) {
-        Map<String, Object> result = farmService.waterAll(playerId);
-        return (String) result.get("message");
+        FarmResult result = farmService.waterAll(playerId);
+            return result.message();
     }
 
     private String fertilizeAll(long playerId, String[] args) {
         String fertilizerKey = args.length >= 2 ? parseFertilizerKey(args) : "mtxgdn:low_grade_fertilizer";
-        Map<String, Object> result = farmService.fertilizeAll(playerId, fertilizerKey);
-        return (String) result.get("message");
+        FarmResult result = farmService.fertilizeAll(playerId, fertilizerKey);
+            return result.message();
     }
 
     private String harvestAll(long playerId) {
-        Map<String, Object> result = farmService.harvestAll(playerId);
-        return (String) result.get("message");
+        FarmResult result = farmService.harvestAll(playerId);
+            return result.message();
     }
 
     private String usePesticide(long playerId, String[] args) {
@@ -268,8 +269,8 @@ public class FarmCommand extends Command {
         }
         try {
             int plotIndex = Integer.parseInt(args[1]);
-            Map<String, Object> result = farmService.usePesticide(playerId, plotIndex);
-            return (String) result.get("message");
+            FarmResult result = farmService.usePesticide(playerId, plotIndex);
+            return result.message();
         } catch (NumberFormatException e) {
             return "地块索引必须是数字";
         }
