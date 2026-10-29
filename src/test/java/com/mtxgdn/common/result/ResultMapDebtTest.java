@@ -115,12 +115,7 @@ class ResultMapDebtTest {
             "com/mtxgdn/game/service/FarmService.java#fertilizeAll",
             "com/mtxgdn/game/service/FarmService.java#harvestAll",
             // ---- 阵法 ----
-            "com/mtxgdn/game/service/FormationService.java#placeFormationFromTreasure",
             // ---- 物品 ----
-            "com/mtxgdn/game/service/ItemService.java#exchangeSpiritStones",
-            "com/mtxgdn/game/service/ItemService.java#equipItem",
-            "com/mtxgdn/game/service/ItemService.java#unequipItem",
-            "com/mtxgdn/game/service/ItemService.java#useItem",
             // ---- 地图 ----
             // ---- 玩家 ----
             // ---- 宗门（带额外数据的那些，成员域 6 个已改） ----

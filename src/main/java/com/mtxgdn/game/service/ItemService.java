@@ -1,5 +1,8 @@
 package com.mtxgdn.game.service;
 
+import com.mtxgdn.game.item.EquipResult;
+import com.mtxgdn.game.item.ExchangeResult;
+import com.mtxgdn.game.item.UseItemResult;
 import com.mtxgdn.common.service.ServiceRegistry;
 
 import com.mtxgdn.db.DatabaseManager;
@@ -448,54 +451,39 @@ public class ItemService {
             addItem(conn, playerId, CurrencyEffect.getStoneKey(grade + 1), mergeUnits);
         }
     }
-    public Map<String, Object> exchangeSpiritStones(long playerId, int fromGrade, int toGrade, long amount) {
-        Map<String, Object> result = new LinkedHashMap<>();
+    public ExchangeResult exchangeSpiritStones(long playerId, int fromGrade, int toGrade, long amount) {
         if (fromGrade < 0 || fromGrade > 3 || toGrade < 0 || toGrade > 3) {
-            result.put("success", false);
-            result.put("message", I18n.t("item.invalid_spirit_stone_grade"));
-            return result;
+            return ExchangeResult.rejected(I18n.t("item.invalid_spirit_stone_grade"));
         }
         if (fromGrade <= toGrade) {
-            result.put("success", false);
-            result.put("message", I18n.t("item.higher_grade_spirit_stones"));
-            return result;
+            return ExchangeResult.rejected(I18n.t("item.higher_grade_spirit_stones"));
         }
         if (amount <= 0) {
-            result.put("success", false);
-            result.put("message", I18n.t("item.the_exchange_amount_must"));
-            return result;
+            return ExchangeResult.rejected(I18n.t("item.the_exchange_amount_must"));
         }
 
         String fromKey = CurrencyEffect.getStoneKey(fromGrade);
         if (getItemCount(playerId, fromKey) < amount) {
-            result.put("success", false);
-            result.put("message", I18n.t("item.not_enough_spirit_stones"));
-            return result;
+            return ExchangeResult.rejected(I18n.t("item.not_enough_spirit_stones"));
         }
 
         long rate = CurrencyEffect.getExchangeRate(fromGrade) / CurrencyEffect.getExchangeRate(toGrade);
         long targetAmount = amount * rate;
 
         return DatabaseManager.runTransaction(conn -> {
-            Map<String, Object> innerResult = new LinkedHashMap<>();
             try {
                 removeItem(conn, playerId, fromKey, amount);
                 String toKey = CurrencyEffect.getStoneKey(toGrade);
                 addItem(conn, playerId, toKey, targetAmount);
-                innerResult.put("success", true);
-                innerResult.put("fromAmount", amount);
-                innerResult.put("fromGrade", fromGrade);
-                innerResult.put("toAmount", targetAmount);
-                innerResult.put("toGrade", toGrade);
                 // 占位符顺序换成"先数量后名字"，让模板只描述一种语序；
                 // 原 %d %s 的顺序在不同语言里可能都要调
-                innerResult.put("message", I18n.t("item.stone_converted",
-                        amount, getStoneName(fromGrade), targetAmount, getStoneName(toGrade)));
+                return ExchangeResult.exchanged(
+                        I18n.t("item.stone_converted",
+                                amount, getStoneName(fromGrade), targetAmount, getStoneName(toGrade)),
+                        amount, fromGrade, targetAmount, toGrade);
             } catch (SQLException e) {
-                innerResult.put("success", false);
-                innerResult.put("message", I18n.t("item.exchange_failed", e.getMessage()));
+                return ExchangeResult.rejected(I18n.t("item.exchange_failed", e.getMessage()));
             }
-            return innerResult;
         });
     }
 
@@ -514,31 +502,23 @@ public class ItemService {
      * 装备物品。使用事务包裹：先写数据库，再执行效果。
      * 如果效果执行失败，回滚数据库变更。
      */
-    public Map<String, Object> equipItem(long playerId, String itemKey, String slot) {
-        Map<String, Object> result = new LinkedHashMap<>();
+    public EquipResult equipItem(long playerId, String itemKey, String slot) {
         Item item = ItemRegistry.resolve(itemKey);
         if (item == null) {
-            result.put("success", false);
-            result.put("message", I18n.t("item.item_not_found"));
-            return result;
+            return EquipResult.fail(I18n.t("item.item_not_found"));
         }
         String fullKey = item.getFullKey();
 
         try {
             return DatabaseManager.runTransaction(conn -> {
-                Map<String, Object> innerResult = new LinkedHashMap<>();
 
                 if (getItemCount(conn, playerId, fullKey) < 1) {
-                    innerResult.put("success", false);
-                    innerResult.put("message", I18n.t("item.that_item"));
-                    return innerResult;
+                    return EquipResult.fail(I18n.t("item.that_item"));
                 }
 
                 String occupied = getEquippedItem(conn, playerId, slot);
                 if (occupied != null && occupied.equals(fullKey)) {
-                    innerResult.put("success", false);
-                    innerResult.put("message", I18n.t("item.that_item_is_already_equipped"));
-                    return innerResult;
+                    return EquipResult.fail(I18n.t("item.that_item_is_already_equipped"));
                 }
 
                 // 1. 回退旧装备效果
@@ -590,48 +570,35 @@ public class ItemService {
                     msg = "装备了【" + itemDisplay + "】";
                 }
 
-                innerResult.put("success", true);
-                innerResult.put("message", msg);
-                return innerResult;
+                return EquipResult.ok(msg);
             });
         } catch (Exception e) {
-            result.put("success", false);
-            result.put("message", I18n.t("item.equip_failed", e.getMessage()));
-            return result;
+            return EquipResult.fail(I18n.t("item.equip_failed", e.getMessage()));
         }
     }
 
     /**
      * 卸下装备。使用事务包裹。
      */
-    public Map<String, Object> unequipItem(long playerId, String slot) {
-        Map<String, Object> result = new LinkedHashMap<>();
-
+    public EquipResult unequipItem(long playerId, String slot) {
         try {
             return DatabaseManager.runTransaction(conn -> {
-                Map<String, Object> innerResult = new LinkedHashMap<>();
 
                 String itemKey = getEquippedItem(conn, playerId, slot);
                 if (itemKey == null) {
-                    innerResult.put("success", false);
-                    innerResult.put("message", I18n.t("item.that_equipment_slot_is_empty"));
-                    return innerResult;
+                    return EquipResult.fail(I18n.t("item.that_equipment_slot_is_empty"));
                 }
                 Item item = ItemRegistry.get(itemKey);
                 if (item == null) {
-                    innerResult.put("success", false);
-                    innerResult.put("message", I18n.t("item.item_data_is_corrupted"));
-                    return innerResult;
+                    return EquipResult.fail(I18n.t("item.item_data_is_corrupted"));
                 }
 
                 // 耐久归零的装备不允许卸下：否则"损坏→卸下→装上"就能免费重置耐久，
                 // 修理系统会被彻底绕过（耐久表是按 玩家+物品key 记的，卸下并不会清记录）。
                 if (com.mtxgdn.common.service.ServiceRegistry.getDurabilityService()
                         .getDurability(conn, playerId, itemKey) <= 0) {
-                    innerResult.put("success", false);
-                    innerResult.put("message", I18n.t("equip.unequip_broken",
+                    return EquipResult.fail(I18n.t("equip.unequip_broken",
                             DurabilityService.getSlotDisplayName(slot)));
-                    return innerResult;
                 }
 
                 // 1. 从装备表删除
@@ -673,14 +640,10 @@ public class ItemService {
                     msg = "卸下了【" + item.getName() + "】";
                 }
 
-                innerResult.put("success", true);
-                innerResult.put("message", msg);
-                return innerResult;
+                return EquipResult.ok(msg);
             });
         } catch (Exception e) {
-            result.put("success", false);
-            result.put("message", I18n.t("item.failed_to_unequip", e.getMessage()));
-            return result;
+            return EquipResult.fail(I18n.t("item.failed_to_unequip", e.getMessage()));
         }
     }
 
@@ -702,13 +665,10 @@ public class ItemService {
      * 使用物品。使用事务包裹：先锁定物品，检查数量，执行效果，成功后再移除物品。
      * 如果效果执行失败，物品不会丢失。使用事务锁防止并发重复使用。
      */
-    public Map<String, Object> useItem(long playerId, String itemKey) {
-        Map<String, Object> result = new LinkedHashMap<>();
+    public UseItemResult useItem(long playerId, String itemKey) {
         Item item = ItemRegistry.resolve(itemKey);
         if (item == null) {
-            result.put("success", false);
-            result.put("message", I18n.t("item.item_not_found_2"));
-            return result;
+            return UseItemResult.rejected(I18n.t("item.item_not_found_2"));
         }
         String fullKey = item.getFullKey();
 
@@ -720,15 +680,12 @@ public class ItemService {
 
         try {
             return DatabaseManager.runTransaction(conn -> {
-                Map<String, Object> innerResult = new LinkedHashMap<>();
 
                 // 使用 SELECT FOR UPDATE 锁定物品，防止并发重复使用
                 // （SQLite 的锁子句由方言提供，退化成不带锁的读）
                 long lockedQty = ITEM_DAO.lockAndGetQuantity(conn, playerId, fullKey);
                 if (lockedQty < 1) {
-                    innerResult.put("success", false);
-                    innerResult.put("message", I18n.t("item.that_item"));
-                    return innerResult;
+                    return UseItemResult.rejected(I18n.t("item.that_item"));
                 }
 
                 // 1. 先执行效果（如果失败则回滚，物品不会丢失）
@@ -761,11 +718,6 @@ public class ItemService {
                     msg = "使用了【" + itemDisplay + "】";
                 }
 
-                innerResult.put("success", true);
-                innerResult.put("message", msg);
-                innerResult.put("item", item);
-                innerResult.put("effects", item.getEffects());
-
                 // 插件事件：物品使用成功
                 com.mtxgdn.plugin.event.PluginEventManager.fireQuietly(
                         com.mtxgdn.plugin.event.PluginEvent.builder()
@@ -774,12 +726,10 @@ public class ItemService {
                                 .data("itemKey", fullKey)
                                 .build());
 
-                return innerResult;
+                return UseItemResult.used(msg, item, item.getEffects());
             });
         } catch (Exception e) {
-            result.put("success", false);
-            result.put("message", I18n.t("item.failed_to_use_item", e.getMessage()));
-            return result;
+            return UseItemResult.rejected(I18n.t("item.failed_to_use_item", e.getMessage()));
         }
     }
 

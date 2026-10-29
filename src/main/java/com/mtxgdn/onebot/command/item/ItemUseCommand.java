@@ -1,5 +1,6 @@
 package com.mtxgdn.onebot.command.item;
 
+import com.mtxgdn.game.item.UseItemResult;
 import com.mtxgdn.common.command.Command;
 import com.mtxgdn.common.command.CommandContext;
 import com.mtxgdn.common.command.CommandUtils;
@@ -30,9 +31,9 @@ public class ItemUseCommand extends Command {
         var itemService = ServiceRegistry.getItemService();
         var guideService = ServiceRegistry.getGuideService();
         var actionLog = PlayerActionLogger.getInstance();
-        Map<String, Object> useResult = itemService.useItem((int) p.getId(), itemKey);
-        boolean success = (boolean) useResult.getOrDefault("success", false);
-        String msg = (String) useResult.getOrDefault("message", "");
+        UseItemResult useResult = itemService.useItem((int) p.getId(), itemKey);
+        boolean success = useResult.success();
+        String msg = useResult.message() != null ? useResult.message() : "";
         actionLog.logItemUse(userId, p.getName(), itemKey, success, msg);
         String discTip = guideService.checkDiscovery((int) p.getId(), p, "item_use");
         if (discTip != null) msg += "\n\n" + discTip;

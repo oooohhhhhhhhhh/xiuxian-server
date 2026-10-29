@@ -1,5 +1,6 @@
 package com.mtxgdn.game.service;
 
+import com.mtxgdn.game.item.EquipResult;
 import com.mtxgdn.game.item.EnhanceResult;
 import com.mtxgdn.TestBase;
 import com.mtxgdn.common.service.ServiceRegistry;
@@ -62,8 +63,8 @@ class EnhanceBreakRollbackTest extends TestBase {
         int attackBeforeEquip = playerService.getPlayerById(playerId).getAttack();
 
         assertTrue(itemService.addItem(playerId, SWORD, 1), "放入灵剑应成功");
-        Map<String, Object> equip = itemService.equipItem(playerId, SWORD, "weapon");
-        assertEquals(Boolean.TRUE, equip.get("success"), "装备灵剑应成功: " + equip.get("message"));
+        EquipResult equip = itemService.equipItem(playerId, SWORD, "weapon");
+        assertEquals(Boolean.TRUE, equip.success(), "装备灵剑应成功: " + equip.message());
 
         int attackAfterEquip = playerService.getPlayerById(playerId).getAttack();
         assertTrue(attackAfterEquip > attackBeforeEquip,

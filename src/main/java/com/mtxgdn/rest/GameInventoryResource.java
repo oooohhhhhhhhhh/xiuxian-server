@@ -1,5 +1,7 @@
 package com.mtxgdn.rest;
 
+import com.mtxgdn.game.item.UseItemResult;
+import com.mtxgdn.game.item.EquipResult;
 import com.mtxgdn.game.item.EnhanceResult;
 import com.mtxgdn.game.skill.LearnSkillResult;
 import com.google.gson.JsonArray;
@@ -119,10 +121,10 @@ public class GameInventoryResource {
         JsonObject json = com.google.gson.JsonParser.parseString(body).getAsJsonObject();
         String itemKey = json.has("itemKey") ? json.get("itemKey").getAsString() : "";
 
-        Map<String, Object> useResult = itemService.useItem(playerId, itemKey);
+        UseItemResult useResult = itemService.useItem(playerId, itemKey);
 
-        boolean success = (boolean) useResult.getOrDefault("success", false);
-        String message = (String) useResult.getOrDefault("message", "");
+        boolean success = useResult.success();
+        String message = useResult.message() != null ? useResult.message() : "";
         actionLog.logItemUse(userId, getPlayerName(userId), itemKey, success, message);
 
         JsonObject data = gson.toJsonTree(useResult).getAsJsonObject();
@@ -215,8 +217,8 @@ public class GameInventoryResource {
             return Response.ok(GameMessage.restError(GameErrorCode.PARAM_MISSING).toString()).build();
         }
 
-        var result = itemService.equipItem(playerId, itemKey, slot);
-        return Response.ok(GameMessage.restOk(result.get("message").toString(), null).toString()).build();
+        EquipResult result = itemService.equipItem(playerId, itemKey, slot);
+        return Response.ok(GameMessage.restOk(result.message(), null).toString()).build();
     }
 
     @POST
@@ -235,8 +237,8 @@ public class GameInventoryResource {
             return Response.ok(GameMessage.restError(GameErrorCode.PARAM_MISSING).toString()).build();
         }
 
-        var result = itemService.unequipItem(playerId, slot);
-        return Response.ok(GameMessage.restOk(result.get("message").toString(), null).toString()).build();
+        EquipResult result = itemService.unequipItem(playerId, slot);
+        return Response.ok(GameMessage.restOk(result.message(), null).toString()).build();
     }
 
     @POST

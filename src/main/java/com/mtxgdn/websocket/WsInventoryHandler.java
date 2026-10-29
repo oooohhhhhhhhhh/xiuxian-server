@@ -1,5 +1,6 @@
 package com.mtxgdn.websocket;
 
+import com.mtxgdn.game.item.UseItemResult;
 import com.mtxgdn.game.item.EnhanceResult;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
@@ -89,10 +90,10 @@ final class WsInventoryHandler extends WsHandler {
             return;
         }
 
-        Map<String, Object> useResult = itemService.useItem((int) player.getId(), itemKey);
+        UseItemResult useResult = itemService.useItem((int) player.getId(), itemKey);
 
-        boolean success = (boolean) useResult.getOrDefault("success", false);
-        String msg = (String) useResult.getOrDefault("message", "");
+        boolean success = useResult.success();
+        String msg = useResult.message() != null ? useResult.message() : "";
         actionLog.logItemUse(userId, player.getName(), itemKey, success, msg);
 
         JsonObject respData = gson.toJsonTree(useResult).getAsJsonObject();

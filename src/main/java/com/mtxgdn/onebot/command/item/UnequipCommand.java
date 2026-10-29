@@ -1,5 +1,6 @@
 package com.mtxgdn.onebot.command.item;
 
+import com.mtxgdn.game.item.EquipResult;
 import com.mtxgdn.common.command.Command;
 import com.mtxgdn.common.command.CommandContext;
 import com.mtxgdn.game.entity.PlayerInfo;
@@ -22,8 +23,8 @@ public class UnequipCommand extends Command {
         if (p == null) return;
         String slot = ctx.getArg().trim().toLowerCase();
         if (slot.isEmpty()) { ctx.reply(I18n.t("unequip.usage")); return; }
-        var result = ServiceRegistry.getItemService().unequipItem((int) p.getId(), slot);
-        String msg = (String) result.getOrDefault("message", "");
+        EquipResult result = ServiceRegistry.getItemService().unequipItem((int) p.getId(), slot);
+        String msg = result.message() != null ? result.message() : "";
         if (msg.isEmpty()) msg = "卸下失败，请检查部位是否正确。";
         ctx.reply(msg);
     }

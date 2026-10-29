@@ -1,5 +1,7 @@
 package com.mtxgdn;
 
+import com.mtxgdn.game.item.UseItemResult;
+import com.mtxgdn.game.item.EquipResult;
 import com.mtxgdn.game.map.TravelResult;
 import com.mtxgdn.game.trade.TradeResult;
 import com.mtxgdn.game.cultivation.BeginCultivationResult;
@@ -332,8 +334,8 @@ public class MultiPlayerFullTest {
         }
 
         // 使用物品
-        Map<String,Object> used = itemService.useItem(p1.playerId, "mtxgdn:healing_pill");
-        assertTrue(Boolean.TRUE.equals(used.get("success")), "使用疗伤丹应成功: " + used.get("message"));
+        UseItemResult used = itemService.useItem(p1.playerId, "mtxgdn:healing_pill");
+        assertTrue(used.success(), "使用疗伤丹应成功: " + used.message());
         System.out.println("  ✓ 使用物品成功");
 
         // 灵石
@@ -350,15 +352,15 @@ public class MultiPlayerFullTest {
         boolean added = itemService.addItem(p2.playerId, "mtxgdn:spirit_sword", 1);
         assertTrue(added, "添加灵剑应成功");
 
-        Map<String,Object> equip = itemService.equipItem(p2.playerId, "mtxgdn:spirit_sword", "weapon");
-        assertTrue(Boolean.TRUE.equals(equip.get("success")), "装备灵剑应成功: " + equip.get("message"));
+        EquipResult equip = itemService.equipItem(p2.playerId, "mtxgdn:spirit_sword", "weapon");
+        assertTrue(equip.success(), "装备灵剑应成功: " + equip.message());
 
         String equipped = itemService.getEquippedItem(p2.playerId, "weapon");
         assertEquals("mtxgdn:spirit_sword", equipped, "weapon槽应装备灵剑");
         System.out.println("  ✓ " + PLAYERS.get("p2").playerName + " 装备灵剑成功");
 
-        Map<String,Object> unequip = itemService.unequipItem(p2.playerId, "weapon");
-        assertTrue(Boolean.TRUE.equals(unequip.get("success")), "卸下应成功");
+        EquipResult unequip = itemService.unequipItem(p2.playerId, "weapon");
+        assertTrue(unequip.success(), "卸下应成功");
         System.out.println("  ✓ 卸下装备成功");
     }
 

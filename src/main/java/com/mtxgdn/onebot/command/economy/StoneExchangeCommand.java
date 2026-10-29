@@ -1,5 +1,6 @@
 package com.mtxgdn.onebot.command.economy;
 
+import com.mtxgdn.game.item.ExchangeResult;
 import com.mtxgdn.common.service.ServiceRegistry;
 
 import com.mtxgdn.common.command.Command;
@@ -65,8 +66,8 @@ public class StoneExchangeCommand extends Command {
             return;
         }
 
-        Map<String, Object> result = itemService.exchangeSpiritStones(p.getId(), fromGrade, toGrade, amount);
-        ctx.reply((String) result.get("message"));
+        ExchangeResult result = itemService.exchangeSpiritStones(p.getId(), fromGrade, toGrade, amount);
+        ctx.reply(result.message());
     }
 
     private int parseGrade(String name) {

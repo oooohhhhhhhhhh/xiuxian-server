@@ -1,5 +1,6 @@
 package com.mtxgdn.game.service;
 
+import com.mtxgdn.game.item.UseItemResult;
 import com.mtxgdn.common.result.OperationResult;
 import com.mtxgdn.common.service.ServiceRegistry;
 
@@ -193,24 +194,17 @@ public class FormationService {
      * 使用阵图物品布置对应 1 级阵法：消耗 1 张阵图（不另扣灵石）。
      * 需要洞府且当前未布置阵法；成功后按该阵法 1 级效果激活。
      */
-    public Map<String, Object> placeFormationFromTreasure(long playerId, String treasureFullKey) {
+    public UseItemResult placeFormationFromTreasure(long playerId, String treasureFullKey) {
         com.mtxgdn.playerdata.PlayerDataService.markDirty(playerId);
-        Map<String, Object> result = new LinkedHashMap<>();
         String formationKey = treasureKeyToFormationKey(treasureFullKey);
         if (formationKey == null) {
-            result.put("success", false);
-            result.put("message", I18n.t("formation.this_is_not_a_formation"));
-            return result;
+            return UseItemResult.rejected(I18n.t("formation.this_is_not_a_formation"));
         }
         if (com.mtxgdn.common.service.ServiceRegistry.getCaveService().getCaveByPlayerId(playerId) == null) {
-            result.put("success", false);
-            result.put("message", I18n.t("formation.you_do"));
-            return result;
+            return UseItemResult.rejected(I18n.t("formation.you_do"));
         }
         if (getActiveFormation(playerId) != null) {
-            result.put("success", false);
-            result.put("message", I18n.t("formation.you_have_already_set_up"));
-            return result;
+            return UseItemResult.rejected(I18n.t("formation.you_have_already_set_up"));
         }
         final int level = 1;
         try {
@@ -234,16 +228,13 @@ public class FormationService {
                 return null;
             });
         } catch (Exception e) {
-            result.put("success", false);
-            result.put("message", I18n.t("formation.failed_to_use_the_formation", e.getMessage()));
-            return result;
+            return UseItemResult.rejected(I18n.t("formation.failed_to_use_the_formation", e.getMessage()));
         }
         Formation formation = getActiveFormation(playerId);
-        result.put("success", true);
         // 防御/心魔两段都是"有才显示"的尾巴，整体各占一个占位符（{4} / {5}），
         // 没有该属性时传空串。拆成「，防御加成 +{5}%」那种半句模板，
         // 会让英文翻译很难摆对逗号和换行位置。
-        result.put("message", I18n.t("formation.use.success",
+        return UseItemResult.formationPlaced(I18n.t("formation.use.success",
                 formation.getName(),
                 formation.getDurationMinutes(),
                 formation.getSpiritEnergyBoost(),
@@ -253,8 +244,6 @@ public class FormationService {
                         : "",
                 formation.getHeartDemonResist() > 0
                         ? "，心魔抵抗 +" + formation.getHeartDemonResist()
-                        : ""));
-        result.put("formation", formation);
-        return result;
+                        : ""), formation);
     }
 }
