@@ -1,5 +1,6 @@
 package com.mtxgdn.rest;
 
+import com.mtxgdn.game.cultivation.HealResult;
 import com.mtxgdn.game.buff.ActiveBuffView;
 import com.mtxgdn.game.buff.ActiveBuffsResult;
 import com.google.gson.JsonArray;
@@ -207,13 +208,12 @@ public class GamePlayerResource {
         if (player == null) {
             return Response.ok(GameMessage.restError(GameErrorCode.PLAYER_NOT_FOUND).toString()).build();
         }
-        Map<String, Object> result = playerService.healPlayer(player.getId());
+        HealResult result = playerService.healPlayer(player.getId());
         JsonObject data = gson.toJsonTree(result).getAsJsonObject();
-        boolean success = (boolean) result.getOrDefault("success", false);
-        if (success) {
-            return Response.ok(GameMessage.restOk((String) result.get("message"), data).toString()).build();
+        if (result.success()) {
+            return Response.ok(GameMessage.restOk(result.message(), data).toString()).build();
         } else {
-            return Response.ok(GameMessage.restError(400, (String) result.get("message")).toString()).build();
+            return Response.ok(GameMessage.restError(400, result.message()).toString()).build();
         }
     }
 

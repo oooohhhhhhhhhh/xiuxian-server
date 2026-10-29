@@ -1,5 +1,7 @@
 package com.mtxgdn;
 
+import com.mtxgdn.game.cultivation.BeginCultivationResult;
+import com.mtxgdn.game.cultivation.FinishCultivationResult;
 import com.mtxgdn.common.result.OperationResult;
 import com.mtxgdn.common.service.ServiceRegistry;
 import com.mtxgdn.db.DatabaseManager;
@@ -247,14 +249,14 @@ public class MultiPlayerFullTest {
         System.out.println("─────────────────────────────────────────────");
         TestPlayer p1 = PLAYERS.get("p1");
 
-        Map<String,Object> start = playerService.beginCultivation(p1.playerId);
-        assertTrue(Boolean.TRUE.equals(start.get("success")), "开始修炼应成功: " + start.get("message"));
+        BeginCultivationResult start = playerService.beginCultivation(p1.playerId);
+        assertTrue(start.success(), "开始修炼应成功: " + start.message());
 
         Thread.sleep(1500);
 
-        Map<String,Object> finish = playerService.finishCultivation(p1.playerId);
-        assertTrue(Boolean.TRUE.equals(finish.get("success")), "结束修炼应成功");
-        long expGained = ((Number)finish.getOrDefault("rawExpGained", 0)).longValue();
+        FinishCultivationResult finish = playerService.finishCultivation(p1.playerId);
+        assertTrue(finish.success(), "结束修炼应成功");
+        long expGained = finish.rawExpGained() != null ? finish.rawExpGained() : 0L;
         assertTrue(expGained > 0, "应获得经验");
         System.out.println("  ✓ 修炼获得经验=" + expGained);
     }

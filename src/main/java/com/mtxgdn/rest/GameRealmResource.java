@@ -1,5 +1,7 @@
 package com.mtxgdn.rest;
 
+import com.mtxgdn.game.cultivation.BeginCultivationResult;
+import com.mtxgdn.game.cultivation.FinishCultivationResult;
 import com.google.gson.JsonObject;
 import com.mtxgdn.common.GameErrorCode;
 import com.mtxgdn.common.GameMessage;
@@ -141,27 +143,27 @@ public class GameRealmResource {
             return Response.ok(GameMessage.restError(GameErrorCode.PLAYER_NOT_FOUND).toString()).build();
         }
 
-        Map<String, Object> result = playerService.beginCultivation(player.getId());
-        if (!Boolean.TRUE.equals(result.get("success"))) {
-            return Response.ok(GameMessage.restError(400, (String) result.get("message")).toString()).build();
+        BeginCultivationResult result = playerService.beginCultivation(player.getId());
+        if (!result.success()) {
+            return Response.ok(GameMessage.restError(400, result.message()).toString()).build();
         }
 
         actionLog.logCultivateStart(userId, player.getName(), player.getRealm());
 
         JsonObject data = new JsonObject();
         data.addProperty("cultivating", true);
-        data.addProperty("cultivationPerSecond", ((Number) result.get("cultivationPerSecond")).intValue());
-        data.addProperty("startTime", ((Number) result.get("startTime")).longValue());
-        data.addProperty("season", (String) result.get("season"));
-        data.addProperty("seasonMultiplier", ((Number) result.get("seasonMultiplier")).doubleValue());
-        data.addProperty("locationId", ((Number) result.get("locationId")).longValue());
-        data.addProperty("locationName", (String) result.get("locationName"));
-        data.addProperty("locationMultiplier", ((Number) result.get("locationMultiplier")).doubleValue());
+        data.addProperty("cultivationPerSecond", result.cultivationPerSecond());
+        data.addProperty("startTime", result.startTime());
+        data.addProperty("season", result.season());
+        data.addProperty("seasonMultiplier", result.seasonMultiplier());
+        data.addProperty("locationId", result.locationId());
+        data.addProperty("locationName", result.locationName());
+        data.addProperty("locationMultiplier", result.locationMultiplier());
 
         return Response.ok(GameMessage.restOk(
                 I18n.t("cultivate.start_full",
-                        result.get("locationName"),
-                        Math.round(((Number) result.get("seasonMultiplier")).doubleValue() * 100 - 100)),
+                        result.locationName(),
+                        Math.round(result.seasonMultiplier() * 100 - 100)),
                 data).toString()).build();
     }
 
@@ -177,13 +179,13 @@ public class GameRealmResource {
             return Response.ok(GameMessage.restError(GameErrorCode.PLAYER_NOT_FOUND).toString()).build();
         }
 
-        Map<String, Object> result = playerService.finishCultivation(player.getId());
-        if (!Boolean.TRUE.equals(result.get("success"))) {
-            return Response.ok(GameMessage.restError(400, (String) result.get("message")).toString()).build();
+        FinishCultivationResult result = playerService.finishCultivation(player.getId());
+        if (!result.success()) {
+            return Response.ok(GameMessage.restError(400, result.message()).toString()).build();
         }
 
-        int elapsedSeconds = ((Number) result.get("elapsedSeconds")).intValue();
-        long expGained = ((Number) result.get("rawExpGained")).longValue();
+        int elapsedSeconds = result.elapsedSeconds().intValue();
+        long expGained = result.rawExpGained();
 
         HeartDemonService.HeartDemonResult hdResult = heartDemonService.processCultivation(
                 player.getId(), expGained, elapsedSeconds);
@@ -199,7 +201,7 @@ public class GameRealmResource {
         JsonObject data = gson.toJsonTree(updated).getAsJsonObject();
         data.addProperty("experienceGained", netExp);
         data.addProperty("elapsedSeconds", elapsedSeconds);
-        data.addProperty("season", (String) result.get("season"));
+        data.addProperty("season", result.season());
         if (hdResult.triggered) {
             data.addProperty("heartDemonTriggered", true);
             data.addProperty("heartDemonSeverity", hdResult.severity);

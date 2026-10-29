@@ -1,5 +1,7 @@
 package com.mtxgdn.websocket;
 
+import com.mtxgdn.game.cultivation.BeginCultivationResult;
+import com.mtxgdn.game.cultivation.FinishCultivationResult;
 import com.google.gson.JsonObject;
 import com.mtxgdn.common.GameErrorCode;
 import com.mtxgdn.common.GameMessage;
@@ -57,9 +59,9 @@ final class WsCultivationHandler extends WsHandler {
             return;
         }
 
-        Map<String, Object> result = playerService.beginCultivation(player.getId());
-        if (!Boolean.TRUE.equals(result.get("success"))) {
-            GameMessage err = GameMessage.error(msgId, "cultivate_start", GameErrorCode.REALM_NOT_CULTIVATING.getCode(), (String) result.get("message"));
+        BeginCultivationResult result = playerService.beginCultivation(player.getId());
+        if (!result.success()) {
+            GameMessage err = GameMessage.error(msgId, "cultivate_start", GameErrorCode.REALM_NOT_CULTIVATING.getCode(), result.message());
             socket.send(err.toJson());
             return;
         }
@@ -68,14 +70,14 @@ final class WsCultivationHandler extends WsHandler {
 
         JsonObject data = new JsonObject();
         data.addProperty("cultivating", true);
-        data.addProperty("cultivationPerSecond", ((Number) result.get("cultivationPerSecond")).intValue());
-        data.addProperty("startTime", ((Number) result.get("startTime")).longValue());
-        data.addProperty("season", (String) result.get("season"));
-        data.addProperty("locationName", (String) result.get("locationName"));
-        data.addProperty("locationMultiplier", ((Number) result.get("locationMultiplier")).doubleValue());
+        data.addProperty("cultivationPerSecond", result.cultivationPerSecond());
+        data.addProperty("startTime", result.startTime());
+        data.addProperty("season", result.season());
+        data.addProperty("locationName", result.locationName());
+        data.addProperty("locationMultiplier", result.locationMultiplier());
 
         GameMessage response = GameMessage.ok(msgId, "cultivate_start",
-                "开始闭关修炼（" + result.get("locationName") + "）", data);
+                "开始闭关修炼（" + result.locationName() + "）", data);
         socket.send(response.toJson());
     }
 
@@ -88,15 +90,15 @@ final class WsCultivationHandler extends WsHandler {
             return;
         }
 
-        Map<String, Object> result = playerService.finishCultivation(player.getId());
-        if (!Boolean.TRUE.equals(result.get("success"))) {
-            GameMessage err = GameMessage.error(msgId, "cultivate_stop", GameErrorCode.REALM_NOT_CULTIVATING.getCode(), (String) result.get("message"));
+        FinishCultivationResult result = playerService.finishCultivation(player.getId());
+        if (!result.success()) {
+            GameMessage err = GameMessage.error(msgId, "cultivate_stop", GameErrorCode.REALM_NOT_CULTIVATING.getCode(), result.message());
             socket.send(err.toJson());
             return;
         }
 
-        int elapsedSeconds = ((Number) result.get("elapsedSeconds")).intValue();
-        long expGained = ((Number) result.get("rawExpGained")).longValue();
+        int elapsedSeconds = result.elapsedSeconds().intValue();
+        long expGained = result.rawExpGained();
 
         HeartDemonService.HeartDemonResult hdResult = heartDemonService.processCultivation(
                 player.getId(), expGained, elapsedSeconds);

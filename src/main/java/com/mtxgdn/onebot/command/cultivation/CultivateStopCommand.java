@@ -1,5 +1,6 @@
 package com.mtxgdn.onebot.command.cultivation;
 
+import com.mtxgdn.game.cultivation.FinishCultivationResult;
 import com.mtxgdn.common.command.Command;
 import com.mtxgdn.common.command.CommandContext;
 import com.mtxgdn.game.entity.PlayerInfo;
@@ -36,14 +37,14 @@ public class CultivateStopCommand extends Command {
         var actionLog = PlayerActionLogger.getInstance();
         Long userId = p.getUserId();
 
-        Map<String, Object> result = playerService.finishCultivation(p.getId());
-        if (!Boolean.TRUE.equals(result.get("success"))) {
-            ctx.reply((String) result.get("message"));
+        FinishCultivationResult result = playerService.finishCultivation(p.getId());
+        if (!result.success()) {
+            ctx.reply(result.message());
             return;
         }
 
-        int elapsedSeconds = ((Number) result.get("elapsedSeconds")).intValue();
-        long expGained = ((Number) result.get("rawExpGained")).longValue();
+        int elapsedSeconds = result.elapsedSeconds().intValue();
+        long expGained = result.rawExpGained();
 
         if (expGained <= 0) {
             actionLog.logCultivateStop(userId, p.getName(), 0, elapsedSeconds);
@@ -62,11 +63,11 @@ public class CultivateStopCommand extends Command {
         StringBuilder msg = new StringBuilder();
         msg.append("===== 打坐结算 =====\n");
         msg.append("打坐时长: ").append(elapsedSeconds).append(" 秒\n");
-        double seasonMultiplier = ((Number) result.get("seasonMultiplier")).doubleValue();
-        double locationMultiplier = ((Number) result.get("locationMultiplier")).doubleValue();
+        double seasonMultiplier = result.seasonMultiplier();
+        double locationMultiplier = result.locationMultiplier();
         msg.append("季节: ").append(SeasonService.getCurrentSeason().getDisplayName())
                 .append("（×").append(seasonMultiplier).append("）\n");
-        msg.append("地点: ").append(result.get("locationName"))
+        msg.append("地点: ").append(result.locationName())
                 .append("（灵气 ×").append(locationMultiplier).append("）\n");
         msg.append("获得灵力: ").append(netExp).append("\n");
 

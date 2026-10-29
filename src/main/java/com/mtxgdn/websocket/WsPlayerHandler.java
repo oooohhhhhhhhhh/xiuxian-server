@@ -1,5 +1,6 @@
 package com.mtxgdn.websocket;
 
+import com.mtxgdn.game.cultivation.HealResult;
 import com.google.gson.JsonObject;
 import com.mtxgdn.common.GameErrorCode;
 import com.mtxgdn.common.GameMessage;
@@ -47,12 +48,12 @@ final class WsPlayerHandler extends WsHandler {
             socket.send(GameMessage.error(msgId, "heal", GameErrorCode.PLAYER_NOT_FOUND).toJson());
             return;
         }
-        Map<String, Object> result = playerService.healPlayer(player.getId());
-        if (Boolean.TRUE.equals(result.get("success"))) {
+        HealResult result = playerService.healPlayer(player.getId());
+        if (result.success()) {
             JsonObject data = gson.toJsonTree(result).getAsJsonObject();
-            socket.send(GameMessage.ok(msgId, "heal", (String) result.get("message"), data).toJson());
+            socket.send(GameMessage.ok(msgId, "heal", result.message(), data).toJson());
         } else {
-            socket.send(GameMessage.error(msgId, "heal", 400, (String) result.get("message")).toJson());
+            socket.send(GameMessage.error(msgId, "heal", 400, result.message()).toJson());
         }
     }
 

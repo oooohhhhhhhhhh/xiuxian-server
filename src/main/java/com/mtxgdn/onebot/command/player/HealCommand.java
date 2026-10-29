@@ -2,9 +2,9 @@ package com.mtxgdn.onebot.command.player;
 
 import com.mtxgdn.common.command.Command;
 import com.mtxgdn.common.command.CommandContext;
+import com.mtxgdn.game.cultivation.HealResult;
 import com.mtxgdn.game.entity.PlayerInfo;
 import com.mtxgdn.common.service.ServiceRegistry;
-import java.util.Map;
 import com.mtxgdn.i18n.I18n;
 
 public class HealCommand extends Command {
@@ -16,7 +16,7 @@ public class HealCommand extends Command {
         Long userId = ctx.requireBinding(); if (userId == null) return;
         PlayerInfo p = ctx.requirePlayer(userId); if (p == null) return;
         if (p.getHp() >= p.getMaxHp()) { ctx.reply(I18n.t("player.your_hp_is_already_full")); return; }
-        Map<String, Object> result = ServiceRegistry.getPlayerService().healPlayer(p.getId());
-        ctx.reply((String) result.getOrDefault("message", I18n.t("player.heal_failed")));
+        HealResult result = ServiceRegistry.getPlayerService().healPlayer(p.getId());
+        ctx.reply(result.message() != null ? result.message() : I18n.t("player.heal_failed"));
     }
 }

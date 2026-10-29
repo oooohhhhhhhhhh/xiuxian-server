@@ -135,9 +135,6 @@ class ResultMapDebtTest {
             "com/mtxgdn/game/service/MapService.java#getWildernessStats",
             "com/mtxgdn/game/service/MapService.java#gather",
             // ---- 玩家 ----
-            "com/mtxgdn/game/service/PlayerService.java#beginCultivation",
-            "com/mtxgdn/game/service/PlayerService.java#finishCultivation",
-            "com/mtxgdn/game/service/PlayerService.java#healPlayer",
             // ---- 宗门（带额外数据的那些，成员域 6 个已改） ----
             "com/mtxgdn/game/service/SectService.java#createSect",
             "com/mtxgdn/game/service/SectService.java#levelUp",

@@ -1,5 +1,7 @@
 package com.mtxgdn.game.service;
 
+import com.mtxgdn.game.cultivation.BeginCultivationResult;
+import com.mtxgdn.game.cultivation.FinishCultivationResult;
 import com.mtxgdn.TestBase;
 import com.mtxgdn.common.service.ServiceRegistry;
 import com.mtxgdn.db.DatabaseManager;
@@ -110,8 +112,8 @@ class CultivationRestartTest extends TestBase {
     void restartKeepsCultivationStateAndSettlesFullDuration() throws Exception {
         long pid = makePlayer("restartcult", "重启修士");
 
-        Map<String, Object> start = playerService.beginCultivation(pid);
-        assertTrue(Boolean.TRUE.equals(start.get("success")), "开始闭关应成功");
+        BeginCultivationResult start = playerService.beginCultivation(pid);
+        assertTrue(start.success(), "开始闭关应成功");
 
         long persistedStart = readStartTime(pid);
         assertTrue(persistedStart > 0, "闭关起始时间必须落库（否则重启后算不出时长）");
@@ -126,11 +128,11 @@ class CultivationRestartTest extends TestBase {
         assertNotNull(player, "重启后应能读到角色");
         assertTrue(player.isCultivating(), "重启后仍应处于闭关中（不需要玩家重新闭关）");
 
-        Map<String, Object> stop = fresh.finishCultivation(pid);
-        assertTrue(Boolean.TRUE.equals(stop.get("success")), "重启后停止闭关应结算成功，实际: " + stop.get("message"));
+        FinishCultivationResult stop = fresh.finishCultivation(pid);
+        assertTrue(stop.success(), "重启后停止闭关应结算成功，实际: " + stop.message());
 
-        int elapsed = ((Number) stop.get("elapsedSeconds")).intValue();
-        long rawExp = ((Number) stop.get("rawExpGained")).longValue();
+        int elapsed = stop.elapsedSeconds().intValue();
+        long rawExp = stop.rawExpGained();
         assertTrue(elapsed >= 3500, "闭关时长应包含重启前的时间，实际 " + elapsed + " 秒");
         assertTrue(rawExp > 0, "重启后结算必须给出经验，实际 " + rawExp);
         assertFalse(readCultivating(pid), "结算后应清除闭关标记");
@@ -145,22 +147,22 @@ class CultivationRestartTest extends TestBase {
         forceRawState(pid, true, 0L);
 
         // 1) 不能因为坏数据就把玩家永久挡在门外
-        Map<String, Object> stop = playerService.finishCultivation(pid);
-        assertTrue(Boolean.TRUE.equals(stop.get("success")),
-                "异常状态下的停止请求也必须正常收尾，不能报错卡死，实际: " + stop.get("message"));
+        FinishCultivationResult stop = playerService.finishCultivation(pid);
+        assertTrue(stop.success(),
+                "异常状态下的停止请求也必须正常收尾，不能报错卡死，实际: " + stop.message());
         assertFalse(readCultivating(pid), "停止后应清除闭关标记（自愈）");
 
         // 2) 自愈之后必须能正常重新闭关
-        Map<String, Object> restart = playerService.beginCultivation(pid);
-        assertTrue(Boolean.TRUE.equals(restart.get("success")),
-                "自愈后应能重新闭关，实际: " + restart.get("message"));
+        BeginCultivationResult restart = playerService.beginCultivation(pid);
+        assertTrue(restart.success(),
+                "自愈后应能重新闭关，实际: " + restart.message());
         assertTrue(readStartTime(pid) > 0, "重新闭关后起始时间必须被正确写入");
         assertTrue(readCultivating(pid), "重新闭关后标记应为真");
 
         // 3) 再结算一次，这次必须有正常时长与经验
-        Map<String, Object> stop2 = playerService.finishCultivation(pid);
-        assertTrue(Boolean.TRUE.equals(stop2.get("success")), "正常闭关后应能结算");
-        assertTrue(((Number) stop2.get("rawExpGained")).longValue() >= 0, "经验不应为负");
+        FinishCultivationResult stop2 = playerService.finishCultivation(pid);
+        assertTrue(stop2.success(), "正常闭关后应能结算");
+        assertTrue(stop2.rawExpGained() >= 0, "经验不应为负");
     }
 
     @Test
@@ -171,9 +173,9 @@ class CultivationRestartTest extends TestBase {
 
         // 起始时间缺失时，"闭关中"是无意义状态：应允许玩家直接重新闭关（自愈），
         // 而不是回一句"你已在闭关中"把玩家挡在外面、逼他先 /停止。
-        Map<String, Object> again = playerService.beginCultivation(pid);
-        assertTrue(Boolean.TRUE.equals(again.get("success")),
-                "起始时间缺失时重新闭关应被接受（自愈），实际: " + again.get("message"));
+        BeginCultivationResult again = playerService.beginCultivation(pid);
+        assertTrue(again.success(),
+                "起始时间缺失时重新闭关应被接受（自愈），实际: " + again.message());
         assertTrue(readStartTime(pid) > 0, "自愈后应写入有效的起始时间");
     }
 
@@ -182,17 +184,17 @@ class CultivationRestartTest extends TestBase {
     void normalCultivationStillRejectsDuplicateStart() {
         long pid = makePlayer("normaldup", "正常重复修士");
 
-        Map<String, Object> first = playerService.beginCultivation(pid);
-        assertTrue(Boolean.TRUE.equals(first.get("success")), "首次闭关应成功");
+        BeginCultivationResult first = playerService.beginCultivation(pid);
+        assertTrue(first.success(), "首次闭关应成功");
 
         long startBefore = readStartTime(pid);
         assertTrue(startBefore > 0, "正常闭关应有起始时间");
 
         // 正常闭关中（起始时间有效）再打坐：必须仍然被拒绝，
         // 否则自愈逻辑会把玩家真实的闭关进度重置掉。
-        Map<String, Object> dup = playerService.beginCultivation(pid);
-        assertFalse(Boolean.TRUE.equals(dup.get("success")),
-                "正常闭关中重复打坐应被拒绝，实际: " + dup.get("message"));
+        BeginCultivationResult dup = playerService.beginCultivation(pid);
+        assertFalse(dup.success(),
+                "正常闭关中重复打坐应被拒绝，实际: " + dup.message());
         assertEquals(startBefore, readStartTime(pid),
                 "被拒绝时不得改写已有的闭关起始时间（否则会重置玩家进度）");
     }

@@ -20,6 +20,9 @@ import java.util.Map;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+import com.mtxgdn.game.cultivation.BeginCultivationResult;
+import com.mtxgdn.game.cultivation.FinishCultivationResult;
+import com.mtxgdn.game.cultivation.HealResult;
 import com.mtxgdn.i18n.I18n;
 
 /**
@@ -357,13 +360,10 @@ public class PlayerService {
     /**
      * 开始闭关（带完整校验）：角色存在 / 未在闭关中 / 生命值充足。
      */
-    public Map<String, Object> beginCultivation(long playerId) {
-        Map<String, Object> result = new LinkedHashMap<>();
+    public BeginCultivationResult beginCultivation(long playerId) {
         Player player = getPlayerById(playerId);
         if (player == null) {
-            result.put("success", false);
-            result.put("message", I18n.t("player.character_not_found"));
-            return result;
+            return BeginCultivationResult.rejected(I18n.t("player.character_not_found"));
         }
         if (player.isCultivating()) {
             // "闭关中" 但没有起始时间，是无意义状态：算不出闭关时长，结算只能给 0 经验。
@@ -372,58 +372,49 @@ public class PlayerService {
             // 这种情况绝不能把玩家挡在外面 —— 否则他必须先 /停止（白丢一段闭关）才能重新闭关。
             // 直接以当前时间重新开始，顺带把脏数据自愈掉。
             if (player.getCultivationStartTime() > 0) {
-                result.put("success", false);
-                result.put("message", I18n.t("player.you_are_already_in_cultivation"));
-                return result;
+                return BeginCultivationResult.rejected(
+                        I18n.t("player.you_are_already_in_cultivation"));
             }
             LOG.info("检测到无起始时间的闭关脏数据，已按重新闭关自愈: playerId=" + playerId);
         }
         if (player.getHp() <= 0) {
-            result.put("success", false);
-            result.put("message", I18n.t("player.you_are_gravely_wounded"));
-            return result;
+            return BeginCultivationResult.rejected(I18n.t("player.you_are_gravely_wounded"));
         }
 
         long startTime = System.currentTimeMillis();
         startCultivation(playerId, startTime);
 
-        result.put("success", true);
-        result.put("cultivating", true);
-        result.put("startTime", startTime);
-        result.put("cultivationPerSecond", calculateCultivationPerSecond(player));
-        result.put("season", SeasonService.getCurrentSeason().name());
-        result.put("seasonMultiplier", SeasonService.getCultivationMultiplier());
-        result.put("locationId", player.getCurrentLocationId());
-        result.put("locationName", ServiceRegistry.getMapService().getLocationName(player.getCurrentLocationId()));
-        result.put("locationMultiplier", ServiceRegistry.getMapService().getCultivationBonus(player.getCurrentLocationId()));
-        result.put("message", I18n.t("player.begin_seclusion"));
-        return result;
+        long locationId = player.getCurrentLocationId();
+        return BeginCultivationResult.started(
+                I18n.t("player.begin_seclusion"),
+                startTime,
+                calculateCultivationPerSecond(player),
+                SeasonService.getCurrentSeason().name(),
+                SeasonService.getCultivationMultiplier(),
+                locationId,
+                ServiceRegistry.getMapService().getLocationName(locationId),
+                ServiceRegistry.getMapService().getCultivationBonus(locationId));
     }
 
     /**
      * 结束闭关（带完整校验）：角色存在 / 确实在闭关中；返回闭关时长与原始经验。
      */
-    public Map<String, Object> finishCultivation(long playerId) {
-        Map<String, Object> result = new LinkedHashMap<>();
+    public FinishCultivationResult finishCultivation(long playerId) {
         Player player = getPlayerById(playerId);
         if (player == null) {
-            result.put("success", false);
-            result.put("message", I18n.t("player.character_not_found"));
-            return result;
+            return FinishCultivationResult.rejected(I18n.t("player.character_not_found"));
         }
         if (!player.isCultivating()) {
-            result.put("success", false);
-            result.put("message", I18n.t("player.you_are_not_in_cultivation"));
-            return result;
+            return FinishCultivationResult.rejected(
+                    I18n.t("player.you_are_not_in_cultivation"));
         }
 
         long startTime = player.getCultivationStartTime();
         int elapsedSeconds = startTime > 0 ? (int) ((System.currentTimeMillis() - startTime) / 1000) : 0;
         // 原子认领停止操作：并发多次停止时只有第一次成功，防止经验重复发放
         if (!stopCultivation(playerId)) {
-            result.put("success", false);
-            result.put("message", I18n.t("player.your_cultivation_results_are_still"));
-            return result;
+            return FinishCultivationResult.rejected(
+                    I18n.t("player.your_cultivation_results_are_still"));
         }
 
         int perSecond = calculateCultivationPerSecond(player);
@@ -431,17 +422,14 @@ public class PlayerService {
         double seasonMultiplier = SeasonService.getCultivationMultiplier();
         double locationMultiplier = ServiceRegistry.getMapService().getCultivationBonus(player.getCurrentLocationId());
 
-        result.put("success", true);
-        result.put("elapsedSeconds", elapsedSeconds);
-        result.put("cultivationPerSecond", perSecond);
-        result.put("rawExpGained", rawExpGained);
-        result.put("season", SeasonService.getCurrentSeason().name());
-        result.put("seasonMultiplier", seasonMultiplier);
-        result.put("locationId", player.getCurrentLocationId());
-        result.put("locationName", ServiceRegistry.getMapService().getLocationName(player.getCurrentLocationId()));
-        result.put("locationMultiplier", locationMultiplier);
-        result.put("message", I18n.t("player.end_seclusion"));
-        return result;
+        long locationId = player.getCurrentLocationId();
+        return FinishCultivationResult.finished(
+                I18n.t("player.end_seclusion"),
+                elapsedSeconds, perSecond, rawExpGained,
+                SeasonService.getCurrentSeason().name(), seasonMultiplier,
+                locationId,
+                ServiceRegistry.getMapService().getLocationName(locationId),
+                locationMultiplier);
     }
 
     public void startCultivation(long playerId, long startTime) {
@@ -503,46 +491,34 @@ public class PlayerService {
         markDataDirty(playerId);
     }
 
-    public Map<String, Object> healPlayer(long playerId) {
-        Map<String, Object> result = new LinkedHashMap<>();
+    public HealResult healPlayer(long playerId) {
         Player player = getPlayerById(playerId);
         if (player == null) {
-            result.put("success", false);
-            result.put("message", I18n.t("player.character_not_found"));
-            return result;
+            return HealResult.rejected(I18n.t("player.character_not_found"));
         }
         if (player.getHp() >= player.getMaxHp()) {
-            result.put("success", true);
-            result.put("message", I18n.t("player.your_hp_is_already_full"));
-            return result;
+            return HealResult.alreadyFull(I18n.t("player.your_hp_is_already_full"));
         }
 
         long cost = (player.getRealm() + 1) * 50L;
         long currentStones = ServiceRegistry.getItemService().getSpiritStoneCount(playerId);
 
         if (currentStones < cost) {
-            result.put("success", false);
-            result.put("message", I18n.t("player.not_enough_spirit_stones", cost, currentStones));
-            result.put("cost", cost);
-            result.put("currentStones", currentStones);
-            return result;
+            return HealResult.notEnoughStones(
+                    I18n.t("player.not_enough_spirit_stones", cost, currentStones),
+                    cost, currentStones);
         }
 
         if (!ServiceRegistry.getItemService().removeSpiritStones(playerId, cost)) {
-            result.put("success", false);
-            result.put("message", I18n.t("player.failed_to_deduct_spirit_stones"));
-            return result;
+            return HealResult.rejected(I18n.t("player.failed_to_deduct_spirit_stones"));
         }
 
         int hpBefore = player.getHp();
         PLAYER_DAO.restoreFullVitals(playerId);
 
-        result.put("success", true);
-        result.put("hpBefore", hpBefore);
-        result.put("hpAfter", player.getMaxHp());
-        result.put("cost", cost);
-        result.put("message", I18n.t("player.spent_spirit_stones", cost, hpBefore, player.getMaxHp()));
-        return result;
+        return HealResult.healed(
+                I18n.t("player.spent_spirit_stones", cost, hpBefore, player.getMaxHp()),
+                cost, hpBefore, player.getMaxHp());
     }
 
     public void addMp(long playerId, int amount) {
