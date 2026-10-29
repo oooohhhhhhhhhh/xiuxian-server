@@ -1,5 +1,9 @@
 package com.mtxgdn.game.service;
 
+import com.mtxgdn.game.daily.DailyFortune;
+import com.mtxgdn.game.daily.DailyFortunes;
+import com.mtxgdn.game.daily.DailyInfo;
+import com.mtxgdn.game.daily.MorningCultivationResult;
 import com.mtxgdn.db.DailyDAO;
 import com.mtxgdn.db.DatabaseManager;
 import com.mtxgdn.entity.Player;
@@ -12,7 +16,6 @@ import com.mtxgdn.util.GameLogger;
 
 import java.time.LocalDate;
 import java.time.LocalTime;
-import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Random;
 import com.mtxgdn.i18n.I18n;
@@ -85,13 +88,10 @@ public class DailyService {
         return ServiceRegistry.getDailyService().getTodayPhenomenon();
     }
 
-    public Map<String, Object> doMorningCultivation(long playerId) {
-        Map<String, Object> result = new LinkedHashMap<>();
+    public MorningCultivationResult doMorningCultivation(long playerId) {
         Player player = playerService.getPlayerById(playerId);
         if (player == null) {
-            result.put("success", false);
-            result.put("message", I18n.t("daily.character_not_found"));
-            return result;
+            return MorningCultivationResult.rejected(I18n.t("daily.character_not_found"));
         }
 
         LocalDate today = LocalDate.now();
@@ -99,16 +99,14 @@ public class DailyService {
 
         int hour = LocalTime.now().getHour();
         if (hour < 5 || hour >= 11) {
-            result.put("success", false);
-            result.put("message", I18n.t("daily.morning_cultivation_must_be_performed", hour));
-            return result;
+            return MorningCultivationResult.rejected(
+                    I18n.t("daily.morning_cultivation_must_be_performed", hour));
         }
 
         DailyDAO.PlayerDaily daily = getOrCreateDaily(playerId);
         if (daily.lastMorningCultivation != null && daily.lastMorningCultivation.equals(todayStr)) {
-            result.put("success", false);
-            result.put("message", I18n.t("daily.you_have_already_done_morning"));
-            return result;
+            return MorningCultivationResult.rejected(
+                    I18n.t("daily.you_have_already_done_morning"));
         }
 
         LocalDate yesterday = today.minusDays(1);
@@ -152,22 +150,17 @@ public class DailyService {
 
         checkSpiritualRootResonance(playerId, player);
 
-        result.put("success", true);
         // 季节加成整段作为一个占位符 {2}：它在中文里是括号括起来的尾巴，
         // 英文里大概率要换一种说法（可能前置成分、可能换行），
         // 把"整个尾巴"交出去比拆成"（{2}加成 +{3}）"更容易让翻译重排语序。
-        result.put("message", I18n.t("daily.cultivate.success", totalExp, totalSpiritStones,
-                seasonBonusExp > 0
-                        ? "（" + currentSeason.getDisplayName() + "加成 +" + seasonBonusExp + "）"
-                        : ""));
-        result.put("expGained", totalExp);
-        result.put("spiritStonesGained", totalSpiritStones);
-        result.put("consecutiveDays", consecutive);
-        result.put("phenomenon", phenom.getDisplayName());
-        result.put("phenomenonDesc", phenom.getDescription());
-        result.put("season", currentSeason.getDisplayName());
-        result.put("seasonMultiplier", seasonMultiplier);
-        return result;
+        return MorningCultivationResult.done(
+                I18n.t("daily.cultivate.success", totalExp, totalSpiritStones,
+                        seasonBonusExp > 0
+                                ? "（" + currentSeason.getDisplayName() + "加成 +" + seasonBonusExp + "）"
+                                : ""),
+                totalExp, totalSpiritStones, consecutive,
+                phenom.getDisplayName(), phenom.getDescription(),
+                currentSeason.getDisplayName(), seasonMultiplier);
     }
 
     /**
@@ -243,35 +236,24 @@ public class DailyService {
         DAILY_DAO.markFortuneClaimed(playerId, column);
     }
 
-    public Map<String, Object> getDailyInfo(long playerId) {
-        Map<String, Object> result = new LinkedHashMap<>();
+    public DailyInfo getDailyInfo(long playerId) {
         // 先按日复位（跨天时计数与机缘奖励标记归零），再读取展示
         ensureDailyReset(playerId);
         DailyDAO.PlayerDaily daily = getOrCreateDaily(playerId);
         CelestialPhenomenon phenom = getTodayPhenomenon();
 
-        result.put("phenomenon", phenom.getDisplayName());
-        result.put("phenomenonDesc", phenom.getDescription());
-        result.put("cultivationBonus", (int)((phenom.getCultivationMultiplier() - 1) * 100) + "%");
-        result.put("explorationBonus", (int)((phenom.getExplorationMultiplier() - 1) * 100) + "%");
-        result.put("spiritStoneBonus", (int)((phenom.getSpiritStoneMultiplier() - 1) * 100) + "%");
-
         LocalDate today = LocalDate.now();
         boolean doneCultivation = daily.lastMorningCultivation != null
                 && daily.lastMorningCultivation.equals(today.toString());
-        result.put("morningCultivationDone", doneCultivation);
-        result.put("consecutiveDays", daily.consecutiveDays);
-        result.put("totalActiveDays", daily.totalActiveDays);
 
-        Map<String, Object> fortunes = new LinkedHashMap<>();
-        fortunes.put("exploration", Map.of("current", daily.explorationCount, "target", 3, "rewarded", daily.explorationRewarded));
-        fortunes.put("battle", Map.of("current", daily.battleCount, "target", 1, "rewarded", daily.battleRewarded));
-        fortunes.put("secretRealm", Map.of("current", daily.secretRealmCount, "target", 1, "rewarded", daily.secretRealmRewarded));
-        fortunes.put("skillLearn", Map.of("current", daily.skillLearnCount, "target", 1, "rewarded", daily.skillLearnRewarded));
-        result.put("fortunes", fortunes);
+        DailyFortunes fortunes = new DailyFortunes(
+                new DailyFortune(daily.explorationCount, 3, daily.explorationRewarded),
+                new DailyFortune(daily.battleCount, 1, daily.battleRewarded),
+                new DailyFortune(daily.secretRealmCount, 1, daily.secretRealmRewarded),
+                new DailyFortune(daily.skillLearnCount, 1, daily.skillLearnRewarded));
 
-        String dailyTask = "";
-        String taskReward = "";
+        String dailyTask;
+        String taskReward;
         if (!daily.explorationRewarded && daily.explorationCount < 3) {
             dailyTask = "探索秘境 3 次";
             taskReward = "经验值";
@@ -288,10 +270,20 @@ public class DailyService {
             dailyTask = "今日机缘已全部完成";
             taskReward = "";
         }
-        result.put("dailyTask", dailyTask);
-        result.put("taskReward", taskReward.isEmpty() ? null : taskReward);
 
-        return result;
+        return new DailyInfo(
+                phenom.getDisplayName(),
+                phenom.getDescription(),
+                (int) ((phenom.getCultivationMultiplier() - 1) * 100) + "%",
+                (int) ((phenom.getExplorationMultiplier() - 1) * 100) + "%",
+                (int) ((phenom.getSpiritStoneMultiplier() - 1) * 100) + "%",
+                doneCultivation,
+                daily.consecutiveDays,
+                daily.totalActiveDays,
+                fortunes,
+                dailyTask,
+                // 无奖励时原本 put(null)：Gson 默认跳过 null 分量，序列化结果一致
+                taskReward.isEmpty() ? null : taskReward);
     }
 
     private void checkSpiritualRootResonance(long playerId, Player player) {

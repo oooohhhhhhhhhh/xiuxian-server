@@ -318,7 +318,7 @@ public class GamePlayerResource {
         Long userId = getCurrentUserId();
         int playerId = getPlayerIdByUserId(userId);
         var result = dailyService.doMorningCultivation(playerId);
-        return Response.ok(GameMessage.restOk(result.get("message").toString(), gson.toJsonTree(result).getAsJsonObject()).toString()).build();
+        return Response.ok(GameMessage.restOk(result.message(), gson.toJsonTree(result).getAsJsonObject()).toString()).build();
     }
 
     @GET

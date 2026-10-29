@@ -93,8 +93,6 @@ class ResultMapDebtTest {
             "com/mtxgdn/game/service/CaveService.java#meditate",
             "com/mtxgdn/game/service/CaveService.java#levelUp",
             // ---- 每日 ----
-            "com/mtxgdn/game/service/DailyService.java#doMorningCultivation",
-            "com/mtxgdn/game/service/DailyService.java#getDailyInfo",
             // ---- 经济 ----
             "com/mtxgdn/game/service/EconomyService.java#signIn",
             "com/mtxgdn/game/service/EconomyService.java#recycleItem",

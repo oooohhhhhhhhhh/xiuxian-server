@@ -1,5 +1,6 @@
 package com.mtxgdn.websocket;
 
+import com.mtxgdn.game.daily.MorningCultivationResult;
 import com.mtxgdn.game.cultivation.HealResult;
 import com.google.gson.JsonObject;
 import com.mtxgdn.common.GameErrorCode;
@@ -63,12 +64,13 @@ final class WsPlayerHandler extends WsHandler {
             socket.send(GameMessage.error(msgId, "morning_cultivation", GameErrorCode.PLAYER_NOT_FOUND).toJson());
             return;
         }
-        Map<String, Object> result = new com.mtxgdn.game.service.DailyService().doMorningCultivation(player.getId());
-        if (Boolean.TRUE.equals(result.get("success"))) {
+        MorningCultivationResult result =
+                new com.mtxgdn.game.service.DailyService().doMorningCultivation(player.getId());
+        if (result.success()) {
             JsonObject data = gson.toJsonTree(result).getAsJsonObject();
-            socket.send(GameMessage.ok(msgId, "morning_cultivation", (String) result.get("message"), data).toJson());
+            socket.send(GameMessage.ok(msgId, "morning_cultivation", result.message(), data).toJson());
         } else {
-            socket.send(GameMessage.error(msgId, "morning_cultivation", 400, (String) result.get("message")).toJson());
+            socket.send(GameMessage.error(msgId, "morning_cultivation", 400, result.message()).toJson());
         }
     }
 

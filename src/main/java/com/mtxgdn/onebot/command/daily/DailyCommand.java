@@ -1,5 +1,6 @@
 package com.mtxgdn.onebot.command.daily;
 
+import com.mtxgdn.game.daily.DailyInfo;
 import com.mtxgdn.common.command.Command;
 import com.mtxgdn.common.command.CommandContext;
 import com.mtxgdn.game.entity.PlayerInfo;
@@ -15,13 +16,13 @@ public class DailyCommand extends Command {
         if (userId == null) return;
         PlayerInfo p = ctx.requirePlayer(userId);
         if (p == null) return;
-        var result = ServiceRegistry.getDailyService().getDailyInfo(p.getId());
+        DailyInfo result = ServiceRegistry.getDailyService().getDailyInfo(p.getId());
         StringBuilder sb = new StringBuilder();
         sb.append("===== 今日天象 =====\n");
-        sb.append("天象: ").append(result.get("phenomenon")).append("\n");
-        sb.append(result.get("phenomenonDesc")).append("\n\n");
-        sb.append("今日机缘: ").append(result.get("dailyTask")).append("\n");
-        if (result.get("taskReward") != null) sb.append("完成奖励: ").append(result.get("taskReward")).append("\n");
+        sb.append("天象: ").append(result.phenomenon()).append("\n");
+        sb.append(result.phenomenonDesc()).append("\n\n");
+        sb.append("今日机缘: ").append(result.dailyTask()).append("\n");
+        if (result.taskReward() != null) sb.append("完成奖励: ").append(result.taskReward()).append("\n");
         sb.append("\n使用 /晨修 进行每日修炼");
         ctx.reply(sb.toString());
     }
