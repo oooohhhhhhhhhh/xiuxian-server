@@ -6,6 +6,7 @@ import com.mtxgdn.game.config.GameConfigLoader;
 import com.mtxgdn.game.entity.RealmConfig;
 import com.mtxgdn.game.entity.Friend;
 import com.mtxgdn.entity.Player;
+import com.mtxgdn.common.result.OperationResult;
 import com.mtxgdn.common.service.ServiceRegistry;
 
 import java.sql.Connection;
@@ -134,32 +135,23 @@ public class FriendService {
     /**
      * 拜访好友：每日每位好友限一次，双方各获得少量灵力与灵石（好友系统的实际互动玩法）。
      */
-    public Map<String, Object> visitFriend(long playerId, long friendPlayerId) {
-        Map<String, Object> result = new java.util.LinkedHashMap<>();
+    public OperationResult visitFriend(long playerId, long friendPlayerId) {
         if (playerId == friendPlayerId) {
-            result.put("success", false);
-            result.put("message", I18n.t("friend.you_cannot_visit_yourself"));
-            return result;
+            return OperationResult.fail(I18n.t("friend.you_cannot_visit_yourself"));
         }
         if (!areFriends(playerId, friendPlayerId)) {
-            result.put("success", false);
-            result.put("message", I18n.t("friend.you_are_not_friends_so"));
-            return result;
+            return OperationResult.fail(I18n.t("friend.you_are_not_friends_so"));
         }
         ensureVisitDate();
         java.util.Set<Long> visited = DAILY_VISITS.computeIfAbsent(playerId, k -> java.util.concurrent.ConcurrentHashMap.newKeySet());
         if (!visited.add(friendPlayerId)) {
-            result.put("success", false);
-            result.put("message", I18n.t("friend.you_have_already_visited"));
-            return result;
+            return OperationResult.fail(I18n.t("friend.you_have_already_visited"));
         }
 
         Player me = playerService.getPlayerById(playerId);
         Player friend = playerService.getPlayerById(friendPlayerId);
         if (me == null || friend == null) {
-            result.put("success", false);
-            result.put("message", I18n.t("friend.player_data_error"));
-            return result;
+            return OperationResult.fail(I18n.t("friend.player_data_error"));
         }
 
         // 双方奖励：经验 (境界+1)×30，灵石 (境界+1)×5（仅拜访者主动消耗，好友被动受益）
@@ -174,9 +166,7 @@ public class FriendService {
         playerService.addExperience(friendPlayerId, friendExp);
         itemService.addSpiritStones(friendPlayerId, friendStones);
 
-        result.put("success", true);
-        result.put("message", I18n.t("friend.you_visited_and_discussed", friend.getName(), myExp, myStones, friend.getName(), friendExp, friendStones));
-        return result;
+        return OperationResult.ok(I18n.t("friend.you_visited_and_discussed", friend.getName(), myExp, myStones, friend.getName(), friendExp, friendStones));
     }
 
 

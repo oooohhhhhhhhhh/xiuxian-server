@@ -127,8 +127,6 @@ class ResultMapDebtTest {
             "com/mtxgdn/game/service/FarmService.java#harvestAll",
             // ---- 阵法 ----
             "com/mtxgdn/game/service/FormationService.java#placeFormationFromTreasure",
-            // ---- 好友 ----
-            "com/mtxgdn/game/service/FriendService.java#visitFriend",
             // ---- 物品 ----
             "com/mtxgdn/game/service/ItemService.java#exchangeSpiritStones",
             "com/mtxgdn/game/service/ItemService.java#equipItem",

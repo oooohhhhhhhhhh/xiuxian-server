@@ -1,5 +1,6 @@
 package com.mtxgdn.onebot.command.social;
 
+import com.mtxgdn.common.result.OperationResult;
 import com.mtxgdn.common.command.Command;
 import com.mtxgdn.common.command.CommandContext;
 import com.mtxgdn.game.entity.Friend;
@@ -133,11 +134,11 @@ public class FriendCommand extends Command {
                     return;
                 }
                 PlayerInfo target = targets.get(0);
-                Map<String, Object> result = friendService.visitFriend(p.getId(), target.getId());
-                if (Boolean.TRUE.equals(result.get("success"))) {
-                    ctx.reply("✅ " + result.get("message"));
+                OperationResult result = friendService.visitFriend(p.getId(), target.getId());
+                if (result.success()) {
+                    ctx.reply("✅ " + result.message());
                 } else {
-                    ctx.reply("❌ " + result.get("message"));
+                    ctx.reply("❌ " + result.message());
                 }
             }
             case "list" -> {
