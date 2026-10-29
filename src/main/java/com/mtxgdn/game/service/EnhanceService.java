@@ -5,6 +5,7 @@ import com.mtxgdn.db.EnhanceDAO;
 import com.mtxgdn.db.EnhanceDAO.EnhanceQueryException;
 import com.mtxgdn.entity.Player;
 import com.mtxgdn.game.item.BuffEffect;
+import com.mtxgdn.game.item.EnhanceResult;
 import com.mtxgdn.game.item.Item;
 import com.mtxgdn.game.item.ItemEffect;
 import com.mtxgdn.game.item.ItemRegistry;
@@ -13,7 +14,6 @@ import com.mtxgdn.util.GameLogger;
 
 import java.sql.Connection;
 import java.sql.SQLException;
-import java.util.LinkedHashMap;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ConcurrentHashMap;
@@ -87,22 +87,20 @@ public class EnhanceService {
         return null;
     }
 
-    public Map<String, Object> enhanceItem(long playerId, String slot) {
-        Map<String, Object> result = new LinkedHashMap<>();
-
+    public EnhanceResult enhanceItem(long playerId, String slot) {
         String itemKey = getEquippedItemKey(playerId, slot);
         if (itemKey == null) {
-            return createResult(false, I18n.t("enhance.there_is_no_equipment"));
+            return EnhanceResult.rejected(I18n.t("enhance.there_is_no_equipment"));
         }
 
         Item item = ItemRegistry.get(itemKey);
         if (item == null) {
-            return createResult(false, I18n.t("enhance.equipment_data_error"));
+            return EnhanceResult.rejected(I18n.t("enhance.equipment_data_error"));
         }
 
         int currentLevel = getEnhanceLevel(playerId, slot);
         if (currentLevel >= MAX_ENHANCE_LEVEL) {
-            return createResult(false, I18n.t("enhance.this_equipment_is_already", MAX_ENHANCE_LEVEL));
+            return EnhanceResult.rejected(I18n.t("enhance.this_equipment_is_already", MAX_ENHANCE_LEVEL));
         }
 
         int goldCost = ENHANCE_GOLD_COST[currentLevel];
@@ -110,15 +108,15 @@ public class EnhanceService {
 
         Player player = playerService.getPlayerById(playerId);
         if (player == null) {
-            return createResult(false, I18n.t("enhance.character_not_found"));
+            return EnhanceResult.rejected(I18n.t("enhance.character_not_found"));
         }
 
         if (!checkGold(player, goldCost)) {
-            return createResult(false, I18n.t("enhance.not_enough_gold", goldCost, player.getGold()));
+            return EnhanceResult.rejected(I18n.t("enhance.not_enough_gold", goldCost, player.getGold()));
         }
 
         if (!itemService.hasItem(playerId, "mtxgdn:enhance_stone", stoneCost)) {
-            return createResult(false, I18n.t("enhance.not_enough_enhance_stones", stoneCost));
+            return EnhanceResult.rejected(I18n.t("enhance.not_enough_enhance_stones", stoneCost));
         }
 
         int successRate = ENHANCE_SUCCESS_RATE[currentLevel];
@@ -130,14 +128,16 @@ public class EnhanceService {
         int pityStreak = Math.min(MAX_PITY_STREAK, FAIL_STREAK.getOrDefault(pityKey, 0));
         int effectiveSuccessRate = Math.min(95, successRate + pityStreak * PITY_BONUS_PER_FAIL);
 
-        result.put("slot", slot);
-        result.put("itemName", item.getName());
-        result.put("currentLevel", currentLevel);
-        result.put("costGold", goldCost);
-        result.put("costStones", stoneCost);
-        result.put("successRate", effectiveSuccessRate);
-        result.put("breakRate", breakRate);
-        result.put("pityStreak", pityStreak);
+        // 这几个字段是「本次尝试的上下文」，五种结局都要带，所以先建好 builder
+        EnhanceResult.Builder base = EnhanceResult.builder()
+                .slot(slot)
+                .itemName(item.getName())
+                .currentLevel(currentLevel)
+                .costGold(goldCost)
+                .costStones(stoneCost)
+                .successRate(effectiveSuccessRate)
+                .breakRate(breakRate)
+                .pityStreak(pityStreak);
 
         int roll = random.nextInt(100);
 
@@ -172,12 +172,11 @@ public class EnhanceService {
             } else {
                 FAIL_STREAK.compute(pityKey, (k, v) -> v == null ? 1 : Math.min(MAX_PITY_STREAK, v + 1));
             }
-            return buildEnhanceResult(result, outcome, currentLevel, item.getName());
+            return buildEnhanceResult(base, outcome, currentLevel, item.getName());
         } catch (Exception e) {
-            result.put("success", false);
-            result.put("enhanceSuccess", false);
-            result.put("message", I18n.t("enhance.enhancement_failed_due", e.getMessage()));
-            return result;
+            return base.success(false).enhanceSuccess(false)
+                    .message(I18n.t("enhance.enhancement_failed_due", e.getMessage()))
+                    .build();
         }
     }
 
@@ -191,53 +190,43 @@ public class EnhanceService {
         };
     }
 
-    private Map<String, Object> createResult(boolean success, String message) {
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("success", success);
-        result.put("message", message);
-        return result;
-    }
-
     private boolean checkGold(Player player, int goldCost) {
         return player.getGold() >= goldCost;
     }
 
-    private Map<String, Object> buildEnhanceResult(Map<String, Object> result, String outcome,
-                                                    int currentLevel, String itemName) {
+    private EnhanceResult buildEnhanceResult(EnhanceResult.Builder base, String outcome,
+                                             int currentLevel, String itemName) {
         switch (outcome) {
             case "success" -> {
-                result.put("success", true);
-                result.put("enhanceSuccess", true);
-                result.put("newLevel", currentLevel + 1);
-                result.put("message", I18n.t("enhance.success", itemName, currentLevel + 1));
+                return base.success(true).enhanceSuccess(true)
+                        .newLevel(currentLevel + 1)
+                        .message(I18n.t("enhance.success", itemName, currentLevel + 1))
+                        .build();
             }
             case "break" -> {
-                result.put("success", false);
-                result.put("enhanceSuccess", false);
-                result.put("broken", true);
-                result.put("brokenItem", itemName);
-                result.put("message", I18n.t("enhance.enhancement_failed_2", itemName));
+                return base.success(false).enhanceSuccess(false)
+                        .broken(true).brokenItem(itemName)
+                        .message(I18n.t("enhance.enhancement_failed_2", itemName))
+                        .build();
             }
             case "protected" -> {
-                result.put("success", false);
-                result.put("enhanceSuccess", false);
-                result.put("protected", true);
-                result.put("message", I18n.t("enhance.enhancement_failed_3"));
+                return base.success(false).enhanceSuccess(false)
+                        .protect(true)
+                        .message(I18n.t("enhance.enhancement_failed_3"))
+                        .build();
             }
             case "degrade" -> {
-                result.put("success", false);
-                result.put("enhanceSuccess", false);
-                result.put("degraded", true);
-                result.put("newLevel", currentLevel - 1);
-                result.put("message", I18n.t("enhance.break", itemName, currentLevel - 1));
+                return base.success(false).enhanceSuccess(false)
+                        .degraded(true).newLevel(currentLevel - 1)
+                        .message(I18n.t("enhance.break", itemName, currentLevel - 1))
+                        .build();
             }
             default -> {
-                result.put("success", false);
-                result.put("enhanceSuccess", false);
-                result.put("message", I18n.t("enhance.enhancement_failed"));
+                return base.success(false).enhanceSuccess(false)
+                        .message(I18n.t("enhance.enhancement_failed"))
+                        .build();
             }
         }
-        return result;
     }
 
     private void setEnhanceLevel(Connection conn, long playerId, String slot, int level) throws SQLException {

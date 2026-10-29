@@ -1,5 +1,6 @@
 package com.mtxgdn.websocket;
 
+import com.mtxgdn.game.item.EnhanceResult;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.mtxgdn.common.GameErrorCode;
@@ -127,12 +128,12 @@ final class WsInventoryHandler extends WsHandler {
             return;
         }
         String slot = data.get("slot").getAsString();
-        Map<String, Object> result = enhanceService.enhanceItem(player.getId(), slot);
-        if (Boolean.TRUE.equals(result.get("success"))) {
+        EnhanceResult result = enhanceService.enhanceItem(player.getId(), slot);
+        if (result.success()) {
             JsonObject respData = gson.toJsonTree(result).getAsJsonObject();
-            socket.send(GameMessage.ok(msgId, "equipment_enhance", (String) result.get("message"), respData).toJson());
+            socket.send(GameMessage.ok(msgId, "equipment_enhance", result.message(), respData).toJson());
         } else {
-            socket.send(GameMessage.error(msgId, "equipment_enhance", 400, (String) result.get("message")).toJson());
+            socket.send(GameMessage.error(msgId, "equipment_enhance", 400, result.message()).toJson());
         }
     }
 }

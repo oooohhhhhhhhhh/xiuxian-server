@@ -112,8 +112,6 @@ class ResultMapDebtTest {
             "com/mtxgdn/game/service/EconomyService.java#createAuction",
             "com/mtxgdn/game/service/EconomyService.java#placeBid",
             "com/mtxgdn/game/service/EconomyService.java#purifySpiritStone",
-            // ---- 强化 ----
-            "com/mtxgdn/game/service/EnhanceService.java#enhanceItem",
             // ---- 农田 ----
             "com/mtxgdn/game/service/FarmService.java#plant",
             "com/mtxgdn/game/service/FarmService.java#water",

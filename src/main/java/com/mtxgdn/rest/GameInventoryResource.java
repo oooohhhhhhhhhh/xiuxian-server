@@ -1,5 +1,6 @@
 package com.mtxgdn.rest;
 
+import com.mtxgdn.game.item.EnhanceResult;
 import com.mtxgdn.game.skill.LearnSkillResult;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
@@ -254,12 +255,12 @@ public class GameInventoryResource {
             return Response.ok(GameMessage.restError(GameErrorCode.PARAM_MISSING).toString()).build();
         }
 
-        Map<String, Object> result = enhanceService.enhanceItem(playerId, slot);
-        if (Boolean.TRUE.equals(result.get("success"))) {
+        EnhanceResult result = enhanceService.enhanceItem(playerId, slot);
+        if (result.success()) {
             JsonObject respData = gson.toJsonTree(result).getAsJsonObject();
-            return Response.ok(GameMessage.restOk((String) result.get("message"), respData).toString()).build();
+            return Response.ok(GameMessage.restOk(result.message(), respData).toString()).build();
         }
-        return Response.ok(GameMessage.restError(400, (String) result.get("message")).toString()).build();
+        return Response.ok(GameMessage.restError(400, result.message()).toString()).build();
     }
 
     @GET

@@ -1,5 +1,6 @@
 package com.mtxgdn.game.service;
 
+import com.mtxgdn.game.item.EnhanceResult;
 import com.mtxgdn.TestBase;
 import com.mtxgdn.common.service.ServiceRegistry;
 import com.mtxgdn.db.DatabaseManager;
@@ -75,9 +76,9 @@ class EnhanceBreakRollbackTest extends TestBase {
         assertTrue(itemService.addItem(playerId, "mtxgdn:enhance_stone", 10), "放入强化石应成功");
 
         // 5 级：成功率 65%、碎裂率 2%。掷 65 → 失败且 failRoll=0 < 2 → 必然碎裂
-        Map<String, Object> result = withFixedRoll(65, () -> enhanceService.enhanceItem(playerId, "weapon"));
+        EnhanceResult result = withFixedRoll(65, () -> enhanceService.enhanceItem(playerId, "weapon"));
 
-        assertEquals(Boolean.TRUE, result.get("broken"),
+        assertEquals(Boolean.TRUE, result.broken(),
                 "本用例要求走到碎裂分支，实际结果: " + result);
 
         assertNull(itemService.getEquippedItem(playerId, "weapon"), "碎裂后装备槽必须为空");
