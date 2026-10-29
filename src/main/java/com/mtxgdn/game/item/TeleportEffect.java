@@ -1,5 +1,6 @@
 package com.mtxgdn.game.item;
 
+import com.mtxgdn.game.map.TravelResult;
 import com.mtxgdn.common.service.ServiceRegistry;
 import com.mtxgdn.game.entity.MapLocation;
 import com.mtxgdn.game.service.ItemService;
@@ -53,10 +54,9 @@ public class TeleportEffect extends ItemEffect {
             return "传送失败：目的地【" + destination + "】不存在";
         }
 
-        Map<String, Object> result = mapService.teleportToLocation(playerId, target.getId());
-        boolean ok = result != null && Boolean.TRUE.equals(result.get("success"));
-        return ok ? "传送成功：" + result.get("message")
-                : "传送失败：" + (result != null ? result.get("message") : "未知错误");
+        TravelResult result = mapService.teleportToLocation(playerId, target.getId());
+        return result.success() ? "传送成功：" + result.message()
+                : "传送失败：" + result.message();
     }
 
     /** 按名字解析目的地（先别名归一），解析不到则回落到主城。 */

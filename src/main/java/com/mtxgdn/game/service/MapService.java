@@ -14,6 +14,12 @@ import com.mtxgdn.game.config.MapDefaults;
 import com.mtxgdn.game.config.MapDefaults.EventBiasSeed;
 import com.mtxgdn.game.config.MapDefaults.LocationSeed;
 import com.mtxgdn.game.config.WildernessMapConfig;
+import com.mtxgdn.game.map.GatherResult;
+import com.mtxgdn.game.map.LocationBrief;
+import com.mtxgdn.game.map.NeighborLocation;
+import com.mtxgdn.game.map.PlayerSurroundings;
+import com.mtxgdn.game.map.TravelResult;
+import com.mtxgdn.game.map.WildernessStats;
 import com.mtxgdn.game.entity.MapLocation;
 import com.mtxgdn.game.map.WildernessChunk;
 import com.mtxgdn.game.map.WildernessChunkStore;
@@ -578,21 +584,21 @@ public class MapService {
 
     // ==================== 移动 ====================
 
-    public Map<String, Object> travel(long playerId, long targetLocationId) {
+    public TravelResult travel(long playerId, long targetLocationId) {
         ensureInitialized();
 
         MapLocation target = getLocation(targetLocationId);
         if (target == null) {
-            return createResult(false, I18n.t("map.that_location_does_not_exist"));
+            return TravelResult.rejected(I18n.t("map.that_location_does_not_exist"));
         }
 
         Player player = playerService.getPlayerById(playerId);
         if (player == null) {
-            return createResult(false, I18n.t("map.player_not_found"));
+            return TravelResult.rejected(I18n.t("map.player_not_found"));
         }
 
         if (!checkRealm(player, target)) {
-            return createResult(false, I18n.t("map.realm_too_low", target.getName(), getRealmName(target.getMinRealm()), getRealmName(player.getRealm())));
+            return TravelResult.rejected(I18n.t("map.realm_too_low", target.getName(), getRealmName(target.getMinRealm()), getRealmName(player.getRealm())));
         }
 
         PlayerPositionRow position = readRawPosition(playerId);
@@ -600,17 +606,17 @@ public class MapService {
         long lastTravel = position.lastTravelTime();
 
         if (currentLocId == targetLocationId) {
-            return createResult(false, I18n.t("map.you_are_already", target.getName()));
+            return TravelResult.rejected(I18n.t("map.you_are_already", target.getName()));
         }
 
         MapLocation current = getLocation(currentLocId);
         if (current == null) {
-            return createResult(false, I18n.t("map.your_current_location_is_invalid"));
+            return TravelResult.rejected(I18n.t("map.your_current_location_is_invalid"));
         }
 
         if (!isConnected(current, targetLocationId)) {
             List<String> neighborNames = current.getConnections().stream().map(MapLocation::getName).toList();
-            return createResult(false, I18n.t("map.travel.no_direct",
+            return TravelResult.rejected(I18n.t("map.travel.no_direct",
                     target.getName(), current.getName(), String.join("、", neighborNames)));
         }
 
@@ -619,37 +625,30 @@ public class MapService {
         long now = System.currentTimeMillis() / 1000;
         if ((now - lastTravel) < cooldownSeconds) {
             long remaining = cooldownSeconds - (now - lastTravel);
-            return createResult(false, I18n.t("map.you_have_just_finished", Math.max(0, remaining)));
+            return TravelResult.rejected(I18n.t("map.you_have_just_finished", Math.max(0, remaining)));
         }
 
         int updated = compareAndSetTravel(playerId, position, targetLocationId, now);
         if (updated == 0) {
             // 并发竞争：校验期间位置或冷却已被另一个请求改写，本次移动作废
             if (getPlayerLocationId(playerId) == targetLocationId) {
-                return createResult(false, I18n.t("map.you_are_already", target.getName()));
+                return TravelResult.rejected(I18n.t("map.you_are_already", target.getName()));
             }
-            return createResult(false, I18n.t("map.your_position_was_just_changed_2"));
+            return TravelResult.rejected(I18n.t("map.your_position_was_just_changed_2"));
         }
-
-        Map<String, Object> result = createResult(true,
-                I18n.t("map.travel_arrived", player.getName(), current.getName(),
-                        target.getName(), target.getDescription()));
-        result.put("from", current.getName());
-        result.put("to", target.getName());
-        result.put("toRegion", target.getRegion());
-        result.put("safeZone", target.isSafeZone());
-        result.put("travelSeconds", effectiveTravelSeconds(travelSeconds));
-        result.put("dangerLevel", target.getDangerLevel());
-        result.put("dangerName", getDangerName(target.getDangerLevel()));
-        result.put("wilderness", target.isWilderness());
 
         // 首次抵达的奖励与解锁提示附在移动结果里：玩家刚走到就该看到，不必再敲一次指令
         String firstVisit = recordFirstVisit(playerId, targetLocationId);
+        String message = I18n.t("map.travel_arrived", player.getName(), current.getName(),
+                target.getName(), target.getDescription());
         if (firstVisit != null) {
-            result.put("message", result.get("message") + "\n" + firstVisit);
-            result.put("firstVisit", true);
+            message = message + "\n" + firstVisit;
         }
-        return result;
+        return TravelResult.traveled(message,
+                current.getName(), target.getName(), target.getRegion(),
+                target.isSafeZone(), effectiveTravelSeconds(travelSeconds),
+                target.getDangerLevel(), getDangerName(target.getDangerLevel()),
+                target.isWilderness(), firstVisit != null);
     }
 
     /**
@@ -687,32 +686,30 @@ public class MapService {
     /**
      * 传送符效果：无视路径直接传送到指定地点（保留境界校验），并重置赶路冷却。
      */
-    public Map<String, Object> teleportToLocation(long playerId, long targetLocationId) {
+    public TravelResult teleportToLocation(long playerId, long targetLocationId) {
         ensureInitialized();
 
         MapLocation target = getLocation(targetLocationId);
         if (target == null) {
-            return createResult(false, I18n.t("map.that_location_does_not_exist"));
+            return TravelResult.rejected(I18n.t("map.that_location_does_not_exist"));
         }
 
         Player player = playerService.getPlayerById(playerId);
         if (player == null) {
-            return createResult(false, I18n.t("map.player_not_found"));
+            return TravelResult.rejected(I18n.t("map.player_not_found"));
         }
 
         if (player.getRealm() < target.getMinRealm()) {
-            return createResult(false, I18n.t("map.realm_too_low", target.getName(), getRealmName(target.getMinRealm()), getRealmName(player.getRealm())));
+            return TravelResult.rejected(I18n.t("map.realm_too_low", target.getName(), getRealmName(target.getMinRealm()), getRealmName(player.getRealm())));
         }
 
         executeTravel(playerId, targetLocationId);
         String firstVisit = recordFirstVisit(playerId, targetLocationId);
-        Map<String, Object> result = createResult(true,
-                I18n.t("map.the_talisman_turns_into", target.getName()));
+        String message = I18n.t("map.the_talisman_turns_into", target.getName());
         if (firstVisit != null) {
-            result.put("message", result.get("message") + "\n" + firstVisit);
-            result.put("firstVisit", true);
+            message = message + "\n" + firstVisit;
         }
-        return result;
+        return TravelResult.teleported(message, firstVisit != null);
     }
 
     private void executeTravel(long playerId, long targetLocationId) {
@@ -722,7 +719,7 @@ public class MapService {
     /**
      * 查看当前位置及周围
      */
-    public Map<String, Object> getPlayerSurroundings(long playerId) {
+    public PlayerSurroundings getPlayerSurroundings(long playerId) {
         ensureInitialized();
 
         long locId = getPlayerLocationId(playerId);
@@ -732,58 +729,36 @@ public class MapService {
             locId = DEFAULT_LOCATION_ID;
         }
         if (current == null) {
-            return createResult(false, I18n.t("map.map_data_is_not_ready"));
+            return PlayerSurroundings.rejected(I18n.t("map.map_data_is_not_ready"));
         }
-
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("current", formatLocationBrief(current));
 
         Player player = playerService.getPlayerById(playerId);
-        List<Map<String, Object>> neighbors = new ArrayList<>();
+        List<NeighborLocation> neighbors = new ArrayList<>();
         for (MapLocation nb : current.getConnections()) {
-            Map<String, Object> info = new LinkedHashMap<>();
-            info.put("id", nb.getId());
-            info.put("name", nb.getName());
-            info.put("region", nb.getRegion());
-            info.put("safeZone", nb.isSafeZone());
-            info.put("accessible", player != null && player.getRealm() >= nb.getMinRealm());
             int travelSeconds = getTravelTimeSeconds(locId, nb.getId());
-            info.put("travelSeconds", effectiveTravelSeconds(travelSeconds));
-            info.put("dangerLevel", nb.getDangerLevel());
-            info.put("dangerName", getDangerName(nb.getDangerLevel()));
-            info.put("wilderness", nb.isWilderness());
-            neighbors.add(info);
+            neighbors.add(new NeighborLocation(
+                    nb.getId(), nb.getName(), nb.getRegion(), nb.isSafeZone(),
+                    player != null && player.getRealm() >= nb.getMinRealm(),
+                    effectiveTravelSeconds(travelSeconds),
+                    nb.getDangerLevel(), getDangerName(nb.getDangerLevel()),
+                    nb.isWilderness()));
         }
-        result.put("neighbors", neighbors);
-        result.put("cultivationBonus", current.getCultivationBonus());
-        result.put("explorationBonus", current.getExplorationBonus());
-        result.put("dangerLevel", current.getDangerLevel());
-        result.put("dangerName", getDangerName(current.getDangerLevel()));
-        result.put("wilderness", current.isWilderness());
-        if (current.isWilderness()) {
-            result.put("wildernessResource", getWildernessResource(locId));
-            result.put("wildernessExpiresAt", current.getExpiresAt());
-        }
-        result.put("success", true);
-        return result;
+
+        boolean wilderness = current.isWilderness();
+        return PlayerSurroundings.of(
+                new LocationBrief(current.getId(), current.getName(),
+                        current.getDescription(), current.getRegion(), current.isSafeZone()),
+                neighbors,
+                current.getCultivationBonus(),
+                current.getExplorationBonus(),
+                current.getDangerLevel(),
+                getDangerName(current.getDangerLevel()),
+                wilderness,
+                wilderness ? getWildernessResource(locId) : null,
+                wilderness ? current.getExpiresAt() : null);
     }
 
-    private Map<String, Object> formatLocationBrief(MapLocation loc) {
-        Map<String, Object> info = new LinkedHashMap<>();
-        info.put("id", loc.getId());
-        info.put("name", loc.getName());
-        info.put("description", loc.getDescription());
-        info.put("region", loc.getRegion());
-        info.put("safeZone", loc.isSafeZone());
-        return info;
-    }
 
-    private Map<String, Object> createResult(boolean success, String message) {
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("success", success);
-        result.put("message", message);
-        return result;
-    }
 
     /**
      * 批量获取玩家位置信息（用于玩家列表展示）
@@ -1066,43 +1041,43 @@ public class MapService {
      * <p>与传送符（{@link #teleportToLocation}）的区别：传送符是物品效果、可去没去过的地方；
      * 这里是玩法内的常规位移，必须"到过才能传"，避免付费直传把探索意义抹平。</p>
      */
-    public Map<String, Object> teleportByUnlock(long playerId, long targetLocationId) {
+    public TravelResult teleportByUnlock(long playerId, long targetLocationId) {
         ensureInitialized();
         WildernessMapConfig.Teleport cfg = WildernessMapConfig.get().getTeleport();
         if (!cfg.isEnabled()) {
-            return createResult(false, I18n.t("map.teleportation_is_currently_disabled"));
+            return TravelResult.rejected(I18n.t("map.teleportation_is_currently_disabled"));
         }
 
         MapLocation target = getLocation(targetLocationId);
         if (target == null) {
-            return createResult(false, I18n.t("map.that_location_does_not_exist"));
+            return TravelResult.rejected(I18n.t("map.that_location_does_not_exist"));
         }
         Player player = playerService.getPlayerById(playerId);
         if (player == null) {
-            return createResult(false, I18n.t("map.player_not_found"));
+            return TravelResult.rejected(I18n.t("map.player_not_found"));
         }
         if (!checkRealm(player, target)) {
-            return createResult(false, I18n.t("map.realm_too_low", target.getName(), getRealmName(target.getMinRealm()), getRealmName(player.getRealm())));
+            return TravelResult.rejected(I18n.t("map.realm_too_low", target.getName(), getRealmName(target.getMinRealm()), getRealmName(player.getRealm())));
         }
         if (!isExplored(playerId, targetLocationId)) {
-            return createResult(false, I18n.t("map.you_have_never_been", target.getName()));
+            return TravelResult.rejected(I18n.t("map.you_have_never_been", target.getName()));
         }
 
         PlayerPositionRow position = readRawPosition(playerId);
         long currentLocId = resolveLocationId(position.rawLocationId(), position.locationNull(), playerId);
         if (currentLocId == targetLocationId) {
-            return createResult(false, I18n.t("map.you_are_already", target.getName()));
+            return TravelResult.rejected(I18n.t("map.you_are_already", target.getName()));
         }
 
         long cost = getTeleportCost(currentLocId, targetLocationId);
         long balance = ServiceRegistry.getItemService().getSpiritStoneCount(playerId);
         if (balance < cost) {
-            return createResult(false, I18n.t("map.teleporting_costs_spirit_stones_but", cost, balance));
+            return TravelResult.rejected(I18n.t("map.teleporting_costs_spirit_stones_but", cost, balance));
         }
 
         // 先扣费再落库位置：扣费失败直接返回，避免"免费传送"
         if (!ServiceRegistry.getItemService().removeSpiritStones(playerId, cost)) {
-            return createResult(false, I18n.t("map.failed_to_deduct_spirit_stones"));
+            return TravelResult.rejected(I18n.t("map.failed_to_deduct_spirit_stones"));
         }
 
         long now = System.currentTimeMillis() / 1000;
@@ -1111,20 +1086,16 @@ public class MapService {
             // 位置在扣费与写回之间被改动：把灵石退回去，不能既收钱又不办事
             ServiceRegistry.getItemService().addSpiritStones(playerId, cost);
             if (getPlayerLocationId(playerId) == targetLocationId) {
-                return createResult(false, I18n.t("map.you_are_already", target.getName()));
+                return TravelResult.rejected(I18n.t("map.you_are_already", target.getName()));
             }
-            return createResult(false, I18n.t("map.your_position_was_just_changed"));
+            return TravelResult.rejected(I18n.t("map.your_position_was_just_changed"));
         }
 
-        Map<String, Object> result = createResult(true,
-                I18n.t("map.teleported_to_consuming_spirit_stones", target.getName(), cost, target.getDescription()));
-        result.put("to", target.getName());
-        result.put("toRegion", target.getRegion());
-        result.put("cost", cost);
-        result.put("safeZone", target.isSafeZone());
-        result.put("dangerLevel", target.getDangerLevel());
-        result.put("dangerName", getDangerName(target.getDangerLevel()));
-        return result;
+        return TravelResult.teleportedByUnlock(
+                I18n.t("map.teleported_to_consuming_spirit_stones",
+                        target.getName(), cost, target.getDescription()),
+                target.getName(), target.getRegion(), target.isSafeZone(), cost,
+                target.getDangerLevel(), getDangerName(target.getDangerLevel()));
     }
 
     // ==================== 野外（分片 + 文件存储） ====================
@@ -1420,14 +1391,10 @@ public class MapService {
     }
 
     /** 野外总览（管理台用）：分片数、已固化数、资源条目数等。 */
-    public Map<String, Object> getWildernessStats() {
+    public WildernessStats getWildernessStats() {
         ensureInitialized();
-        Map<String, Object> stats = new LinkedHashMap<>(chunkStore.stats());
+        Map<String, Object> stats = chunkStore.stats();
         WildernessMapConfig config = WildernessMapConfig.get();
-        stats.put("enabled", config.isEnabled());
-        stats.put("chunkSize", config.getChunkSize());
-        stats.put("maxChunksFromOrigin", config.getMaxChunksFromOrigin());
-        stats.put("worldSeed", config.getWorldSeed());
 
         int chunks = 0;
         int pinned = 0;
@@ -1446,12 +1413,17 @@ public class MapService {
                 }
             }
         }
-        stats.put("chunkCount", chunks);
-        stats.put("pinnedChunks", pinned);
-        stats.put("exploredNodes", exploredNodes);
-        stats.put("resourceEntries", resourceEntries);
-        stats.put("scanLimit", MAX_MAINTENANCE_SCAN);
-        return stats;
+        return new WildernessStats(
+                (String) stats.get("dir"),
+                (Integer) stats.get("cachedChunks"),
+                (Long) stats.get("fileReads"),
+                (Long) stats.get("fileWrites"),
+                config.isEnabled(),
+                config.getChunkSize(),
+                config.getMaxChunksFromOrigin(),
+                config.getWorldSeed(),
+                chunks, pinned, exploredNodes, resourceEntries,
+                MAX_MAINTENANCE_SCAN);
     }
 
     // ==================== 采集 ====================
@@ -1466,24 +1438,24 @@ public class MapService {
      * <p>顺序是<b>先扣库存并落盘、再发物品、发失败就加回去</b>，
      * 不允许出现"库存扣了、东西没到"。</p>
      */
-    public Map<String, Object> gather(long playerId) {
+    public GatherResult gather(long playerId) {
         ensureInitialized();
         WildernessMapConfig config = WildernessMapConfig.get();
         if (!config.isEnabled()) {
-            return createResult(false, I18n.t("map.the_wilderness_feature_is_disabled"));
+            return GatherResult.rejected(I18n.t("map.the_wilderness_feature_is_disabled"));
         }
 
         Player player = playerService.getPlayerById(playerId);
         if (player == null) {
-            return createResult(false, I18n.t("map.player_not_found"));
+            return GatherResult.rejected(I18n.t("map.player_not_found"));
         }
         long locationId = getPlayerLocationId(playerId);
         if (!WildernessTerrain.isWildernessId(locationId)) {
-            return createResult(false, I18n.t("map.this_is_not_the_wilderness"));
+            return GatherResult.rejected(I18n.t("map.this_is_not_the_wilderness"));
         }
         MapLocation loc = getLocation(locationId);
         if (loc == null) {
-            return createResult(false, I18n.t("map.your_current_location_is_invalid"));
+            return GatherResult.rejected(I18n.t("map.your_current_location_is_invalid"));
         }
 
         long now = System.currentTimeMillis() / 1000;
@@ -1491,7 +1463,7 @@ public class MapService {
         long lastGather = readLastGatherTime(playerId);
         if (cooldown > 0 && (now - lastGather) < cooldown) {
             long remaining = cooldown - (now - lastGather);
-            return createResult(false, I18n.t("map.you_have_just_gathered", Math.max(0, remaining)));
+            return GatherResult.rejected(I18n.t("map.you_have_just_gathered", Math.max(0, remaining)));
         }
 
         int chunkX = WildernessTerrain.chunkXOfNode(locationId);
@@ -1501,17 +1473,17 @@ public class MapService {
 
         Map<String, Integer> available = chunk.remainingOf(slot);
         if (available.isEmpty()) {
-            return createResult(false, I18n.t("map.the_resources_here_have_been"));
+            return GatherResult.rejected(I18n.t("map.the_resources_here_have_been"));
         }
         String itemKey = available.keySet().iterator().next();
         int take = Math.min(config.getGather().getMaxPerGather(), available.get(itemKey));
         if (take < 1) {
-            return createResult(false, I18n.t("map.the_resources_here_have_been"));
+            return GatherResult.rejected(I18n.t("map.the_resources_here_have_been"));
         }
 
         int taken = chunk.consume(slot, itemKey, take);
         if (taken <= 0) {
-            return createResult(false, I18n.t("map.too_slow_the_resources_here"));
+            return GatherResult.rejected(I18n.t("map.too_slow_the_resources_here"));
         }
         chunk.lastActiveAt = now;
         chunkStore.save(chunk);
@@ -1527,24 +1499,20 @@ public class MapService {
             if (!granted) {
                 chunk.refund(slot, itemKey, taken);
                 chunkStore.save(chunk);
-                return createResult(false, I18n.t("map.gathering_failed_2"));
+                return GatherResult.rejected(I18n.t("map.gathering_failed_2"));
             }
         } catch (Exception e) {
             chunk.refund(slot, itemKey, taken);
             chunkStore.save(chunk);
             LOG.error("采集失败 player=" + playerId, e);
-            return createResult(false, I18n.t("map.gathering_failed", e.getMessage()));
+            return GatherResult.rejected(I18n.t("map.gathering_failed", e.getMessage()));
         }
 
         int left = chunk.remainingOf(slot).getOrDefault(itemKey, 0);
         String itemName = resolveItemName(itemKey);
-        Map<String, Object> result = createResult(true,
-                I18n.t("map.gathered", loc.getName(), itemName, taken, left));
-        result.put("itemKey", itemKey);
-        result.put("itemName", itemName);
-        result.put("quantity", taken);
-        result.put("remaining", left);
-        return result;
+        return GatherResult.gathered(
+                I18n.t("map.gathered", loc.getName(), itemName, taken, left),
+                itemKey, itemName, taken, left);
     }
 
     private long readLastGatherTime(long playerId) {

@@ -1,5 +1,6 @@
 package com.mtxgdn;
 
+import com.mtxgdn.game.map.TravelResult;
 import com.mtxgdn.game.trade.TradeResult;
 import com.mtxgdn.game.cultivation.BeginCultivationResult;
 import com.mtxgdn.game.cultivation.FinishCultivationResult;
@@ -645,8 +646,8 @@ public class MultiPlayerFullTest {
         System.out.println("  ✓ 地图地点数=" + locs.size());
         if (locs.size() >= 2) {
             long target = locs.get(1).getId();
-            Map<String,Object> travel = mapService.travel(p1.playerId, target);
-            System.out.println("  " + (Boolean.TRUE.equals(travel.get("success"))?"✓":"○") + " 移动: " + travel.get("message"));
+            TravelResult travel = mapService.travel(p1.playerId, target);
+            System.out.println("  " + (travel.success() ? "✓" : "○") + " 移动: " + travel.message());
         }
     }
 

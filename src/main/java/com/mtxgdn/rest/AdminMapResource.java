@@ -1,5 +1,6 @@
 package com.mtxgdn.rest;
 
+import com.mtxgdn.game.map.WildernessStats;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.mtxgdn.common.service.ServiceRegistry;
@@ -139,7 +140,7 @@ public class AdminMapResource {
             data.add("locations", arr);
             data.addProperty("locationCount", knownIds.size());
             data.addProperty("wildernessCount",
-                    ((Number) mapService.getWildernessStats().get("chunkCount")).longValue());
+                    mapService.getWildernessStats().chunkCount());
             // 连接在库里是双向写入的，按无向边计数要除以 2
             data.addProperty("connectionCount", directedEdges / 2);
             data.addProperty("wildernessConnectionCount", directedWildernessEdges / 2);

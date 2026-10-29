@@ -1,5 +1,6 @@
 package com.mtxgdn.rest;
 
+import com.mtxgdn.game.map.WildernessStats;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.mtxgdn.common.service.ServiceRegistry;
@@ -77,10 +78,21 @@ public class AdminWildernessResource {
         try {
             var mapService = ServiceRegistry.getMapService();
             JsonObject data = new JsonObject();
-            Map<String, Object> stats = mapService.getWildernessStats();
-            for (Map.Entry<String, Object> entry : stats.entrySet()) {
-                data.addProperty(entry.getKey(), String.valueOf(entry.getValue()));
-            }
+            // 与原 Map 逐键搬运保持一致：管理台把每个值都当字符串展示
+            WildernessStats stats = mapService.getWildernessStats();
+            data.addProperty("dir", stats.dir());
+            data.addProperty("cachedChunks", String.valueOf(stats.cachedChunks()));
+            data.addProperty("fileReads", String.valueOf(stats.fileReads()));
+            data.addProperty("fileWrites", String.valueOf(stats.fileWrites()));
+            data.addProperty("enabled", String.valueOf(stats.enabled()));
+            data.addProperty("chunkSize", String.valueOf(stats.chunkSize()));
+            data.addProperty("maxChunksFromOrigin", String.valueOf(stats.maxChunksFromOrigin()));
+            data.addProperty("worldSeed", String.valueOf(stats.worldSeed()));
+            data.addProperty("chunkCount", String.valueOf(stats.chunkCount()));
+            data.addProperty("pinnedChunks", String.valueOf(stats.pinnedChunks()));
+            data.addProperty("exploredNodes", String.valueOf(stats.exploredNodes()));
+            data.addProperty("resourceEntries", String.valueOf(stats.resourceEntries()));
+            data.addProperty("scanLimit", String.valueOf(stats.scanLimit()));
 
             JsonArray chunks = new JsonArray();
             Integer cx = parseCoordinate(cxParam);

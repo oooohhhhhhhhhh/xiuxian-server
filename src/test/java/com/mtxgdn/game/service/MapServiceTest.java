@@ -1,5 +1,6 @@
 package com.mtxgdn.game.service;
 
+import com.mtxgdn.game.map.TravelResult;
 import com.mtxgdn.TestBase;
 import com.mtxgdn.db.DatabaseManager;
 import com.mtxgdn.game.config.MapDefaults;
@@ -155,10 +156,10 @@ class MapServiceTest extends TestBase {
     void testRealmGateBlocksTravel() throws SQLException {
         long playerId = createPlayer(0, QINGYUN_VILLAGE);
 
-        Map<String, Object> result = mapService.travel(playerId, WENDAO_PEAK);
+        TravelResult result = mapService.travel(playerId, WENDAO_PEAK);
 
-        assertFalse((Boolean) result.get("success"));
-        String message = (String) result.get("message");
+        assertFalse(result.success());
+        String message = result.message();
         assertTrue(message.contains("境界不足"), message);
         assertTrue(message.contains("大乘期"), "应提示真实境界名: " + message);
     }
@@ -168,10 +169,10 @@ class MapServiceTest extends TestBase {
     void testTravelRequiresAdjacency() throws SQLException {
         long playerId = createPlayer(9, QINGYUN_VILLAGE);
 
-        Map<String, Object> result = mapService.travel(playerId, WENDAO_PEAK);
+        TravelResult result = mapService.travel(playerId, WENDAO_PEAK);
 
-        assertFalse((Boolean) result.get("success"));
-        assertTrue(((String) result.get("message")).contains("无法直接前往"), (String) result.get("message"));
+        assertFalse(result.success());
+        assertTrue((result.message()).contains("无法直接前往"), result.message());
     }
 
     @Test
@@ -179,11 +180,11 @@ class MapServiceTest extends TestBase {
     void testTravelSucceedsAndPersists() throws SQLException {
         long playerId = createPlayer(9, QINGYUN_VILLAGE);
 
-        Map<String, Object> result = mapService.travel(playerId, QINGYUN_MOUNTAIN);
+        TravelResult result = mapService.travel(playerId, QINGYUN_MOUNTAIN);
 
-        assertTrue((Boolean) result.get("success"), (String) result.get("message"));
-        assertEquals("青云村", result.get("from"));
-        assertEquals("青云山", result.get("to"));
+        assertTrue(result.success(), result.message());
+        assertEquals("青云村", result.from());
+        assertEquals("青云山", result.to());
         assertEquals(QINGYUN_MOUNTAIN, mapService.getPlayerLocationId(playerId));
     }
 
@@ -192,11 +193,11 @@ class MapServiceTest extends TestBase {
     void testTravelCooldown() throws SQLException {
         long playerId = createPlayer(9, QINGYUN_VILLAGE);
 
-        assertTrue((Boolean) mapService.travel(playerId, QINGYUN_MOUNTAIN).get("success"));
+        assertTrue(mapService.travel(playerId, QINGYUN_MOUNTAIN).success());
 
-        Map<String, Object> second = mapService.travel(playerId, QINGYUN_VILLAGE);
-        assertFalse((Boolean) second.get("success"));
-        assertTrue(((String) second.get("message")).contains("才能再次动身"), (String) second.get("message"));
+        TravelResult second = mapService.travel(playerId, QINGYUN_VILLAGE);
+        assertFalse(second.success());
+        assertTrue((second.message()).contains("才能再次动身"), second.message());
         assertEquals(QINGYUN_MOUNTAIN, mapService.getPlayerLocationId(playerId), "冷却中被拒绝的移动不得落库");
     }
 
@@ -205,14 +206,14 @@ class MapServiceTest extends TestBase {
     void testReportedTravelSecondsMatchEnforcedCooldown() throws SQLException {
         long playerId = createPlayer(9, QINGYUN_VILLAGE);
 
-        Map<String, Object> result = mapService.travel(playerId, QINGYUN_MOUNTAIN);
-        assertTrue((Boolean) result.get("success"), (String) result.get("message"));
+        TravelResult result = mapService.travel(playerId, QINGYUN_MOUNTAIN);
+        assertTrue(result.success(), result.message());
 
         // 返回给客户端的路程秒数，必须正好是随后真正生效的冷却时长
-        long reported = ((Number) result.get("travelSeconds")).longValue();
-        Map<String, Object> immediate = mapService.travel(playerId, QINGYUN_VILLAGE);
-        assertFalse((Boolean) immediate.get("success"));
-        String message = (String) immediate.get("message");
+        long reported = result.travelSeconds();
+        TravelResult immediate = mapService.travel(playerId, QINGYUN_VILLAGE);
+        assertFalse(immediate.success());
+        String message = immediate.message();
 
         // 剩余秒数按整秒计（remaining = cooldown - (now - lastTravel)，now 是纪元秒），
         // 所以两次调用之间只要跨过一个秒边界，提示就会少 1 秒。
@@ -235,11 +236,11 @@ class MapServiceTest extends TestBase {
             CountDownLatch start = new CountDownLatch(1);
             Future<Boolean> toCity = pool.submit(() -> {
                 start.await();
-                return (Boolean) mapService.travel(playerId, TAIXU_CITY).get("success");
+                return mapService.travel(playerId, TAIXU_CITY).success();
             });
             Future<Boolean> toValley = pool.submit(() -> {
                 start.await();
-                return (Boolean) mapService.travel(playerId, LINGYAO_VALLEY).get("success");
+                return mapService.travel(playerId, LINGYAO_VALLEY).success();
             });
             start.countDown();
 
@@ -263,8 +264,8 @@ class MapServiceTest extends TestBase {
 
         assertEquals(QINGYUN_VILLAGE, mapService.getPlayerLocationId(playerId));
 
-        Map<String, Object> result = mapService.travel(playerId, QINGYUN_MOUNTAIN);
-        assertTrue((Boolean) result.get("success"), "失效位置应可正常移动: " + result.get("message"));
+        TravelResult result = mapService.travel(playerId, QINGYUN_MOUNTAIN);
+        assertTrue(result.success(), "失效位置应可正常移动: " + result.message());
     }
 
     // ==================== 传送符 ====================

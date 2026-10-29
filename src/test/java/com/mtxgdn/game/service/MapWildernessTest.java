@@ -1,5 +1,7 @@
 package com.mtxgdn.game.service;
 
+import com.mtxgdn.game.map.GatherResult;
+import com.mtxgdn.game.map.TravelResult;
 import com.mtxgdn.TestBase;
 import com.mtxgdn.common.service.ServiceRegistry;
 import com.mtxgdn.db.DatabaseManager;
@@ -462,10 +464,10 @@ class MapWildernessTest extends TestBase {
     void testTeleportUnlockRequiresPriorVisit() throws SQLException {
         long playerId = createPlayer(9, QINGYUN_VILLAGE);
 
-        Map<String, Object> locked = mapService.teleportByUnlock(playerId, WENDAO_PEAK);
-        assertFalse(Boolean.TRUE.equals(locked.get("success")), "没到过的地方不该能直传");
-        assertTrue(String.valueOf(locked.get("message")).contains("没到过"),
-                "拒绝原因应说明传送点未解锁，实际: " + locked.get("message"));
+        TravelResult locked = mapService.teleportByUnlock(playerId, WENDAO_PEAK);
+        assertFalse(locked.success(), "没到过的地方不该能直传");
+        assertTrue(locked.message().contains("没到过"),
+                "拒绝原因应说明传送点未解锁，实际: " + locked.message());
         assertEquals(QINGYUN_VILLAGE, mapService.getPlayerLocationId(playerId),
                 "被拒绝的传送不应改变玩家位置");
 
@@ -479,8 +481,8 @@ class MapWildernessTest extends TestBase {
         long cost = mapService.getTeleportCost(QINGYUN_VILLAGE, WENDAO_PEAK);
         assertTrue(cost > 0, "传送费用应为正数");
 
-        Map<String, Object> ok = mapService.teleportByUnlock(playerId, WENDAO_PEAK);
-        assertTrue(Boolean.TRUE.equals(ok.get("success")), "到过之后应可直传，实际: " + ok.get("message"));
+        TravelResult ok = mapService.teleportByUnlock(playerId, WENDAO_PEAK);
+        assertTrue(ok.success(), "到过之后应可直传，实际: " + ok.message());
         assertEquals(WENDAO_PEAK, mapService.getPlayerLocationId(playerId), "传送后应落在目的地");
         assertEquals(cost, before - ServiceRegistry.getItemService().getSpiritStoneCount(playerId),
                 "应恰好扣除传送费用");
@@ -497,10 +499,10 @@ class MapWildernessTest extends TestBase {
             ServiceRegistry.getItemService().removeSpiritStones(playerId, balance);
         }
 
-        Map<String, Object> result = mapService.teleportByUnlock(playerId, WENDAO_PEAK);
-        assertFalse(Boolean.TRUE.equals(result.get("success")), "灵石不足时不该能传送");
-        assertTrue(String.valueOf(result.get("message")).contains("灵石"),
-                "拒绝原因应说明灵石不足，实际: " + result.get("message"));
+        TravelResult result = mapService.teleportByUnlock(playerId, WENDAO_PEAK);
+        assertFalse(result.success(), "灵石不足时不该能传送");
+        assertTrue(result.message().contains("灵石"),
+                "拒绝原因应说明灵石不足，实际: " + result.message());
         assertEquals(QINGYUN_VILLAGE, mapService.getPlayerLocationId(playerId),
                 "失败的传送不应改变玩家位置");
     }
@@ -532,10 +534,10 @@ class MapWildernessTest extends TestBase {
     void testGatherOnlyInWilderness() throws SQLException {
         long playerId = createPlayer(9, QINGYUN_VILLAGE);
 
-        Map<String, Object> refused = mapService.gather(playerId);
-        assertFalse(Boolean.TRUE.equals(refused.get("success")), "已知世界不该能采集");
-        assertTrue(String.valueOf(refused.get("message")).contains("不是野外"),
-                "拒绝原因应说明此处不是野外，实际: " + refused.get("message"));
+        GatherResult refused = mapService.gather(playerId);
+        assertFalse(refused.success(), "已知世界不该能采集");
+        assertTrue(refused.message().contains("不是野外"),
+                "拒绝原因应说明此处不是野外，实际: " + refused.message());
 
         MapLocation node = firstNodeWithResources();
         movePlayer(playerId, node.getId());
@@ -543,13 +545,13 @@ class MapWildernessTest extends TestBase {
         String itemKey = mapService.getWildernessResource(node.getId()).keySet().iterator().next();
         int before = mapService.getWildernessResource(node.getId()).get(itemKey);
 
-        Map<String, Object> ok = mapService.gather(playerId);
-        assertTrue(Boolean.TRUE.equals(ok.get("success")), "野外采集应成功，实际: " + ok.get("message"));
-        int taken = ((Number) ok.get("quantity")).intValue();
+        GatherResult ok = mapService.gather(playerId);
+        assertTrue(ok.success(), "野外采集应成功，实际: " + ok.message());
+        int taken = ok.quantity();
         assertTrue(taken >= 1 && taken <= WildernessMapConfig.get().getGather().getMaxPerGather(),
                 "单次采集量应在 1~" + WildernessMapConfig.get().getGather().getMaxPerGather()
                         + "，实际 " + taken);
-        assertEquals(itemKey, ok.get("itemKey"), "返回的物品应是该地点的资源");
+        assertEquals(itemKey, ok.itemKey(), "返回的物品应是该地点的资源");
         assertEquals(Math.max(0, before - taken),
                 mapService.getWildernessResource(node.getId()).getOrDefault(itemKey, 0),
                 "采集后剩余量应减少");
@@ -565,13 +567,13 @@ class MapWildernessTest extends TestBase {
         setNodeResources(node, 50);
         movePlayer(playerId, node.getId());
 
-        Map<String, Object> first = mapService.gather(playerId);
-        assertTrue(Boolean.TRUE.equals(first.get("success")), "第一次采集应成功: " + first.get("message"));
+        GatherResult first = mapService.gather(playerId);
+        assertTrue(first.success(), "第一次采集应成功: " + first.message());
 
-        Map<String, Object> second = mapService.gather(playerId);
-        assertFalse(Boolean.TRUE.equals(second.get("success")), "连续采集应被冷却挡下");
-        assertTrue(String.valueOf(second.get("message")).contains("还需"),
-                "第二次采集应提示冷却剩余时间，实际: " + second.get("message"));
+        GatherResult second = mapService.gather(playerId);
+        assertFalse(second.success(), "连续采集应被冷却挡下");
+        assertTrue(second.message().contains("还需"),
+                "第二次采集应提示冷却剩余时间，实际: " + second.message());
     }
 
     // ==================== 危险度对 PVP 的影响 ====================

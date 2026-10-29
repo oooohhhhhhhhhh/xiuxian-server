@@ -1,5 +1,7 @@
 package com.mtxgdn.rest;
 
+import com.mtxgdn.game.map.PlayerSurroundings;
+import com.mtxgdn.game.map.TravelResult;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.mtxgdn.common.GameErrorCode;
@@ -288,7 +290,7 @@ public class GameSystemResource {
     public Response getMapSurroundings() {
         Long userId = getCurrentUserId();
         int playerId = getPlayerIdByUserId(userId);
-        Map<String, Object> result = mapService.getPlayerSurroundings(playerId);
+        PlayerSurroundings result = mapService.getPlayerSurroundings(playerId);
         return Response.ok(GameMessage.restOk(I18n.t("common.rest.ok"), gson.toJsonTree(result).getAsJsonObject()).toString()).build();
     }
 
@@ -299,11 +301,11 @@ public class GameSystemResource {
     public Response travelTo(@PathParam("locationId") long locationId) {
         Long userId = getCurrentUserId();
         int playerId = getPlayerIdByUserId(userId);
-        Map<String, Object> result = mapService.travel(playerId, locationId);
-        if ((boolean) result.get("success")) {
-            return Response.ok(GameMessage.restOk((String) result.get("message"), null).toString()).build();
+        TravelResult result = mapService.travel(playerId, locationId);
+        if (result.success()) {
+            return Response.ok(GameMessage.restOk(result.message(), null).toString()).build();
         }
-        return Response.ok(GameMessage.restError(400, (String) result.get("message")).toString()).build();
+        return Response.ok(GameMessage.restError(400, result.message()).toString()).build();
     }
 
     @GET

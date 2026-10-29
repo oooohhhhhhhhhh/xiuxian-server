@@ -1,5 +1,7 @@
 package com.mtxgdn.onebot.command.map;
 
+import com.mtxgdn.game.map.PlayerSurroundings;
+import com.mtxgdn.game.map.TravelResult;
 import com.mtxgdn.common.command.Command;
 import com.mtxgdn.common.command.CommandContext;
 import com.mtxgdn.common.service.ServiceRegistry;
@@ -51,39 +53,37 @@ public class MapCommand extends Command {
         PlayerInfo p = ctx.requirePlayer(userId);
         if (p == null) { ctx.reply(I18n.t("map.please_create_a_character_first")); return; }
 
-        var surround = mapService.getPlayerSurroundings(p.getId());
-        if (!(boolean) surround.get("success")) {
+        PlayerSurroundings surround = mapService.getPlayerSurroundings(p.getId());
+        if (!surround.success()) {
             ctx.reply(I18n.t("map.failed_to_retrieve_map_information")); return;
         }
 
-        @SuppressWarnings("unchecked")
-        var current = (java.util.Map<String, Object>) surround.get("current");
+        var current = surround.current();
 
         StringBuilder sb = new StringBuilder();
-        sb.append("📍 当前位置：【").append(current.get("name")).append("】")
-                .append("（").append(current.get("region")).append("）\n");
+        sb.append("📍 当前位置：【").append(current.name()).append("】")
+                .append("（").append(current.region()).append("）\n");
 
-        // 危险度：安全区不打标，否则每个安全地点都挂一行"安全"，纯属噪音
-        int dangerLevel = current.get("dangerLevel") instanceof Number
-                ? ((Number) current.get("dangerLevel")).intValue() : 0;
-        boolean inWilderness = Boolean.TRUE.equals(current.get("wilderness"));
+        // 危险度：安全区不打标，否则每个安全地点都挂一行"安全"，纯属噪音。
+        // 注意这些字段在顶层结果里，不在 current 简介里 —— 以前从 current 取，
+        // 一直是 null，所以危险度与野外标记从来没显示过。
+        int dangerLevel = surround.dangerLevel() != null ? surround.dangerLevel() : 0;
+        boolean inWilderness = Boolean.TRUE.equals(surround.wilderness());
         if (dangerLevel > 0) {
-            sb.append("☠ 危险度：").append(current.get("dangerName"))
+            sb.append("☠ 危险度：").append(surround.dangerName())
                     .append("（").append(dangerLevel).append("/4）");
             if (inWilderness) sb.append(" · 野外");
             sb.append("\n");
         } else if (inWilderness) {
             sb.append("☠ 危险度：安全 · 野外\n");
         }
-        sb.append(current.get("description")).append("\n");
+        sb.append(current.description()).append("\n");
 
-        Object cultivationBonus = surround.get("cultivationBonus");
-        if (cultivationBonus instanceof Number && ((Number) cultivationBonus).doubleValue() != 1.0) {
-            sb.append("灵气浓度: ×").append(((Number) cultivationBonus).doubleValue()).append("（闭关修炼加成）\n");
+        if (surround.cultivationBonus() != null && surround.cultivationBonus() != 1.0) {
+            sb.append("灵气浓度: ×").append(surround.cultivationBonus()).append("（闭关修炼加成）\n");
         }
-        Object explorationBonus = surround.get("explorationBonus");
-        if (explorationBonus instanceof Number && ((Number) explorationBonus).doubleValue() != 1.0) {
-            sb.append("地界加成: ×").append(((Number) explorationBonus).doubleValue()).append("（游历/秘境收益）\n");
+        if (surround.explorationBonus() != null && surround.explorationBonus() != 1.0) {
+            sb.append("地界加成: ×").append(surround.explorationBonus()).append("（游历/秘境收益）\n");
         }
 
         // 野外资源：野外是随机生成且会被采空的，因此必须显示剩余量，否则玩家无从判断值不值得来
@@ -92,25 +92,20 @@ public class MapCommand extends Command {
         }
         sb.append("\n");
 
-        @SuppressWarnings("unchecked")
-        var neighbors = (List<java.util.Map<String, Object>>) surround.get("neighbors");
+        var neighbors = surround.neighbors();
         if (neighbors.isEmpty()) {
             sb.append("此处荒无人烟，无路通往其他地方。");
         } else {
             sb.append("▍可前往的地点：\n");
             for (var nb : neighbors) {
-                boolean accessible = (boolean) nb.get("accessible");
-                String icon = accessible ? "🚶" : "🔒";
-                String hint = accessible ? "" : " [境界不足]";
-                int travelSeconds = ((Number) nb.getOrDefault("travelSeconds", 5)).intValue();
-                sb.append("  ").append(icon).append(" /地图 go ").append(nb.get("name"))
-                        .append("  → ").append(nb.get("name"))
-                        .append("（").append(nb.get("region")).append(" · 路程约 ").append(travelSeconds).append("秒）").append(hint);
-                if ((boolean) nb.get("safeZone")) sb.append(" 🛡安全区");
-                int nbDanger = nb.get("dangerLevel") instanceof Number
-                        ? ((Number) nb.get("dangerLevel")).intValue() : 0;
-                if (nbDanger > 0) sb.append(" ☠").append(nb.get("dangerName"));
-                if (Boolean.TRUE.equals(nb.get("wilderness"))) sb.append(" 🌿野外");
+                String icon = nb.accessible() ? "🚶" : "🔒";
+                String hint = nb.accessible() ? "" : " [境界不足]";
+                sb.append("  ").append(icon).append(" /地图 go ").append(nb.name())
+                        .append("  → ").append(nb.name())
+                        .append("（").append(nb.region()).append(" · 路程约 ").append(nb.travelSeconds()).append("秒）").append(hint);
+                if (nb.safeZone()) sb.append(" 🛡安全区");
+                if (nb.dangerLevel() > 0) sb.append(" ☠").append(nb.dangerName());
+                if (nb.wilderness()) sb.append(" 🌿野外");
                 sb.append("\n");
             }
         }
@@ -120,10 +115,9 @@ public class MapCommand extends Command {
     }
 
     /** 野外资源与到期时间（供当前位置展示）。 */
-    private String renderWildernessResource(java.util.Map<String, Object> surround) {
+    private String renderWildernessResource(PlayerSurroundings surround) {
         StringBuilder sb = new StringBuilder();
-        @SuppressWarnings("unchecked")
-        var resources = (java.util.Map<String, Integer>) surround.get("wildernessResource");
+        var resources = surround.wildernessResource();
         if (resources == null || resources.isEmpty()) {
             sb.append("🌿 此地资源已被采空，等下次野外刷新\n");
         } else {
@@ -136,8 +130,7 @@ public class MapCommand extends Command {
             }
             sb.append("（用 /采集 采集）\n");
         }
-        long expiresAt = surround.get("wildernessExpiresAt") instanceof Number
-                ? ((Number) surround.get("wildernessExpiresAt")).longValue() : 0;
+        long expiresAt = surround.wildernessExpiresAt() != null ? surround.wildernessExpiresAt() : 0;
         if (expiresAt > 0) {
             long leftMinutes = Math.max(0, (expiresAt - System.currentTimeMillis() / 1000) / 60);
             sb.append("⏳ 此地约 ").append(leftMinutes).append(" 分钟后随野外刷新消失\n");
@@ -173,8 +166,8 @@ public class MapCommand extends Command {
             return;
         }
 
-        var result = mapService.teleportByUnlock(p.getId(), target.getId());
-        ctx.reply((String) result.get("message"));
+        TravelResult result = mapService.teleportByUnlock(p.getId(), target.getId());
+        ctx.reply(result.message());
     }
 
     private void handleGo(CommandContext ctx, PlayerInfo p, String[] parts) {
@@ -185,8 +178,8 @@ public class MapCommand extends Command {
         MapLocation target = mapService.getLocationByToken(targetName);
         if (target == null) { ctx.reply(I18n.t("map.location_not_found", targetName)); return; }
 
-        var result = mapService.travel(p.getId(), target.getId());
-        ctx.reply((String) result.get("message"));
+        TravelResult result = mapService.travel(p.getId(), target.getId());
+        ctx.reply(result.message());
     }
 
     private void handleList(CommandContext ctx, PlayerInfo p, String[] parts) {

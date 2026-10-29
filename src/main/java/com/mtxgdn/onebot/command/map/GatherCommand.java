@@ -1,5 +1,6 @@
 package com.mtxgdn.onebot.command.map;
 
+import com.mtxgdn.game.map.GatherResult;
 import com.google.gson.JsonObject;
 import com.mtxgdn.common.command.Command;
 import com.mtxgdn.common.command.CommandContext;
@@ -37,8 +38,8 @@ public class GatherCommand extends Command {
         PlayerInfo p = ctx.requirePlayer(userId);
         if (p == null) { ctx.reply(I18n.t("map.please_create_a_character_first")); return; }
 
-        var result = mapService.gather(p.getId());
-        ctx.reply((String) result.get("message"));
+        GatherResult result = mapService.gather(p.getId());
+        ctx.reply(result.message());
     }
 
     // ==================== HTTP：POST /api/game/map/gather ====================
@@ -52,19 +53,18 @@ public class GatherCommand extends Command {
      */
     private JsonObject httpGather(RouteDefinition.RestContext ctx) {
         JsonObject out = new JsonObject();
-        var result = mapService.gather(ctx.playerId());
-        boolean success = Boolean.TRUE.equals(result.get("success"));
+        GatherResult result = mapService.gather(ctx.playerId());
 
-        out.addProperty("code", success ? 200 : 400);
-        out.addProperty("success", success);
-        out.addProperty("message", String.valueOf(result.get("message")));
+        out.addProperty("code", result.success() ? 200 : 400);
+        out.addProperty("success", result.success());
+        out.addProperty("message", result.message());
 
-        if (success && result.get("itemKey") != null) {
+        if (result.success() && result.itemKey() != null) {
             JsonObject data = new JsonObject();
-            data.addProperty("itemKey", String.valueOf(result.get("itemKey")));
-            data.addProperty("itemName", String.valueOf(result.get("itemName")));
-            data.addProperty("quantity", ((Number) result.get("quantity")).intValue());
-            data.addProperty("remaining", ((Number) result.get("remaining")).intValue());
+            data.addProperty("itemKey", result.itemKey());
+            data.addProperty("itemName", result.itemName());
+            data.addProperty("quantity", result.quantity());
+            data.addProperty("remaining", result.remaining());
             out.add("data", data);
         }
         return out;

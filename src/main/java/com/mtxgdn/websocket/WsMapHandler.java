@@ -1,5 +1,7 @@
 package com.mtxgdn.websocket;
 
+import com.mtxgdn.game.map.PlayerSurroundings;
+import com.mtxgdn.game.map.TravelResult;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.mtxgdn.common.GameErrorCode;
@@ -46,44 +48,39 @@ final class WsMapHandler extends WsHandler {
             socket.send(GameMessage.error(msgId, "map_surroundings", GameErrorCode.PLAYER_NOT_FOUND).toJson());
             return;
         }
-        Map<String, Object> result = mapService.getPlayerSurroundings(player.getId());
-        if (Boolean.TRUE.equals(result.get("success"))) {
+        PlayerSurroundings result = mapService.getPlayerSurroundings(player.getId());
+        if (result.success()) {
             JsonObject resp = new JsonObject();
-            @SuppressWarnings("unchecked")
-            var current = (Map<String, Object>) result.get("current");
+            var current = result.current();
             JsonObject cur = new JsonObject();
-            cur.addProperty("id", (long) current.get("id"));
-            cur.addProperty("name", (String) current.get("name"));
-            cur.addProperty("description", (String) current.get("description"));
-            cur.addProperty("region", (String) current.get("region"));
-            cur.addProperty("safeZone", (boolean) current.get("safeZone"));
+            cur.addProperty("id", current.id());
+            cur.addProperty("name", current.name());
+            cur.addProperty("description", current.description());
+            cur.addProperty("region", current.region());
+            cur.addProperty("safeZone", current.safeZone());
             resp.add("current", cur);
 
             JsonArray neighbors = new JsonArray();
-            @SuppressWarnings("unchecked")
-            var nbs = (List<Map<String, Object>>) result.get("neighbors");
-            for (var nb : nbs) {
+            for (var nb : result.neighbors()) {
                 JsonObject n = new JsonObject();
-                n.addProperty("id", (long) nb.get("id"));
-                n.addProperty("name", (String) nb.get("name"));
-                n.addProperty("region", (String) nb.get("region"));
-                n.addProperty("safeZone", (boolean) nb.get("safeZone"));
-                n.addProperty("accessible", (boolean) nb.get("accessible"));
-                n.addProperty("travelSeconds", ((Number) nb.getOrDefault("travelSeconds", 5)).intValue());
+                n.addProperty("id", nb.id());
+                n.addProperty("name", nb.name());
+                n.addProperty("region", nb.region());
+                n.addProperty("safeZone", nb.safeZone());
+                n.addProperty("accessible", nb.accessible());
+                n.addProperty("travelSeconds", nb.travelSeconds());
                 neighbors.add(n);
             }
             resp.add("neighbors", neighbors);
-            Object cultivationBonus = result.get("cultivationBonus");
-            if (cultivationBonus instanceof Number) {
-                resp.addProperty("cultivationBonus", ((Number) cultivationBonus).doubleValue());
+            if (result.cultivationBonus() != null) {
+                resp.addProperty("cultivationBonus", result.cultivationBonus());
             }
-            Object explorationBonus = result.get("explorationBonus");
-            if (explorationBonus instanceof Number) {
-                resp.addProperty("explorationBonus", ((Number) explorationBonus).doubleValue());
+            if (result.explorationBonus() != null) {
+                resp.addProperty("explorationBonus", result.explorationBonus());
             }
             socket.send(GameMessage.ok(msgId, "map_surroundings", resp).toJson());
         } else {
-            socket.send(GameMessage.error(msgId, "map_surroundings", 400, (String) result.get("message")).toJson());
+            socket.send(GameMessage.error(msgId, "map_surroundings", 400, result.message()).toJson());
         }
     }
 
@@ -98,16 +95,16 @@ final class WsMapHandler extends WsHandler {
             return;
         }
         long locationId = data.get("locationId").getAsLong();
-        Map<String, Object> result = mapService.travel(player.getId(), locationId);
-        if (Boolean.TRUE.equals(result.get("success"))) {
+        TravelResult result = mapService.travel(player.getId(), locationId);
+        if (result.success()) {
             JsonObject resp = new JsonObject();
-            resp.addProperty("from", (String) result.get("from"));
-            resp.addProperty("to", (String) result.get("to"));
-            resp.addProperty("toRegion", (String) result.get("toRegion"));
-            resp.addProperty("safeZone", (boolean) result.get("safeZone"));
-            socket.send(GameMessage.ok(msgId, "map_travel", (String) result.get("message"), resp).toJson());
+            resp.addProperty("from", result.from());
+            resp.addProperty("to", result.to());
+            resp.addProperty("toRegion", result.toRegion());
+            resp.addProperty("safeZone", result.safeZone());
+            socket.send(GameMessage.ok(msgId, "map_travel", result.message(), resp).toJson());
         } else {
-            socket.send(GameMessage.error(msgId, "map_travel", 400, (String) result.get("message")).toJson());
+            socket.send(GameMessage.error(msgId, "map_travel", 400, result.message()).toJson());
         }
     }
 

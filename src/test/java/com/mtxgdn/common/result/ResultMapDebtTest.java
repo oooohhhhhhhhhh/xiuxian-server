@@ -122,12 +122,6 @@ class ResultMapDebtTest {
             "com/mtxgdn/game/service/ItemService.java#unequipItem",
             "com/mtxgdn/game/service/ItemService.java#useItem",
             // ---- 地图 ----
-            "com/mtxgdn/game/service/MapService.java#travel",
-            "com/mtxgdn/game/service/MapService.java#teleportToLocation",
-            "com/mtxgdn/game/service/MapService.java#teleportByUnlock",
-            "com/mtxgdn/game/service/MapService.java#getPlayerSurroundings",
-            "com/mtxgdn/game/service/MapService.java#getWildernessStats",
-            "com/mtxgdn/game/service/MapService.java#gather",
             // ---- 玩家 ----
             // ---- 宗门（带额外数据的那些，成员域 6 个已改） ----
             "com/mtxgdn/game/service/SectService.java#createSect",
