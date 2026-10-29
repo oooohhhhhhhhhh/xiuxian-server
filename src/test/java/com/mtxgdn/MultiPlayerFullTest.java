@@ -1,5 +1,6 @@
 package com.mtxgdn;
 
+import com.mtxgdn.game.sect.SectActionResult;
 import com.mtxgdn.game.economy.SignInResult;
 import com.mtxgdn.game.farm.FarmResult;
 import com.mtxgdn.game.item.UseItemResult;
@@ -518,11 +519,11 @@ public class MultiPlayerFullTest {
             System.out.println("  ○ 宿主境界已设为金丹期");
         }
 
-        Map<String,Object> create = sectService.createSect(p1.playerId, "青云门", "护道宗门");
-        assertTrue(Boolean.TRUE.equals(create.get("success")), "创建宗门应成功: " + create.get("message"));
+        SectActionResult create = sectService.createSect(p1.playerId, "青云门", "护道宗门");
+        assertTrue(create.success(), "创建宗门应成功: " + create.message());
         System.out.println("  ✓ " + p1.playerName + " 创建宗门青云门");
 
-        Sect createdSect = (Sect) create.get("sect");
+        Sect createdSect = create.sect();
         assertNotNull(createdSect, "应返回宗门对象");
         long sectId = createdSect.getId();
 

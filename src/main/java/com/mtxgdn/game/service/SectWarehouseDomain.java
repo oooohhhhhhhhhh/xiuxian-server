@@ -1,5 +1,7 @@
 package com.mtxgdn.game.service;
 
+import com.mtxgdn.common.result.OperationResult;
+import com.mtxgdn.game.sect.WarehouseDonateResult;
 import com.mtxgdn.db.DatabaseManager;
 import com.mtxgdn.db.SectWarehouseDAO;
 import com.mtxgdn.game.entity.SectMember;
@@ -10,9 +12,7 @@ import com.mtxgdn.i18n.I18n;
 
 import java.sql.SQLException;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * 宗门仓库域：捐献、取出、列表，以及"物品折多少贡献值"的定价。
@@ -66,23 +66,22 @@ final class SectWarehouseDomain {
         return result;
     }
 
-    Map<String, Object> donateToWarehouse(long playerId, long sectId, String itemKey, int quantity) {
-        Map<String, Object> result = new LinkedHashMap<>();
+    WarehouseDonateResult donateToWarehouse(long playerId, long sectId, String itemKey, int quantity) {
         SectMember member = queryDomain.getMember(sectId, playerId);
         if (member == null) {
-            result.put("success", false); result.put("message", I18n.t("sect.you_are_not_a_member")); return result;
+            return WarehouseDonateResult.fail(I18n.t("sect.you_are_not_a_member"));
         }
 
         Item item = ItemRegistry.resolve(itemKey);
         if (item == null) {
-            result.put("success", false); result.put("message", I18n.t("sect.item_does_not_exist")); return result;
+            return WarehouseDonateResult.fail(I18n.t("sect.item_does_not_exist"));
         }
         String fullKey = item.getFullKey();
         if (quantity <= 0) {
-            result.put("success", false); result.put("message", I18n.t("sect.the_amount_must_be_greater")); return result;
+            return WarehouseDonateResult.fail(I18n.t("sect.the_amount_must_be_greater"));
         }
         if (!itemService.hasItem(playerId, fullKey, quantity)) {
-            result.put("success", false); result.put("message", I18n.t("sect.not_enough_in_your_backpack", item.getName())); return result;
+            return WarehouseDonateResult.fail(I18n.t("sect.not_enough_in_your_backpack", item.getName()));
         }
 
         // 修复刷贡献 bug：管理职位（宗主/副宗主/长老）可以免费从仓库取出物品，
@@ -105,36 +104,31 @@ final class SectWarehouseDomain {
             return null;
         });
 
-        result.put("success", true);
-        if (isManager) {
-            result.put("message", I18n.t("sect.donated_x_to_the_sect", item.getName(), quantity));
-        } else {
-            result.put("message", I18n.t("sect.donated_x_to_the_sect_2", item.getName(), quantity, contributionGain));
-        }
-        result.put("contributionGain", contributionGain);
-        return result;
+        String message = isManager
+                ? I18n.t("sect.donated_x_to_the_sect", item.getName(), quantity)
+                : I18n.t("sect.donated_x_to_the_sect_2", item.getName(), quantity, contributionGain);
+        return WarehouseDonateResult.donated(message, contributionGain);
     }
 
-    Map<String, Object> withdrawFromWarehouse(long playerId, long sectId, String itemKey, int quantity) {
-        Map<String, Object> result = new LinkedHashMap<>();
+    OperationResult withdrawFromWarehouse(long playerId, long sectId, String itemKey, int quantity) {
         SectMember member = queryDomain.getMember(sectId, playerId);
         if (member == null) {
-            result.put("success", false); result.put("message", I18n.t("sect.you_are_not_a_member")); return result;
+            return OperationResult.fail(I18n.t("sect.you_are_not_a_member"));
         }
         if (quantity <= 0) {
-            result.put("success", false); result.put("message", I18n.t("sect.the_amount_must_be_greater")); return result;
+            return OperationResult.fail(I18n.t("sect.the_amount_must_be_greater"));
         }
 
         Item item = ItemRegistry.resolve(itemKey);
         if (item == null) {
-            result.put("success", false); result.put("message", I18n.t("sect.item_does_not_exist")); return result;
+            return OperationResult.fail(I18n.t("sect.item_does_not_exist"));
         }
         String fullKey = item.getFullKey();
 
         int available = getWarehouseItemCount(sectId, fullKey);
         if (available < quantity) {
-            result.put("success", false);
-            result.put("message", I18n.t("sect.not_enough_in_the_sect", item.getName(), available)); return result;
+            return OperationResult.fail(
+                    I18n.t("sect.not_enough_in_the_sect", item.getName(), available));
         }
 
         boolean isManager = member.canManage();
@@ -142,9 +136,7 @@ final class SectWarehouseDomain {
             long costPerItem = getItemContributionCost(item);
             long totalCost = costPerItem * quantity;
             if (member.getContribution() < totalCost) {
-                result.put("success", false);
-                result.put("message", I18n.t("sect.not_enough_contribution", item.getName(), quantity, totalCost, member.getContribution()));
-                return result;
+                return OperationResult.fail(I18n.t("sect.not_enough_contribution", item.getName(), quantity, totalCost, member.getContribution()));
             }
         }
 
@@ -168,12 +160,10 @@ final class SectWarehouseDomain {
                 return null;
             });
         } catch (Exception e) {
-            result.put("success", false);
             // "未知错误" 保留在代码里当兜底，不走词条：
             // 它只在异常消息为空时出现，属于"连系统都说不清"的例外情况
-            result.put("message", I18n.t("sect.withdraw.failed",
+            return OperationResult.fail(I18n.t("sect.withdraw.failed",
                     e.getMessage() != null ? e.getMessage() : "未知错误"));
-            return result;
         }
 
         String msg;
@@ -183,9 +173,7 @@ final class SectWarehouseDomain {
             long cost = getItemContributionCost(item) * quantity;
             msg = "已从宗门仓库取出【" + item.getName() + "】×" + quantity + "，消耗贡献值 " + cost;
         }
-        result.put("success", true);
-        result.put("message", msg);
-        return result;
+        return OperationResult.ok(msg);
     }
 
     /**

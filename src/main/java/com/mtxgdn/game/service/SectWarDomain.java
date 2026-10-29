@@ -1,5 +1,6 @@
 package com.mtxgdn.game.service;
 
+import com.mtxgdn.game.sect.WarResult;
 import com.mtxgdn.db.DatabaseManager;
 import com.mtxgdn.db.SectWarDAO;
 import com.mtxgdn.entity.Player;
@@ -9,9 +10,7 @@ import com.mtxgdn.i18n.I18n;
 
 import java.sql.SQLException;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
-import java.util.Map;
 
 /**
  * 宗门战域：宣战、逐场对拼、结算声望、落战报。
@@ -22,7 +21,7 @@ import java.util.Map;
  * "扣了钱却没打起来"这类中间态变得可能。</p>
  *
  * <p>对拼规则本身在 {@link SectDuelDomain}（与宗主争夺战共用）；本类只负责
- * 组织流程与落库。方法体、SQL、战报文案、{@code Map} 里 key 的顺序都与拆分前逐字相同。</p>
+ * 组织流程与落库。方法体、SQL、战报文案都与拆分前逐字相同。</p>
  *
  * <p><b>事务边界</b>：宣战的"扣灵石 + 扣声望"是一个 {@code runTransaction}，
  * 拆分时整块搬了过来，块内只使用事务传入的 {@code conn}（扣灵石走
@@ -51,35 +50,32 @@ final class SectWarDomain {
         this.duelDomain = duelDomain;
     }
 
-    Map<String, Object> declareWar(long attackerPlayerId, long defenderSectId) {
-        Map<String, Object> result = new LinkedHashMap<>();
+    WarResult declareWar(long attackerPlayerId, long defenderSectId) {
         // 实验性插件门控：宗门战停用后，REST / WebSocket / 指令三个入口统一拒绝
         if (!com.mtxgdn.plugin.BuiltInPluginRegistry.getInstance().isEnabledOrUnknown(SECT_WAR_PLUGIN)) {
-            result.put("success", false);
-            result.put("message", I18n.t("sect.sect_war_is_experimental_content"));
-            return result;
+            return WarResult.fail(I18n.t("sect.sect_war_is_experimental_content"));
         }
         SectMember attackerMember = queryDomain.getPlayerMember(attackerPlayerId);
         if (attackerMember == null || !attackerMember.isLeader()) {
-            result.put("success", false); result.put("message", I18n.t("sect.only_the_sect_leader_2")); return result;
+            return WarResult.fail(I18n.t("sect.only_the_sect_leader_2"));
         }
 
         Sect attackerSect = queryDomain.getSectById(attackerMember.getSectId());
         if (attackerSect == null) {
-            result.put("success", false); result.put("message", I18n.t("sect.your_sect_does_not_exist")); return result;
+            return WarResult.fail(I18n.t("sect.your_sect_does_not_exist"));
         }
         if (attackerSect.getId() == defenderSectId) {
-            result.put("success", false); result.put("message", I18n.t("sect.you_cannot_declare_war")); return result;
+            return WarResult.fail(I18n.t("sect.you_cannot_declare_war"));
         }
 
         Sect defenderSect = queryDomain.getSectById(defenderSectId);
         if (defenderSect == null) {
-            result.put("success", false); result.put("message", I18n.t("sect.the_target_sect_does")); return result;
+            return WarResult.fail(I18n.t("sect.the_target_sect_does"));
         }
 
         List<SectMember> defenderMembers = queryDomain.getSectMembers(defenderSectId);
         if (defenderMembers.isEmpty()) {
-            result.put("success", false); result.put("message", I18n.t("sect.the_target_sect")); return result;
+            return WarResult.fail(I18n.t("sect.the_target_sect"));
         }
 
         // 宗门战冷却：同一防守方 24 小时内只能被宣战一次，防止无休止骚扰
@@ -93,22 +89,16 @@ final class SectWarDomain {
         if (lastWarTime != null) {
             long remaining = warCooldownMs - (System.currentTimeMillis() - lastWarTime.getTime());
             if (remaining > 0) {
-                result.put("success", false);
-                result.put("message", I18n.t("sect.the_target_sect_just_fought", Math.max(1, remaining / 3600000)));
-                return result;
+                return WarResult.fail(I18n.t("sect.the_target_sect_just_fought", Math.max(1, remaining / 3600000)));
             }
         }
         if (attackerSect.getPrestige() < Sect.DECLARE_WAR_PRESTIGE_COST) {
-            result.put("success", false);
-            result.put("message", I18n.t("sect.the_sect_lacks_prestige", Sect.DECLARE_WAR_PRESTIGE_COST, attackerSect.getPrestige()));
-            return result;
+            return WarResult.fail(I18n.t("sect.the_sect_lacks_prestige", Sect.DECLARE_WAR_PRESTIGE_COST, attackerSect.getPrestige()));
         }
 
         long spiritStones = itemService.getSpiritStoneCount(attackerPlayerId);
         if (spiritStones < Sect.DECLARE_WAR_SPIRIT_STONE_COST) {
-            result.put("success", false);
-            result.put("message", I18n.t("sect.not_enough_spirit_stones", Sect.DECLARE_WAR_SPIRIT_STONE_COST, spiritStones));
-            return result;
+            return WarResult.fail(I18n.t("sect.not_enough_spirit_stones", Sect.DECLARE_WAR_SPIRIT_STONE_COST, spiritStones));
         }
         // 扣除灵石和声望（事务包裹）
         try {
@@ -120,9 +110,7 @@ final class SectWarDomain {
                 return null;
             });
         } catch (Exception e) {
-            result.put("success", false);
-            result.put("message", I18n.t("sect.failed_to_declare_war", e.getMessage()));
-            return result;
+            return WarResult.fail(I18n.t("sect.failed_to_declare_war", e.getMessage()));
         }
 
         // 选出战成员：按境界和攻击力排序取前N名
@@ -185,14 +173,10 @@ final class SectWarDomain {
         } catch (RuntimeException e) {
             throw new RuntimeException("保存宗门战记录失败", e);
         }
-        result.put("success", true);
-        result.put("message", I18n.t("sect.war_result",
-                attackerSect.getName(), defenderSect.getName(), winnerSectName,
-                attackerWins, defenderWins));
-        result.put("battleLog", logText);
-        result.put("attackerWins", attackerWins);
-        result.put("defenderWins", defenderWins);
-        result.put("winner", winnerSectName);
-        return result;
+        return WarResult.fought(
+                I18n.t("sect.war_result",
+                        attackerSect.getName(), defenderSect.getName(), winnerSectName,
+                        attackerWins, defenderWins),
+                logText, attackerWins, defenderWins, winnerSectName);
     }
 }

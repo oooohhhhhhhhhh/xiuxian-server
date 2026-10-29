@@ -1,5 +1,7 @@
 package com.mtxgdn.game.service;
 
+import com.mtxgdn.game.sect.ContestResult;
+import com.mtxgdn.game.sect.StepDownResult;
 import com.mtxgdn.db.DatabaseManager;
 import com.mtxgdn.db.SectSuccessionDAO;
 import com.mtxgdn.entity.Player;
@@ -108,44 +110,33 @@ final class SectSuccessionDomain {
      * （{@code leaveSect} 直接拒绝），一旦宗主不玩了，这个宗门就永远没人能接手。
      * 现在宗主可以先 {@code /宗门 退位}，再正常 {@code /宗门 退出}。</p>
      */
-    Map<String, Object> stepDown(long playerId) {
-        Map<String, Object> result = new LinkedHashMap<>();
+    StepDownResult stepDown(long playerId) {
         SectMember member = queryDomain.getPlayerMember(playerId);
         if (member == null) {
-            result.put("success", false);
-            result.put("message", I18n.t("sect.you_have_not_joined_any"));
-            return result;
+            return StepDownResult.fail(I18n.t("sect.you_have_not_joined_any"));
         }
         if (!member.isLeader()) {
-            result.put("success", false);
-            result.put("message", I18n.t("sect.only_the_sect_leader"));
-            return result;
+            return StepDownResult.fail(I18n.t("sect.only_the_sect_leader"));
         }
 
         Sect sect = queryDomain.getSectById(member.getSectId());
         if (sect == null) {
-            result.put("success", false);
-            result.put("message", I18n.t("sect.sect_does_not_exist"));
-            return result;
+            return StepDownResult.fail(I18n.t("sect.sect_does_not_exist"));
         }
         if (sect.getMemberCount() <= 1) {
-            result.put("success", false);
-            result.put("message", I18n.t("sect.you_are_the_last_member"));
-            return result;
+            return StepDownResult.fail(I18n.t("sect.you_are_the_last_member"));
         }
 
         long now = System.currentTimeMillis();
         markLeaderAbsent(sect.getId(), now);
         SectService.SuccessionOutcome outcome = resolveSuccession(sect.getId(), now);
 
-        result.put("success", true);
-        result.put("message", buildStepDownMessage(member.getPlayerName(), outcome));
-        if (outcome.succeeded) {
-            result.put("successorId", outcome.successorId);
-            result.put("successorName", outcome.successorName);
-            result.put("contestUntil", outcome.contestUntil);
+        String message = buildStepDownMessage(member.getPlayerName(), outcome);
+        if (!outcome.succeeded) {
+            return new StepDownResult(true, message, null, null, null);
         }
-        return result;
+        return StepDownResult.steppedDown(
+                message, outcome.successorId, outcome.successorName, outcome.contestUntil);
     }
 
     /**
@@ -262,44 +253,33 @@ final class SectSuccessionDomain {
      *
      * @param accept true = 宗主应战；false = 挑战者发起 / 宗主查看竞争期状态
      */
-    Map<String, Object> challengeLeader(long playerId, boolean accept) {
-        Map<String, Object> result = new LinkedHashMap<>();
+    ContestResult challengeLeader(long playerId, boolean accept) {
         Sect sect = queryDomain.getPlayerSect(playerId);
         if (sect == null) {
-            result.put("success", false);
-            result.put("message", I18n.t("sect.you_have_not_joined_any"));
-            return result;
+            return ContestResult.fail(I18n.t("sect.you_have_not_joined_any"));
         }
 
         long now = System.currentTimeMillis();
         if (!sect.hasActiveContest(now)) {
-            result.put("success", false);
-            result.put("message", I18n.t("sect.there_is_no_ongoing_leadership"));
-            return result;
+            return ContestResult.fail(I18n.t("sect.there_is_no_ongoing_leadership"));
         }
 
         boolean isChallenger = playerId == sect.getContestChallengerId();
         boolean isLeader = playerId == sect.getLeaderPlayerId();
         if (!isChallenger && !isLeader) {
-            result.put("success", false);
-            result.put("message", I18n.t("sect.only_this_sect_s_leader"));
-            return result;
+            return ContestResult.fail(I18n.t("sect.only_this_sect_s_leader"));
         }
 
         if (isChallenger) {
             if (accept) {
-                result.put("success", false);
-                result.put("message", I18n.t("sect.you_are_the_challenger_so"));
-                return result;
+                return ContestResult.fail(I18n.t("sect.you_are_the_challenger_so"));
             }
             return requestContest(sect, now);
         }
 
         // 宗主
         if (!accept) {
-            result.put("success", true);
-            result.put("message", buildContestStatus(sect));
-            return result;
+            return ContestResult.ok(buildContestStatus(sect));
         }
         return acceptContest(sect, now);
     }
@@ -346,22 +326,16 @@ final class SectSuccessionDomain {
     }
 
     /** 挑战者发起挑战：置 {@code contest_requested}，等宗主应战。 */
-    private Map<String, Object> requestContest(Sect sect, long now) {
-        Map<String, Object> result = new LinkedHashMap<>();
+    private ContestResult requestContest(Sect sect, long now) {
         if (sect.isContestRequested()) {
-            result.put("success", false);
-            result.put("message", I18n.t("sect.you_have_started_the_challenge"));
-            return result;
+            return ContestResult.fail(I18n.t("sect.you_have_started_the_challenge"));
         }
         int rows = SUCCESSION_DAO.requestContest(sect.getId(), sect.getContestChallengerId(), now);
         if (rows == 0) {
-            result.put("success", false);
-            result.put("message", I18n.t("sect.the_contest_period_has_ended"));
-            return result;
+            return ContestResult.fail(I18n.t("sect.the_contest_period_has_ended"));
         }
-        result.put("success", true);
-        result.put("message", I18n.t("sect.you_have_challenged_the_sect", SectSupport.formatTime(sect.getContestUntil())));
-        return result;
+        return ContestResult.ok(
+                I18n.t("sect.you_have_challenged_the_sect", SectSupport.formatTime(sect.getContestUntil())));
     }
 
     /**
@@ -371,12 +345,9 @@ final class SectSuccessionDomain {
      * 让争夺战考校的是灵根 / 装备 / 属性分配这些"构筑"，而不是单纯比谁境界高。
      * 归一化只作用于内存副本，<b>绝不回写</b>玩家真实属性。</p>
      */
-    private Map<String, Object> acceptContest(Sect sect, long now) {
-        Map<String, Object> result = new LinkedHashMap<>();
+    private ContestResult acceptContest(Sect sect, long now) {
         if (!sect.isContestRequested()) {
-            result.put("success", false);
-            result.put("message", I18n.t("sect.the_challenger_has_not_started"));
-            return result;
+            return ContestResult.fail(I18n.t("sect.the_challenger_has_not_started"));
         }
 
         long leaderId = sect.getLeaderPlayerId();
@@ -384,9 +355,7 @@ final class SectSuccessionDomain {
         Player leader = playerService.getPlayerById(leaderId);
         Player challenger = playerService.getPlayerById(challengerId);
         if (leader == null || challenger == null) {
-            result.put("success", false);
-            result.put("message", I18n.t("sect.a_dueling_character_no_longer"));
-            return result;
+            return ContestResult.fail(I18n.t("sect.a_dueling_character_no_longer"));
         }
 
         int leaderStage = realmStage(leader);
@@ -436,9 +405,7 @@ final class SectSuccessionDomain {
         });
 
         if (!Boolean.TRUE.equals(applied)) {
-            result.put("success", false);
-            result.put("message", I18n.t("sect.the_challenge_state_has_changed"));
-            return result;
+            return ContestResult.fail(I18n.t("sect.the_challenge_state_has_changed"));
         }
 
         battleLog.add("");
@@ -446,13 +413,9 @@ final class SectSuccessionDomain {
         battleLog.add("挑战者胜局：" + challengerWins + " / " + SectService.CONTEST_ROUNDS);
         battleLog.add("【" + winnerName + "】继任宗主，" + loserName + " 改任副宗主");
 
-        result.put("success", true);
-        result.put("challengerWins", challengerWins);
-        result.put("winnerId", winnerId);
-        result.put("winnerName", winnerName);
-        result.put("battleLog", String.join("\n", battleLog));
-        result.put("message", I18n.t("sect.the_leadership_contest_is_over", winnerName));
-        return result;
+        return ContestResult.resolved(
+                I18n.t("sect.the_leadership_contest_is_over", winnerName),
+                challengerTakes, winnerId, winnerName, String.join("\n", battleLog));
     }
 
     // ==================== 扫描任务 ====================

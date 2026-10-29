@@ -1,5 +1,8 @@
 package com.mtxgdn.rest;
 
+import com.mtxgdn.game.sect.WarResult;
+import com.mtxgdn.game.sect.WarehouseDonateResult;
+import com.mtxgdn.game.sect.SectActionResult;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.mtxgdn.common.GameErrorCode;
@@ -108,14 +111,14 @@ public class GameSectResource {
 
         String name = json.has("name") ? json.get("name").getAsString() : "";
         String desc = json.has("description") ? json.get("description").getAsString() : "";
-        Map<String, Object> result = sectService.createSect(playerId, name, desc);
+        SectActionResult result = sectService.createSect(playerId, name, desc);
 
         actionLog.logCreatePlayer(userId, getPlayerName(userId));
-        if ((boolean) result.get("success")) {
-            return Response.ok(GameMessage.restOk((String) result.get("message"),
-                    gson.toJsonTree(result.get("sect")).getAsJsonObject()).toString()).build();
+        if (result.success()) {
+            return Response.ok(GameMessage.restOk(result.message(),
+                    gson.toJsonTree(result.sect()).getAsJsonObject()).toString()).build();
         }
-        return Response.ok(GameMessage.restError(400, (String) result.get("message")).toString()).build();
+        return Response.ok(GameMessage.restError(400, result.message()).toString()).build();
     }
 
     @POST
@@ -281,11 +284,11 @@ public class GameSectResource {
         JsonObject json = com.google.gson.JsonParser.parseString(body).getAsJsonObject();
         String itemKey = json.has("itemKey") ? json.get("itemKey").getAsString() : "";
         int quantity = json.has("quantity") ? json.get("quantity").getAsInt() : 0;
-        Map<String, Object> result = sectService.donateToWarehouse(playerId, member.getSectId(), itemKey, quantity);
-        if ((boolean) result.get("success")) {
-            return Response.ok(GameMessage.restOk((String) result.get("message"), null).toString()).build();
+        WarehouseDonateResult result = sectService.donateToWarehouse(playerId, member.getSectId(), itemKey, quantity);
+        if (result.success()) {
+            return Response.ok(GameMessage.restOk(result.message(), null).toString()).build();
         }
-        return Response.ok(GameMessage.restError(400, (String) result.get("message")).toString()).build();
+        return Response.ok(GameMessage.restError(400, result.message()).toString()).build();
     }
 
     @POST
@@ -303,11 +306,11 @@ public class GameSectResource {
         JsonObject json = com.google.gson.JsonParser.parseString(body).getAsJsonObject();
         String itemKey = json.has("itemKey") ? json.get("itemKey").getAsString() : "";
         int quantity = json.has("quantity") ? json.get("quantity").getAsInt() : 0;
-        Map<String, Object> result = sectService.withdrawFromWarehouse(playerId, member.getSectId(), itemKey, quantity);
-        if ((boolean) result.get("success")) {
-            return Response.ok(GameMessage.restOk((String) result.get("message"), null).toString()).build();
+        OperationResult result = sectService.withdrawFromWarehouse(playerId, member.getSectId(), itemKey, quantity);
+        if (result.success()) {
+            return Response.ok(GameMessage.restOk(result.message(), null).toString()).build();
         }
-        return Response.ok(GameMessage.restError(400, (String) result.get("message")).toString()).build();
+        return Response.ok(GameMessage.restError(400, result.message()).toString()).build();
     }
 
     @POST
@@ -317,11 +320,11 @@ public class GameSectResource {
     public Response disbandSect() {
         Long userId = getCurrentUserId();
         int playerId = getPlayerIdByUserId(userId);
-        Map<String, Object> result = sectService.disbandSect(playerId);
-        if ((boolean) result.get("success")) {
-            return Response.ok(GameMessage.restOk((String) result.get("message"), null).toString()).build();
+        SectActionResult result = sectService.disbandSect(playerId);
+        if (result.success()) {
+            return Response.ok(GameMessage.restOk(result.message(), null).toString()).build();
         }
-        return Response.ok(GameMessage.restError(400, (String) result.get("message")).toString()).build();
+        return Response.ok(GameMessage.restError(400, result.message()).toString()).build();
     }
 
     @POST
@@ -331,11 +334,11 @@ public class GameSectResource {
     public Response levelUpSect() {
         Long userId = getCurrentUserId();
         int playerId = getPlayerIdByUserId(userId);
-        Map<String, Object> result = sectService.levelUp(playerId);
-        if ((boolean) result.get("success")) {
-            return Response.ok(GameMessage.restOk((String) result.get("message"), null).toString()).build();
+        SectActionResult result = sectService.levelUp(playerId);
+        if (result.success()) {
+            return Response.ok(GameMessage.restOk(result.message(), null).toString()).build();
         }
-        return Response.ok(GameMessage.restError(400, (String) result.get("message")).toString()).build();
+        return Response.ok(GameMessage.restError(400, result.message()).toString()).build();
     }
 
     @POST
@@ -345,11 +348,11 @@ public class GameSectResource {
     public Response transferSect(@PathParam("targetPlayerId") long targetPlayerId) {
         Long userId = getCurrentUserId();
         int playerId = getPlayerIdByUserId(userId);
-        Map<String, Object> result = sectService.transferLeader(playerId, targetPlayerId);
-        if ((boolean) result.get("success")) {
-            return Response.ok(GameMessage.restOk((String) result.get("message"), null).toString()).build();
+        SectActionResult result = sectService.transferLeader(playerId, targetPlayerId);
+        if (result.success()) {
+            return Response.ok(GameMessage.restOk(result.message(), null).toString()).build();
         }
-        return Response.ok(GameMessage.restError(400, (String) result.get("message")).toString()).build();
+        return Response.ok(GameMessage.restError(400, result.message()).toString()).build();
     }
 
     @POST
@@ -359,16 +362,16 @@ public class GameSectResource {
     public Response declareWar(@PathParam("targetSectId") long targetSectId) {
         Long userId = getCurrentUserId();
         int playerId = getPlayerIdByUserId(userId);
-        Map<String, Object> result = sectService.declareWar(playerId, targetSectId);
-        if ((boolean) result.get("success")) {
+        WarResult result = sectService.declareWar(playerId, targetSectId);
+        if (result.success()) {
             JsonObject data = new JsonObject();
-            data.addProperty("winner", (String) result.get("winner"));
-            data.addProperty("attackerWins", (int) result.get("attackerWins"));
-            data.addProperty("defenderWins", (int) result.get("defenderWins"));
-            data.addProperty("battleLog", (String) result.get("battleLog"));
-            return Response.ok(GameMessage.restOk((String) result.get("message"), data).toString()).build();
+            data.addProperty("winner", result.winner());
+            data.addProperty("attackerWins", result.attackerWins());
+            data.addProperty("defenderWins", result.defenderWins());
+            data.addProperty("battleLog", result.battleLog());
+            return Response.ok(GameMessage.restOk(result.message(), data).toString()).build();
         }
-        return Response.ok(GameMessage.restError(400, (String) result.get("message")).toString()).build();
+        return Response.ok(GameMessage.restError(400, result.message()).toString()).build();
     }
 
     @GET

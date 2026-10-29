@@ -1,5 +1,7 @@
 package com.mtxgdn.onebot.command.sect;
 
+import com.mtxgdn.game.sect.WarResult;
+import com.mtxgdn.game.sect.ContestResult;
 import com.mtxgdn.common.service.ServiceRegistry;
 
 import com.mtxgdn.common.command.Command;
@@ -90,7 +92,7 @@ public class SectCommand extends Command {
         String desc = parts.length > 2 ? parts[2].trim() : "";
         if (name.isEmpty()) { ctx.reply(I18n.t("sect.usage_11")); return; }
         var result = sectService.createSect(p.getId(), name, desc);
-        ctx.reply((String) result.get("message"));
+        ctx.reply(result.message());
     }
 
     private void handleJoin(CommandContext ctx, PlayerInfo p, String[] parts) {
@@ -279,7 +281,7 @@ public class SectCommand extends Command {
         }
 
         var result = sectService.donateToWarehouse(p.getId(), me.getSectId(), itemKey, quantity);
-        ctx.reply((String) result.get("message"));
+        ctx.reply(result.message());
     }
 
     private void handleDonateStones(CommandContext ctx, PlayerInfo p, String[] parts) {
@@ -289,17 +291,17 @@ public class SectCommand extends Command {
             ctx.reply(I18n.t("sect.treasury_bad_amount")); return;
         }
         var result = sectService.donateStonesToTreasury(p.getId(), amount);
-        ctx.reply((String) result.get("message"));
+        ctx.reply(result.message());
     }
 
     private void handleTreasury(CommandContext ctx, PlayerInfo p, String[] parts) {
         var result = sectService.getTreasuryInfo(p.getId());
-        ctx.reply((String) result.get("message"));
+        ctx.reply(result.message());
     }
 
     private void handleSalary(CommandContext ctx, PlayerInfo p, String[] parts) {
         if (parts.length < 2) {
-            ctx.reply(sectService.getTreasuryInfo(p.getId()).get("message") + "\n" + I18n.t("sect.treasury_usage"));
+            ctx.reply(sectService.getTreasuryInfo(p.getId()).message() + "\n" + I18n.t("sect.treasury_usage"));
             return;
         }
         long amount;
@@ -307,12 +309,12 @@ public class SectCommand extends Command {
             ctx.reply(I18n.t("sect.salary_bad_amount", Sect.SALARY_MAX_PER_MEMBER)); return;
         }
         var result = sectService.setSalary(p.getId(), amount);
-        ctx.reply((String) result.get("message"));
+        ctx.reply(result.message());
     }
 
     private void handlePaySalary(CommandContext ctx, PlayerInfo p, String[] parts) {
         var result = sectService.paySalariesNow(p.getId());
-        ctx.reply((String) result.get("message"));
+        ctx.reply(result.message());
     }
 
     private void handleWarehouse(CommandContext ctx, PlayerInfo p, String[] parts) {        SectMember me = sectService.getPlayerMember(p.getId());
@@ -355,12 +357,12 @@ public class SectCommand extends Command {
             ctx.reply(I18n.t("sect.the_amount_must")); return;
         }
         var result = sectService.withdrawFromWarehouse(p.getId(), me.getSectId(), itemKey, quantity);
-        ctx.reply((String) result.get("message"));
+        ctx.reply(result.message());
     }
 
     private void handleDisband(CommandContext ctx, PlayerInfo p, String[] parts) {
         var result = sectService.disbandSect(p.getId());
-        ctx.reply((String) result.get("message"));
+        ctx.reply(result.message());
     }
 
     private void handleTop(CommandContext ctx, PlayerInfo p, String[] parts) {
@@ -378,7 +380,7 @@ public class SectCommand extends Command {
 
     private void handleLevelUp(CommandContext ctx, PlayerInfo p, String[] parts) {
         var result = sectService.levelUp(p.getId());
-        ctx.reply((String) result.get("message"));
+        ctx.reply(result.message());
     }
 
     private void handleTransfer(CommandContext ctx, PlayerInfo p, String[] parts) {
@@ -396,13 +398,13 @@ public class SectCommand extends Command {
         if (target == null) { ctx.reply(I18n.t("sect.player_not_found", targetName)); return; }
 
         var result = sectService.transferLeader(p.getId(), target.getPlayerId());
-        ctx.reply((String) result.get("message"));
+        ctx.reply(result.message());
     }
 
     /** 宗主退位：卸任后由系统按贡献选出继任者，宗主本人降为副宗主，可正常退宗。 */
     private void handleStepDown(CommandContext ctx, PlayerInfo p, String[] parts) {
         var result = sectService.stepDown(p.getId());
-        ctx.reply((String) result.get("message"));
+        ctx.reply(result.message());
     }
 
     /**
@@ -423,10 +425,10 @@ public class SectCommand extends Command {
             ctx.reply(I18n.t("sect.challenge_usage"));
             return;
         }
-        var result = sectService.challengeLeader(p.getId(), accept);
-        String message = (String) result.get("message");
-        Object battleLog = result.get("battleLog");
-        if (Boolean.TRUE.equals(result.get("success")) && battleLog != null) {
+        ContestResult result = sectService.challengeLeader(p.getId(), accept);
+        String message = result.message();
+        String battleLog = result.battleLog();
+        if (result.success() && battleLog != null) {
             ctx.reply(message + "\n\n" + battleLog);
         } else {
             ctx.reply(message);
@@ -438,11 +440,11 @@ public class SectCommand extends Command {
         if (targetName.isEmpty()) { ctx.reply(I18n.t("sect.usage_6")); return; }
         Sect targetSect = sectService.getSectByName(targetName);
         if (targetSect == null) { ctx.reply(I18n.t("sect.sect_not_found", targetName)); return; }
-        var result = sectService.declareWar(p.getId(), targetSect.getId());
-        if ((boolean) result.get("success")) {
-            ctx.reply((String) result.get("message") + "\n\n" + result.get("battleLog"));
+        WarResult result = sectService.declareWar(p.getId(), targetSect.getId());
+        if (result.success()) {
+            ctx.reply(result.message() + "\n\n" + result.battleLog());
         } else {
-            ctx.reply((String) result.get("message"));
+            ctx.reply(result.message());
         }
     }
 

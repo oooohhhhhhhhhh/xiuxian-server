@@ -1,5 +1,7 @@
 package com.mtxgdn.game.service;
 
+import com.mtxgdn.game.sect.ContestResult;
+import com.mtxgdn.game.sect.StepDownResult;
 import com.mtxgdn.TestBase;
 import com.mtxgdn.db.DatabaseManager;
 import com.mtxgdn.game.entity.Sect;
@@ -56,9 +58,9 @@ class SectSuccessionTest extends TestBase {
         addMember(sectId, topContributor, SectMember.ROLE_OUTER_MEMBER, 500);
         addMember(sectId, bystander, SectMember.ROLE_OUTER_MEMBER, 10);
 
-        Map<String, Object> result = sectService.stepDown(leader);
+        StepDownResult result = sectService.stepDown(leader);
 
-        assertTrue((Boolean) result.get("success"), String.valueOf(result.get("message")));
+        assertTrue(result.success(), result.message());
         assertEquals(topContributor, leaderOf(sectId), "贡献最高者应继任宗主");
         assertEquals(SectMember.ROLE_LEADER, roleOf(sectId, topContributor));
         assertEquals(SectMember.ROLE_VICE_LEADER, roleOf(sectId, leader), "退位者应降为副宗主");
@@ -93,10 +95,10 @@ class SectSuccessionTest extends TestBase {
         long sectId = createSect(leader);
         addMember(sectId, leader, SectMember.ROLE_LEADER, 0);
 
-        Map<String, Object> result = sectService.stepDown(leader);
+        StepDownResult result = sectService.stepDown(leader);
 
-        assertFalse((Boolean) result.get("success"));
-        assertTrue(String.valueOf(result.get("message")).contains("解散"), String.valueOf(result.get("message")));
+        assertFalse(result.success());
+        assertTrue(result.message().contains("解散"), result.message());
         assertEquals(leader, leaderOf(sectId), "拒绝退位后宗主不应变化");
     }
 
@@ -109,9 +111,9 @@ class SectSuccessionTest extends TestBase {
         addMember(sectId, leader, SectMember.ROLE_LEADER, 100);
         addMember(sectId, member, SectMember.ROLE_OUTER_MEMBER, 900);
 
-        Map<String, Object> result = sectService.stepDown(member);
+        StepDownResult result = sectService.stepDown(member);
 
-        assertFalse((Boolean) result.get("success"));
+        assertFalse(result.success());
         assertEquals(leader, leaderOf(sectId));
     }
 
@@ -187,10 +189,10 @@ class SectSuccessionTest extends TestBase {
         long sectId = ctx[0];
         long heir = ctx[1];
 
-        Map<String, Object> result = sectService.challengeLeader(heir, true);
+        ContestResult result = sectService.challengeLeader(heir, true);
 
-        assertFalse((Boolean) result.get("success"));
-        assertTrue(String.valueOf(result.get("message")).contains("尚未发起"), String.valueOf(result.get("message")));
+        assertFalse(result.success());
+        assertTrue(result.message().contains("尚未发起"), result.message());
         assertEquals(heir, leaderOf(sectId), "未应战成功时宗主不应变化");
     }
 
@@ -202,20 +204,20 @@ class SectSuccessionTest extends TestBase {
         long heir = ctx[1];
         long challenger = ctx[2];
 
-        Map<String, Object> request = sectService.challengeLeader(challenger, false);
-        assertTrue((Boolean) request.get("success"), String.valueOf(request.get("message")));
+        ContestResult request = sectService.challengeLeader(challenger, false);
+        assertTrue(request.success(), request.message());
         assertTrue(sectService.getSectById(sectId).isContestRequested(), "发起后应置 contest_requested");
 
         // 挑战者自己不能应战
-        Map<String, Object> selfAccept = sectService.challengeLeader(challenger, true);
-        assertFalse((Boolean) selfAccept.get("success"));
+        ContestResult selfAccept = sectService.challengeLeader(challenger, true);
+        assertFalse(selfAccept.success());
 
-        Map<String, Object> accept = sectService.challengeLeader(heir, true);
-        assertTrue((Boolean) accept.get("success"), String.valueOf(accept.get("message")));
-        assertNotNull(accept.get("battleLog"), "应战应产出战报");
-        assertTrue(((Number) accept.get("challengerWins")).intValue() >= 0);
+        ContestResult accept = sectService.challengeLeader(heir, true);
+        assertTrue(accept.success(), accept.message());
+        assertNotNull(accept.battleLog(), "应战应产出战报");
+        assertNotNull(accept.challengerWins(), "应战应记录挑战者胜局");
 
-        long winnerId = ((Number) accept.get("winnerId")).longValue();
+        long winnerId = accept.winnerId();
         long loserId = winnerId == challenger ? heir : challenger;
 
         Sect after = sectService.getSectById(sectId);
@@ -237,8 +239,8 @@ class SectSuccessionTest extends TestBase {
         addMember(sectId, leader, SectMember.ROLE_LEADER, 100);
         addMember(sectId, member, SectMember.ROLE_OUTER_MEMBER, 10);
 
-        assertFalse((Boolean) sectService.challengeLeader(member, false).get("success"));
-        assertFalse((Boolean) sectService.challengeLeader(leader, true).get("success"));
+        assertFalse(sectService.challengeLeader(member, false).success());
+        assertFalse(sectService.challengeLeader(leader, true).success());
     }
 
     // ==================== 幂等 / 并发 ====================

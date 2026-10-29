@@ -1,5 +1,13 @@
 package com.mtxgdn.game.service;
 
+import com.mtxgdn.game.sect.SalaryPayResult;
+import com.mtxgdn.game.sect.TreasuryInfo;
+import com.mtxgdn.game.sect.TreasuryDonateResult;
+import com.mtxgdn.game.sect.ContestResult;
+import com.mtxgdn.game.sect.StepDownResult;
+import com.mtxgdn.game.sect.WarResult;
+import com.mtxgdn.game.sect.WarehouseDonateResult;
+import com.mtxgdn.game.sect.SectActionResult;
 import com.mtxgdn.common.service.ServiceRegistry;
 import com.mtxgdn.game.entity.Sect;
 import com.mtxgdn.game.entity.SectApplication;
@@ -203,19 +211,19 @@ public class SectService {
 
     // ==================== 宗门建档（委托 SectRegistryDomain） ====================
 
-    public Map<String, Object> createSect(long playerId, String sectName, String description) {
+    public SectActionResult createSect(long playerId, String sectName, String description) {
         return registryDomain.createSect(playerId, sectName, description);
     }
 
-    public Map<String, Object> levelUp(long playerId) {
+    public SectActionResult levelUp(long playerId) {
         return registryDomain.levelUp(playerId);
     }
 
-    public Map<String, Object> transferLeader(long fromPlayerId, long toPlayerId) {
+    public SectActionResult transferLeader(long fromPlayerId, long toPlayerId) {
         return registryDomain.transferLeader(fromPlayerId, toPlayerId);
     }
 
-    public Map<String, Object> disbandSect(long playerId) {
+    public SectActionResult disbandSect(long playerId) {
         return registryDomain.disbandSect(playerId);
     }
 
@@ -255,11 +263,11 @@ public class SectService {
         return warehouseDomain.getWarehouse(sectId);
     }
 
-    public Map<String, Object> donateToWarehouse(long playerId, long sectId, String itemKey, int quantity) {
+    public WarehouseDonateResult donateToWarehouse(long playerId, long sectId, String itemKey, int quantity) {
         return warehouseDomain.donateToWarehouse(playerId, sectId, itemKey, quantity);
     }
 
-    public Map<String, Object> withdrawFromWarehouse(long playerId, long sectId, String itemKey, int quantity) {
+    public OperationResult withdrawFromWarehouse(long playerId, long sectId, String itemKey, int quantity) {
         return warehouseDomain.withdrawFromWarehouse(playerId, sectId, itemKey, quantity);
     }
 
@@ -273,7 +281,7 @@ public class SectService {
 
     // ==================== 宗门战（委托 SectWarDomain） ====================
 
-    public Map<String, Object> declareWar(long attackerPlayerId, long defenderSectId) {
+    public WarResult declareWar(long attackerPlayerId, long defenderSectId) {
         return warDomain.declareWar(attackerPlayerId, defenderSectId);
     }
 
@@ -326,7 +334,7 @@ public class SectService {
      * （{@link #leaveSect} 直接拒绝），一旦宗主不玩了，这个宗门就永远没人能接手。
      * 现在宗主可以先 {@code /宗门 退位}，再正常 {@code /宗门 退出}。</p>
      */
-    public Map<String, Object> stepDown(long playerId) {
+    public StepDownResult stepDown(long playerId) {
         return successionDomain.stepDown(playerId);
     }
 
@@ -355,7 +363,7 @@ public class SectService {
      *
      * @param accept true = 宗主应战；false = 挑战者发起 / 宗主查看竞争期状态
      */
-    public Map<String, Object> challengeLeader(long playerId, boolean accept) {
+    public ContestResult challengeLeader(long playerId, boolean accept) {
         return successionDomain.challengeLeader(playerId, accept);
     }
 
@@ -387,24 +395,24 @@ public class SectService {
      * 而金库的钱只能通过工资按职位系数分发，取不回来 —— 所以"捐进去再领回来"
      * 永远亏，不存在刷贡献的路径。</p>
      */
-    public Map<String, Object> donateStonesToTreasury(long playerId, long amount) {
+    public TreasuryDonateResult donateStonesToTreasury(long playerId, long amount) {
         return treasuryDomain.donateStonesToTreasury(playerId, amount);
     }
 
     /** 金库与工资面板。 */
-    public Map<String, Object> getTreasuryInfo(long playerId) {
+    public TreasuryInfo getTreasuryInfo(long playerId) {
         return treasuryDomain.getTreasuryInfo(playerId);
     }
 
     /**
      * 设定工资档位（宗主专属）。设为 0 等于关闭工资发放。
      */
-    public Map<String, Object> setSalary(long playerId, long perMember) {
+    public OperationResult setSalary(long playerId, long perMember) {
         return treasuryDomain.setSalary(playerId, perMember);
     }
 
     /** 宗主手动发放一次工资（不等周期）。 */
-    public Map<String, Object> paySalariesNow(long playerId) {
+    public SalaryPayResult paySalariesNow(long playerId) {
         return treasuryDomain.paySalariesNow(playerId);
     }
 

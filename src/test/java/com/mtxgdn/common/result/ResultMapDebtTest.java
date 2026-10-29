@@ -96,19 +96,6 @@ class ResultMapDebtTest {
             // ---- 地图 ----
             // ---- 玩家 ----
             // ---- 宗门（带额外数据的那些，成员域 6 个已改） ----
-            "com/mtxgdn/game/service/SectService.java#createSect",
-            "com/mtxgdn/game/service/SectService.java#levelUp",
-            "com/mtxgdn/game/service/SectService.java#transferLeader",
-            "com/mtxgdn/game/service/SectService.java#disbandSect",
-            "com/mtxgdn/game/service/SectService.java#donateToWarehouse",
-            "com/mtxgdn/game/service/SectService.java#withdrawFromWarehouse",
-            "com/mtxgdn/game/service/SectService.java#declareWar",
-            "com/mtxgdn/game/service/SectService.java#stepDown",
-            "com/mtxgdn/game/service/SectService.java#challengeLeader",
-            "com/mtxgdn/game/service/SectService.java#donateStonesToTreasury",
-            "com/mtxgdn/game/service/SectService.java#getTreasuryInfo",
-            "com/mtxgdn/game/service/SectService.java#setSalary",
-            "com/mtxgdn/game/service/SectService.java#paySalariesNow",
             // ---- 坊市 ----
             // ---- 存档 ----
             "com/mtxgdn/playerdata/PlayerDataService.java#exportPlayer",

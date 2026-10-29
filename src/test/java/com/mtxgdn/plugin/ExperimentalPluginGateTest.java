@@ -1,5 +1,6 @@
 package com.mtxgdn.plugin;
 
+import com.mtxgdn.game.sect.WarResult;
 import com.mtxgdn.game.service.SectService;
 import com.mtxgdn.i18n.I18nManager;
 import com.mtxgdn.plugin.experimental.EnergyExchangePlugin;
@@ -84,9 +85,9 @@ class ExperimentalPluginGateTest {
         BuiltInPluginRegistry registry = BuiltInPluginRegistry.getInstance();
         assertTrue(registry.disablePlugin(SECT_WAR), "应能停用实验性插件");
 
-        Map<String, Object> blocked = new SectService().declareWar(1L, 2L);
-        assertEquals(Boolean.FALSE, blocked.get("success"));
-        String blockedMessage = String.valueOf(blocked.get("message"));
+        WarResult blocked = new SectService().declareWar(1L, 2L);
+        assertFalse(blocked.success());
+        String blockedMessage = blocked.message();
         // 不直接断言中文文案：文案本身由语言包决定，改了措辞不该让门控测试变红。
         // 要钉的是两件事：提示已经翻译过（不是裸露的 key），且说的是"实验性内容"。
         assertFalse(blockedMessage.equals("sect.sect_war_is_experimental_content"),
@@ -128,8 +129,8 @@ class ExperimentalPluginGateTest {
     /** 调用宗门战并返回其消息；门控放行后的异常也转为消息文本，便于统一断言。 */
     private String warResultMessage() {
         try {
-            Map<String, Object> result = new SectService().declareWar(1L, 2L);
-            return String.valueOf(result.get("message"));
+            WarResult result = new SectService().declareWar(1L, 2L);
+            return result.message();
         } catch (RuntimeException e) {
             return String.valueOf(e.getMessage());
         }

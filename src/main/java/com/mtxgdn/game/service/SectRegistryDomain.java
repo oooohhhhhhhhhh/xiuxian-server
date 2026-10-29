@@ -1,5 +1,6 @@
 package com.mtxgdn.game.service;
 
+import com.mtxgdn.game.sect.SectActionResult;
 import com.mtxgdn.db.DatabaseManager;
 import com.mtxgdn.db.SectRegistryDAO;
 import com.mtxgdn.entity.Player;
@@ -9,7 +10,6 @@ import com.mtxgdn.game.entity.SectMember;
 import com.mtxgdn.i18n.I18n;
 
 import java.sql.SQLException;
-import java.util.LinkedHashMap;
 import java.util.Map;
 
 /**
@@ -45,52 +45,37 @@ final class SectRegistryDomain {
 
     // ==================== 宗门创建 ====================
 
-    Map<String, Object> createSect(long playerId, String sectName, String description) {
-        Map<String, Object> result = new LinkedHashMap<>();
+    SectActionResult createSect(long playerId, String sectName, String description) {
         if (sectName == null || sectName.trim().isEmpty() || sectName.trim().length() < 2 || sectName.trim().length() > 8) {
-            result.put("success", false);
-            result.put("message", I18n.t("sect.sect_names_must_be_2"));
-            return result;
+            return SectActionResult.fail(I18n.t("sect.sect_names_must_be_2"));
         }
         final String name = sectName.trim();
         if (description != null && description.length() > 100) {
-            result.put("success", false);
-            result.put("message", I18n.t("sect.the_sect_description"));
-            return result;
+            return SectActionResult.fail(I18n.t("sect.the_sect_description"));
         }
 
         Player player = playerService.getPlayerById(playerId);
         if (player == null) {
-            result.put("success", false);
-            result.put("message", I18n.t("sect.character_does_not_exist"));
-            return result;
+            return SectActionResult.fail(I18n.t("sect.character_does_not_exist"));
         }
 
         if (player.getRealm() < Sect.MIN_LEVEL_CREATE) {
             String realmName = GameConfigLoader.getRealmConfig(player.getRealm(), 0) != null
                     ? GameConfigLoader.getRealmConfig(player.getRealm(), 0).getFullName() : "凡人";
-            result.put("success", false);
-            result.put("message", I18n.t("sect.your_realm_is_too_low", realmName));
-            return result;
+            return SectActionResult.fail(I18n.t("sect.your_realm_is_too_low", realmName));
         }
 
         if (queryDomain.getPlayerSect(playerId) != null) {
-            result.put("success", false);
-            result.put("message", I18n.t("sect.you_already_belong_2"));
-            return result;
+            return SectActionResult.fail(I18n.t("sect.you_already_belong_2"));
         }
 
         if (queryDomain.getSectByName(name) != null) {
-            result.put("success", false);
-            result.put("message", I18n.t("sect.the_sect_name_is_already", name));
-            return result;
+            return SectActionResult.fail(I18n.t("sect.the_sect_name_is_already", name));
         }
 
         long spiritStones = itemService.getSpiritStoneCount(playerId);
         if (spiritStones < Sect.CREATE_COST_SPIRIT_STONES) {
-            result.put("success", false);
-            result.put("message", I18n.t("sect.not_enough_spirit_stones_3", Sect.CREATE_COST_SPIRIT_STONES, spiritStones));
-            return result;
+            return SectActionResult.fail(I18n.t("sect.not_enough_spirit_stones_3", Sect.CREATE_COST_SPIRIT_STONES, spiritStones));
         }
 
         Sect sect = DatabaseManager.runTransaction(conn -> {
@@ -117,45 +102,38 @@ final class SectRegistryDomain {
             return null;
         });
 
-        if (sect != null) {
-            // 创建宗门授予「开山祖师」称号
-            try {
-                new com.mtxgdn.game.service.TitleService().grantTitle(playerId, "sect_founder");
-            } catch (Exception ignored) {
-            }
-            result.put("success", true);
-            result.put("message", I18n.t("sect.congratulations_to_on_founding", player.getName(), name, Sect.CREATE_COST_SPIRIT_STONES));
-            result.put("sect", sect);
-        } else {
-            result.put("success", false);
-            result.put("message", I18n.t("sect.failed_to_found_the_sect"));
+        if (sect == null) {
+            return SectActionResult.fail(I18n.t("sect.failed_to_found_the_sect"));
         }
-        return result;
+        // 创建宗门授予「开山祖师」称号
+        try {
+            new com.mtxgdn.game.service.TitleService().grantTitle(playerId, "sect_founder");
+        } catch (Exception ignored) {
+        }
+        return SectActionResult.created(
+                I18n.t("sect.congratulations_to_on_founding", player.getName(), name, Sect.CREATE_COST_SPIRIT_STONES),
+                sect);
     }
 
     // ==================== 宗门升级 ====================
 
-    Map<String, Object> levelUp(long playerId) {
-        Map<String, Object> result = new LinkedHashMap<>();
+    SectActionResult levelUp(long playerId) {
         SectMember member = queryDomain.getPlayerMember(playerId);
         if (member == null || !member.isLeader()) {
-            result.put("success", false); result.put("message", I18n.t("sect.only_the_sect_leader_7")); return result;
+            return SectActionResult.fail(I18n.t("sect.only_the_sect_leader_7"));
         }
 
         Sect sect = queryDomain.getSectById(member.getSectId());
         if (sect == null) {
-            result.put("success", false); result.put("message", I18n.t("sect.sect_does_not_exist")); return result;
+            return SectActionResult.fail(I18n.t("sect.sect_does_not_exist"));
         }
         if (sect.getLevel() >= Sect.MAX_LEVEL) {
-            result.put("success", false);
-            result.put("message", I18n.t("sect.the_sect_has_already_reached", Sect.MAX_LEVEL)); return result;
+            return SectActionResult.fail(I18n.t("sect.the_sect_has_already_reached", Sect.MAX_LEVEL));
         }
 
         long cost = Sect.getLevelUpCost(sect.getLevel());
         if (sect.getPrestige() < cost) {
-            result.put("success", false);
-            result.put("message", I18n.t("sect.not_enough_prestige", cost, sect.getPrestige()));
-            return result;
+            return SectActionResult.fail(I18n.t("sect.not_enough_prestige", cost, sect.getPrestige()));
         }
 
         int newLevel = sect.getLevel() + 1;
@@ -166,50 +144,43 @@ final class SectRegistryDomain {
             throw new RuntimeException("宗门升级失败", e);
         }
 
-        result.put("success", true);
-        result.put("message", I18n.t("sect.sect_advanced_to_level", sect.getName(), newLevel, cost, newMaxMembers));
-        return result;
+        return SectActionResult.ok(I18n.t("sect.sect_advanced_to_level", sect.getName(), newLevel, cost, newMaxMembers));
     }
 
     // ==================== 宗主转让 ====================
 
-    Map<String, Object> transferLeader(long fromPlayerId, long toPlayerId) {
-        Map<String, Object> result = new LinkedHashMap<>();
+    SectActionResult transferLeader(long fromPlayerId, long toPlayerId) {
         SectMember fromMember = queryDomain.getPlayerMember(fromPlayerId);
         if (fromMember == null || !fromMember.isLeader()) {
-            result.put("success", false); result.put("message", I18n.t("sect.only_the_sect_leader_5")); return result;
+            return SectActionResult.fail(I18n.t("sect.only_the_sect_leader_5"));
         }
 
         Sect sect = queryDomain.getSectById(fromMember.getSectId());
         if (sect == null) {
-            result.put("success", false); result.put("message", I18n.t("sect.sect_does_not_exist")); return result;
+            return SectActionResult.fail(I18n.t("sect.sect_does_not_exist"));
         }
 
         SectMember toMember = queryDomain.getMember(sect.getId(), toPlayerId);
         if (toMember == null) {
-            result.put("success", false); result.put("message", I18n.t("sect.that_player_2")); return result;
+            return SectActionResult.fail(I18n.t("sect.that_player_2"));
         }
         if (toMember.isLeader()) {
-            result.put("success", false); result.put("message", I18n.t("sect.that_player_is_already")); return result;
+            return SectActionResult.fail(I18n.t("sect.that_player_is_already"));
         }
 
         Player toPlayer = playerService.getPlayerById(toPlayerId);
         if (toPlayer == null) {
-            result.put("success", false); result.put("message", I18n.t("sect.the_recipient_s_character_does")); return result;
+            return SectActionResult.fail(I18n.t("sect.the_recipient_s_character_does"));
         }
         if (toPlayer.getRealm() < Sect.MIN_LEVEL_CREATE) {
             String realmName = GameConfigLoader.getRealmConfig(toPlayer.getRealm(), 0) != null
                     ? GameConfigLoader.getRealmConfig(toPlayer.getRealm(), 0).getFullName() : "凡人";
-            result.put("success", false);
-            result.put("message", I18n.t("sect.the_recipient_s_realm", realmName));
-            return result;
+            return SectActionResult.fail(I18n.t("sect.the_recipient_s_realm", realmName));
         }
 
         long spiritStones = itemService.getSpiritStoneCount(fromPlayerId);
         if (spiritStones < Sect.TRANSFER_COST_SPIRIT_STONES) {
-            result.put("success", false);
-            result.put("message", I18n.t("sect.not_enough_spirit_stones_2", Sect.TRANSFER_COST_SPIRIT_STONES, spiritStones));
-            return result;
+            return SectActionResult.fail(I18n.t("sect.not_enough_spirit_stones_2", Sect.TRANSFER_COST_SPIRIT_STONES, spiritStones));
         }
         DatabaseManager.runTransaction(conn -> {
             if (!itemService.removeSpiritStones(conn, fromPlayerId, Sect.TRANSFER_COST_SPIRIT_STONES)) {
@@ -221,25 +192,22 @@ final class SectRegistryDomain {
             return null;
         });
 
-        result.put("success", true);
-        result.put("message", I18n.t("sect.transfer_done",
+        return SectActionResult.ok(I18n.t("sect.transfer_done",
                 fromMember.getPlayerName(), toMember.getPlayerName(),
                 Sect.TRANSFER_COST_SPIRIT_STONES));
-        return result;
     }
 
     // ==================== 解散宗门 ====================
 
-    Map<String, Object> disbandSect(long playerId) {
-        Map<String, Object> result = new LinkedHashMap<>();
+    SectActionResult disbandSect(long playerId) {
         SectMember member = queryDomain.getPlayerMember(playerId);
         if (member == null || !member.isLeader()) {
-            result.put("success", false); result.put("message", I18n.t("sect.only_the_sect_leader_6")); return result;
+            return SectActionResult.fail(I18n.t("sect.only_the_sect_leader_6"));
         }
 
         Sect sect = queryDomain.getSectById(member.getSectId());
         if (sect == null) {
-            result.put("success", false); result.put("message", I18n.t("sect.sect_does_not_exist")); return result;
+            return SectActionResult.fail(I18n.t("sect.sect_does_not_exist"));
         }
 
         // 四条 DELETE 有顺序：子表清完再删 sects 父行，否则启用外键时会失败
@@ -251,8 +219,6 @@ final class SectRegistryDomain {
             return null;
         });
 
-        result.put("success", true);
-        result.put("message", I18n.t("sect.sect_has_been_disbanded", sect.getName()));
-        return result;
+        return SectActionResult.ok(I18n.t("sect.sect_has_been_disbanded", sect.getName()));
     }
 }

@@ -58,7 +58,7 @@ class SectServiceSplitTest extends TestBase {
 
     /**
      * {@code javap -public -classpath target/classes com.mtxgdn.game.service.SectService}
-     * 在<b>拆分前</b>导出的公开成员清单（逐字抄录）。
+     * 在<b>拆分前</b>导出的公开成员清单（逐字抄录；返回类型已随 DTO 化同步更新）。
      */
     private static final List<String> GOLDEN_FACADE_API = List.of(
             "public static final int CONTEST_ROUNDS",
@@ -73,7 +73,7 @@ class SectServiceSplitTest extends TestBase {
             "public com.mtxgdn.game.entity.Sect getSectById(long)",
             "public com.mtxgdn.game.entity.Sect getSectByName(java.lang.String)",
             "public com.mtxgdn.game.entity.Sect getPlayerSect(long)",
-            "public java.util.Map<java.lang.String, java.lang.Object> createSect(long, java.lang.String, java.lang.String)",
+            "public com.mtxgdn.game.sect.SectActionResult createSect(long, java.lang.String, java.lang.String)",
             "public java.util.List<com.mtxgdn.game.entity.SectMember> getSectMembers(long)",
             "public com.mtxgdn.game.entity.SectMember getMember(long, long)",
             "public com.mtxgdn.game.entity.SectMember getPlayerMember(long)",
@@ -85,27 +85,27 @@ class SectServiceSplitTest extends TestBase {
             "public com.mtxgdn.common.result.OperationResult appointMember(long, long, java.lang.String)",
             "public com.mtxgdn.common.result.OperationResult addContribution(long, long, long)",
             "public java.util.List<com.mtxgdn.game.entity.SectWarehouseItem> getWarehouse(long)",
-            "public java.util.Map<java.lang.String, java.lang.Object> donateToWarehouse(long, long, java.lang.String, int)",
-            "public java.util.Map<java.lang.String, java.lang.Object> withdrawFromWarehouse(long, long, java.lang.String, int)",
+            "public com.mtxgdn.game.sect.WarehouseDonateResult donateToWarehouse(long, long, java.lang.String, int)",
+            "public com.mtxgdn.common.result.OperationResult withdrawFromWarehouse(long, long, java.lang.String, int)",
             "public long getItemContributionCost(com.mtxgdn.game.item.Item)",
-            "public java.util.Map<java.lang.String, java.lang.Object> levelUp(long)",
-            "public java.util.Map<java.lang.String, java.lang.Object> transferLeader(long, long)",
-            "public java.util.Map<java.lang.String, java.lang.Object> declareWar(long, long)",
-            "public java.util.Map<java.lang.String, java.lang.Object> stepDown(long)",
+            "public com.mtxgdn.game.sect.SectActionResult levelUp(long)",
+            "public com.mtxgdn.game.sect.SectActionResult transferLeader(long, long)",
+            "public com.mtxgdn.game.sect.WarResult declareWar(long, long)",
+            "public com.mtxgdn.game.sect.StepDownResult stepDown(long)",
             "public com.mtxgdn.game.service.SectService$SuccessionOutcome resolveSuccession(long, long)",
-            "public java.util.Map<java.lang.String, java.lang.Object> challengeLeader(long, boolean)",
+            "public com.mtxgdn.game.sect.ContestResult challengeLeader(long, boolean)",
             "public java.lang.String leadershipStatus(com.mtxgdn.game.entity.Sect)",
             "public int sweepLeaderSuccession(long)",
-            "public java.util.Map<java.lang.String, java.lang.Object> disbandSect(long)",
+            "public com.mtxgdn.game.sect.SectActionResult disbandSect(long)",
             "public java.util.List<com.mtxgdn.game.entity.Sect> getTopSects(int)",
             "public static int salaryIntervalHours()",
             "public static int salarySweepSeconds()",
             "public static long nextSalaryTime(com.mtxgdn.game.entity.Sect)",
             "public static long expectedSalary(com.mtxgdn.game.entity.Sect, com.mtxgdn.game.entity.SectMember)",
-            "public java.util.Map<java.lang.String, java.lang.Object> donateStonesToTreasury(long, long)",
-            "public java.util.Map<java.lang.String, java.lang.Object> getTreasuryInfo(long)",
-            "public java.util.Map<java.lang.String, java.lang.Object> setSalary(long, long)",
-            "public java.util.Map<java.lang.String, java.lang.Object> paySalariesNow(long)",
+            "public com.mtxgdn.game.sect.TreasuryDonateResult donateStonesToTreasury(long, long)",
+            "public com.mtxgdn.game.sect.TreasuryInfo getTreasuryInfo(long)",
+            "public com.mtxgdn.common.result.OperationResult setSalary(long, long)",
+            "public com.mtxgdn.game.sect.SalaryPayResult paySalariesNow(long)",
             "public int sweepSalaries(long)");
 
     /**
