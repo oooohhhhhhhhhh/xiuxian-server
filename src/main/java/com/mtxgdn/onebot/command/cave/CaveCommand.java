@@ -1,5 +1,9 @@
 package com.mtxgdn.onebot.command.cave;
 
+import com.mtxgdn.game.cave.CaveCollectResult;
+import com.mtxgdn.game.cave.CaveCreateResult;
+import com.mtxgdn.game.cave.CaveLevelUpResult;
+import com.mtxgdn.game.cave.CaveMeditateResult;
 import com.mtxgdn.common.service.ServiceRegistry;
 
 import com.google.gson.JsonObject;
@@ -13,6 +17,7 @@ import com.mtxgdn.i18n.I18n;
 
 public class CaveCommand extends Command {
     private static final CaveService caveService = ServiceRegistry.getCaveService();
+    private static final com.google.gson.Gson GSON = new com.google.gson.Gson();
 
     public CaveCommand() {
         super(new String[]{"洞府", "cave"},
@@ -78,11 +83,10 @@ public class CaveCommand extends Command {
             JsonObject req = ctx.bodyJson();
             String name = req.has("name") && !req.get("name").isJsonNull()
                     ? req.get("name").getAsString() : "";
-            var data = caveService.createCave(ctx.playerId(), name);
-            boolean ok = Boolean.TRUE.equals(data.get("success"));
-            result.addProperty("code", ok ? 200 : 400);
-            result.addProperty("success", ok);
-            result.addProperty("message", String.valueOf(data.get("message")));
+            CaveCreateResult data = caveService.createCave(ctx.playerId(), name);
+            result.addProperty("code", data.success() ? 200 : 400);
+            result.addProperty("success", data.success());
+            result.addProperty("message", data.message());
         } catch (Exception e) {
             result.addProperty("code", 500);
             result.addProperty("success", false);
@@ -94,13 +98,11 @@ public class CaveCommand extends Command {
     private JsonObject httpCollect(RouteDefinition.RestContext ctx) {
         JsonObject result = new JsonObject();
         try {
-            var data = caveService.collectSpiritEnergy(ctx.playerId());
-            boolean ok = Boolean.TRUE.equals(data.get("success"));
-            result.addProperty("code", ok ? 200 : 400);
-            result.addProperty("success", ok);
-            result.addProperty("message", String.valueOf(data.get("message")));
-            copyIfPresent(data, result, "collected");
-            copyIfPresent(data, result, "spiritEnergy");
+            CaveCollectResult data = caveService.collectSpiritEnergy(ctx.playerId());
+            result.addProperty("code", data.success() ? 200 : 400);
+            result.addProperty("success", data.success());
+            result.addProperty("message", data.message());
+            if (data.collected() != null) result.addProperty("collected", data.collected());
         } catch (Exception e) {
             result.addProperty("code", 500);
             result.addProperty("success", false);
@@ -112,14 +114,15 @@ public class CaveCommand extends Command {
     private JsonObject httpMeditate(RouteDefinition.RestContext ctx) {
         JsonObject result = new JsonObject();
         try {
-            var data = caveService.meditate(ctx.playerId());
-            boolean ok = Boolean.TRUE.equals(data.get("success"));
-            result.addProperty("code", ok ? 200 : 400);
-            result.addProperty("success", ok);
-            result.addProperty("message", String.valueOf(data.get("message")));
-            copyIfPresent(data, result, "expGain");
-            copyIfPresent(data, result, "bonus");
-            copyIfPresent(data, result, "heartDemon");
+            CaveMeditateResult data = caveService.meditate(ctx.playerId());
+            result.addProperty("code", data.success() ? 200 : 400);
+            result.addProperty("success", data.success());
+            result.addProperty("message", data.message());
+            if (data.expGain() != null) result.addProperty("expGain", data.expGain());
+            if (data.bonus() != null) result.addProperty("bonus", data.bonus());
+            if (data.heartDemon() != null) {
+                result.add("heartDemon", GSON.toJsonTree(data.heartDemon()));
+            }
         } catch (Exception e) {
             result.addProperty("code", 500);
             result.addProperty("success", false);
@@ -131,13 +134,11 @@ public class CaveCommand extends Command {
     private JsonObject httpLevelUp(RouteDefinition.RestContext ctx) {
         JsonObject result = new JsonObject();
         try {
-            var data = caveService.levelUp(ctx.playerId());
-            boolean ok = Boolean.TRUE.equals(data.get("success"));
-            result.addProperty("code", ok ? 200 : 400);
-            result.addProperty("success", ok);
-            result.addProperty("message", String.valueOf(data.get("message")));
-            copyIfPresent(data, result, "newLevel");
-            copyIfPresent(data, result, "spiritEnergy");
+            CaveLevelUpResult data = caveService.levelUp(ctx.playerId());
+            result.addProperty("code", data.success() ? 200 : 400);
+            result.addProperty("success", data.success());
+            result.addProperty("message", data.message());
+            if (data.newLevel() != null) result.addProperty("newLevel", data.newLevel());
         } catch (Exception e) {
             result.addProperty("code", 500);
             result.addProperty("success", false);
@@ -146,14 +147,6 @@ public class CaveCommand extends Command {
         return result;
     }
 
-    /** 把 Service 返回 Map 中的可选字段原样透传给前端（数字/字符串/布尔）。 */
-    private static void copyIfPresent(java.util.Map<String, Object> src, JsonObject dst, String key) {
-        Object v = src.get(key);
-        if (v == null) return;
-        if (v instanceof Number n) dst.addProperty(key, n);
-        else if (v instanceof Boolean b) dst.addProperty(key, b);
-        else dst.addProperty(key, String.valueOf(v));
-    }
 
     @Override
     protected void onDefault(CommandContext ctx, PlayerInfo p) {
@@ -171,8 +164,8 @@ public class CaveCommand extends Command {
 
     private void handleCreate(CommandContext ctx, PlayerInfo p, String[] parts) {
         String name = parts.length > 1 ? parts[1].trim() : "";
-        var result = caveService.createCave(p.getId(), name);
-        ctx.reply((String) result.get("message"));
+        CaveCreateResult result = caveService.createCave(p.getId(), name);
+        ctx.reply(result.message());
     }
 
     private void handleInfo(CommandContext ctx, PlayerInfo p, String[] parts) {
@@ -199,18 +192,18 @@ public class CaveCommand extends Command {
     }
 
     private void handleCollect(CommandContext ctx, PlayerInfo p, String[] parts) {
-        var result = caveService.collectSpiritEnergy(p.getId());
-        ctx.reply((String) result.get("message"));
+        CaveCollectResult result = caveService.collectSpiritEnergy(p.getId());
+        ctx.reply(result.message());
     }
 
     private void handleMeditate(CommandContext ctx, PlayerInfo p, String[] parts) {
-        var result = caveService.meditate(p.getId());
-        ctx.reply((String) result.get("message"));
+        CaveMeditateResult result = caveService.meditate(p.getId());
+        ctx.reply(result.message());
     }
 
     private void handleLevelUp(CommandContext ctx, PlayerInfo p, String[] parts) {
-        var result = caveService.levelUp(p.getId());
-        ctx.reply((String) result.get("message"));
+        CaveLevelUpResult result = caveService.levelUp(p.getId());
+        ctx.reply(result.message());
     }
 
     private String buildOverview(PlayerInfo p) {

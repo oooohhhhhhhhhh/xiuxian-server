@@ -88,10 +88,6 @@ class ResultMapDebtTest {
      */
     private static final List<String> PENDING_DTO = List.of(
             // ---- 洞府 ----
-            "com/mtxgdn/game/service/CaveService.java#createCave",
-            "com/mtxgdn/game/service/CaveService.java#collectSpiritEnergy",
-            "com/mtxgdn/game/service/CaveService.java#meditate",
-            "com/mtxgdn/game/service/CaveService.java#levelUp",
             // ---- 每日 ----
             // ---- 经济 ----
             "com/mtxgdn/game/service/EconomyService.java#signIn",

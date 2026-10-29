@@ -90,7 +90,7 @@ class CaveDaoExtractionTest extends DaoExtractionAssertions {
     @DisplayName("服务层在事务提交之后才回读整行")
     void serviceReadsRowAfterCommit() throws IOException {
         String service = stripComments(read(servicePath()));
-        String body = bodyOf(service, "public Map<String, Object> createCave(long playerId, String caveName)");
+        String body = bodyOf(service, "public CaveCreateResult createCave(long playerId, String caveName)");
         int txEnd = body.indexOf("});");
         int readBack = body.indexOf("getCaveById(caveId)");
         assertTrue(txEnd >= 0 && readBack > txEnd,
