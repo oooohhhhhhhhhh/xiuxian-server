@@ -84,9 +84,9 @@ class TitleDaoExtractionTest extends DaoExtractionAssertions {
     @DisplayName("装备称号的两步必须共用同一条连接")
     void equipSharesOneConnection() throws IOException {
         String service = stripComments(read(servicePath()));
-        int start = service.indexOf("public Map<String, Object> equipTitle(");
+        int start = service.indexOf("public TitleChangeResult equipTitle(");
         assertTrue(start >= 0, "找不到 equipTitle 方法");
-        String body = service.substring(start, service.indexOf("public Map<String, Object> unequipTitle(", start));
+        String body = service.substring(start, service.indexOf("public OperationResult unequipTitle(", start));
         assertTrue(body.contains("TITLE_DAO.unequipAll(conn, playerId)"),
                 "卸下当前装备必须用调用方的 conn");
         assertTrue(body.contains("TITLE_DAO.equipTitle(conn, playerId, titleKey)"),

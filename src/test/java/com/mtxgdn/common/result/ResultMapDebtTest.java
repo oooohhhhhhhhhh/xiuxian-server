@@ -157,11 +157,6 @@ class ResultMapDebtTest {
             "com/mtxgdn/game/service/SectService.java#getTreasuryInfo",
             "com/mtxgdn/game/service/SectService.java#setSalary",
             "com/mtxgdn/game/service/SectService.java#paySalariesNow",
-            // ---- 称号 ----
-            "com/mtxgdn/game/service/TitleService.java#grantTitle",
-            "com/mtxgdn/game/service/TitleService.java#revokeTitle",
-            "com/mtxgdn/game/service/TitleService.java#equipTitle",
-            "com/mtxgdn/game/service/TitleService.java#unequipTitle",
             // ---- 坊市 ----
             "com/mtxgdn/game/service/TradeService.java#listItem",
             "com/mtxgdn/game/service/TradeService.java#buyItem",

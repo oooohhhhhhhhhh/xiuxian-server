@@ -128,10 +128,10 @@ public class GameTitleResource {
         JsonObject req = gson.fromJson(body, JsonObject.class);
         String titleKey = req.has("titleKey") ? req.get("titleKey").getAsString() : "";
         var result = titleService().equipTitle(player.getId(), titleKey);
-        if (Boolean.TRUE.equals(result.get("success"))) {
-            return Response.ok(GameMessage.restOk((String) result.get("message"), gson.toJsonTree(result).getAsJsonObject()).toString()).build();
+        if (result.success()) {
+            return Response.ok(GameMessage.restOk(result.message(), gson.toJsonTree(result).getAsJsonObject()).toString()).build();
         }
-        return Response.ok(GameMessage.restError(400, (String) result.get("message")).toString()).build();
+        return Response.ok(GameMessage.restError(400, result.message()).toString()).build();
     }
 
     @POST
@@ -145,7 +145,7 @@ public class GameTitleResource {
             return Response.ok(GameMessage.restError(GameErrorCode.PLAYER_NOT_FOUND).toString()).build();
         }
         var result = titleService().unequipTitle(player.getId());
-        return Response.ok(GameMessage.restOk((String) result.get("message"), gson.toJsonTree(result).getAsJsonObject()).toString()).build();
+        return Response.ok(GameMessage.restOk(result.message(), gson.toJsonTree(result).getAsJsonObject()).toString()).build();
     }
 
     private JsonObject toTitleJson(Title t) {

@@ -7,6 +7,8 @@ import com.mtxgdn.game.entity.Title;
 import com.mtxgdn.game.title.TitleRegistry;
 
 import java.util.*;
+import com.mtxgdn.common.result.OperationResult;
+import com.mtxgdn.game.title.TitleChangeResult;
 import com.mtxgdn.i18n.I18n;
 
 public class TitleService {
@@ -24,24 +26,24 @@ public class TitleService {
     }
 
     /** 授予称号 */
-    public Map<String, Object> grantTitle(long playerId, String titleKey) {
+    public TitleChangeResult grantTitle(long playerId, String titleKey) {
         Title title = TitleRegistry.get(titleKey);
         if (title == null) {
-            return createResult(false, I18n.t("title.title_does_not_exist", titleKey));
+            return TitleChangeResult.fail(I18n.t("title.title_does_not_exist", titleKey));
         }
 
         if (hasTitle(playerId, titleKey)) {
-            return createResult(false, I18n.t("title.you_already_own_that_title"));
+            return TitleChangeResult.fail(I18n.t("title.you_already_own_that_title"));
         }
 
         try {
             TITLE_DAO.grantTitle(playerId, titleKey);
-            Map<String, Object> result = createResult(true, I18n.t("title.successfully_granted_title", title.getName()));
-            result.put("titleKey", titleKey);
-            result.put("titleName", title.getName());
-            return result;
+            return TitleChangeResult.ok(
+                    I18n.t("title.successfully_granted_title", title.getName()),
+                    titleKey, title.getName());
         } catch (RuntimeException e) {
-            return createResult(false, I18n.t("title.failed_to_grant_the_title", e.getMessage()));
+            return TitleChangeResult.fail(
+                    I18n.t("title.failed_to_grant_the_title", e.getMessage()));
         }
     }
 
@@ -79,8 +81,8 @@ public class TitleService {
             return;
         }
         try {
-            Map<String, Object> r = grantTitle(playerId, titleKey);
-            if (Boolean.TRUE.equals(r.get("success"))) {
+            TitleChangeResult r = grantTitle(playerId, titleKey);
+            if (r.success()) {
                 granted.add(titleKey);
             }
         } catch (Exception ignored) {
@@ -89,30 +91,31 @@ public class TitleService {
     }
 
     /** 撤销称号 */
-    public Map<String, Object> revokeTitle(long playerId, String titleKey) {
+    public OperationResult revokeTitle(long playerId, String titleKey) {
         try {
             if (!TITLE_DAO.revokeTitle(playerId, titleKey)) {
-                return createResult(false, I18n.t("title.the_player_does_not_own"));
+                return OperationResult.fail(I18n.t("title.the_player_does_not_own"));
             }
             Title title = TitleRegistry.get(titleKey);
             // 查不到称号时退回原 key 而不是编一个名字——
             // 这里的 key 是装备/称号的内部标识，玩家认得出
-            return createResult(true, I18n.t("title.revoked",
+            return OperationResult.ok(I18n.t("title.revoked",
                     title != null ? title.getName() : titleKey));
         } catch (RuntimeException e) {
-            return createResult(false, I18n.t("title.failed_to_revoke_the_title", e.getMessage()));
+            return OperationResult.fail(
+                    I18n.t("title.failed_to_revoke_the_title", e.getMessage()));
         }
     }
 
     /** 装备称号 */
-    public Map<String, Object> equipTitle(long playerId, String titleKey) {
+    public TitleChangeResult equipTitle(long playerId, String titleKey) {
         Title title = TitleRegistry.get(titleKey);
         if (title == null) {
-            return createResult(false, I18n.t("title.title_does_not_exist", titleKey));
+            return TitleChangeResult.fail(I18n.t("title.title_does_not_exist", titleKey));
         }
 
         if (!hasTitle(playerId, titleKey)) {
-            return createResult(false, I18n.t("title.you_do_not_own"));
+            return TitleChangeResult.fail(I18n.t("title.you_do_not_own"));
         }
 
         try {
@@ -122,24 +125,24 @@ public class TitleService {
                 return null;
             });
 
-            Map<String, Object> result = createResult(true, I18n.t("title.equipped_title", title.getName()));
-            result.put("titleKey", titleKey);
-            result.put("titleName", title.getName());
-            return result;
+            return TitleChangeResult.ok(
+                    I18n.t("title.equipped_title", title.getName()),
+                    titleKey, title.getName());
         } catch (Exception e) {
-            return createResult(false, I18n.t("title.failed_to_equip_the_title", e.getMessage()));
+            return TitleChangeResult.fail(
+                    I18n.t("title.failed_to_equip_the_title", e.getMessage()));
         }
     }
 
     /** 卸下称号 */
-    public Map<String, Object> unequipTitle(long playerId) {
+    public OperationResult unequipTitle(long playerId) {
         try {
             int rows = TITLE_DAO.unequipAll(playerId);
-            Map<String, Object> result = createResult(true,
+            return OperationResult.ok(
                     rows > 0 ? I18n.t("title.unequipped") : I18n.t("title.none_equipped"));
-            return result;
         } catch (RuntimeException e) {
-            return createResult(false, I18n.t("title.failed_to_unequip_the_title", e.getMessage()));
+            return OperationResult.fail(
+                    I18n.t("title.failed_to_unequip_the_title", e.getMessage()));
         }
     }
 
@@ -174,13 +177,6 @@ public class TitleService {
 
     public boolean hasTitle(long playerId, String titleKey) {
         return TITLE_DAO.hasTitle(playerId, titleKey);
-    }
-
-    private Map<String, Object> createResult(boolean success, String message) {
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("success", success);
-        result.put("message", message);
-        return result;
     }
 
     private Map<String, Object> buildTitleMap(String key, Title title, boolean isEquipped, String acquiredAt) {

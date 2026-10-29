@@ -385,15 +385,15 @@ public class AdminPlayersResource {
         if (titleKey == null || titleKey.isBlank()) {
             var result = ts.unequipTitle(playerId);
             JsonObject resp = new JsonObject();
-            resp.addProperty("code", (boolean) result.get("success") ? 200 : 400);
-            resp.addProperty("message", result.get("message").toString());
+            resp.addProperty("code", result.success() ? 200 : 400);
+            resp.addProperty("message", result.message());
             return Response.ok(gson.toJson(resp)).build();
         }
 
         var result = ts.equipTitle(playerId, titleKey);
         JsonObject resp = new JsonObject();
-        resp.addProperty("code", (boolean) result.get("success") ? 200 : 400);
-        resp.addProperty("message", result.get("message").toString());
+        resp.addProperty("code", result.success() ? 200 : 400);
+        resp.addProperty("message", result.message());
         return Response.ok(gson.toJson(resp)).build();
     }
 
@@ -425,8 +425,8 @@ public class AdminPlayersResource {
         var result = ts.grantTitle(playerId, titleKey);
 
         JsonObject resp = new JsonObject();
-        resp.addProperty("code", (boolean) result.get("success") ? 200 : 400);
-        resp.addProperty("message", result.get("message").toString());
+        resp.addProperty("code", result.success() ? 200 : 400);
+        resp.addProperty("message", result.message());
         return Response.ok(gson.toJson(resp)).build();
     }
 

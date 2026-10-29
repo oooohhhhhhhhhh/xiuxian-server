@@ -129,12 +129,12 @@ public class TitleCommand extends Command {
         }
 
         var result = ts.equipTitle(p.getId(), matchedKey);
-        ctx.reply((String) result.get("message"));
+        ctx.reply(result.message());
     }
 
     private void unequipTitle(CommandContext ctx, PlayerInfo p, String[] parts) {
         var ts = ServiceRegistry.getTitleService();
         var result = ts.unequipTitle(p.getId());
-        ctx.reply((String) result.get("message"));
+        ctx.reply(result.message());
     }
 }
