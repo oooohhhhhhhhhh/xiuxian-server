@@ -1,5 +1,7 @@
 package com.mtxgdn.onebot.command.crafting;
 
+import com.mtxgdn.game.crafting.CraftProficiencyInfo;
+import com.mtxgdn.game.crafting.CraftResult;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.mtxgdn.common.command.Command;
@@ -127,20 +129,20 @@ public class CraftCommand extends Command {
         try { recipeId = Long.parseLong(parts[1]); } catch (NumberFormatException e) { ctx.reply(I18n.t("crafting.invalid_recipe_id")); return; }
 
         var service = ServiceRegistry.getCraftingService();
-        Map<String, Object> result = service.craft(p.getId(), recipeId);
-        ctx.reply((String) result.get("message"));
+        CraftResult result = service.craft(p.getId(), recipeId);
+        ctx.reply(result.message());
     }
 
     private void showProficiency(CommandContext ctx, PlayerInfo p, String[] parts) {
         var service = ServiceRegistry.getCraftingService();
-        Map<String, Object> info = service.getProficiencyInfo(p.getId());
+        CraftProficiencyInfo info = service.getProficiencyInfo(p.getId());
         StringBuilder sb = new StringBuilder();
         sb.append("=== 合成熟练度 ===\n");
-        int level = ((Number) info.get("level")).intValue();
-        int maxLevel = ((Number) info.get("maxLevel")).intValue();
-        long count = ((Number) info.get("craftCount")).longValue();
-        long nextAt = ((Number) info.get("nextLevelAt")).longValue();
-        double bonus = ((Number) info.get("successBonus")).doubleValue();
+        int level = info.level();
+        int maxLevel = info.maxLevel();
+        long count = info.craftCount();
+        long nextAt = info.nextLevelAt();
+        double bonus = info.successBonus();
         sb.append("熟练度等级: Lv.").append(level).append("/").append(maxLevel).append("\n");
         sb.append("累计制造成功: ").append(count).append(" 次\n");
         if (nextAt > 0) {
@@ -227,14 +229,14 @@ public class CraftCommand extends Command {
                 return result;
             }
             var service = ServiceRegistry.getCraftingService();
-            Map<String, Object> data = service.craft(ctx.playerId(), recipeId);
+            CraftResult data = service.craft(ctx.playerId(), recipeId);
             result.addProperty("code", 200);
-            result.addProperty("success", (boolean) data.get("success"));
-            result.addProperty("message", (String) data.get("message"));
-            if (data.containsKey("craftSuccess")) result.addProperty("craftSuccess", (boolean) data.get("craftSuccess"));
-            if (data.containsKey("expGained")) result.addProperty("expGained", ((Number) data.get("expGained")).longValue());
-            if (data.containsKey("itemGained")) result.addProperty("itemGained", (String) data.get("itemGained"));
-            if (data.containsKey("itemQuantity")) result.addProperty("itemQuantity", ((Number) data.get("itemQuantity")).intValue());
+            result.addProperty("success", data.success());
+            result.addProperty("message", data.message());
+            if (data.craftSuccess() != null) result.addProperty("craftSuccess", data.craftSuccess());
+            if (data.expGained() != null) result.addProperty("expGained", data.expGained());
+            if (data.itemGained() != null) result.addProperty("itemGained", data.itemGained());
+            if (data.itemQuantity() != null) result.addProperty("itemQuantity", data.itemQuantity());
         } catch (Exception e) {
             result.addProperty("code", 500);
             result.addProperty("message", I18n.t("crafting.server_error", e.getMessage()));

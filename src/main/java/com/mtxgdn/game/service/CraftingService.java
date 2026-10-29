@@ -6,6 +6,8 @@ import com.mtxgdn.db.CraftingDAO;
 import com.mtxgdn.db.DatabaseManager;
 import com.mtxgdn.entity.Player;
 import com.mtxgdn.game.config.RecipeDefaults;
+import com.mtxgdn.game.crafting.CraftProficiencyInfo;
+import com.mtxgdn.game.crafting.CraftResult;
 import com.mtxgdn.game.entity.Recipe;
 import com.mtxgdn.game.item.Item;
 import com.mtxgdn.game.item.ItemRegistry;
@@ -37,19 +39,18 @@ public class CraftingService {
         return CRAFTING_DAO.findRecipeById(recipeId);
     }
 
-    public Map<String, Object> craft(long playerId, long recipeId) {
-        Map<String, Object> result = new LinkedHashMap<>();
+    public CraftResult craft(long playerId, long recipeId) {
         Recipe recipe = getRecipeById(recipeId);
         if (recipe == null) {
-            result.put("success", false); result.put("message", I18n.t("crafting.recipe_not_found")); return result;
+            return CraftResult.rejected(I18n.t("crafting.recipe_not_found"));
         }
 
         Player player = playerService.getPlayerById(playerId);
         if (player == null) {
-            result.put("success", false); result.put("message", I18n.t("crafting.character_not_found")); return result;
+            return CraftResult.rejected(I18n.t("crafting.character_not_found"));
         }
         if (player.getRealm() < recipe.getRequiredRealm()) {
-            result.put("success", false); result.put("message", I18n.t("crafting.realm_too_low")); return result;
+            return CraftResult.rejected(I18n.t("crafting.realm_too_low"));
         }
 
         Map<String, Integer> requiredMaterials = getRequiredMaterials(recipe);
@@ -61,27 +62,26 @@ public class CraftingService {
             if (has < needed) {
                 Item item = ItemRegistry.get(key);
                 String itemName = item != null ? item.getName() : key;
-                result.put("success", false);
-                result.put("message", I18n.t("crafting.not_enough_materials", itemName, needed, has));
-                return result;
+                return CraftResult.rejected(
+                        I18n.t("crafting.not_enough_materials", itemName, needed, has));
             }
         }
 
         if (player.getGold() < recipe.getCostGold()) {
-            result.put("success", false); result.put("message", I18n.t("crafting.not_enough_gold", recipe.getCostGold())); return result;
+            return CraftResult.rejected(I18n.t("crafting.not_enough_gold", recipe.getCostGold()));
         }
         long ssCount = itemService.getSpiritStoneCount(playerId);
         if (ssCount < recipe.getCostSpiritStones()) {
-            result.put("success", false); result.put("message", I18n.t("crafting.not_enough_spirit_stones", recipe.getCostSpiritStones())); return result;
+            return CraftResult.rejected(
+                    I18n.t("crafting.not_enough_spirit_stones", recipe.getCostSpiritStones()));
         }
 
         // 合成熟练度加成：由累计制造成功次数（craft_count）派生，每级 +0.5% 成功率（上限 +4.5%）
         final double proficiencyBonus = proficiencySuccessBonus(player.getCraftCount());
 
+        CraftResult crafted;
         try {
-            result = DatabaseManager.runTransaction(conn -> {
-                Map<String, Object> txResult = new LinkedHashMap<>();
-
+            crafted = DatabaseManager.runTransaction(conn -> {
                 // 扣除材料
                 for (Map.Entry<String, Integer> entry : requiredMaterials.entrySet()) {
                     String key = entry.getKey();
@@ -127,7 +127,6 @@ public class CraftingService {
                     long expGain = recipe.getMinExpGain() + random.nextLong(recipe.getMaxExpGain() - recipe.getMinExpGain() + 1);
                     expGain = (long) (expGain * (1 + recipe.getQualityBonusRate() * (bonusMultiplier - 1)));
                     playerService.addExperience(conn, playerId, expGain);
-                    txResult.put("craftSuccess", true);
 
                     Item resultItem = ItemRegistry.get(recipe.getResultItemKey());
                     String resultName = resultItem != null ? resultItem.getName() : recipe.getResultItemKey();
@@ -139,32 +138,22 @@ public class CraftingService {
                         message = "制造成功！获得了 " + resultName + " x" + actualQuantity + "，" + expGain + " 经验";
                     }
 
-                    txResult.put("success", true);
-                    txResult.put("message", message);
-                    txResult.put("expGained", expGain);
-                    txResult.put("itemGained", recipe.getResultItemKey());
-                    txResult.put("itemQuantity", actualQuantity);
-                    txResult.put("quality", quality.name());
-                    txResult.put("qualityLabel", qualityLabel);
+                    return CraftResult.crafted(message, expGain,
+                            recipe.getResultItemKey(), actualQuantity,
+                            quality.name(), qualityLabel);
                 } else {
                     long pityExp = recipe.getMinExpGain() / 3;
                     playerService.addExperience(conn, playerId, pityExp);
-                    txResult.put("success", true);
-                    txResult.put("message", I18n.t("crafting.crafting_failed_2", pityExp));
-                    txResult.put("craftSuccess", false);
-                    txResult.put("expGained", pityExp);
+                    return CraftResult.pity(
+                            I18n.t("crafting.crafting_failed_2", pityExp), pityExp);
                 }
-
-                return txResult;
             });
         } catch (Exception e) {
-            result.put("success", false);
-            result.put("message", I18n.t("crafting.crafting_failed", e.getMessage()));
-            return result;
+            return CraftResult.failed(I18n.t("crafting.crafting_failed", e.getMessage()));
         }
 
         // 制造成功：炼丹计数 + 称号检查（炼丹学徒/丹道尊者）
-        if (Boolean.TRUE.equals(result.get("craftSuccess"))) {
+        if (Boolean.TRUE.equals(crafted.craftSuccess())) {
             try {
                 playerService.incrementCraftCount(playerId);
                 com.mtxgdn.entity.Player p = playerService.getPlayerById(playerId);
@@ -175,7 +164,7 @@ public class CraftingService {
             } catch (Exception ignored) {
             }
         }
-        return result;
+        return crafted;
     }
 
     // ==================== 合成熟练度（真实派生，不再占位） ====================
@@ -191,17 +180,16 @@ public class CraftingService {
     }
 
     /** 合成熟练度详情（供 `/合成 熟练度` 展示）。 */
-    public Map<String, Object> getProficiencyInfo(long playerId) {
-        Map<String, Object> info = new LinkedHashMap<>();
+    public CraftProficiencyInfo getProficiencyInfo(long playerId) {
         Player p = playerService.getPlayerById(playerId);
         int count = p != null ? p.getCraftCount() : 0;
         int level = proficiencyLevelFromCount(count);
-        info.put("craftCount", count);
-        info.put("level", level);
-        info.put("maxLevel", 10);
-        info.put("nextLevelAt", level >= 10 ? -1 : (level * 20) - count);
-        info.put("successBonus", proficiencySuccessBonus(count));
-        return info;
+        return new CraftProficiencyInfo(
+                count,
+                level,
+                10,
+                level >= 10 ? -1 : (level * 20) - count,
+                proficiencySuccessBonus(count));
     }
 
     private Recipe.PillQuality determinePillQuality(Recipe recipe) {

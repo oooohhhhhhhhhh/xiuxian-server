@@ -92,9 +92,6 @@ class ResultMapDebtTest {
             "com/mtxgdn/game/service/CaveService.java#collectSpiritEnergy",
             "com/mtxgdn/game/service/CaveService.java#meditate",
             "com/mtxgdn/game/service/CaveService.java#levelUp",
-            // ---- 打造 ----
-            "com/mtxgdn/game/service/CraftingService.java#craft",
-            "com/mtxgdn/game/service/CraftingService.java#getProficiencyInfo",
             // ---- 每日 ----
             "com/mtxgdn/game/service/DailyService.java#doMorningCultivation",
             "com/mtxgdn/game/service/DailyService.java#getDailyInfo",

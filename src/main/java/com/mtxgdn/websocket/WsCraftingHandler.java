@@ -1,5 +1,6 @@
 package com.mtxgdn.websocket;
 
+import com.mtxgdn.game.crafting.CraftResult;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.mtxgdn.common.GameErrorCode;
@@ -89,17 +90,17 @@ final class WsCraftingHandler extends WsHandler {
             return;
         }
         long recipeId = data.get("recipeId").getAsLong();
-        Map<String, Object> result = craftingService.craft(player.getId(), recipeId);
-        if (Boolean.TRUE.equals(result.get("success"))) {
+        CraftResult result = craftingService.craft(player.getId(), recipeId);
+        if (result.success()) {
             JsonObject respData = new JsonObject();
-            respData.addProperty("message", (String) result.get("message"));
-            if (result.containsKey("craftSuccess")) respData.addProperty("craftSuccess", (boolean) result.get("craftSuccess"));
-            if (result.containsKey("expGained")) respData.addProperty("expGained", ((Number) result.get("expGained")).longValue());
-            if (result.containsKey("itemGained")) respData.addProperty("itemGained", (String) result.get("itemGained"));
-            if (result.containsKey("itemQuantity")) respData.addProperty("itemQuantity", ((Number) result.get("itemQuantity")).intValue());
-            socket.send(GameMessage.ok(msgId, "crafting_craft", (String) result.get("message"), respData).toJson());
+            respData.addProperty("message", result.message());
+            if (result.craftSuccess() != null) respData.addProperty("craftSuccess", result.craftSuccess());
+            if (result.expGained() != null) respData.addProperty("expGained", result.expGained());
+            if (result.itemGained() != null) respData.addProperty("itemGained", result.itemGained());
+            if (result.itemQuantity() != null) respData.addProperty("itemQuantity", result.itemQuantity());
+            socket.send(GameMessage.ok(msgId, "crafting_craft", result.message(), respData).toJson());
         } else {
-            socket.send(GameMessage.error(msgId, "crafting_craft", 400, (String) result.get("message")).toJson());
+            socket.send(GameMessage.error(msgId, "crafting_craft", 400, result.message()).toJson());
         }
     }
 }

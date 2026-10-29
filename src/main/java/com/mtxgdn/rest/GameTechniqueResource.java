@@ -1,5 +1,6 @@
 package com.mtxgdn.rest;
 
+import com.mtxgdn.game.crafting.CraftResult;
 import com.mtxgdn.common.result.OperationResult;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
@@ -261,16 +262,16 @@ public class GameTechniqueResource {
         }
         JsonObject req = gson.fromJson(body, JsonObject.class);
         long recipeId = req.get("recipeId").getAsLong();
-        Map<String, Object> result = craftingService.craft(player.getId(), recipeId);
-        if (Boolean.TRUE.equals(result.get("success"))) {
+        CraftResult result = craftingService.craft(player.getId(), recipeId);
+        if (result.success()) {
             JsonObject data = new JsonObject();
-            data.addProperty("message", (String) result.get("message"));
-            if (result.containsKey("craftSuccess")) data.addProperty("craftSuccess", (boolean) result.get("craftSuccess"));
-            if (result.containsKey("expGained")) data.addProperty("expGained", ((Number) result.get("expGained")).longValue());
-            if (result.containsKey("itemGained")) data.addProperty("itemGained", (String) result.get("itemGained"));
-            if (result.containsKey("itemQuantity")) data.addProperty("itemQuantity", ((Number) result.get("itemQuantity")).intValue());
-            return Response.ok(GameMessage.restOk((String) result.get("message"), data).toString()).build();
+            data.addProperty("message", result.message());
+            if (result.craftSuccess() != null) data.addProperty("craftSuccess", result.craftSuccess());
+            if (result.expGained() != null) data.addProperty("expGained", result.expGained());
+            if (result.itemGained() != null) data.addProperty("itemGained", result.itemGained());
+            if (result.itemQuantity() != null) data.addProperty("itemQuantity", result.itemQuantity());
+            return Response.ok(GameMessage.restOk(result.message(), data).toString()).build();
         }
-        return Response.ok(GameMessage.restError(400, (String) result.get("message")).toString()).build();
+        return Response.ok(GameMessage.restError(400, result.message()).toString()).build();
     }
 }
