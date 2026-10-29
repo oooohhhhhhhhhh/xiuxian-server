@@ -1,5 +1,6 @@
 package com.mtxgdn.onebot.command.admin;
 
+import com.mtxgdn.game.economy.EconomyStats;
 import com.mtxgdn.common.command.Command;
 import com.mtxgdn.common.command.CommandContext;
 import com.mtxgdn.common.service.ServiceRegistry;
@@ -23,16 +24,16 @@ public class EconomyStatsCommand extends Command {
         if (!ctx.checkPermission("admin.economy")) return;
 
         var eco = ServiceRegistry.getEconomyService();
-        Map<String, Object> stats = eco.getEconomyStats();
+        EconomyStats stats = eco.getEconomyStats();
 
         StringBuilder sb = new StringBuilder();
         sb.append("📊 全服经济面板\n");
         sb.append("────────────────\n");
-        sb.append("全服灵石总量: ").append(formatNum(stats.get("totalStones"))).append("\n");
-        sb.append("全服金币总量: ").append(formatNum(stats.get("totalGold"))).append("\n");
-        sb.append("玩家人数: ").append(stats.get("totalPlayers")).append("\n");
-        sb.append("人均灵石: ").append(formatNum(stats.get("avgStonesPerPlayer"))).append("\n");
-        sb.append("24h 交易量: ").append(formatNum(stats.get("last24hTradeVolume"))).append(" 笔");
+        sb.append("全服灵石总量: ").append(formatNum(stats.totalStones())).append("\n");
+        sb.append("全服金币总量: ").append(formatNum(stats.totalGold())).append("\n");
+        sb.append("玩家人数: ").append(stats.totalPlayers()).append("\n");
+        sb.append("人均灵石: ").append(formatNum(stats.avgStonesPerPlayer())).append("\n");
+        sb.append("24h 交易量: ").append(formatNum(stats.last24hTradeVolume())).append(" 笔");
 
         ctx.reply(sb.toString());
     }
