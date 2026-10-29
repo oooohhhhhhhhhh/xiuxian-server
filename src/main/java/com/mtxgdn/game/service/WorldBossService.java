@@ -19,6 +19,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Random;
 import java.util.concurrent.ThreadLocalRandom;
+import com.mtxgdn.game.worldboss.WorldBossChallengeResult;
 import com.mtxgdn.i18n.I18n;
 
 /**
@@ -292,66 +293,55 @@ public class WorldBossService {
      * @param query 序号（1..N）、Boss 名称或 Boss ID
      * @param now   由调用方传入，便于测试注入时间
      */
-    public Map<String, Object> challenge(long playerId, String scope, String query, long now) {
-        Map<String, Object> result = new LinkedHashMap<>();
+    public WorldBossChallengeResult challenge(long playerId, String scope, String query, long now) {
         String key = (scope == null || scope.isBlank()) ? scope() : scope;
 
         WorldBoss boss = selectBoss(getPool(key, now), query);
         if (boss == null) {
-            result.put("success", false);
-            result.put("message", I18n.t("world_boss.world_boss_not_found"));
-            return result;
+            return WorldBossChallengeResult.rejected(I18n.t("world_boss.world_boss_not_found"));
         }
         if (boss.isDead()) {
-            result.put("success", false);
-            result.put("message", I18n.t("world_boss.has_been_slain", boss.getName(), formatTime(boss.getExpiresAt())));
-            return result;
+            return WorldBossChallengeResult.rejected(I18n.t(
+                    "world_boss.has_been_slain", boss.getName(), formatTime(boss.getExpiresAt())));
         }
 
         Player player = playerService.getPlayerById(playerId);
         if (player == null) {
-            result.put("success", false);
-            result.put("message", I18n.t("world_boss.character_does_not_exist"));
-            return result;
+            return WorldBossChallengeResult.rejected(
+                    I18n.t("world_boss.character_does_not_exist"));
         }
         if (player.getHp() <= 0) {
-            result.put("success", false);
-            result.put("message", I18n.t("world_boss.your_health_is_too_low"));
-            return result;
+            return WorldBossChallengeResult.rejected(
+                    I18n.t("world_boss.your_health_is_too_low"));
         }
         if (player.isCultivating()) {
-            result.put("success", false);
-            result.put("message", I18n.t("world_boss.you_cannot_challenge_the_world"));
-            return result;
+            return WorldBossChallengeResult.rejected(
+                    I18n.t("world_boss.you_cannot_challenge_the_world"));
         }
 
         int stageGap = Math.abs(player.getRealmStage() - boss.getRealm() * 3);
         if (stageGap >= maxStageGap()) {
-            result.put("success", false);
-            result.put("message", I18n.t("world_boss.the_realm_gap_is_too", maxStageGap(), stageGap));
-            return result;
+            return WorldBossChallengeResult.rejected(I18n.t(
+                    "world_boss.the_realm_gap_is_too", maxStageGap(), stageGap));
         }
 
         long cooldownMs = challengeCooldownMs();
         WorldBossDamage ledger = getDamage(boss.getId(), playerId);
         if (ledger != null && !ledger.isReady(now, cooldownMs)) {
-            result.put("success", false);
-            result.put("message", I18n.t("world_boss.challenge_on_cooldown_2", formatDuration(ledger.remainingCooldownMs(now, cooldownMs))));
-            return result;
+            return WorldBossChallengeResult.rejected(I18n.t(
+                    "world_boss.challenge_on_cooldown_2",
+                    formatDuration(ledger.remainingCooldownMs(now, cooldownMs))));
         }
         if (!claimChallengeSlot(boss.getId(), playerId, now, cooldownMs)) {
-            result.put("success", false);
-            result.put("message", I18n.t("world_boss.challenge_on_cooldown"));
-            return result;
+            return WorldBossChallengeResult.rejected(I18n.t("world_boss.challenge_on_cooldown"));
         }
 
         long startHp = boss.getHp();
         PveCombatResult combat = combatService.pveFight(playerId, toMonster(boss));
         if (!combat.isSuccess()) {
-            result.put("success", false);
-            result.put("message", combat.getMessage() != null ? combat.getMessage()
+            return WorldBossChallengeResult.rejected(combat.getMessage() != null
+                    ? combat.getMessage()
                     : I18n.t("worldboss.combat_not_started"));
-            return result;
         }
 
         // 战斗里怪物血量是 int，且我们从"挑战开始时的血量"起算，
@@ -360,19 +350,18 @@ public class WorldBossService {
 
         Settlement settlement = settleDamage(boss.getId(), playerId, damage, now);
 
-        result.put("success", true);
-        result.put("bossName", boss.getName());
-        result.put("damage", damage);
-        result.put("playerWon", combat.isPlayerWon());
-        result.put("hpRemaining", settlement.hpRemaining);
-        result.put("maxHp", settlement.maxHp);
-        result.put("killed", settlement.killed);
-        result.put("stones", settlement.stones);
-        result.put("exp", settlement.exp);
-        result.put("capped", settlement.capped);
-        result.put("battleLog", combat.getBattleLog());
-        result.put("message", buildChallengeMessage(boss, combat, damage, settlement));
-        return result;
+        return WorldBossChallengeResult.fought(
+                buildChallengeMessage(boss, combat, damage, settlement),
+                boss.getName(),
+                damage,
+                combat.isPlayerWon(),
+                settlement.hpRemaining,
+                settlement.maxHp,
+                settlement.killed,
+                settlement.stones,
+                settlement.exp,
+                settlement.capped,
+                combat.getBattleLog());
     }
 
     private WorldBoss selectBoss(List<WorldBoss> pool, String query) {

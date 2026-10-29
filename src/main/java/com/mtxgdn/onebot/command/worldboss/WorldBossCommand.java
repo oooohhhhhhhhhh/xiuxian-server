@@ -1,5 +1,6 @@
 package com.mtxgdn.onebot.command.worldboss;
 
+import com.mtxgdn.game.worldboss.WorldBossChallengeResult;
 import com.mtxgdn.common.service.ServiceRegistry;
 
 import com.mtxgdn.common.GameMessage;
@@ -86,11 +87,11 @@ public class WorldBossCommand extends Command {
             ctx.reply(I18n.t("worldboss.usage"));
             return;
         }
-        Map<String, Object> result = worldBossService.challenge(
+        WorldBossChallengeResult result = worldBossService.challenge(
                 p.getId(), WorldBossService.scope(), query, System.currentTimeMillis());
-        String message = (String) result.get("message");
-        Object log = result.get("battleLog");
-        if (Boolean.TRUE.equals(result.get("success")) && log instanceof List<?> logs && !logs.isEmpty()) {
+        String message = result.message();
+        List<String> logs = result.battleLog();
+        if (result.success() && logs != null && !logs.isEmpty()) {
             StringBuilder sb = new StringBuilder(message).append("\n\n");
             // 只贴战斗日志尾部，避免一次挑战刷屏
             int from = Math.max(0, logs.size() - 8);
@@ -266,22 +267,22 @@ public class WorldBossCommand extends Command {
                 // 无 body 或 body 不是 JSON：留空，走默认第一只
             }
         }
-        Map<String, Object> result = worldBossService.challenge(
+        WorldBossChallengeResult result = worldBossService.challenge(
                 ctx.playerId(), WorldBossService.scope(), query, System.currentTimeMillis());
         JsonObject data = new JsonObject();
-        data.addProperty("bossName", str(result.get("bossName")));
-        data.addProperty("damage", num(result.get("damage")));
-        data.addProperty("hpRemaining", num(result.get("hpRemaining")));
-        data.addProperty("maxHp", num(result.get("maxHp")));
-        data.addProperty("killed", Boolean.TRUE.equals(result.get("killed")));
-        data.addProperty("stones", num(result.get("stones")));
-        data.addProperty("exp", num(result.get("exp")));
-        data.addProperty("capped", Boolean.TRUE.equals(result.get("capped")));
-        data.addProperty("playerWon", Boolean.TRUE.equals(result.get("playerWon")));
-        if (Boolean.TRUE.equals(result.get("success"))) {
-            return GameMessage.restOk((String) result.get("message"), data);
+        data.addProperty("bossName", result.bossName() != null ? result.bossName() : "");
+        data.addProperty("damage", result.damage() != null ? result.damage() : 0L);
+        data.addProperty("hpRemaining", result.hpRemaining() != null ? result.hpRemaining() : 0L);
+        data.addProperty("maxHp", result.maxHp() != null ? result.maxHp() : 0L);
+        data.addProperty("killed", Boolean.TRUE.equals(result.killed()));
+        data.addProperty("stones", result.stones() != null ? result.stones() : 0L);
+        data.addProperty("exp", result.exp() != null ? result.exp() : 0L);
+        data.addProperty("capped", Boolean.TRUE.equals(result.capped()));
+        data.addProperty("playerWon", Boolean.TRUE.equals(result.playerWon()));
+        if (result.success()) {
+            return GameMessage.restOk(result.message(), data);
         }
-        return GameMessage.restError(400, (String) result.get("message"));
+        return GameMessage.restError(400, result.message());
     }
 
     private JsonObject handleAdminListHttp(RouteDefinition.RestContext ctx) {

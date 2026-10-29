@@ -1,5 +1,6 @@
 package com.mtxgdn.game.service;
 
+import com.mtxgdn.game.worldboss.WorldBossChallengeResult;
 import com.mtxgdn.TestBase;
 import com.mtxgdn.common.service.ServiceRegistry;
 import com.mtxgdn.db.DatabaseManager;
@@ -151,16 +152,16 @@ class WorldBossTest extends TestBase {
         overrideBoss(boss.getId(), 0, 1000, 1000, 10_000, 10_000);
         long playerId = createPlayer(0, 0, 1_000_000, 1_000_000, 10_000);
 
-        Map<String, Object> result = worldBossService.challenge(playerId, scope, "1", now);
+        WorldBossChallengeResult result = worldBossService.challenge(playerId, scope, "1", now);
 
-        assertTrue((Boolean) result.get("success"), String.valueOf(result.get("message")));
-        assertEquals(1000L, result.get("damage"), "一击必杀应打满整条血");
-        assertEquals(true, result.get("killed"));
-        assertEquals(0L, result.get("hpRemaining"));
-        assertEquals(10_000L, result.get("stones"), "满伤害应拿到全部灵石预算");
+        assertTrue(result.success(), result.message());
+        assertEquals(1000L, result.damage(), "一击必杀应打满整条血");
+        assertEquals(true, result.killed());
+        assertEquals(0L, result.hpRemaining());
+        assertEquals(10_000L, result.stones(), "满伤害应拿到全部灵石预算");
         // 满伤害 + 击杀加成 20%
-        assertEquals(12_000L, result.get("exp"));
-        assertEquals(false, result.get("capped"));
+        assertEquals(12_000L, result.exp());
+        assertEquals(false, result.capped());
 
         WorldBoss after = worldBossService.getBossById(boss.getId());
         assertEquals(0L, after.getHp());
@@ -182,16 +183,16 @@ class WorldBossTest extends TestBase {
         // 攻击力压到很低：30 回合也打不掉多少，血量堆高保证不会被打死
         long playerId = createPlayer(0, 0, 200, 5_000_000, 100);
 
-        Map<String, Object> result = worldBossService.challenge(playerId, scope, "1", now);
+        WorldBossChallengeResult result = worldBossService.challenge(playerId, scope, "1", now);
 
-        assertTrue((Boolean) result.get("success"), String.valueOf(result.get("message")));
-        long damage = ((Number) result.get("damage")).longValue();
+        assertTrue(result.success(), result.message());
+        long damage = result.damage();
         assertTrue(damage > 0 && damage < maxHp, "应当是部分伤害，实际 " + damage);
-        assertEquals(stoneBudget * damage / maxHp, ((Number) result.get("stones")).longValue(),
+        assertEquals(stoneBudget * damage / maxHp, result.stones(),
                 "灵石必须严格等于 预算 × 伤害 / 最大血量");
-        assertEquals(expBudget * damage / maxHp, ((Number) result.get("exp")).longValue(),
+        assertEquals(expBudget * damage / maxHp, result.exp(),
                 "修为同理（未击杀，无击杀加成）");
-        assertEquals(maxHp - damage, ((Number) result.get("hpRemaining")).longValue());
+        assertEquals(maxHp - damage, result.hpRemaining());
     }
 
     @Test
@@ -205,19 +206,19 @@ class WorldBossTest extends TestBase {
         long first = createPlayer(0, 0, 200, 5_000_000, 100);
         long second = createPlayer(0, 0, 200, 5_000_000, 100);
 
-        Map<String, Object> r1 = worldBossService.challenge(first, scope, "1", now);
-        long hpAfterFirst = ((Number) r1.get("hpRemaining")).longValue();
-        assertEquals(maxHp - ((Number) r1.get("damage")).longValue(), hpAfterFirst);
+        WorldBossChallengeResult r1 = worldBossService.challenge(first, scope, "1", now);
+        long hpAfterFirst = r1.hpRemaining();
+        assertEquals(maxHp - r1.damage(), hpAfterFirst);
         assertEquals(hpAfterFirst, worldBossService.getBossById(boss.getId()).getHp(),
                 "共享血量必须落库");
 
         // 第二个玩家必须在剩余血量的基础上继续打
         long later = now + WorldBossService.challengeCooldownMs() + 1000;
-        Map<String, Object> r2 = worldBossService.challenge(second, scope, "1", later);
-        assertTrue((Boolean) r2.get("success"), String.valueOf(r2.get("message")));
-        long hpAfterSecond = ((Number) r2.get("hpRemaining")).longValue();
+        WorldBossChallengeResult r2 = worldBossService.challenge(second, scope, "1", later);
+        assertTrue(r2.success(), r2.message());
+        long hpAfterSecond = r2.hpRemaining();
         assertTrue(hpAfterSecond < hpAfterFirst, "第二个人打完后血量应继续下降");
-        assertEquals(hpAfterFirst - ((Number) r2.get("damage")).longValue(), hpAfterSecond,
+        assertEquals(hpAfterFirst - r2.damage(), hpAfterSecond,
                 "第二个人是在第一个人打剩的血量上继续扣的");
         assertEquals(hpAfterSecond, worldBossService.getBossById(boss.getId()).getHp(),
                 "库里的血量必须等于最后一次挑战返回的剩余血量");
@@ -232,13 +233,13 @@ class WorldBossTest extends TestBase {
         overrideBoss(boss.getId(), 0, 1_000_000, 1_000_000, 50_000, 90_000);
         long playerId = createPlayer(0, 0, 200, 5_000_000, 100);
 
-        Map<String, Object> first = worldBossService.challenge(playerId, scope, "1", now);
-        assertTrue((Boolean) first.get("success"), String.valueOf(first.get("message")));
+        WorldBossChallengeResult first = worldBossService.challenge(playerId, scope, "1", now);
+        assertTrue(first.success(), first.message());
 
-        Map<String, Object> second = worldBossService.challenge(playerId, scope, "1", now + 1000);
-        assertFalse((Boolean) second.get("success"), "冷却期内不应再次进入战斗");
-        assertTrue(String.valueOf(second.get("message")).contains("冷却"),
-                String.valueOf(second.get("message")));
+        WorldBossChallengeResult second = worldBossService.challenge(playerId, scope, "1", now + 1000);
+        assertFalse(second.success(), "冷却期内不应再次进入战斗");
+        assertTrue(second.message().contains("冷却"),
+                second.message());
     }
 
     @Test
@@ -250,11 +251,11 @@ class WorldBossTest extends TestBase {
         overrideBoss(boss.getId(), 0, 1_000_000, 1_000_000, 50_000, 90_000);
         long playerId = createPlayer(0, 0, 200, 5_000_000, 100);
 
-        assertTrue((Boolean) worldBossService.challenge(playerId, scope, "1", now).get("success"));
+        assertTrue(worldBossService.challenge(playerId, scope, "1", now).success());
 
         long later = now + WorldBossService.challengeCooldownMs() + 1000;
-        Map<String, Object> again = worldBossService.challenge(playerId, scope, "1", later);
-        assertTrue((Boolean) again.get("success"), String.valueOf(again.get("message")));
+        WorldBossChallengeResult again = worldBossService.challenge(playerId, scope, "1", later);
+        assertTrue(again.success(), again.message());
     }
 
     @Test
@@ -265,15 +266,15 @@ class WorldBossTest extends TestBase {
         WorldBoss boss = worldBossService.getPool(scope, now).get(0);
         overrideBoss(boss.getId(), 0, 1000, 1000, 10_000, 10_000);
         long playerId = createPlayer(0, 0, 1_000_000, 1_000_000, 10_000);
-        assertTrue((Boolean) worldBossService.challenge(playerId, scope, "1", now).get("success"));
+        assertTrue(worldBossService.challenge(playerId, scope, "1", now).success());
 
         long other = createPlayer(0, 0, 1_000_000, 1_000_000, 10_000);
-        Map<String, Object> result = worldBossService.challenge(other, scope, "1",
+        WorldBossChallengeResult result = worldBossService.challenge(other, scope, "1",
                 now + WorldBossService.challengeCooldownMs() + 1000);
 
-        assertFalse((Boolean) result.get("success"));
-        assertTrue(String.valueOf(result.get("message")).contains("已被击杀"),
-                String.valueOf(result.get("message")));
+        assertFalse(result.success());
+        assertTrue(result.message().contains("已被击杀"),
+                result.message());
     }
 
     @Test
@@ -286,11 +287,11 @@ class WorldBossTest extends TestBase {
         overrideBoss(boss.getId(), 9, 1_000_000, 1_000_000, 50_000, 90_000);
         long playerId = createPlayer(0, 0, 1_000_000, 1_000_000, 10_000);
 
-        Map<String, Object> result = worldBossService.challenge(playerId, scope, "1", now);
+        WorldBossChallengeResult result = worldBossService.challenge(playerId, scope, "1", now);
 
-        assertFalse((Boolean) result.get("success"));
-        assertTrue(String.valueOf(result.get("message")).contains("境界"),
-                String.valueOf(result.get("message")));
+        assertFalse(result.success());
+        assertTrue(result.message().contains("境界"),
+                result.message());
         assertEquals(1_000_000L, worldBossService.getBossById(boss.getId()).getHp(),
                 "被拒绝的挑战不得扣血");
     }
@@ -309,11 +310,11 @@ class WorldBossTest extends TestBase {
             ps.executeUpdate();
         }
 
-        Map<String, Object> result = worldBossService.challenge(playerId, scope, "1", now);
+        WorldBossChallengeResult result = worldBossService.challenge(playerId, scope, "1", now);
 
-        assertFalse((Boolean) result.get("success"));
-        assertTrue(String.valueOf(result.get("message")).contains("闭关"),
-                String.valueOf(result.get("message")));
+        assertFalse(result.success());
+        assertTrue(result.message().contains("闭关"),
+                result.message());
     }
 
     // ==================== 台账与排行 ====================
@@ -328,16 +329,16 @@ class WorldBossTest extends TestBase {
         long weak = createPlayer(0, 0, 200, 5_000_000, 100);
         long strong = createPlayer(0, 0, 400, 5_000_000, 100);
 
-        Map<String, Object> r1 = worldBossService.challenge(weak, scope, "1", now);
+        WorldBossChallengeResult r1 = worldBossService.challenge(weak, scope, "1", now);
         long later = now + WorldBossService.challengeCooldownMs() + 1000;
-        Map<String, Object> r2 = worldBossService.challenge(strong, scope, "1", later);
+        WorldBossChallengeResult r2 = worldBossService.challenge(strong, scope, "1", later);
 
-        assertTrue((Boolean) r1.get("success"));
-        assertTrue((Boolean) r2.get("success"));
+        assertTrue(r1.success());
+        assertTrue(r2.success());
 
         WorldBossDamage weakRow = worldBossService.getDamage(boss.getId(), weak);
         assertNotNull(weakRow);
-        assertEquals(((Number) r1.get("damage")).longValue(), weakRow.getDamage());
+        assertEquals(r1.damage(), weakRow.getDamage());
         assertEquals(1, weakRow.getHits());
         assertEquals(now, weakRow.getLastHitAt());
 
@@ -357,12 +358,12 @@ class WorldBossTest extends TestBase {
         overrideBoss(boss.getId(), 0, 50_000_000, 50_000_000, 50_000, 90_000);
         long playerId = createPlayer(0, 0, 200, 5_000_000, 100);
 
-        Map<String, Object> r1 = worldBossService.challenge(playerId, scope, "1", now);
+        WorldBossChallengeResult r1 = worldBossService.challenge(playerId, scope, "1", now);
         long later = now + WorldBossService.challengeCooldownMs() + 1000;
-        Map<String, Object> r2 = worldBossService.challenge(playerId, scope, "1", later);
+        WorldBossChallengeResult r2 = worldBossService.challenge(playerId, scope, "1", later);
 
-        long d1 = ((Number) r1.get("damage")).longValue();
-        long d2 = ((Number) r2.get("damage")).longValue();
+        long d1 = r1.damage();
+        long d2 = r2.damage();
         WorldBossDamage row = worldBossService.getDamage(boss.getId(), playerId);
         assertEquals(d1 + d2, row.getDamage(), "累计伤害应为两次之和");
         assertEquals(2, row.getHits());
@@ -465,11 +466,11 @@ class WorldBossTest extends TestBase {
         long playerId = createPlayer(0, 0, 1_000_000, 1_000_000, 10_000);
         long before = ServiceRegistry.getItemService().getSpiritStoneCount(playerId);
 
-        Map<String, Object> result = worldBossService.challenge(playerId, scope, "1", now);
+        WorldBossChallengeResult result = worldBossService.challenge(playerId, scope, "1", now);
 
-        assertTrue((Boolean) result.get("success"), String.valueOf(result.get("message")));
+        assertTrue(result.success(), result.message());
         long gained = ServiceRegistry.getItemService().getSpiritStoneCount(playerId) - before;
-        assertEquals(((Number) result.get("stones")).longValue(), gained,
+        assertEquals(result.stones(), gained,
                 "战报里的灵石数必须与实际入账一致");
     }
 }
