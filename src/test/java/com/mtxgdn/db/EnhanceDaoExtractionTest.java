@@ -108,7 +108,7 @@ class EnhanceDaoExtractionTest extends DaoExtractionAssertions {
         assertTrue(lvlIdx >= 0 && keyIdx > lvlIdx, "找不到两个查询方法");
         assertTrue(service.substring(lvlIdx, keyIdx).contains("return 0;"),
                 "等级查询失败降级成 0（调用方当成没强化过）");
-        assertTrue(service.substring(keyIdx, service.indexOf("public Map<String, Object> enhanceItem("))
+        assertTrue(service.substring(keyIdx, service.indexOf("public EnhanceResult enhanceItem("))
                         .contains("return null;"),
                 "装备查询失败降级成 null（调用方当成这个槽位没装备）");
     }

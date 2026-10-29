@@ -86,7 +86,7 @@ class SectWarehouseDaoExtractionTest extends DaoExtractionAssertions {
         String service = stripComments(read(servicePath()));
         int txStart = service.indexOf("DatabaseManager.runTransaction(");
         assertTrue(txStart >= 0, "捐献必须仍是事务");
-        String body = service.substring(txStart, service.indexOf("result.put(\"success\", true);", txStart));
+        String body = service.substring(txStart, service.indexOf("String message = isManager", txStart));
         assertTrue(body.contains("itemService.removeItem(conn, playerId, fullKey, quantity)"),
                 "扣背包必须用事务连接");
         assertTrue(body.contains("WAREHOUSE_DAO.upsertWarehouse(conn,"), "入仓库必须用事务连接");

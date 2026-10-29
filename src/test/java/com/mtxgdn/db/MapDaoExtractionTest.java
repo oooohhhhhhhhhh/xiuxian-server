@@ -157,9 +157,9 @@ class MapDaoExtractionTest extends TestBase {
             "public long getPlayerLocationId(long)",
             "public boolean isLocationKnown(long)",
             "public long getPlayerLastTravelTime(long)",
-            "public java.util.Map<java.lang.String, java.lang.Object> travel(long, long)",
-            "public java.util.Map<java.lang.String, java.lang.Object> teleportToLocation(long, long)",
-            "public java.util.Map<java.lang.String, java.lang.Object> getPlayerSurroundings(long)",
+            "public com.mtxgdn.game.map.TravelResult travel(long, long)",
+            "public com.mtxgdn.game.map.TravelResult teleportToLocation(long, long)",
+            "public com.mtxgdn.game.map.PlayerSurroundings getPlayerSurroundings(long)",
             "public java.util.Map<java.lang.Long, java.lang.String> getPlayerLocationNames(java.util.List<java.lang.Long>)",
             "public int getDangerLevel(long)",
             "public java.lang.String getDangerName(int)",
@@ -175,12 +175,12 @@ class MapDaoExtractionTest extends TestBase {
             "public java.util.Set<java.lang.Long> getExploredLocationIds(long)",
             "public long countExploredKnownWorld(long)",
             "public long getTeleportCost(long, long)",
-            "public java.util.Map<java.lang.String, java.lang.Object> teleportByUnlock(long, long)",
+            "public com.mtxgdn.game.map.TravelResult teleportByUnlock(long, long)",
             "public java.util.Map<java.lang.String, java.lang.Integer> getWildernessResource(long)",
             "public void maintainWildernessIfNeeded()",
             "public int restockWilderness()",
-            "public java.util.Map<java.lang.String, java.lang.Object> getWildernessStats()",
-            "public java.util.Map<java.lang.String, java.lang.Object> gather(long)");
+            "public com.mtxgdn.game.map.WildernessStats getWildernessStats()",
+            "public com.mtxgdn.game.map.GatherResult gather(long)");
 
     /**
      * 服务层自己开连接的允许位置 —— <b>现在是空的</b>。

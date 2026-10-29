@@ -51,7 +51,7 @@ class SectRegistryDaoExtractionTest extends DaoExtractionAssertions {
         assertEquals(3, countOccurrences(service, "DatabaseManager.runTransaction("),
                 "创建、转让、解散原本各一个事务，合并或拆散都是改行为");
         int txStart = service.indexOf("DatabaseManager.runTransaction(");
-        String body = service.substring(txStart, service.indexOf("if (sect != null)", txStart));
+        String body = service.substring(txStart, service.indexOf("if (sect == null)", txStart));
         assertTrue(body.contains("itemService.removeSpiritStones(conn, playerId, Sect.CREATE_COST_SPIRIT_STONES)"),
                 "扣灵石仍走 itemService 的 conn 重载");
         assertTrue(body.contains("REGISTRY_DAO.createSect(conn,"),
@@ -105,7 +105,7 @@ class SectRegistryDaoExtractionTest extends DaoExtractionAssertions {
                         + "给它们加自取连接版等于鼓励有人在事务外单独删一张子表");
         String service = stripComments(read(servicePath()));
         int txStart = service.lastIndexOf("DatabaseManager.runTransaction(");
-        String body = service.substring(txStart, service.indexOf("result.put(\"success\", true);", txStart));
+        String body = service.substring(txStart, service.indexOf("return SectActionResult.ok(", txStart));
         assertTrue(body.indexOf("REGISTRY_DAO.deleteWarehouse(conn")
                         < body.indexOf("REGISTRY_DAO.deleteApplications(conn")
                         && body.indexOf("REGISTRY_DAO.deleteApplications(conn")
@@ -134,8 +134,8 @@ class SectRegistryDaoExtractionTest extends DaoExtractionAssertions {
                         + "给它们加自取连接版等于鼓励有人在事务外单独改一张子表");
         String service = stripComments(read(servicePath()));
         int txStart = service.indexOf("DatabaseManager.runTransaction(",
-                service.indexOf("Map<String, Object> transferLeader("));
-        String body = service.substring(txStart, service.indexOf("result.put(\"success\", true);", txStart));
+                service.indexOf("SectActionResult transferLeader("));
+        String body = service.substring(txStart, service.indexOf("return SectActionResult.ok(", txStart));
         assertTrue(body.contains("REGISTRY_DAO.setLeader(conn")
                         && body.contains("REGISTRY_DAO.demoteToViceLeader(conn")
                         && body.contains("REGISTRY_DAO.promoteToLeader(conn"),

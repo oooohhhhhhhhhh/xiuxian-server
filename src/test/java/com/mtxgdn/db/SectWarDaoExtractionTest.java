@@ -48,7 +48,7 @@ class SectWarDaoExtractionTest extends DaoExtractionAssertions {
         String service = stripComments(read(servicePath()));
         assertEquals(1, countOccurrences(service, "DatabaseManager.runTransaction("),
                 "宣战只该有一个事务：扣灵石与扣声望必须原子");
-        String body = bodyOf(service, "Map<String, Object> declareWar(long attackerPlayerId, long defenderSectId)");
+        String body = bodyOf(service, "WarResult declareWar(long attackerPlayerId, long defenderSectId)");
         int txStart = body.indexOf("DatabaseManager.runTransaction(");
         assertTrue(txStart >= 0, "宣战必须是事务");
         String txBody = body.substring(txStart);
