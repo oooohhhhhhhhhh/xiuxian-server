@@ -1,5 +1,7 @@
 package com.mtxgdn.onebot.command.item;
 
+import com.mtxgdn.game.buff.ActiveBuffView;
+import com.mtxgdn.game.buff.ActiveBuffsResult;
 import com.mtxgdn.common.service.ServiceRegistry;
 
 import com.mtxgdn.common.command.Command;
@@ -26,11 +28,9 @@ public class BuffCommand extends Command {
         if (p == null) return;
 
         BuffService buffService = ServiceRegistry.getBuffService();
-        Map<String, Object> result = buffService.getActiveBuffs(p.getId());
-
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> buffs = (List<Map<String, Object>>) result.get("buffs");
-        int count = (int) result.get("count");
+        ActiveBuffsResult result = buffService.getActiveBuffs(p.getId());
+        List<ActiveBuffView> buffs = result.buffs();
+        int count = result.count();
 
         StringBuilder sb = new StringBuilder();
         sb.append("=== 当前增益状态 ===\n");
@@ -38,13 +38,13 @@ public class BuffCommand extends Command {
         if (count == 0) {
             sb.append("暂无临时增益效果");
         } else {
-            for (Map<String, Object> buff : buffs) {
-                sb.append("ID: ").append(buff.get("id")).append("\n");
-                if ((int) buff.get("attackBonus") != 0) sb.append("  攻击力: +").append(buff.get("attackBonus")).append("\n");
-                if ((int) buff.get("defenseBonus") != 0) sb.append("  防御力: +").append(buff.get("defenseBonus")).append("\n");
-                if ((int) buff.get("speedBonus") != 0) sb.append("  速度: +").append(buff.get("speedBonus")).append("\n");
-                if ((int) buff.get("spiritBonus") != 0) sb.append("  灵力: +").append(buff.get("spiritBonus")).append("\n");
-                sb.append("  剩余时间: ").append(buff.get("remainingSeconds")).append("秒\n\n");
+            for (ActiveBuffView buff : buffs) {
+                sb.append("ID: ").append(buff.id()).append("\n");
+                if (buff.attackBonus() != 0) sb.append("  攻击力: +").append(buff.attackBonus()).append("\n");
+                if (buff.defenseBonus() != 0) sb.append("  防御力: +").append(buff.defenseBonus()).append("\n");
+                if (buff.speedBonus() != 0) sb.append("  速度: +").append(buff.speedBonus()).append("\n");
+                if (buff.spiritBonus() != 0) sb.append("  灵力: +").append(buff.spiritBonus()).append("\n");
+                sb.append("  剩余时间: ").append(buff.remainingSeconds()).append("秒\n\n");
             }
         }
 

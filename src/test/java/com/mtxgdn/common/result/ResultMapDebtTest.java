@@ -173,8 +173,6 @@ class ResultMapDebtTest {
             "com/mtxgdn/game/service/TradeService.java#getPriceHistory",
             // ---- 世界 Boss ----
             "com/mtxgdn/game/service/WorldBossService.java#challenge",
-            // ---- 状态类 ----
-            "com/mtxgdn/game/service/BuffService.java#getActiveBuffs",
             // ---- 存档 ----
             "com/mtxgdn/playerdata/PlayerDataService.java#exportPlayer",
             "com/mtxgdn/playerdata/PlayerDataService.java#exportAllPlayers",

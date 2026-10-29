@@ -1,6 +1,8 @@
 package com.mtxgdn.game.service;
 
 import com.mtxgdn.db.BuffDAO;
+import com.mtxgdn.game.buff.ActiveBuffView;
+import com.mtxgdn.game.buff.ActiveBuffsResult;
 import com.mtxgdn.db.DatabaseManager;
 import com.mtxgdn.common.service.ServiceRegistry;
 
@@ -224,9 +226,8 @@ public class BuffService {
         });
     }
 
-    public Map<String, Object> getActiveBuffs(long playerId) {
-        Map<String, Object> result = new LinkedHashMap<>();
-        List<Map<String, Object>> buffList = new ArrayList<>();
+    public ActiveBuffsResult getActiveBuffs(long playerId) {
+        List<ActiveBuffView> buffList = new ArrayList<>();
 
         long now = System.currentTimeMillis();
         // 用事务而不是裸连接：expirePlayerBuffs 会 DELETE + 回退属性，
@@ -237,19 +238,16 @@ public class BuffService {
             return BUFF_DAO.findActiveBuffs(conn, playerId, now);
         });
         for (BuffDAO.ActiveBuffRow row : rows) {
-            Map<String, Object> buffInfo = new LinkedHashMap<>();
-            buffInfo.put("id", row.buffId);
-            buffInfo.put("attackBonus", row.attackBonus);
-            buffInfo.put("defenseBonus", row.defenseBonus);
-            buffInfo.put("speedBonus", row.speedBonus);
-            buffInfo.put("spiritBonus", row.spiritBonus);
-            buffInfo.put("remainingSeconds", Math.max(0, (row.expireTime - now) / 1000));
-            buffList.add(buffInfo);
+            buffList.add(new ActiveBuffView(
+                    row.buffId,
+                    row.attackBonus,
+                    row.defenseBonus,
+                    row.speedBonus,
+                    row.spiritBonus,
+                    Math.max(0, (row.expireTime - now) / 1000)));
         }
 
-        result.put("buffs", buffList);
-        result.put("count", buffList.size());
-        return result;
+        return ActiveBuffsResult.of(buffList);
     }
 
     /**

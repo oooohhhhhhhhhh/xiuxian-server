@@ -1,5 +1,6 @@
 package com.mtxgdn.game.service;
 
+import com.mtxgdn.game.buff.ActiveBuffsResult;
 import com.mtxgdn.TestBase;
 import com.mtxgdn.common.service.ServiceRegistry;
 import com.mtxgdn.db.DatabaseManager;
@@ -115,9 +116,9 @@ class BuffLazyExpiryTest extends TestBase {
         forceExpire(playerId);
 
         // 只做一次读取，不跑任何后台任务
-        Map<String, Object> active = buffService.getActiveBuffs(playerId);
+        ActiveBuffsResult active = buffService.getActiveBuffs(playerId);
 
-        assertEquals(0, ((Number) active.get("count")).intValue(), "过期增益不应出现在生效列表中");
+        assertEquals(0, active.count(), "过期增益不应出现在生效列表中");
         assertEquals(baseAttack, attackOf(playerId), "过期后攻击应回到基准值");
         assertEquals(0, buffRowCount(playerId), "过期行应被删除");
     }
@@ -157,9 +158,9 @@ class BuffLazyExpiryTest extends TestBase {
         // 在"过期"之后又嗑了一颗同种丹药：expire_time 被推到未来
         buffService.addBuff(playerId, "test:buff_lazy_3", 50, 0, 0, 0, 3600);
 
-        Map<String, Object> active = buffService.getActiveBuffs(playerId);
+        ActiveBuffsResult active = buffService.getActiveBuffs(playerId);
 
-        assertEquals(1, ((Number) active.get("count")).intValue(),
+        assertEquals(1, active.count(),
                 "刷新过时长的增益仍应生效（不能被误判为过期）");
         assertEquals(1, buffRowCount(playerId), "刷新不应产生重复行");
         assertEquals(baseAttack + 50, attackOf(playerId),

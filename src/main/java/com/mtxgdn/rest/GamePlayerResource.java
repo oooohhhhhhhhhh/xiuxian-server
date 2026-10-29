@@ -1,5 +1,7 @@
 package com.mtxgdn.rest;
 
+import com.mtxgdn.game.buff.ActiveBuffView;
+import com.mtxgdn.game.buff.ActiveBuffsResult;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.mtxgdn.common.GameErrorCode;
@@ -341,22 +343,21 @@ public class GamePlayerResource {
         int playerId = getPlayerIdByUserId(userId);
 
         BuffService buffService = ServiceRegistry.getBuffService();
-        Map<String, Object> result = buffService.getActiveBuffs(playerId);
+        ActiveBuffsResult result = buffService.getActiveBuffs(playerId);
 
         JsonObject data = new JsonObject();
-        @SuppressWarnings("unchecked")
-        List<Map<String, Object>> buffs = (List<Map<String, Object>>) result.get("buffs");
-        int count = (int) result.get("count");
+        List<ActiveBuffView> buffs = result.buffs();
+        int count = result.count();
 
         JsonArray buffArray = new JsonArray();
-        for (Map<String, Object> buff : buffs) {
+        for (ActiveBuffView buff : buffs) {
             JsonObject o = new JsonObject();
-            o.addProperty("id", (String) buff.get("id"));
-            o.addProperty("attackBonus", (int) buff.get("attackBonus"));
-            o.addProperty("defenseBonus", (int) buff.get("defenseBonus"));
-            o.addProperty("speedBonus", (int) buff.get("speedBonus"));
-            o.addProperty("spiritBonus", (int) buff.get("spiritBonus"));
-            o.addProperty("remainingSeconds", (long) buff.get("remainingSeconds"));
+            o.addProperty("id", buff.id());
+            o.addProperty("attackBonus", buff.attackBonus());
+            o.addProperty("defenseBonus", buff.defenseBonus());
+            o.addProperty("speedBonus", buff.speedBonus());
+            o.addProperty("spiritBonus", buff.spiritBonus());
+            o.addProperty("remainingSeconds", buff.remainingSeconds());
             buffArray.add(o);
         }
 
