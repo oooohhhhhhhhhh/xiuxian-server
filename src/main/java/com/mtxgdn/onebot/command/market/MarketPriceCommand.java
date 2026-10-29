@@ -1,5 +1,6 @@
 package com.mtxgdn.onebot.command.market;
 
+import com.mtxgdn.game.trade.MarketQuote;
 import com.mtxgdn.common.command.Command;
 import com.mtxgdn.common.command.CommandContext;
 import com.mtxgdn.common.command.RouteDefinition;
@@ -7,7 +8,6 @@ import com.mtxgdn.common.service.ServiceRegistry;
 import com.mtxgdn.game.entity.PlayerInfo;
 import com.google.gson.JsonObject;
 
-import java.util.Map;
 import com.mtxgdn.i18n.I18n;
 
 /**
@@ -60,31 +60,31 @@ public class MarketPriceCommand extends Command {
             return;
         }
 
-        Map<String, Object> quote = ServiceRegistry.getTradeService().getPriceHistory(itemKey, days);
-        if (!Boolean.TRUE.equals(quote.get("success"))) {
-            ctx.reply(String.valueOf(quote.getOrDefault("message", I18n.t("market.quote_failed"))));
+        MarketQuote quote = ServiceRegistry.getTradeService().getPriceHistory(itemKey, days);
+        if (!quote.success()) {
+            ctx.reply(quote.message() != null ? quote.message() : I18n.t("market.quote_failed"));
             return;
         }
 
         StringBuilder sb = new StringBuilder();
-        sb.append("===== 【").append(quote.get("itemName")).append("】行情 =====\n");
-        sb.append("统计窗口: 近 ").append(quote.get("days")).append(" 天\n");
-        long tradeCount = ((Number) quote.get("tradeCount")).longValue();
+        sb.append("===== 【").append(quote.itemName()).append("】行情 =====\n");
+        sb.append("统计窗口: 近 ").append(quote.days()).append(" 天\n");
+        long tradeCount = quote.tradeCount();
         if (tradeCount > 0) {
             sb.append("成交笔数: ").append(tradeCount).append("\n");
-            sb.append("成交总量: ").append(quote.get("totalQuantity")).append("\n");
-            sb.append("均价: ").append(quote.get("avgUnitPrice")).append(" 灵石/个\n");
-            sb.append("最低: ").append(quote.get("minUnitPrice")).append(" 灵石/个\n");
-            sb.append("最高: ").append(quote.get("maxUnitPrice")).append(" 灵石/个\n");
+            sb.append("成交总量: ").append(quote.totalQuantity()).append("\n");
+            sb.append("均价: ").append(quote.avgUnitPrice()).append(" 灵石/个\n");
+            sb.append("最低: ").append(quote.minUnitPrice()).append(" 灵石/个\n");
+            sb.append("最高: ").append(quote.maxUnitPrice()).append(" 灵石/个\n");
         } else {
             sb.append("近期无成交记录\n");
         }
-        Object lowest = quote.get("lowestActiveUnitPrice");
+        Long lowest = quote.lowestActiveUnitPrice();
         if (lowest != null) {
             sb.append("当前在售最低: ").append(lowest).append(" 灵石/个\n");
             sb.append("\n💡 定价建议: 略低于 ").append(lowest).append(" 灵石/个更容易卖出");
         } else if (tradeCount > 0) {
-            sb.append("\n💡 定价建议: 参考均价 ").append(quote.get("avgUnitPrice")).append(" 灵石/个");
+            sb.append("\n💡 定价建议: 参考均价 ").append(quote.avgUnitPrice()).append(" 灵石/个");
         } else {
             sb.append("坊市当前没有该物品在售，你可以自由定价");
         }
@@ -110,16 +110,21 @@ public class MarketPriceCommand extends Command {
                 } catch (NumberFormatException ignored) {
                 }
             }
-            Map<String, Object> quote = ServiceRegistry.getTradeService().getPriceHistory(itemKey, days);
-            boolean ok = Boolean.TRUE.equals(quote.get("success"));
-            result.addProperty("code", ok ? 200 : 400);
-            result.addProperty("success", ok);
-            for (Map.Entry<String, Object> e : quote.entrySet()) {
-                Object v = e.getValue();
-                if (v == null) continue;
-                if (v instanceof Number n) result.addProperty(e.getKey(), n);
-                else if (v instanceof Boolean b) result.addProperty(e.getKey(), b);
-                else result.addProperty(e.getKey(), String.valueOf(v));
+            MarketQuote quote = ServiceRegistry.getTradeService().getPriceHistory(itemKey, days);
+            result.addProperty("code", quote.success() ? 200 : 400);
+            result.addProperty("success", quote.success());
+            result.addProperty("message", quote.message());
+            if (quote.itemKey() != null) result.addProperty("itemKey", quote.itemKey());
+            if (quote.itemName() != null) result.addProperty("itemName", quote.itemName());
+            if (quote.days() != null) result.addProperty("days", quote.days());
+            if (quote.tradeCount() != null) result.addProperty("tradeCount", quote.tradeCount());
+            if (quote.totalQuantity() != null) result.addProperty("totalQuantity", quote.totalQuantity());
+            // 无成交时这三个字段为 null：原实现也是"没有就不写"，不能补 0
+            if (quote.minUnitPrice() != null) result.addProperty("minUnitPrice", quote.minUnitPrice());
+            if (quote.maxUnitPrice() != null) result.addProperty("maxUnitPrice", quote.maxUnitPrice());
+            if (quote.avgUnitPrice() != null) result.addProperty("avgUnitPrice", quote.avgUnitPrice());
+            if (quote.lowestActiveUnitPrice() != null) {
+                result.addProperty("lowestActiveUnitPrice", quote.lowestActiveUnitPrice());
             }
         } catch (Exception e) {
             result.addProperty("code", 500);

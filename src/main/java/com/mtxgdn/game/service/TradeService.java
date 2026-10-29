@@ -1,5 +1,7 @@
 package com.mtxgdn.game.service;
 
+import com.mtxgdn.game.trade.MarketQuote;
+import com.mtxgdn.game.trade.TradeResult;
 import com.mtxgdn.db.DatabaseManager;
 import com.mtxgdn.db.TradeDAO;
 import com.mtxgdn.entity.Player;
@@ -14,7 +16,6 @@ import com.mtxgdn.util.GameLogger;
 import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.ArrayList;
-import java.util.LinkedHashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.Executors;
@@ -116,24 +117,24 @@ public class TradeService {
         this.playerService = ServiceRegistry.getPlayerService();
     }
 
-    public Map<String, Object> listItem(long playerId, String itemKey, int quantity, long priceSpiritStones) {
+    public TradeResult listItem(long playerId, String itemKey, int quantity, long priceSpiritStones) {
         // 严格验证输入参数
         if (quantity <= 0) {
-            return createResult(false, I18n.t("trade.list.quantity_invalid"));
+            return TradeResult.failed(I18n.t("trade.list.quantity_invalid"));
         }
         if (quantity > 999_999) {
-            return createResult(false, I18n.t("trade.list.quantity_too_large"));
+            return TradeResult.failed(I18n.t("trade.list.quantity_too_large"));
         }
         if (priceSpiritStones <= 0) {
-            return createResult(false, I18n.t("trade.list.price_invalid"));
+            return TradeResult.failed(I18n.t("trade.list.price_invalid"));
         }
         if (priceSpiritStones > 999_999_999L) {
-            return createResult(false, I18n.t("trade.list.price_too_large"));
+            return TradeResult.failed(I18n.t("trade.list.price_too_large"));
         }
 
         Item item = ItemRegistry.resolve(itemKey);
         if (item == null) {
-            return createResult(false, I18n.t("trade.list.item_not_found"));
+            return TradeResult.failed(I18n.t("trade.list.item_not_found"));
         }
 
         String fullKey = item.getFullKey();
@@ -159,18 +160,16 @@ public class TradeService {
                 return null;
             });
 
-            Map<String, Object> result = createResult(true,
+            return TradeResult.listed(
                     I18n.t("trade.list.success", item.getName(), fullKey, quantity,
-                            priceSpiritStones, fee, LISTING_DURATION_HOURS));
-            result.put("fee", fee);
-            result.put("expiresInHours", LISTING_DURATION_HOURS);
-            return result;
+                            priceSpiritStones, fee, LISTING_DURATION_HOURS),
+                    fee, LISTING_DURATION_HOURS);
         } catch (Exception e) {
-            return createResult(false, I18n.t("trade.list.failed", rootMessage(e)));
+            return TradeResult.failed(I18n.t("trade.list.failed", rootMessage(e)));
         }
     }
 
-    public Map<String, Object> buyItem(long buyerPlayerId, long listingId) {
+    public TradeResult buyItem(long buyerPlayerId, long listingId) {
         // S6 修复：把 listing 读取移入事务内并加锁，避免事务外快照 + 竞态覆盖
         final TradeListing[] purchased = new TradeListing[1];
         try {
@@ -199,15 +198,13 @@ public class TradeService {
 
             TradeListing listing = purchased[0];
             Item item = ItemRegistry.get(listing.itemKey);
-            Map<String, Object> result = createResult(true,
+            return TradeResult.bought(
                     I18n.t("trade.buy.success",
                             item != null ? item.getName() : listing.itemKey,
-                            listing.quantity, listing.priceSpiritStones, listing.fee));
-            result.put("cost", listing.priceSpiritStones);
-            result.put("fee", listing.fee);
-            return result;
+                            listing.quantity, listing.priceSpiritStones, listing.fee),
+                    listing.priceSpiritStones, listing.fee);
         } catch (Exception e) {
-            return createResult(false, I18n.t("trade.buy.failed", rootMessage(e)));
+            return TradeResult.failed(I18n.t("trade.buy.failed", rootMessage(e)));
         }
     }
 
@@ -240,7 +237,7 @@ public class TradeService {
      * 例如：撤回读到 active 快照 → 回收任务抢先置 expired 并退物 → 撤回再把 active 改成
      * sold 又退一次 → 玩家凭空多出一份物品。
      */
-    public Map<String, Object> cancelListing(long playerId, long listingId) {
+    public TradeResult cancelListing(long playerId, long listingId) {
         final TradeListing[] cancelled = new TradeListing[1];
         try {
             DatabaseManager.runTransaction(conn -> {
@@ -263,11 +260,11 @@ public class TradeService {
 
             TradeListing listing = cancelled[0];
             Item item = ItemRegistry.get(listing.itemKey);
-            return createResult(true,
+            return TradeResult.cancelled(
                     I18n.t("trade.cancel.success",
                             item != null ? item.getName() : listing.itemKey, listing.quantity));
         } catch (Exception e) {
-            return createResult(false, I18n.t("trade.cancel.failed", rootMessage(e)));
+            return TradeResult.failed(I18n.t("trade.cancel.failed", rootMessage(e)));
         }
     }
 
@@ -367,13 +364,10 @@ public class TradeService {
      * @param itemKey 物品 key（支持短 key，自动补 mtxgdn: 前缀）
      * @param days    统计窗口天数；<=0 用默认 7 天，上限 90 天
      */
-    public Map<String, Object> getPriceHistory(String itemKey, int days) {
-        Map<String, Object> out = new LinkedHashMap<>();
+    public MarketQuote getPriceHistory(String itemKey, int days) {
         Item item = ItemRegistry.resolve(itemKey);
         if (item == null) {
-            out.put("success", false);
-            out.put("message", I18n.t("trade.list.item_not_found"));
-            return out;
+            return MarketQuote.notFound(I18n.t("trade.list.item_not_found"));
         }
         String fullKey = item.getFullKey();
         int window = days <= 0 ? DEFAULT_QUOTE_DAYS : Math.min(days, MAX_QUOTE_DAYS);
@@ -381,7 +375,10 @@ public class TradeService {
                 new java.sql.Timestamp(System.currentTimeMillis() - window * DAY_MS);
 
         TradeDAO.PriceHistoryStats stats = TRADE_DAO.getPriceHistoryStats(fullKey, since);
-        long count = stats.count, min = 0, max = 0, avg = 0, totalQty = 0;
+        long count = stats.count;
+        // 无成交时不给 min/max/avg：否则前端会把「没有数据」显示成「价格 0」
+        Long min = null, max = null, avg = null;
+        long totalQty = 0;
         if (count > 0) {
             min = stats.minUnitPrice;
             max = stats.maxUnitPrice;
@@ -389,31 +386,17 @@ public class TradeService {
             totalQty = stats.totalQuantity;
         }
 
-        out.put("success", true);
-        out.put("itemKey", fullKey);
-        out.put("itemName", item.getName());
-        out.put("days", window);
-        out.put("tradeCount", count);
-        out.put("totalQuantity", totalQty);
-        if (count > 0) {
-            out.put("minUnitPrice", min);
-            out.put("maxUnitPrice", max);
-            out.put("avgUnitPrice", avg);
-            out.put("message", I18n.t("trade.price.summary",
-                    item.getName(), window, count, avg, min, max));
-        } else {
-            // 交易日数为 0 时给一句"没有记录"的提示：它同时承担着
-            // "别以为系统坏了"的安抚作用，所以即使在 en_us 下也要有对应译文。
-            out.put("message", I18n.t("trade.price.no_records",
-                    item.getName(), window));
-        }
+        String message = count > 0
+                ? I18n.t("trade.price.summary", item.getName(), window, count, avg, min, max)
+                // 交易日数为 0 时给一句"没有记录"的提示：它同时承担着
+                // "别以为系统坏了"的安抚作用，所以即使在 en_us 下也要有对应译文。
+                : I18n.t("trade.price.no_records", item.getName(), window);
 
         // 当前在售最低单价，给玩家一个"现在挂多少能卖掉"的锚点
         long lowest = lowestActiveUnitPrice(fullKey);
-        if (lowest > 0) {
-            out.put("lowestActiveUnitPrice", lowest);
-        }
-        return out;
+
+        return MarketQuote.of(message, fullKey, item.getName(), window, count, totalQty,
+                min, max, avg, lowest > 0 ? lowest : null);
     }
 
     /** 当前在售挂单中的最低单价（总价 ÷ 数量），无在售返回 0。 */
@@ -472,12 +455,6 @@ public class TradeService {
         return TRADE_DAO.markListingSold(conn, listingId);
     }
 
-    private Map<String, Object> createResult(boolean success, String message) {
-        Map<String, Object> result = new LinkedHashMap<>();
-        result.put("success", success);
-        result.put("message", message);
-        return result;
-    }
 
     public static class TradeListing {
         public long id;

@@ -1,5 +1,6 @@
 package com.mtxgdn.game.service;
 
+import com.mtxgdn.game.trade.TradeResult;
 import com.mtxgdn.TestBase;
 import com.mtxgdn.common.service.ServiceRegistry;
 import com.mtxgdn.db.DatabaseManager;
@@ -119,8 +120,8 @@ class TradeServiceConcurrencyTest extends TestBase {
         itemService.addSpiritStones(buyerB, 100_000);
 
         // 卖家上架，买得起
-        Map<String, Object> listed = tradeService.listItem(seller, "mtxgdn:spirit_grass", 1, 1000);
-        assertTrue(Boolean.TRUE.equals(listed.get("success")), "上架应成功: " + listed.get("message"));
+        TradeResult listed = tradeService.listItem(seller, "mtxgdn:spirit_grass", 1, 1000);
+        assertTrue(listed.success(), "上架应成功: " + listed.message());
 
         long listingId = tradeService.getActiveListings().stream()
                 .filter(l -> l.sellerPlayerId == seller)
@@ -128,16 +129,16 @@ class TradeServiceConcurrencyTest extends TestBase {
 
         // 两个买家同时抢（同一挂单）
         final long finalListingId = listingId;
-        List<Map<String, Object>> rs = runConcurrently(2, new Callable<Map<String, Object>>() {
+        List<TradeResult> rs = runConcurrently(2, new Callable<TradeResult>() {
             private final AtomicInteger idx = new AtomicInteger();
             @Override
-            public Map<String, Object> call() {
+            public TradeResult call() {
                 long who = idx.getAndIncrement() == 0 ? buyerA : buyerB;
                 return tradeService.buyItem(who, finalListingId);
             }
         });
 
-        long successCount = rs.stream().filter(r -> r != null && Boolean.TRUE.equals(r.get("success"))).count();
+        long successCount = rs.stream().filter(r -> r != null && r.success()).count();
         assertEquals(1, successCount, "同一挂单只允许一个买家成交，实际成交 " + successCount + " 次（重复售出）: " + rs);
 
         // 挂单必须已标记 sold
@@ -157,10 +158,10 @@ class TradeServiceConcurrencyTest extends TestBase {
         assertEquals(10, before, "初始数量应为 10");
 
         // 4 个线程各上架 5 个，总计 20 > 持有量 10
-        List<Map<String, Object>> results = runConcurrently(4, () ->
+        List<TradeResult> results = runConcurrently(4, () ->
                 tradeService.listItem(seller, "mtxgdn:spirit_grass", 5, 100));
 
-        long okCount = results.stream().filter(r -> r != null && Boolean.TRUE.equals(r.get("success"))).count();
+        long okCount = results.stream().filter(r -> r != null && r.success()).count();
         long after = countItem(seller, "mtxgdn:spirit_grass");
 
         assertTrue(after >= 0, "背包数量不得为负，实际: " + after);
@@ -185,8 +186,8 @@ class TradeServiceConcurrencyTest extends TestBase {
         itemService.addItem(seller, "mtxgdn:spirit_grass", 1000);
         itemService.addSpiritStones(buyer, 50_000);
 
-        Map<String, Object> listed = tradeService.listItem(seller, "mtxgdn:spirit_grass", 1, 2000);
-        assertTrue(Boolean.TRUE.equals(listed.get("success")), "上架应成功: " + listed.get("message"));
+        TradeResult listed = tradeService.listItem(seller, "mtxgdn:spirit_grass", 1, 2000);
+        assertTrue(listed.success(), "上架应成功: " + listed.message());
 
         long listingId = tradeService.getActiveListings().stream()
                 .filter(l -> l.sellerPlayerId == seller)
@@ -195,9 +196,9 @@ class TradeServiceConcurrencyTest extends TestBase {
         long buyerBefore = itemService.getSpiritStoneCount(buyer);
 
         // 同一买家 4 次并发购买
-        List<Map<String, Object>> results = runConcurrently(4, () -> tradeService.buyItem(buyer, listingId));
+        List<TradeResult> results = runConcurrently(4, () -> tradeService.buyItem(buyer, listingId));
 
-        long okCount = results.stream().filter(r -> r != null && Boolean.TRUE.equals(r.get("success"))).count();
+        long okCount = results.stream().filter(r -> r != null && r.success()).count();
         long buyerAfter = itemService.getSpiritStoneCount(buyer);
 
         assertEquals(1, okCount, "同一买家并发重复购买只能成功一次，实际 " + okCount + " 次");
@@ -217,9 +218,9 @@ class TradeServiceConcurrencyTest extends TestBase {
         itemService.addSpiritStones(buyer, 50_000);
 
         long price = 10_000;
-        Map<String, Object> listed = tradeService.listItem(seller, "mtxgdn:spirit_grass", 1, price);
-        assertTrue(Boolean.TRUE.equals(listed.get("success")), "上架应成功: " + listed.get("message"));
-        long fee = ((Number) listed.get("fee")).longValue();
+        TradeResult listed = tradeService.listItem(seller, "mtxgdn:spirit_grass", 1, price);
+        assertTrue(listed.success(), "上架应成功: " + listed.message());
+        long fee = listed.fee();
         assertTrue(fee > 0, "抽成应大于 0");
 
         long sellerBefore = itemService.getSpiritStoneCount(seller);
@@ -228,8 +229,8 @@ class TradeServiceConcurrencyTest extends TestBase {
         long listingId = tradeService.getActiveListings().stream()
                 .filter(l -> l.sellerPlayerId == seller)
                 .findFirst().orElseThrow().id;
-        Map<String, Object> bought = tradeService.buyItem(buyer, listingId);
-        assertTrue(Boolean.TRUE.equals(bought.get("success")), "购买应成功: " + bought.get("message"));
+        TradeResult bought = tradeService.buyItem(buyer, listingId);
+        assertTrue(bought.success(), "购买应成功: " + bought.message());
 
         long sellerAfter = itemService.getSpiritStoneCount(seller);
         long buyerAfter = itemService.getSpiritStoneCount(buyer);
@@ -257,9 +258,9 @@ class TradeServiceConcurrencyTest extends TestBase {
         itemService.addItem(seller, "mtxgdn:spirit_grass", 100);
         itemService.addSpiritStones(buyer, 50_000);
 
-        Map<String, Object> listed = tradeService.listItem(seller, "mtxgdn:spirit_grass", 10, 2_000);
-        assertTrue(Boolean.TRUE.equals(listed.get("success")), "上架应成功");
-        long fee = ((Number) listed.get("fee")).longValue();
+        TradeResult listed = tradeService.listItem(seller, "mtxgdn:spirit_grass", 10, 2_000);
+        assertTrue(listed.success(), "上架应成功");
+        long fee = listed.fee();
         long listingId = activeListingIdOf(seller);
 
         long sellerStonesBefore = itemService.getSpiritStoneCount(seller);
@@ -274,9 +275,9 @@ class TradeServiceConcurrencyTest extends TestBase {
             @Override
             public Boolean call() {
                 if (idx.getAndIncrement() == 0) {
-                    return Boolean.TRUE.equals(tradeService.cancelListing(seller, listingId).get("success"));
+                    return tradeService.cancelListing(seller, listingId).success();
                 }
-                return Boolean.TRUE.equals(tradeService.buyItem(buyer, listingId).get("success"));
+                return tradeService.buyItem(buyer, listingId).success();
             }
         });
 
@@ -308,16 +309,16 @@ class TradeServiceConcurrencyTest extends TestBase {
         long seller = makePlayer("tradeseller6", "卖家己");
         itemService.addItem(seller, "mtxgdn:spirit_grass", 50);
 
-        Map<String, Object> listed = tradeService.listItem(seller, "mtxgdn:spirit_grass", 20, 1_000);
-        assertTrue(Boolean.TRUE.equals(listed.get("success")), "上架应成功");
+        TradeResult listed = tradeService.listItem(seller, "mtxgdn:spirit_grass", 20, 1_000);
+        assertTrue(listed.success(), "上架应成功");
         long listingId = activeListingIdOf(seller);
         long afterList = countItem(seller, "mtxgdn:spirit_grass");
         assertEquals(30, afterList, "上架后应剩 30");
 
         // 4 个线程同时撤同一个挂单
-        List<Map<String, Object>> results = runConcurrently(4, () -> tradeService.cancelListing(seller, listingId));
+        List<TradeResult> results = runConcurrently(4, () -> tradeService.cancelListing(seller, listingId));
 
-        long okCount = results.stream().filter(r -> r != null && Boolean.TRUE.equals(r.get("success"))).count();
+        long okCount = results.stream().filter(r -> r != null && r.success()).count();
         assertEquals(1, okCount, "并发重复撤单只能成功一次，实际 " + okCount + " 次");
         assertEquals(50, countItem(seller, "mtxgdn:spirit_grass"),
                 "物品必须恰好退回一次（30 + 20 = 50），实际 " + countItem(seller, "mtxgdn:spirit_grass"));

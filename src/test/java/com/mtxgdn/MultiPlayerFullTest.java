@@ -1,5 +1,6 @@
 package com.mtxgdn;
 
+import com.mtxgdn.game.trade.TradeResult;
 import com.mtxgdn.game.cultivation.BeginCultivationResult;
 import com.mtxgdn.game.cultivation.FinishCultivationResult;
 import com.mtxgdn.common.result.OperationResult;
@@ -373,8 +374,8 @@ public class MultiPlayerFullTest {
 
         // 卖家上架（需要先有物品和灵石库存）
         itemService.addItem(seller.playerId, "mtxgdn:spirit_grass", 20);
-        Map<String,Object> list = tradeService.listItem(seller.playerId, "mtxgdn:spirit_grass", 5, 100);
-        assertTrue(Boolean.TRUE.equals(list.get("success")), "上架应成功: " + list.get("message"));
+        TradeResult list = tradeService.listItem(seller.playerId, "mtxgdn:spirit_grass", 5, 100);
+        assertTrue(list.success(), "上架应成功: " + list.message());
         System.out.println("  ✓ " + seller.playerName + " 上架灵草x5 @100灵石");
 
         // 获取市场列表
@@ -413,9 +414,9 @@ public class MultiPlayerFullTest {
                     long listingId = idField.getLong(first);
                     // 买家需要灵石
                     itemService.addSpiritStones(buyer.playerId, 1000);
-                    Map<String,Object> buy = tradeService.buyItem(buyer.playerId, listingId);
-                    System.out.println("  " + (Boolean.TRUE.equals(buy.get("success"))?"✓":"○") +
-                            " " + buyer.playerName + " 购买: " + buy.get("message"));
+                    TradeResult buy = tradeService.buyItem(buyer.playerId, listingId);
+                    System.out.println("  " + (buy.success() ? "✓" : "○") +
+                            " " + buyer.playerName + " 购买: " + buy.message());
                 }
             }
         } catch (Exception e) {

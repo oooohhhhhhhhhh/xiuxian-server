@@ -150,10 +150,6 @@ class ResultMapDebtTest {
             "com/mtxgdn/game/service/SectService.java#setSalary",
             "com/mtxgdn/game/service/SectService.java#paySalariesNow",
             // ---- 坊市 ----
-            "com/mtxgdn/game/service/TradeService.java#listItem",
-            "com/mtxgdn/game/service/TradeService.java#buyItem",
-            "com/mtxgdn/game/service/TradeService.java#cancelListing",
-            "com/mtxgdn/game/service/TradeService.java#getPriceHistory",
             // ---- 存档 ----
             "com/mtxgdn/playerdata/PlayerDataService.java#exportPlayer",
             "com/mtxgdn/playerdata/PlayerDataService.java#exportAllPlayers",

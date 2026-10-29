@@ -7,6 +7,7 @@ import com.mtxgdn.db.PlayerDAO;
 import com.mtxgdn.game.item.Item;
 import com.mtxgdn.game.item.ItemRegistry;
 import com.mtxgdn.game.service.TradeService;
+import com.mtxgdn.game.trade.MarketQuote;
 import com.mtxgdn.i18n.I18n;
 import com.mtxgdn.permission.RequirePermission;
 
@@ -128,19 +129,12 @@ public class AdminMarketResource {
             }
         }
         try {
-            Map<String, Object> quote = ServiceRegistry.getTradeService().getPriceHistory(key, days);
-            boolean ok = Boolean.TRUE.equals(quote.get("success"));
-            out.addProperty("code", ok ? 200 : 400);
-            out.addProperty("message", String.valueOf(quote.getOrDefault("message", "")));
-            JsonObject data = new JsonObject();
-            for (Map.Entry<String, Object> e : quote.entrySet()) {
-                Object v = e.getValue();
-                if (v == null) continue;
-                if (v instanceof Number n) data.addProperty(e.getKey(), n);
-                else if (v instanceof Boolean b) data.addProperty(e.getKey(), b);
-                else data.addProperty(e.getKey(), String.valueOf(v));
-            }
-            out.add("data", data);
+            MarketQuote quote = ServiceRegistry.getTradeService().getPriceHistory(key, days);
+            out.addProperty("code", quote.success() ? 200 : 400);
+            out.addProperty("message", quote.message() != null ? quote.message() : "");
+            // 与原 Map 逐键搬运保持同样的字段集与类型：Gson 默认跳过 null 分量，
+            // 所以直接序列化 record 即可，无成交时不会出现 min/max/avg = 0。
+            out.add("data", gson.toJsonTree(quote).getAsJsonObject());
         } catch (Exception e) {
             out.addProperty("code", 500);
             out.addProperty("message", I18n.t("admin.failed_to_query_market_prices", e.getMessage()));

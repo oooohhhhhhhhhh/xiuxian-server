@@ -1,5 +1,7 @@
 package com.mtxgdn.game.service;
 
+import com.mtxgdn.game.trade.MarketQuote;
+import com.mtxgdn.game.trade.TradeResult;
 import com.mtxgdn.TestBase;
 import com.mtxgdn.common.service.ServiceRegistry;
 import com.mtxgdn.db.DatabaseManager;
@@ -137,9 +139,9 @@ class TradeListingExpiryTest extends TestBase {
         long seller = makePlayer("expseller1", "限期甲");
         itemService.addItem(seller, "mtxgdn:spirit_grass", 10);
 
-        Map<String, Object> listed = tradeService.listItem(seller, "mtxgdn:spirit_grass", 3, 300);
-        assertTrue(Boolean.TRUE.equals(listed.get("success")), "上架应成功: " + listed.get("message"));
-        assertEquals(TradeService.getListingDurationHours(), listed.get("expiresInHours"),
+        TradeResult listed = tradeService.listItem(seller, "mtxgdn:spirit_grass", 3, 300);
+        assertTrue(listed.success(), "上架应成功: " + listed.message());
+        assertEquals(TradeService.getListingDurationHours(), listed.expiresInHours().longValue(),
                 "返回的时长应与配置一致");
 
         long id = activeListingIdOf(seller);
@@ -165,8 +167,8 @@ class TradeListingExpiryTest extends TestBase {
         long before = countItem(seller, "mtxgdn:spirit_grass");
         assertEquals(100, before, "初始应为 100");
 
-        Map<String, Object> listed = tradeService.listItem(seller, "mtxgdn:spirit_grass", 20, 500);
-        assertTrue(Boolean.TRUE.equals(listed.get("success")), "上架应成功: " + listed.get("message"));
+        TradeResult listed = tradeService.listItem(seller, "mtxgdn:spirit_grass", 20, 500);
+        assertTrue(listed.success(), "上架应成功: " + listed.message());
         long id = activeListingIdOf(seller);
 
         assertEquals(80, countItem(seller, "mtxgdn:spirit_grass"), "上架后背包应剩 80");
@@ -194,8 +196,8 @@ class TradeListingExpiryTest extends TestBase {
         long seller = makePlayer("expseller3", "限期丙");
         itemService.addItem(seller, "mtxgdn:spirit_grass", 50);
 
-        Map<String, Object> listed = tradeService.listItem(seller, "mtxgdn:spirit_grass", 5, 500);
-        assertTrue(Boolean.TRUE.equals(listed.get("success")), "上架应成功");
+        TradeResult listed = tradeService.listItem(seller, "mtxgdn:spirit_grass", 5, 500);
+        assertTrue(listed.success(), "上架应成功");
         long id = activeListingIdOf(seller);
         assertTrue(tradeService.getPlayerListings(seller).stream().anyMatch(l -> l.id == id),
                 "未到期时应出现在我的挂单中");
@@ -219,16 +221,16 @@ class TradeListingExpiryTest extends TestBase {
         itemService.addItem(seller, "mtxgdn:spirit_grass", 50);
         itemService.addSpiritStones(buyer, 50_000);
 
-        Map<String, Object> listed = tradeService.listItem(seller, "mtxgdn:spirit_grass", 5, 1_000);
-        assertTrue(Boolean.TRUE.equals(listed.get("success")), "上架应成功");
+        TradeResult listed = tradeService.listItem(seller, "mtxgdn:spirit_grass", 5, 1_000);
+        assertTrue(listed.success(), "上架应成功");
         long id = activeListingIdOf(seller);
 
         forceExpire(id);
         long buyerBefore = itemService.getSpiritStoneCount(buyer);
 
-        Map<String, Object> bought = tradeService.buyItem(buyer, id);
-        assertTrue(Boolean.FALSE.equals(bought.get("success")),
-                "已到期挂单不应可购买，实际: " + bought.get("message"));
+        TradeResult bought = tradeService.buyItem(buyer, id);
+        assertTrue(!bought.success(),
+                "已到期挂单不应可购买，实际: " + bought.message());
         assertEquals(buyerBefore, itemService.getSpiritStoneCount(buyer),
                 "购买失败不得扣除买家灵石");
         assertEquals(0, countItem(buyer, "mtxgdn:spirit_grass"),
@@ -251,24 +253,24 @@ class TradeListingExpiryTest extends TestBase {
         itemService.addSpiritStones(buyer2, 100_000);
 
         // 两笔成交，单价分别为 100（10 个 / 1000 总价）和 200（5 个 / 1000 总价）
-        Map<String, Object> l1 = tradeService.listItem(seller, "mtxgdn:iron_ore", 10, 1_000);
-        assertTrue(Boolean.TRUE.equals(l1.get("success")), "上架1应成功: " + l1.get("message"));
+        TradeResult l1 = tradeService.listItem(seller, "mtxgdn:iron_ore", 10, 1_000);
+        assertTrue(l1.success(), "上架1应成功: " + l1.message());
         long id1 = activeListingIdOf(seller);
-        assertTrue(Boolean.TRUE.equals(tradeService.buyItem(buyer1, id1).get("success")), "成交1应成功");
+        assertTrue(tradeService.buyItem(buyer1, id1).success(), "成交1应成功");
 
-        Map<String, Object> l2 = tradeService.listItem(seller, "mtxgdn:iron_ore", 5, 1_000);
-        assertTrue(Boolean.TRUE.equals(l2.get("success")), "上架2应成功: " + l2.get("message"));
+        TradeResult l2 = tradeService.listItem(seller, "mtxgdn:iron_ore", 5, 1_000);
+        assertTrue(l2.success(), "上架2应成功: " + l2.message());
         long id2 = activeListingIdOf(seller);
-        assertTrue(Boolean.TRUE.equals(tradeService.buyItem(buyer2, id2).get("success")), "成交2应成功");
+        assertTrue(tradeService.buyItem(buyer2, id2).success(), "成交2应成功");
 
-        Map<String, Object> quote = tradeService.getPriceHistory("mtxgdn:iron_ore", 7);
-        assertTrue(Boolean.TRUE.equals(quote.get("success")), "行情查询应成功: " + quote.get("message"));
+        MarketQuote quote = tradeService.getPriceHistory("mtxgdn:iron_ore", 7);
+        assertTrue(quote.success(), "行情查询应成功: " + quote.message());
 
-        assertEquals(2L, ((Number) quote.get("tradeCount")).longValue(), "应有 2 笔成交");
-        assertEquals(15L, ((Number) quote.get("totalQuantity")).longValue(), "成交总量应为 15");
-        assertEquals(100L, ((Number) quote.get("minUnitPrice")).longValue(), "最低单价应为 100");
-        assertEquals(200L, ((Number) quote.get("maxUnitPrice")).longValue(), "最高单价应为 200");
-        assertEquals(150L, ((Number) quote.get("avgUnitPrice")).longValue(), "均价应为 150");
+        assertEquals(2L, quote.tradeCount().longValue(), "应有 2 笔成交");
+        assertEquals(15L, quote.totalQuantity().longValue(), "成交总量应为 15");
+        assertEquals(100L, quote.minUnitPrice().longValue(), "最低单价应为 100");
+        assertEquals(200L, quote.maxUnitPrice().longValue(), "最高单价应为 200");
+        assertEquals(150L, quote.avgUnitPrice().longValue(), "均价应为 150");
     }
 
     @Test
@@ -280,18 +282,18 @@ class TradeListingExpiryTest extends TestBase {
         itemService.addItem(seller, "mtxgdn:mana_pill", 100);
 
         // 无任何成交
-        Map<String, Object> empty = tradeService.getPriceHistory("mtxgdn:mana_pill", 7);
-        assertTrue(Boolean.TRUE.equals(empty.get("success")), "查询应成功（无数据不是错误）");
-        assertEquals(0L, ((Number) empty.get("tradeCount")).longValue(), "应无成交记录");
-        assertTrue(String.valueOf(empty.get("message")).contains("没有成交记录"),
-                "应明确提示无成交记录，实际: " + empty.get("message"));
+        MarketQuote empty = tradeService.getPriceHistory("mtxgdn:mana_pill", 7);
+        assertTrue(empty.success(), "查询应成功（无数据不是错误）");
+        assertEquals(0L, empty.tradeCount().longValue(), "应无成交记录");
+        assertTrue(String.valueOf(empty.message()).contains("没有成交记录"),
+                "应明确提示无成交记录，实际: " + empty.message());
 
         // 挂一个在售：10 个 / 2000 总价 → 单价 200
-        Map<String, Object> listed = tradeService.listItem(seller, "mtxgdn:mana_pill", 10, 2_000);
-        assertTrue(Boolean.TRUE.equals(listed.get("success")), "上架应成功");
+        TradeResult listed = tradeService.listItem(seller, "mtxgdn:mana_pill", 10, 2_000);
+        assertTrue(listed.success(), "上架应成功");
 
-        Map<String, Object> quote = tradeService.getPriceHistory("mtxgdn:mana_pill", 7);
-        assertEquals(200L, ((Number) quote.get("lowestActiveUnitPrice")).longValue(),
+        MarketQuote quote = tradeService.getPriceHistory("mtxgdn:mana_pill", 7);
+        assertEquals(200L, quote.lowestActiveUnitPrice().longValue(),
                 "在售最低单价应为 200（2000 ÷ 10）");
     }
 
@@ -300,9 +302,9 @@ class TradeListingExpiryTest extends TestBase {
     void testPriceHistoryUnknownItem() {
         if (!ready) { System.out.println("  跳过（环境未就绪）"); return; }
 
-        Map<String, Object> quote = tradeService.getPriceHistory("mtxgdn:not_a_real_item_xyz", 7);
-        assertTrue(Boolean.FALSE.equals(quote.get("success")), "未知物品应返回失败");
-        assertNotNull(quote.get("message"), "应给出错误说明");
+        MarketQuote quote = tradeService.getPriceHistory("mtxgdn:not_a_real_item_xyz", 7);
+        assertTrue(!quote.success(), "未知物品应返回失败");
+        assertNotNull(quote.message(), "应给出错误说明");
     }
 
     @Test
@@ -311,17 +313,17 @@ class TradeListingExpiryTest extends TestBase {
         if (!ready) { System.out.println("  跳过（环境未就绪）"); return; }
 
         // 0 与负数 → 默认窗口
-        Map<String, Object> d0 = tradeService.getPriceHistory("mtxgdn:iron_ore", 0);
-        assertTrue(Boolean.TRUE.equals(d0.get("success")));
-        long defaultDays = ((Number) d0.get("days")).longValue();
+        MarketQuote d0 = tradeService.getPriceHistory("mtxgdn:iron_ore", 0);
+        assertTrue(d0.success());
+        long defaultDays = d0.days();
         assertTrue(defaultDays > 0, "天数应回退为正数，实际 " + defaultDays);
 
-        Map<String, Object> dNeg = tradeService.getPriceHistory("mtxgdn:iron_ore", -5);
-        assertEquals(defaultDays, ((Number) dNeg.get("days")).longValue(), "负数应回退到默认窗口");
+        MarketQuote dNeg = tradeService.getPriceHistory("mtxgdn:iron_ore", -5);
+        assertEquals(defaultDays, dNeg.days().longValue(), "负数应回退到默认窗口");
 
         // 超大值 → 被限制在上限内
-        Map<String, Object> dHuge = tradeService.getPriceHistory("mtxgdn:iron_ore", 100_000);
-        long hugeDays = ((Number) dHuge.get("days")).longValue();
+        MarketQuote dHuge = tradeService.getPriceHistory("mtxgdn:iron_ore", 100_000);
+        long hugeDays = dHuge.days();
         assertTrue(hugeDays <= 90, "天数应被限制在 90 天内，实际 " + hugeDays);
     }
 
@@ -345,8 +347,8 @@ class TradeListingExpiryTest extends TestBase {
         int deleted = tradeService.cleanupPriceHistory();
         assertTrue(deleted >= 0, "清理应正常返回删除行数");
 
-        Map<String, Object> quote = tradeService.getPriceHistory("mtxgdn:iron_ore", 7);
-        assertEquals(0L, ((Number) quote.get("tradeCount")).longValue(),
+        MarketQuote quote = tradeService.getPriceHistory("mtxgdn:iron_ore", 7);
+        assertEquals(0L, quote.tradeCount().longValue(),
                 "被清理的过期记录不应再出现在近 7 天统计中");
     }
 
@@ -361,13 +363,13 @@ class TradeListingExpiryTest extends TestBase {
         itemService.addItem(seller, "mtxgdn:spirit_grass", 40);
         assertEquals(40, countItem(seller, "mtxgdn:spirit_grass"), "初始应为 40");
 
-        Map<String, Object> listed = tradeService.listItem(seller, "mtxgdn:spirit_grass", 15, 900);
-        assertTrue(Boolean.TRUE.equals(listed.get("success")), "上架应成功");
+        TradeResult listed = tradeService.listItem(seller, "mtxgdn:spirit_grass", 15, 900);
+        assertTrue(listed.success(), "上架应成功");
         long id = activeListingIdOf(seller);
         assertEquals(25, countItem(seller, "mtxgdn:spirit_grass"), "上架后应剩 25");
 
-        Map<String, Object> cancelled = tradeService.cancelListing(seller, id);
-        assertTrue(Boolean.TRUE.equals(cancelled.get("success")), "撤单应成功: " + cancelled.get("message"));
+        TradeResult cancelled = tradeService.cancelListing(seller, id);
+        assertTrue(cancelled.success(), "撤单应成功: " + cancelled.message());
         assertEquals(40, countItem(seller, "mtxgdn:spirit_grass"), "撤单应退回全部物品（25 + 15 = 40）");
         assertEquals("sold", statusOf(id), "撤单后挂单不应再是 active");
         assertTrue(tradeService.getActiveListings().stream().noneMatch(l -> l.id == id),
@@ -383,14 +385,14 @@ class TradeListingExpiryTest extends TestBase {
         long stranger = makePlayer("cancelstranger2", "路人乙");
         itemService.addItem(seller, "mtxgdn:spirit_grass", 40);
 
-        Map<String, Object> listed = tradeService.listItem(seller, "mtxgdn:spirit_grass", 10, 500);
-        assertTrue(Boolean.TRUE.equals(listed.get("success")), "上架应成功");
+        TradeResult listed = tradeService.listItem(seller, "mtxgdn:spirit_grass", 10, 500);
+        assertTrue(listed.success(), "上架应成功");
         long id = activeListingIdOf(seller);
 
         long strangerBefore = countItem(stranger, "mtxgdn:spirit_grass");
-        Map<String, Object> result = tradeService.cancelListing(stranger, id);
+        TradeResult result = tradeService.cancelListing(stranger, id);
 
-        assertTrue(Boolean.FALSE.equals(result.get("success")), "他人不得撤单");
+        assertTrue(!result.success(), "他人不得撤单");
         assertEquals(strangerBefore, countItem(stranger, "mtxgdn:spirit_grass"),
                 "撤单失败不得给路人发放物品");
         assertEquals("active", statusOf(id), "挂单应仍处于 active");
@@ -405,19 +407,19 @@ class TradeListingExpiryTest extends TestBase {
         long seller = makePlayer("cancelseller3", "撤单丙");
         itemService.addItem(seller, "mtxgdn:spirit_grass", 60);
 
-        Map<String, Object> listed = tradeService.listItem(seller, "mtxgdn:spirit_grass", 20, 700);
-        assertTrue(Boolean.TRUE.equals(listed.get("success")), "上架应成功");
+        TradeResult listed = tradeService.listItem(seller, "mtxgdn:spirit_grass", 20, 700);
+        assertTrue(listed.success(), "上架应成功");
         long id = activeListingIdOf(seller);
         assertEquals(40, countItem(seller, "mtxgdn:spirit_grass"), "上架后应剩 40");
 
-        assertTrue(Boolean.TRUE.equals(tradeService.cancelListing(seller, id).get("success")), "首次撤单应成功");
+        assertTrue(tradeService.cancelListing(seller, id).success(), "首次撤单应成功");
         assertEquals(60, countItem(seller, "mtxgdn:spirit_grass"), "首次撤单应退回 20");
 
         // 再撤两次都必须失败，且不得再次退物
-        Map<String, Object> second = tradeService.cancelListing(seller, id);
-        Map<String, Object> third = tradeService.cancelListing(seller, id);
-        assertTrue(Boolean.FALSE.equals(second.get("success")), "重复撤单应失败");
-        assertTrue(Boolean.FALSE.equals(third.get("success")), "重复撤单应失败");
+        TradeResult second = tradeService.cancelListing(seller, id);
+        TradeResult third = tradeService.cancelListing(seller, id);
+        assertTrue(!second.success(), "重复撤单应失败");
+        assertTrue(!third.success(), "重复撤单应失败");
         assertEquals(60, countItem(seller, "mtxgdn:spirit_grass"),
                 "重复撤单不得再次退回物品（否则物品被复制）");
     }
@@ -430,8 +432,8 @@ class TradeListingExpiryTest extends TestBase {
         long seller = makePlayer("cancelseller4", "撤单丁");
         itemService.addItem(seller, "mtxgdn:spirit_grass", 50);
 
-        Map<String, Object> listed = tradeService.listItem(seller, "mtxgdn:spirit_grass", 10, 500);
-        assertTrue(Boolean.TRUE.equals(listed.get("success")), "上架应成功");
+        TradeResult listed = tradeService.listItem(seller, "mtxgdn:spirit_grass", 10, 500);
+        assertTrue(listed.success(), "上架应成功");
         long id = activeListingIdOf(seller);
         assertEquals(40, countItem(seller, "mtxgdn:spirit_grass"), "上架后应剩 40");
 
@@ -441,9 +443,9 @@ class TradeListingExpiryTest extends TestBase {
         assertEquals(50, countItem(seller, "mtxgdn:spirit_grass"), "回收后应退回 10");
 
         // 此时再撤单必须失败：否则物品会被退回第二次
-        Map<String, Object> result = tradeService.cancelListing(seller, id);
-        assertTrue(Boolean.FALSE.equals(result.get("success")),
-                "已到期/已回收的挂单不应可撤单，实际: " + result.get("message"));
+        TradeResult result = tradeService.cancelListing(seller, id);
+        assertTrue(!result.success(),
+                "已到期/已回收的挂单不应可撤单，实际: " + result.message());
         assertEquals(50, countItem(seller, "mtxgdn:spirit_grass"),
                 "对已回收挂单撤单不得再退一次物品（否则物品被复制）");
     }
@@ -463,14 +465,14 @@ class TradeListingExpiryTest extends TestBase {
         ServiceRegistry.getPlayerService().updateSpiritualRoot(seller, SpiritualRoot.FOUR_ELEMENTS);
 
         // 10000 × 5% = 500
-        Map<String, Object> listed = tradeService.listItem(seller, "mtxgdn:spirit_grass", 1, 10_000);
-        assertTrue(Boolean.TRUE.equals(listed.get("success")), "上架应成功");
-        assertEquals(500L, ((Number) listed.get("fee")).longValue(), "10000 灵石的抽成应为 500（5%）");
+        TradeResult listed = tradeService.listItem(seller, "mtxgdn:spirit_grass", 1, 10_000);
+        assertTrue(listed.success(), "上架应成功");
+        assertEquals(500L, listed.fee().longValue(), "10000 灵石的抽成应为 500（5%）");
 
         // 极低总价的抽成兜底为 1，不能是 0（否则坊市抽成可被拆单规避）
-        Map<String, Object> cheap = tradeService.listItem(seller, "mtxgdn:spirit_grass", 1, 5);
-        assertTrue(Boolean.TRUE.equals(cheap.get("success")), "上架应成功");
-        assertEquals(1L, ((Number) cheap.get("fee")).longValue(), "极低总价抽成应兜底为 1");
+        TradeResult cheap = tradeService.listItem(seller, "mtxgdn:spirit_grass", 1, 5);
+        assertTrue(cheap.success(), "上架应成功");
+        assertEquals(1L, cheap.fee().longValue(), "极低总价抽成应兜底为 1");
     }
 
     @Test
@@ -487,17 +489,17 @@ class TradeListingExpiryTest extends TestBase {
         ServiceRegistry.getPlayerService().updateSpiritualRoot(seller, SpiritualRoot.FOUR_ELEMENTS);
 
         // 先按普通灵根上架一笔，取基准抽成
-        Map<String, Object> normal = tradeService.listItem(seller, "mtxgdn:spirit_grass", 1, 10_000);
-        assertTrue(Boolean.TRUE.equals(normal.get("success")), "上架应成功");
-        long normalFee = ((Number) normal.get("fee")).longValue();
+        TradeResult normal = tradeService.listItem(seller, "mtxgdn:spirit_grass", 1, 10_000);
+        assertTrue(normal.success(), "上架应成功");
+        long normalFee = normal.fee();
         assertEquals(500L, normalFee, "基准抽成应为 500（10000 × 5%，四象灵根无减免）");
 
         // 换成土金灵根（持有 TRADE_FEE_HALF）
         ServiceRegistry.getPlayerService().updateSpiritualRoot(seller, SpiritualRoot.EARTHEN_GOLD);
 
-        Map<String, Object> half = tradeService.listItem(seller, "mtxgdn:spirit_grass", 1, 10_000);
-        assertTrue(Boolean.TRUE.equals(half.get("success")), "上架应成功");
-        assertEquals(normalFee / 2, ((Number) half.get("fee")).longValue(),
+        TradeResult half = tradeService.listItem(seller, "mtxgdn:spirit_grass", 1, 10_000);
+        assertTrue(half.success(), "上架应成功");
+        assertEquals(normalFee / 2, half.fee().longValue(),
                 "土金灵根抽成应减半（" + normalFee + " -> " + normalFee / 2 + "）");
     }
 
@@ -517,24 +519,24 @@ class TradeListingExpiryTest extends TestBase {
 
         // 灵草：10 个 / 1000 → 单价 100
         assertTrue(Boolean.TRUE.equals(
-                tradeService.listItem(seller, "mtxgdn:spirit_grass", 10, 1_000).get("success")));
+                tradeService.listItem(seller, "mtxgdn:spirit_grass", 10, 1_000).success()));
         long id1 = activeListingIdOf(seller);
-        assertTrue(Boolean.TRUE.equals(tradeService.buyItem(buyer, id1).get("success")), "成交1应成功");
+        assertTrue(tradeService.buyItem(buyer, id1).success(), "成交1应成功");
 
         // 铁矿：2 个 / 1000 → 单价 500
         assertTrue(Boolean.TRUE.equals(
-                tradeService.listItem(seller, "mtxgdn:iron_ore", 2, 1_000).get("success")));
+                tradeService.listItem(seller, "mtxgdn:iron_ore", 2, 1_000).success()));
         long id2 = activeListingIdOf(seller);
-        assertTrue(Boolean.TRUE.equals(tradeService.buyItem(buyer, id2).get("success")), "成交2应成功");
+        assertTrue(tradeService.buyItem(buyer, id2).success(), "成交2应成功");
 
-        Map<String, Object> grass = tradeService.getPriceHistory("mtxgdn:spirit_grass", 7);
-        Map<String, Object> ore = tradeService.getPriceHistory("mtxgdn:iron_ore", 7);
+        MarketQuote grass = tradeService.getPriceHistory("mtxgdn:spirit_grass", 7);
+        MarketQuote ore = tradeService.getPriceHistory("mtxgdn:iron_ore", 7);
 
-        assertEquals(100L, ((Number) grass.get("avgUnitPrice")).longValue(), "灵草均价应为 100");
-        assertEquals(500L, ((Number) ore.get("avgUnitPrice")).longValue(), "铁矿均价应为 500");
+        assertEquals(100L, grass.avgUnitPrice().longValue(), "灵草均价应为 100");
+        assertEquals(500L, ore.avgUnitPrice().longValue(), "铁矿均价应为 500");
         // 若统计未按物品隔离，两边的均价会被互相污染
-        assertTrue(((Number) grass.get("avgUnitPrice")).longValue()
-                != ((Number) ore.get("avgUnitPrice")).longValue(),
+        assertTrue(grass.avgUnitPrice()
+                != ore.avgUnitPrice(),
                 "不同物品的行情不得互相污染");
     }
 
@@ -551,14 +553,14 @@ class TradeListingExpiryTest extends TestBase {
 
         // 100 个 / 总价 10000 → 单价应为 100，而不是 10000
         assertTrue(Boolean.TRUE.equals(
-                tradeService.listItem(seller, "mtxgdn:iron_ore", 100, 10_000).get("success")));
+                tradeService.listItem(seller, "mtxgdn:iron_ore", 100, 10_000).success()));
         long id = activeListingIdOf(seller);
-        assertTrue(Boolean.TRUE.equals(tradeService.buyItem(buyer, id).get("success")), "成交应成功");
+        assertTrue(tradeService.buyItem(buyer, id).success(), "成交应成功");
 
-        Map<String, Object> quote = tradeService.getPriceHistory("mtxgdn:iron_ore", 7);
-        assertEquals(100L, ((Number) quote.get("avgUnitPrice")).longValue(),
+        MarketQuote quote = tradeService.getPriceHistory("mtxgdn:iron_ore", 7);
+        assertEquals(100L, quote.avgUnitPrice().longValue(),
                 "均价应为单价 100（总价 10000 ÷ 100 个）");
-        assertEquals(100L, ((Number) quote.get("maxUnitPrice")).longValue(),
+        assertEquals(100L, quote.maxUnitPrice().longValue(),
                 "最高单价应为 100（不得记成总价 10000）");
     }
 
@@ -567,11 +569,11 @@ class TradeListingExpiryTest extends TestBase {
     void testPriceHistoryAcceptsShortKey() {
         if (!ready) { System.out.println("  跳过（环境未就绪）"); return; }
 
-        Map<String, Object> shortKey = tradeService.getPriceHistory("iron_ore", 7);
-        assertTrue(Boolean.TRUE.equals(shortKey.get("success")),
-                "短 key 应能查到（自动补全前缀）: " + shortKey.get("message"));
-        assertTrue(String.valueOf(shortKey.get("itemKey")).contains("iron_ore"),
-                "应返回完整 key，实际: " + shortKey.get("itemKey"));
+        MarketQuote shortKey = tradeService.getPriceHistory("iron_ore", 7);
+        assertTrue(shortKey.success(),
+                "短 key 应能查到（自动补全前缀）: " + shortKey.message());
+        assertTrue(String.valueOf(shortKey.itemKey()).contains("iron_ore"),
+                "应返回完整 key，实际: " + shortKey.itemKey());
     }
 
     // ==================== 老库兼容 ====================
@@ -585,8 +587,8 @@ class TradeListingExpiryTest extends TestBase {
         long seller = makePlayer("legacyseller", "老挂单");
         itemService.addItem(seller, "mtxgdn:spirit_grass", 10);
 
-        Map<String, Object> listed = tradeService.listItem(seller, "mtxgdn:spirit_grass", 2, 200);
-        assertTrue(Boolean.TRUE.equals(listed.get("success")), "上架应成功");
+        TradeResult listed = tradeService.listItem(seller, "mtxgdn:spirit_grass", 2, 200);
+        assertTrue(listed.success(), "上架应成功");
         long id = activeListingIdOf(seller);
 
         // 把 expires_at 改回 NULL，模拟老版本写下的数据
@@ -664,16 +666,16 @@ class TradeListingExpiryTest extends TestBase {
         itemService.addItem(seller, "mtxgdn:spirit_grass", 10);
         itemService.addSpiritStones(buyer, 50_000);
 
-        Map<String, Object> listed = tradeService.listItem(seller, "mtxgdn:spirit_grass", 2, 600);
-        assertTrue(Boolean.TRUE.equals(listed.get("success")), "上架应成功");
+        TradeResult listed = tradeService.listItem(seller, "mtxgdn:spirit_grass", 2, 600);
+        assertTrue(listed.success(), "上架应成功");
         long id = activeListingIdOf(seller);
-        assertTrue(Boolean.TRUE.equals(tradeService.buyItem(buyer, id).get("success")), "成交应成功");
+        assertTrue(tradeService.buyItem(buyer, id).success(), "成交应成功");
 
         int deleted = tradeService.cleanupPriceHistory();
         assertTrue(deleted >= 0, "清理应正常返回删除行数");
 
-        Map<String, Object> quote = tradeService.getPriceHistory("mtxgdn:spirit_grass", 7);
-        assertTrue(((Number) quote.get("tradeCount")).longValue() >= 1,
-                "刚成交的记录不得被清理误删，实际笔数 " + quote.get("tradeCount"));
+        MarketQuote quote = tradeService.getPriceHistory("mtxgdn:spirit_grass", 7);
+        assertTrue(quote.tradeCount() >= 1,
+                "刚成交的记录不得被清理误删，实际笔数 " + quote.tradeCount());
     }
 }

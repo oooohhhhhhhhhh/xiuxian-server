@@ -117,7 +117,7 @@ public class GameEconomyResource {
         }
         var quote = tradeService.getPriceHistory(key, days);
         JsonObject data = gson.toJsonTree(quote).getAsJsonObject();
-        return Response.ok(GameMessage.restOk(String.valueOf(quote.get("message")), data).toString()).build();
+        return Response.ok(GameMessage.restOk(quote.message(), data).toString()).build();
     }
 
     /** 把剩余毫秒格式化为"3天2小时"这类可读文本。 */
@@ -145,7 +145,7 @@ public class GameEconomyResource {
         int quantity = json.has("quantity") ? json.get("quantity").getAsInt() : 1;
         long price = json.get("priceSpiritStones").getAsLong();
         var result = tradeService.listItem(playerId, itemKey, quantity, price);
-        return Response.ok(GameMessage.restOk(result.get("message").toString(), gson.toJsonTree(result).getAsJsonObject()).toString()).build();
+        return Response.ok(GameMessage.restOk(result.message(), gson.toJsonTree(result).getAsJsonObject()).toString()).build();
     }
 
     @POST
@@ -159,7 +159,7 @@ public class GameEconomyResource {
         JsonObject json = com.google.gson.JsonParser.parseString(body).getAsJsonObject();
         long listingId = json.get("listingId").getAsLong();
         var result = tradeService.buyItem(playerId, listingId);
-        return Response.ok(GameMessage.restOk(result.get("message").toString(), gson.toJsonTree(result).getAsJsonObject()).toString()).build();
+        return Response.ok(GameMessage.restOk(result.message(), gson.toJsonTree(result).getAsJsonObject()).toString()).build();
     }
 
     @POST
@@ -173,7 +173,7 @@ public class GameEconomyResource {
         JsonObject json = com.google.gson.JsonParser.parseString(body).getAsJsonObject();
         long listingId = json.get("listingId").getAsLong();
         var result = tradeService.cancelListing(playerId, listingId);
-        return Response.ok(GameMessage.restOk(result.get("message").toString(), gson.toJsonTree(result).getAsJsonObject()).toString()).build();
+        return Response.ok(GameMessage.restOk(result.message(), gson.toJsonTree(result).getAsJsonObject()).toString()).build();
     }
 
     @GET
