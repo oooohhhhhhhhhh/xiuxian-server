@@ -60,12 +60,9 @@ public class GameInventoryResource {
     @Context
     private ContainerRequestContext requestContext;
 
+    /** 取当前登录用户 id；未登录抛 401。实现见 {@link GameSupport#getCurrentUserId}。 */
     private Long getCurrentUserId() {
-        Object userId = requestContext.getProperty("userId");
-        if (userId instanceof Long) {
-            return (Long) userId;
-        }
-        throw new WebApplicationException("未登录", 401);
+        return GameSupport.getCurrentUserId(requestContext);
     }
 
     @GET

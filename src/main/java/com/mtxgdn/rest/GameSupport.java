@@ -21,9 +21,8 @@ import jakarta.ws.rs.WebApplicationException;
  * 这是纯结构重构，不夹带任何行为改动。</p>
  *
  * <p>只被单个域用到的辅助方法（坊市的剩余时间格式化、副本的境界名、
- * 称号的 JSON 组装等）跟着那个域搬到对应资源类里，不放在这里。需要请求上下文的
- * 实例辅助方法（取当前登录用户、动作限流）无法做成静态方法，因此在每个用到它们的
- * 资源类里各留一份，内容与拆分前逐字相同。</p>
+ * 称号的 JSON 组装等）跟着那个域搬到对应资源类里，不放在这里。动作限流这种
+ * 需要"每个资源类各自一份计数器"的辅助方法也留在各自类里。</p>
  *
  * <p>本类不是 JAX-RS 资源（没有类级 {@code @Path}），不会被
  * {@code new ResourceConfig().packages("com.mtxgdn.rest")} 注册成端点。</p>
@@ -68,5 +67,28 @@ final class GameSupport {
             throw new WebApplicationException("请先创建角色", 400);
         }
         return (int) player.getId();
+    }
+
+    /**
+     * 取当前登录用户的 id；未登录时抛 401。
+     *
+     * <p>身份由 {@code JwtAuthFilter} 校验后写进请求属性 {@code userId}，
+     * 这里只负责读出来。能拿到非空值就说明过滤器已经放行过 —— 本方法不做二次校验，
+     * 否则等于把鉴权逻辑复制一份到十几个资源类里。</p>
+     *
+     * <p><b>为什么收参数而不是零参</b>：{@code ContainerRequestContext} 是 Jersey
+     * 注入到<b>实例字段</b>上的，静态方法拿不到。把上下文作为参数传进来，
+     * 十二个资源类就能共用同一份实现，而不必各自复制一遍 ——
+     * 这正是拆分 {@code GameResource} 时留下 12 份逐字相同副本的原因。</p>
+     *
+     * @param requestContext 资源类的 {@code @Context ContainerRequestContext} 字段
+     * @throws WebApplicationException 401，当请求没有经过鉴权过滤器时
+     */
+    static Long getCurrentUserId(jakarta.ws.rs.container.ContainerRequestContext requestContext) {
+        Object userId = requestContext.getProperty("userId");
+        if (userId instanceof Long) {
+            return (Long) userId;
+        }
+        throw new WebApplicationException("未登录", 401);
     }
 }
