@@ -72,7 +72,10 @@ public class XiuxianAgent {
                     try {
                         return handleCommand(args[0], cmdCtxClass);
                     } catch (Exception e) {
-                        e.printStackTrace();
+                        // 不能裸 printStackTrace：本类是 javaagent，它的 stderr 落在
+                        // 服务端启动日志里，与玩家看到的"指令没反应"毫无关联，
+                        // 排查时根本对不上。这里带上异常类型与消息，走统一的 [修仙Agent] 前缀。
+                        log("指令执行失败: " + e.getClass().getSimpleName() + ": " + e.getMessage());
                         return 0;
                     }
                 });

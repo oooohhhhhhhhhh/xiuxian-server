@@ -129,32 +129,6 @@ public class BuffService {
         }
     }
 
-    public static class ActiveBuff {
-        private String buffId;
-        private int attackBonus;
-        private int defenseBonus;
-        private int speedBonus;
-        private int spiritBonus;
-        private long expireTime;
-
-        public ActiveBuff(String buffId, int attackBonus, int defenseBonus, int speedBonus, int spiritBonus, long expireTime) {
-            this.buffId = buffId;
-            this.attackBonus = attackBonus;
-            this.defenseBonus = defenseBonus;
-            this.speedBonus = speedBonus;
-            this.spiritBonus = spiritBonus;
-            this.expireTime = expireTime;
-        }
-
-        public String getBuffId() { return buffId; }
-        public int getAttackBonus() { return attackBonus; }
-        public int getDefenseBonus() { return defenseBonus; }
-        public int getSpeedBonus() { return speedBonus; }
-        public int getSpiritBonus() { return spiritBonus; }
-        public long getExpireTime() { return expireTime; }
-        public boolean isExpired() { return System.currentTimeMillis() >= expireTime; }
-    }
-
     public void addBuff(long playerId, String buffId, int attackBonus, int defenseBonus, int speedBonus, int spiritBonus, int durationSeconds) {
         long expireTime = System.currentTimeMillis() + (long) durationSeconds * 1000;
         DatabaseManager.runTransaction(conn -> {

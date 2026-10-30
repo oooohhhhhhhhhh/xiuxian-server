@@ -388,11 +388,20 @@ public class PluginMakerGUI extends JFrame {
                     "生成完成", JOptionPane.INFORMATION_MESSAGE);
         } catch (Exception e) {
             log("✖ 生成失败：" + e.getMessage());
-            e.printStackTrace();
+            // 不能裸 printStackTrace：这是 GUI 程序，控制台通常没人看（双击启动时
+            // 甚至没有控制台），堆栈要写进界面的日志区才能被看到。
+            log(stackTraceOf(e));
             JOptionPane.showMessageDialog(this,
                     "生成失败：" + e.getMessage(),
                     "错误", JOptionPane.ERROR_MESSAGE);
         }
+    }
+
+    /** 把异常堆栈渲染成多行文本，供 GUI 日志区展示。 */
+    private static String stackTraceOf(Exception e) {
+        java.io.StringWriter writer = new java.io.StringWriter();
+        e.printStackTrace(new java.io.PrintWriter(writer));
+        return writer.toString();
     }
 
     private static List<String> validateConfig(PluginConfig c) {
