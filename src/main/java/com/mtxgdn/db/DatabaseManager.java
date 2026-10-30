@@ -34,6 +34,50 @@ public class DatabaseManager {
     /** HikariCP 连接池（替代每次裸建连接，显著降低连接开销） */
     private static HikariDataSource dataSource;
 
+    /**
+     * 换库时要清空自身缓存的登记表。
+     *
+     * <p><b>为什么需要它</b>：{@link #init} 是<b>可重复调用</b>的 —— 测试里每个测试类都会
+     * 调一次（见 {@code TestBase}），运行时切换配置也会走到这里。重复 init 会把
+     * {@code dataSource} 换掉，于是之后所有查询都落到<b>新库</b>；但那些
+     * "首次访问时从库里读一遍、之后一直用内存副本"的单例（{@code MapService} 的地图缓存、
+     * {@code PermissionService} 的权限组缓存、{@code TokenBlacklist} 的吊销名单……）
+     * 完全不知道库已经换了，仍然拿着旧库的内容 —— 而旧库可能已经被删掉了。</p>
+     *
+     * <p>表现是"库明明是好的、表也在，程序却报某个东西不存在"。这个 bug 曾让
+     * {@code AdminMapEventBiasResourceTest} 在全量跑时稳定失败三次：前一个测试类
+     * （{@code MultiPlayerFullTest}）init 到了另一个库文件，{@code MapService}
+     * 的 {@code initialized} 仍是 true，于是新库里 {@code map_locations} 从没被播种，
+     * {@code existsLocation(1)} 返回 false，接口一律回 "地点不存在"。</p>
+     *
+     * <p>注意这里<b>不做</b>自动重新加载：清空之后各缓存会在下一次访问时按自己的
+     * {@code ensureInitialized} 路径重建，顺序与依赖关系由它们自己掌握。</p>
+     */
+    private static final List<Runnable> REINIT_LISTENERS = new java.util.concurrent.CopyOnWriteArrayList<>();
+
+    /**
+     * 登记一个"换库时必须失效自身缓存"的回调。
+     *
+     * <p>只应由那些<b>把库内容缓存进内存</b>的单例在静态初始化时调用；
+     * 纯静态数据（如 {@code TitleRegistry}）不需要登记。</p>
+     */
+    public static void addReinitListener(Runnable listener) {
+        if (listener != null) {
+            REINIT_LISTENERS.add(listener);
+        }
+    }
+
+    /** 通知所有登记方"库已换，请丢掉缓存"。单个回调失败不得影响其它回调，更不得中断 init。 */
+    private static void fireReinitListeners() {
+        for (Runnable listener : REINIT_LISTENERS) {
+            try {
+                listener.run();
+            } catch (RuntimeException e) {
+                logger.warn("换库后清理缓存失败（该缓存可能仍指向旧库）: " + e.getMessage(), e);
+            }
+        }
+    }
+
     public static synchronized void init(String url, String user, String password) {
         dbUrl = url;
         dbUser = user;
@@ -83,6 +127,9 @@ public class DatabaseManager {
                 }
             }
             initTable();
+            // 建表之后再通知：缓存重建会立刻读库，此时新库的表必须已经就绪。
+            // 放在 initTable 之前会让重建读到"表不存在"，反而把空结果缓存下来。
+            fireReinitListeners();
         } catch (ClassNotFoundException | SQLException e) {
             throw new RuntimeException("数据库驱动加载失败", e);
         }

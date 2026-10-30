@@ -141,6 +141,7 @@ class MapDaoExtractionTest extends TestBase {
     private static final List<String> GOLDEN_SERVICE_API = List.of(
             "public com.mtxgdn.game.service.MapService()",
             "public void ensureInitialized()",
+            "public void invalidateCache()",
             "public void reload()",
             "public int getTravelTimeSeconds(long, long)",
             "public com.mtxgdn.game.entity.MapLocation getLocation(long)",

@@ -377,4 +377,37 @@ public class ServiceRegistry {
         }
         return redeemCodeService;
     }
+
+    /**
+     * 换库时让各处内存缓存失效。
+     *
+     * <p><b>为什么需要</b>：{@code DatabaseManager.init()} 可重复调用（测试里每个测试类
+     * 调一次，运行时切换配置也会走到它）。它把连接池换到新库，但那些
+     * "首次访问时从库里读一遍、之后一直用内存副本"的单例并不知道库已经换了，
+     * 仍然拿着旧库的内容 —— 而旧库可能已经被删掉了。</p>
+     *
+     * <p>登记放在这里而不是各自类的静态块里，有两个原因：</p>
+     * <ul>
+     *   <li>{@code MapService} 的构造器要回调 {@code getPlayerService()}，
+     *       在它自己的静态块里再调 {@code getMapService()} 会构成类初始化循环；</li>
+     *   <li>{@code PermissionService} 属于服务层，不该 import {@code DatabaseManager}
+     *       （{@code PermissionDaoExtractionTest.serviceLayerContainsNoJdbc} 禁止）。</li>
+     * </ul>
+     *
+     * <p>回调读的是<b>当前</b>字段而不是捕获某个实例：换库可能发生在实例创建之前
+     * （启动早期），那时应当什么都不做 —— 实例还没建，自然也没有缓存要清。</p>
+     */
+    static {
+        com.mtxgdn.db.DatabaseManager.addReinitListener(() -> {
+            MapService service = mapService;
+            if (service != null) {
+                service.invalidateCache();
+            }
+            com.mtxgdn.permission.PermissionService.invalidateAllCachesForNewDatabase();
+            // 吊销名单是"启动时从库里读一遍、之后一直在内存里"。换库后必须丢掉旧库的内容，
+            // 否则旧库吊销的 token 会挡住新库的正常登录；反过来更糟 ——
+            // 新库已吊销的 token 在内存里查不到，会被当成有效。
+            com.mtxgdn.util.TokenBlacklist.clear();
+        });
+    }
 }

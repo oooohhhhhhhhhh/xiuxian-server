@@ -162,6 +162,24 @@ public class PermissionService {
     }
 
     /**
+     * 换库时丢掉全部权限缓存，等下次访问重新从<b>新库</b>加载。
+     *
+     * <p>只置标志位、不立刻读库：换库发生在 {@code DatabaseManager.init()} 内部，
+     * 那时立即 {@code refreshGroupCache()} 会在一个尚未稳定的时机触发一整套查询。
+     * 推迟到下一次 {@link #ensureLoaded()} 更安全，顺序也更可控。</p>
+     *
+     * <p>由 {@code ServiceRegistry} 在换库监听里调用 —— 本类不自己登记，
+     * 否则要在服务层 import {@code DatabaseManager}，而
+     * {@code PermissionDaoExtractionTest.serviceLayerContainsNoJdbc} 明确禁止这件事。</p>
+     */
+    public static synchronized void invalidateAllCachesForNewDatabase() {
+        PERMISSION_CACHE.clear();
+        groupPermissionCodes = null;
+        groupDisplayNames = null;
+        initialized = false;
+    }
+
+    /**
      * 确保运行时缓存已加载。
      */
     private static synchronized void ensureLoaded() {

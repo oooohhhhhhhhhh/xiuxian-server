@@ -181,6 +181,32 @@ public class MapService {
         initialized = true;
         LOG.info("地图数据已重载: " + locationCache.size() + " 个地点, " + connections.size() + " 条连接");
     }
+
+    /**
+     * 换库时丢掉全部缓存，等下次访问重新从<b>新库</b>加载。
+     *
+     * <p><b>与 {@link #reload()} 的区别</b>：{@code reload} 会立刻去读库，
+     * 而本方法只把 {@code initialized} 置回 false、清空缓存，真正的加载推迟到
+     * 下一次 {@link #ensureInitialized()}。换库的时机（{@code DatabaseManager.init}
+     * 内部）不适合立即读库 —— 那时各单例的初始化顺序不确定，容易连锁触发一堆加载。</p>
+     *
+     * <p>由 {@code DatabaseManager.addReinitListener} 在类初始化时登记。
+     * 不这么做的话，{@code initialized} 会一直为 true，新库里
+     * {@code map_locations} 即使从没播种过也不会被补齐，
+     * 表现为"地点明明存在却报不存在"。</p>
+     */
+    public synchronized void invalidateCache() {
+        synchronized (locationCache) {
+            locationCache.clear();
+            connections.clear();
+            travelTimes.clear();
+            eventBias.clear();
+            wildernessCache.clear();
+            wildernessStubCache.clear();
+        }
+        initialized = false;
+    }
+
     /**
      * 从数据库全量加载。
      *

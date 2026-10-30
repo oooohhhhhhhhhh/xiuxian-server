@@ -148,7 +148,10 @@ class PermissionDaoExtractionTest extends TestBase {
             "public static void removeGroupPermission(java.lang.String, java.lang.String)",
             "public static void setGroupPermissions(java.lang.String, java.util.Set<java.lang.String>)",
             "public static java.util.List<java.util.Map<java.lang.String, java.lang.Object>> getAllUsersWithRoles()",
-            "public static void initDefaultData()");
+            "public static void initDefaultData()",
+            // 换库时必须让权限组缓存与用户权限缓存失效（见 ServiceRegistry 的换库监听）。
+            // 新增的公开方法，黄金清单同步登记。
+            "public static void invalidateAllCachesForNewDatabase()");
 
     /** {@code javap -public com.mtxgdn.permission.PermissionService$PluginPermissionInfo} 重构前的清单。 */
     private static final List<String> GOLDEN_PLUGIN_PERMISSION_INFO_API = List.of(
