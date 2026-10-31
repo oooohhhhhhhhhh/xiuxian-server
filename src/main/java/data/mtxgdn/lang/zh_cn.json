@@ -1011,6 +1011,7 @@
   "map.the_wilderness_feature_is_disabled": "野外功能已关闭",
   "map.your_position_is_now_outside": "你所在的位置已不在世界边界之内，请联系管理员",
   "map.teleporting_costs_spirit_stones_but": "传送需要 {0} 灵石，你只有 {1} 灵石",
+  "map.cannot_teleport_into_the_wilderness": "无法传送到野外 —— 荒域没有传送点，只能亲自走过去（从野外可以传送回已知世界）",
   "map.map_data_is_not_ready": "地图数据尚未就绪，请稍后再试",
   "map.you_are_standing": "你正站在已知世界，可从 gateways 里的出境口踏入荒域",
   "map.please_create_a_character_first": "请先创建角色",

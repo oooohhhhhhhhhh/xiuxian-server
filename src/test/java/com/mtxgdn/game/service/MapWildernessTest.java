@@ -508,7 +508,7 @@ class MapWildernessTest extends TestBase {
     }
 
     @Test
-    @DisplayName("传送: 危险度越高的目的地越贵，野外另有附加")
+    @DisplayName("传送: 危险度越高的目的地越贵")
     void testTeleportCostScalesWithDanger() throws SQLException {
         long safe = createTemporaryLocation(0, "试炼场-安全");
         long dangerous = createTemporaryLocation(4, "试炼场-危险");
@@ -516,15 +516,63 @@ class MapWildernessTest extends TestBase {
         long dangerCost = mapService.getTeleportCost(QINGYUN_VILLAGE, dangerous);
         assertTrue(dangerCost > safeCost,
                 "危险地带的传送费应更贵: 安全=" + safeCost + " 危险=" + dangerCost);
+    }
 
+    // ==================== 野外不可传送（本轮新增约束） ====================
+
+    @Test
+    @DisplayName("传送: 野外不能作为付费直传的目的地")
+    void testTeleportByUnlockRejectsWilderness() throws SQLException {
         MapLocation node = firstNodeWithResources();
-        WildernessMapConfig.Teleport cfg = WildernessMapConfig.get().getTeleport();
-        long expected = Math.max(cfg.getMinCost(), Math.round(
-                (cfg.getBaseCost() + cfg.getCostPerDanger()
-                        * (mapService.getDangerLevel(QINGYUN_VILLAGE) + node.getDangerLevel()))
-                        * cfg.getWildernessSurcharge()));
-        assertEquals(expected, mapService.getTeleportCost(QINGYUN_VILLAGE, node.getId()),
-                "野外目的地的传送费应含野外附加系数");
+        // 先"到过"该节点，确保拒绝的原因不是"没到过"而是"野外不可传送"
+        long playerId = createPlayer(9, node.getId());
+        ServiceRegistry.getItemService().addSpiritStones(playerId, 100000, 0);
+        assertNotNull(mapService.recordFirstVisit(playerId, node.getId()),
+                "前置条件：应当能记录野外首达");
+        assertTrue(mapService.isExplored(playerId, node.getId()),
+                "前置条件：该野外节点应已解锁");
+
+        // 回到已知世界，再尝试直传回那个野外节点
+        movePlayer(playerId, QINGYUN_VILLAGE);
+        TravelResult result = mapService.teleportByUnlock(playerId, node.getId());
+
+        assertFalse(result.success(), "野外不该能作为付费直传目的地，实际: " + result.message());
+        assertTrue(result.message().contains("无法传送到野外"),
+                "拒绝原因应说明野外不可传送，实际: " + result.message());
+        assertEquals(QINGYUN_VILLAGE, mapService.getPlayerLocationId(playerId),
+                "被拒绝的传送不应改变玩家位置");
+    }
+
+    @Test
+    @DisplayName("传送: 传送符也不能传进野外（连「到过」都不需要，危害更大）")
+    void testTeleportTalismanRejectsWilderness() throws SQLException {
+        MapLocation node = firstNodeWithResources();
+        long playerId = createPlayer(9, QINGYUN_VILLAGE);
+
+        TravelResult result = mapService.teleportToLocation(playerId, node.getId());
+
+        assertFalse(result.success(), "传送符不该能传进野外，实际: " + result.message());
+        assertTrue(result.message().contains("无法传送到野外"),
+                "拒绝原因应说明野外不可传送，实际: " + result.message());
+        assertEquals(QINGYUN_VILLAGE, mapService.getPlayerLocationId(playerId),
+                "被拒绝的传送符不应改变玩家位置");
+    }
+
+    @Test
+    @DisplayName("传送: 从野外传回已知世界仍然允许（否则玩家会被困在野外）")
+    void testTeleportOutOfWildernessIsAllowed() throws SQLException {
+        MapLocation node = firstNodeWithResources();
+        long playerId = createPlayer(9, node.getId());
+        ServiceRegistry.getItemService().addSpiritStones(playerId, 100000, 0);
+        // 解锁目的地（已知世界地点）
+        assertNotNull(mapService.recordFirstVisit(playerId, QINGYUN_VILLAGE));
+
+        TravelResult result = mapService.teleportByUnlock(playerId, QINGYUN_VILLAGE);
+
+        assertTrue(result.success(),
+                "从野外传回已知世界必须允许，否则玩家走进深处后只能一路走回边界: " + result.message());
+        assertEquals(QINGYUN_VILLAGE, mapService.getPlayerLocationId(playerId),
+                "传送后应落在已知世界的目的地");
     }
 
     // ==================== 采集 ====================

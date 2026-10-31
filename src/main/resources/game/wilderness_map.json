@@ -245,12 +245,11 @@
     "completionBonusSpiritStones": 2000
   },
 
-  "_comment_teleport": "传送：到过的地点即解锁，可付费直传（无视路径，仍校验境界）。费用 = 基础值 + 两地危险度之和×每级值，野外目的地另乘附加系数。",
+  "_comment_teleport": "传送：到过的地点即解锁，可付费直传（无视路径，仍校验境界）。费用 = 基础值 + 两地危险度之和×每级值。野外不能作为传送目的地（只能亲自走进去），因此没有野外附加系数。",
   "teleport": {
     "enabled": true,
     "baseCost": 50,
     "costPerDanger": 60,
-    "wildernessSurcharge": 1.5,
     "minCost": 10
   },
 

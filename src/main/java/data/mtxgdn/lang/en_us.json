@@ -1011,6 +1011,7 @@
   "map.the_wilderness_feature_is_disabled": "The wilderness feature is disabled",
   "map.your_position_is_now_outside": "Your position is now outside the world boundary. Please contact an administrator",
   "map.teleporting_costs_spirit_stones_but": "Teleporting costs {0} Spirit Stones, but you only have {1} Spirit Stones",
+  "map.cannot_teleport_into_the_wilderness": "Cannot teleport into the Wilderness — the wilds have no waypoints, you must walk there yourself (teleporting back to the known world is allowed)",
   "map.map_data_is_not_ready": "Map data is not ready yet. Please try again later",
   "map.you_are_standing": "You are standing in the known world; you can step into the wildlands through an exit listed in gateways",
   "map.please_create_a_character_first": "Please create a character first",

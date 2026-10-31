@@ -711,9 +711,18 @@ public class MapService {
 
     /**
      * 传送符效果：无视路径直接传送到指定地点（保留境界校验），并重置赶路冷却。
+     *
+     * <p><b>野外不可作为目的地</b>，见 {@link #teleportBlockedByWilderness}。
+     * 传送符原本是"可去没去过的地方"，如果不禁野外，它就是一条通往任意深处的捷径 ——
+     * 比付费直传危害更大，因为连"到过"这个前提都没有。</p>
      */
     public TravelResult teleportToLocation(long playerId, long targetLocationId) {
         ensureInitialized();
+
+        TravelResult wildernessBlock = teleportBlockedByWilderness(targetLocationId);
+        if (wildernessBlock != null) {
+            return wildernessBlock;
+        }
 
         MapLocation target = getLocation(targetLocationId);
         if (target == null) {
@@ -1046,8 +1055,14 @@ public class MapService {
     // ==================== 传送（到过即解锁，付费直传） ====================
 
     /**
-     * 传送费用：基础 + 两地危险度之和×每级，野外节点另乘附加系数。
+     * 传送费用：基础 + 两地危险度之和×每级。
+     *
      * <p>以"目的地危险度 + 出发地危险度"计价，让"从安全区直传极危之地"比"从邻境直传"更贵。</p>
+     *
+     * <p>野外不再有附加系数，因为野外<b>根本不能作为传送目的地</b>（见
+     * {@link #teleportBlockedByWilderness}）。反过来，"从野外出发、传回已知世界"是允许的
+     * —— 否则玩家走进深处后只能一路走回边界才能出来。这条路径按普通价格计费，
+     * 出发地若是野外，它的危险度会照常计入 {@code dangerSum}。</p>
      */
     public long getTeleportCost(long fromLocationId, long targetLocationId) {
         WildernessMapConfig.Teleport cfg = WildernessMapConfig.get().getTeleport();
@@ -1055,10 +1070,38 @@ public class MapService {
         MapLocation to = getLocation(targetLocationId);
         int dangerSum = (from == null ? 0 : from.getDangerLevel()) + (to == null ? 0 : to.getDangerLevel());
         double cost = cfg.getBaseCost() + cfg.getCostPerDanger() * dangerSum;
-        if (to != null && to.isWilderness()) {
-            cost *= cfg.getWildernessSurcharge();
-        }
         return Math.max(cfg.getMinCost(), Math.round(cost));
+    }
+
+    /**
+     * 野外不能作为传送目的地时返回拒绝结果；可以传则返回 {@code null}。
+     *
+     * <p><b>为什么野外必须禁止传送</b>：野外是一片由世界种子确定性生成、
+     * 可以无限向外扩展的分片世界，它的可玩性完全建立在"<b>走进去、走出来</b>"
+     * 这件事上：</p>
+     *
+     * <ul>
+     *   <li><b>越远越险才有意义</b>：危险度随离原点距离递增，境界门槛随之抬高。
+     *       若可以直接传送到任意已探索的深处节点，玩家就能跳过整条路径，
+     *       "越远越险"退化成"去过一次就能随时回去"。</li>
+     *   <li><b>探索记录会被滥用</b>：野外首达记录写在分片文件里，且一旦有记录该分片就
+     *       {@code pinned}（永不回收）。若深度节点可传送，玩家只要偶然到过一次，
+     *       就能把它变成永久传送点 —— 而"偶然到过"在野外是很容易的（走错一步即到）。</li>
+     *   <li><b>资源经济会被绕开</b>：采集是野外的主要产出，冷却与补货周期都以
+     *       "玩家需要走过去"为前提。可传送意味着可以反复瞬移到富矿点刷采集。</li>
+     * </ul>
+     *
+     * <p><b>但"从野外传出去"必须保留</b>：否则玩家走进深处后只能一路走回边界，
+     * 而野外没有"回城"概念 —— 那不是惩罚，是把人困住。</p>
+     *
+     * @param targetLocationId 目的地
+     * @return 拒绝结果，或 {@code null} 表示放行
+     */
+    private static TravelResult teleportBlockedByWilderness(long targetLocationId) {
+        if (!WildernessTerrain.isWildernessId(targetLocationId)) {
+            return null;
+        }
+        return TravelResult.rejected(I18n.t("map.cannot_teleport_into_the_wilderness"));
     }
 
     /**
@@ -1066,12 +1109,21 @@ public class MapService {
      *
      * <p>与传送符（{@link #teleportToLocation}）的区别：传送符是物品效果、可去没去过的地方；
      * 这里是玩法内的常规位移，必须"到过才能传"，避免付费直传把探索意义抹平。</p>
+     *
+     * <p><b>野外不可作为目的地</b>，见 {@link #teleportBlockedByWilderness}。</p>
      */
     public TravelResult teleportByUnlock(long playerId, long targetLocationId) {
         ensureInitialized();
         WildernessMapConfig.Teleport cfg = WildernessMapConfig.get().getTeleport();
         if (!cfg.isEnabled()) {
             return TravelResult.rejected(I18n.t("map.teleportation_is_currently_disabled"));
+        }
+
+        // 野外拦截放在最前面：这是"目的地本身不合法"，与境界/解锁/余额都无关，
+        // 不该让玩家先被告知"没到过"再发现根本不能传
+        TravelResult wildernessBlock = teleportBlockedByWilderness(targetLocationId);
+        if (wildernessBlock != null) {
+            return wildernessBlock;
         }
 
         MapLocation target = getLocation(targetLocationId);

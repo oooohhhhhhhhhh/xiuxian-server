@@ -210,18 +210,21 @@ public class WildernessMapConfig {
         public long getCompletionBonusSpiritStones() { return completionBonusSpiritStones; }
     }
 
-    /** 传送参数。 */
+    /**
+     * 传送参数。
+     *
+     * <p>没有"野外附加系数"：野外<b>不能作为传送目的地</b>（只能亲自走进去），
+     * 所以不存在"传送到野外要加价"这回事。从野外传回已知世界按普通价格计费。</p>
+     */
     public static class Teleport {
         private boolean enabled = true;
         private long baseCost = 50;
         private long costPerDanger = 60;
-        private double wildernessSurcharge = 1.5;
         private long minCost = 10;
 
         public boolean isEnabled() { return enabled; }
         public long getBaseCost() { return baseCost; }
         public long getCostPerDanger() { return costPerDanger; }
-        public double getWildernessSurcharge() { return wildernessSurcharge; }
         public long getMinCost() { return minCost; }
     }
 
