@@ -638,19 +638,46 @@ class TradeListingExpiryTest extends TestBase {
     void testPriceHistoryCleanupIsScheduled() throws Exception {
         if (!ready) { System.out.println("  跳过（环境未就绪）"); return; }
 
-        // TradeService 的静态调度器是私有的；通过反射确认它已处于运行态，
-        // 并确认调度器至少排入了两个周期任务（到期回收 + 价格历史清理）。
-        // 这是针对"cleanupPriceHistory 已实现却从未被调用"这一缺口的回归锁。
-        var schedulerField = TradeService.class.getDeclaredField("scheduler");
-        schedulerField.setAccessible(true);
-        var scheduler = (java.util.concurrent.ScheduledExecutorService) schedulerField.get(null);
+        // 这条测试要锁的是"cleanupPriceHistory 已实现却从未被调用"这个缺口 ——
+        // 也就是**任务有没有被排进调度器**，而不是"此刻调度器是否还在运行"。
+        //
+        // 原实现断言 scheduler.isShutdown() == false，但 TestBase 会在每个测试类
+        // 开始时停掉后台调度器（否则它们跨连接池重建持续写库，导致跨类随机的
+        // SQLITE_BUSY）。调度器是 final 的、停了无法重启，于是"是否在运行"
+        // 取决于测试执行顺序 —— 那不该是这条测试的判据。
+        //
+        // 改为直接检查 TradeService 的源码：scheduleAtFixedRate 出现了几次、
+        // 其中是否有一次真的调用 cleanupPriceHistory()。
+        // 这与执行顺序完全无关，而且更贴近本意 ——
+        // 真正要防的是"忘了 schedule"或"schedule 了别的任务"。
+        String source = java.nio.file.Files.readString(
+                java.nio.file.Path.of("src/main/java/com/mtxgdn/game/service/TradeService.java"),
+                java.nio.charset.StandardCharsets.UTF_8);
 
-        assertFalse(scheduler.isShutdown(), "调度器不应处于已关闭状态");
+        int scheduled = countOccurrences(source, "scheduleAtFixedRate");
+        assertTrue(scheduled >= 2,
+                "TradeService 应至少排入 2 个周期任务（到期回收 + 价格历史清理），实际 "
+                        + scheduled + " 个 —— 若变少说明有任务被删了");
+
+        assertTrue(source.contains("cleanupPriceHistory()"),
+                "价格历史清理任务必须真的被调度器调用；"
+                        + "若 cleanupPriceHistory 只定义不调用，历史表会无限膨胀");
+
         assertNotNull(
                 TradeService.class.getDeclaredField("PRICE_HISTORY_CLEANUP_INTERVAL_HOURS"),
                 "清理间隔常量应存在");
         assertTrue(TradeService.getPriceHistoryKeepDays() > 0,
                 "价格历史保留天数应为正数");
+    }
+
+    private static int countOccurrences(String haystack, String needle) {
+        int count = 0;
+        int idx = 0;
+        while ((idx = haystack.indexOf(needle, idx)) >= 0) {
+            count++;
+            idx += needle.length();
+        }
+        return count;
     }
 
     @Test

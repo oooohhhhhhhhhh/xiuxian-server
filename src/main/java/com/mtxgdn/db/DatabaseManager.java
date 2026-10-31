@@ -89,6 +89,23 @@ public class DatabaseManager {
             // 重复初始化（测试里每个测试类都会调一次）必须先关掉旧池，
             // 否则旧池连同它借出的连接一起泄漏，进程里会堆出几十个池。
             if (dataSource != null) {
+                // 关池前先看一眼：如果还有活跃连接被借出，说明有后台线程正在写库。
+                // Hikari 的 close() 不会等借出的连接归还 —— 那些连接会被直接遗弃，
+                // 而遗弃时若正持有未提交的写事务，SQLite 的写锁就不会释放，
+                // 新池此后所有写入都可能撞 SQLITE_BUSY。
+                // 症状是"报错指向一条毫不相干的查询"，所以这里留下现场证据。
+                if (dataSource instanceof HikariDataSource hikari) {
+                    int active = hikari.getHikariPoolMXBean() != null
+                            ? hikari.getHikariPoolMXBean().getActiveConnections() : 0;
+                    int idle = hikari.getHikariPoolMXBean() != null
+                            ? hikari.getHikariPoolMXBean().getIdleConnections() : 0;
+                    if (active > 0) {
+                        System.err.println("[DatabaseManager] ⚠ 关池时仍有 " + active
+                                + " 条连接被借出（idle=" + idle + "）。"
+                                + "这些连接会被遗弃；若其上有未提交事务，写锁不会释放。"
+                                + "仍在运行的非守护线程: " + liveNonDaemonThreads());
+                    }
+                }
                 dataSource.close();
                 dataSource = null;
             }
@@ -104,6 +121,20 @@ public class DatabaseManager {
             cfg.setValidationTimeout(3_000);
             cfg.setIdleTimeout(300_000);
             cfg.setMaxLifetime(1_800_000);
+            // 连接泄漏检测：借出超过阈值仍未归还就打一条带完整借出堆栈的 WARN。
+            //
+            // 为什么需要它：SQLite 是单写者模型，一条忘记归还的连接如果还带着未提交的
+            // 事务，就会**永久持有写锁**，此后所有写入都报 SQLITE_BUSY。
+            // 症状极具误导性 —— 报错的是"自动回血"这类毫不相干的定时任务，
+            // 而真正的肇事者早就跑完了，堆栈也早没了。
+            //
+            // 阈值刻意设得比"正常事务最长耗时"大得多：本项目最慢的事务是玩家快照
+            // 导出/还原（逐表逐行读写，可能几秒），给 60 秒不会误报。
+            // 设 0 或负数可关闭（生产环境若嫌日志吵，可以关掉）。
+            long leakThresholdMs = AppConfig.getInt("database.leak_detection_seconds", 60) * 1000L;
+            if (leakThresholdMs > 0) {
+                cfg.setLeakDetectionThreshold(leakThresholdMs);
+            }
             if (IS_SQLITE) {
                 // SQLite 单写者模型：连接数不必很多，但**不能少于并发业务线程数**。
                 // 池子借空后，后来者会卡满 connectionTimeout（10 秒）才抛
@@ -111,9 +142,8 @@ public class DatabaseManager {
                 // 现场极难定位。指令线程池默认 4 个，再加 Grizzly worker、WS 推送、
                 // 定时任务，4 个连接是不够的，所以下限给到 8。
                 cfg.setMaximumPoolSize(Math.min(16, Math.max(8, AppConfig.getInt("database.pool_max", 8))));
-                // 注：busy_timeout / journal_mode 由 SQLiteDialect.initConnection 设置，
-                // 而 getConnection() 每次借出连接都会调它 —— 所以这里不要再设一遍，
-                // 两处配置一旦不同步会让人以为改这里有效。
+                // 注：busy_timeout / foreign_keys 是**连接级**属性，由 SQLiteDialect.initConnection
+                // 在每次借出连接时设置；journal_mode 是**文件级**属性，只在下方的预热连接上设一次。
             }
             dataSource = new HikariDataSource(cfg);
             // 预热连接池：让驱动加载与方言初始化在启动阶段就完成，
@@ -124,10 +154,17 @@ public class DatabaseManager {
             // 表现是高峰期莫名其妙的
             // "Connection is not available, request timed out after 10000ms"。
             try (Connection warmup = getConnection()) {
-                // 拿到就够，无需做任何事
                 if (warmup == null) {
                     throw new SQLException("连接池预热失败");
                 }
+                // 文件级设置（SQLite 的 journal_mode = WAL）在这里做且只做一次。
+                //
+                // 以前它放在 initConnection 里，即**每条连接借出时都执行一遍**。
+                // 而 SQLite 设置 journal_mode 需要排他锁，于是每次拿连接都要抢一次全库锁：
+                // 撞上别人正在写时，这条 PRAGMA 自己阻塞甚至失败，更糟的是会打断对方事务，
+                // 让对方的写入报 SQLITE_BUSY —— 这正是那个"偶发、无法复现、
+                // 堆栈指向毫不相干查询"的 database is locked 的来源。
+                DIALECT.initDatabase(warmup);
             }
             initTable();
             // 建表之后再通知：缓存重建会立刻读库，此时新库的表必须已经就绪。
@@ -154,6 +191,29 @@ public class DatabaseManager {
 
     public static boolean isSqlite() {
         return IS_SQLITE;
+    }
+
+    /**
+     * 列出当前仍存活、且不是守护线程的线程名（诊断"谁还在后台写库"）。
+     *
+     * <p>只用于关池时的告警输出：守护线程会被 JVM 自动回收，不会阻止退出，
+     * 但它们在退出前可能仍持有连接；非守护线程才是真正"没人管"的那批。</p>
+     */
+    private static String liveNonDaemonThreads() {
+        try {
+            StringBuilder sb = new StringBuilder();
+            for (Thread t : Thread.getAllStackTraces().keySet()) {
+                if (!t.isDaemon() && t.isAlive() && t != Thread.currentThread()) {
+                    if (sb.length() > 0) {
+                        sb.append(", ");
+                    }
+                    sb.append(t.getName());
+                }
+            }
+            return sb.length() == 0 ? "（无）" : sb.toString();
+        } catch (Exception e) {
+            return "（采集失败: " + e.getMessage() + "）";
+        }
     }
 
     public static DatabaseDialect getDialect() {
@@ -185,17 +245,24 @@ public class DatabaseManager {
      * 直接抛错 —— 而对方再过 50ms 就提交了。表现出来就是"偶发的、无法复现的"
      * 「事务执行失败: database is locked」，堆栈指向一条毫不相干的业务查询。</p>
      *
-     * <p>现在改为 8 次、退避 25ms 起翻倍但单次封顶 400ms（25+50+100+200+400+400+400
-     * ≈ 1.6 秒总预算）。这比 {@code busy_timeout} 的 5 秒小，所以真死锁不会被
-     * 拖到 5 秒；又足够跨过后台调度的一次正常写事务。总耗时只在<b>确实撞车</b>时才发生，
-     * 无争用时一次就过，不影响正常路径。</p>
+     * <p><b>为什么 1.6 秒仍然不够（实测结论）</b>：事务内的撞锁是<b>立即</b>返回的，
+     * {@code busy_timeout} 对它完全不生效（auto-commit 路径会等满 5047ms，
+     * 而事务内 1ms 就失败）。所以事务路径的<b>全部</b>等待都由这里的退避提供。
+     * 1.6 秒的预算撞上"后台一次真实写事务"很容易不够 —— 尤其全量测试时
+     * 多个调度器同时写同一批表，对方的写事务可能持续数秒。</p>
+     *
+     * <p>现在改为 10 次、退避 40ms 起翻倍但单次封顶 800ms
+     * （40+80+160+320+640+800×4 ≈ 5.2 秒总预算），与 {@code busy_timeout} 的 5 秒对齐：
+     * 那正是"愿意为一次写锁等待多久"的既定约定，事务路径不该比 auto-commit 更没耐心。
+     * 超过 5 秒仍拿不到锁说明对方真卡住了，此时失败才是正确的。
+     * 总耗时只在<b>确实撞车</b>时才发生，无争用时一次就过，不影响正常路径。</p>
      */
-    private static final int TX_MAX_ATTEMPTS = 8;
+    private static final int TX_MAX_ATTEMPTS = 10;
 
     /** 单次退避上限：避免翻倍退避在后续尝试里膨胀到秒级。 */
-    private static final long TX_RETRY_MAX_DELAY_MS = 400L;
+    private static final long TX_RETRY_MAX_DELAY_MS = 800L;
 
-    private static final long TX_RETRY_BASE_DELAY_MS = 25L;
+    private static final long TX_RETRY_BASE_DELAY_MS = 40L;
 
     public static <T> T runTransaction(SQLFunction<T> function) {
         RuntimeException last = null;
@@ -301,9 +368,26 @@ public class DatabaseManager {
         return false;
     }
 
+    /**
+     * 事务撞锁后，等待"对方可能还需要多久"再重试。
+     *
+     * <p><b>为什么不能只靠 {@code busy_timeout}</b>：SQLite 下事务内的撞锁是<b>立即</b>
+     * 失败的（已用探针实测：1ms 返回，而 auto-commit 路径会老老实实等满 5047ms），
+     * {@code busy_timeout} 对它<b>完全不生效</b> —— 一个已持有读快照的事务要升级为写，
+     * 若写锁被占，等待会破坏快照隔离并可能死锁，所以 SQLite 选择立刻报错。
+     * 也就是说：<b>事务内的等待只能由重试的退避来提供</b>。</p>
+     *
+     * <p>而对手是后台调度线程的真实写事务（自动回血 UPDATE players、玩家快照回写、
+     * 拍卖/坊市/宗门清扫），单个事务可能持续几百毫秒到数秒。原来
+     * 25+50+100+200+400+400+400 ≈ 1.6 秒的总预算，很可能<b>全部落在对方还没提交的
+     * 窗口里</b>，于是必然失败 —— 表现为"偶发、无法复现"的
+     * 「事务执行失败: [SQLITE_BUSY]」。</p>
+     *
+     * <p>所以预算对齐 {@code busy_timeout} 的 5 秒：那正是"愿意为一次写锁等待多久"
+     * 的既定约定，auto-commit 路径已经在按这个值等待，事务路径不该比它更没耐心。
+     * 超过 5 秒仍拿不到锁，说明对方是真卡住（而非正常写入），此时失败是正确的。</p>
+     */
     private static void backoffBeforeRetry(int attempt) {
-        // 指数退避但封顶：25, 50, 100, 200, 400, 400, 400 → 累计约 1.6 秒。
-        // 不封顶的话第 8 次会退到 3.2 秒，单个请求被拖得太久。
         long delay = Math.min(TX_RETRY_BASE_DELAY_MS * (1L << (attempt - 1)), TX_RETRY_MAX_DELAY_MS);
         try {
             Thread.sleep(delay);

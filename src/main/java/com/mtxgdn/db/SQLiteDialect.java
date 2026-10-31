@@ -97,11 +97,30 @@ public class SQLiteDialect implements DatabaseDialect {
     public void initConnection(Connection conn) throws SQLException {
         try (Statement stmt = conn.createStatement()) {
             stmt.execute("PRAGMA foreign_keys = ON");
-            // 等待写锁 5 秒后再放弃，避免在多服务/调度器并发写入时立即 SQLITE_BUSY
+            // busy_timeout 是**连接级**属性（每条新连接都要重设，否则默认 0 = 立即失败）。
             stmt.execute("PRAGMA busy_timeout = 5000");
         }
+        // journal_mode 刻意不在这里设。
+        //
+        // 它是**数据库文件级**的持久化属性：设成 WAL 后写进文件头，之后所有连接都自动是 WAL，
+        // 不需要（也不应该）每条连接重设。而设置它需要**排他锁** —— 在一条已经借出的连接上
+        // 反复执行 `PRAGMA journal_mode = WAL`，等于每次拿连接都去抢一次全库排他锁：
+        //   · 撞上别的连接正在写时，这条 PRAGMA 自己就可能失败或长时间阻塞；
+        //   · 更糟的是它会打断正在进行的事务，让对方的写入报 SQLITE_BUSY。
+        // 这正好解释了"偶发、无法复现、堆栈指向毫不相干的查询"的 database is locked。
+        //
+        // 现在改由 {@link DatabaseManager} 在建池后对一条连接执行一次（见 ensureWalMode）。
+    }
+
+    /**
+     * 把数据库文件切到 WAL 模式。
+     *
+     * <p>只需在建池后执行<b>一次</b>：journal_mode 是写进数据库文件头的持久化属性，
+     * 之后所有连接自动是 WAL，不必每条重设。详见 {@link #initConnection} 的说明。</p>
+     */
+    @Override
+    public void initDatabase(Connection conn) throws SQLException {
         try (Statement stmt = conn.createStatement()) {
-            // WAL 模式允许并发读、降低写写阻塞；多服务后台调度 + 前台请求共存时尤其有用
             stmt.execute("PRAGMA journal_mode = WAL");
         }
     }
