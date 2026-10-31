@@ -32,7 +32,6 @@ import java.sql.Connection;
 import java.sql.SQLException;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.ThreadLocalRandom;
 import com.mtxgdn.i18n.I18n;
 
@@ -112,8 +111,15 @@ public class MapService {
      */
     private final Map<Long, MapLocation> locationCache =
             Collections.synchronizedMap(new LinkedHashMap<>());
-    private final List<long[]> connections = new CopyOnWriteArrayList<>();
-    /** 连接耗时表：key = "from-to"，value = 通行秒数 */
+    /**
+     * 连接耗时表：key = "from-to"，value = 通行秒数。
+     *
+     * <p>邻接关系本身挂在 {@code MapLocation.connections} 上（{@code isConnected} 用的是它），
+     * 这张表只负责"走这条路要几秒"。曾经还有一个 {@code List<long[]> connections} 字段
+     * 用来记录边的端点，但它除了打日志时取 {@code size()} 之外没有任何读取方 ——
+     * 真正的邻接关系早就在 {@code MapLocation} 里了，所以那个字段已删除，
+     * 日志里的连接数改用本表的 {@code size()}。</p>
+     */
     private final Map<String, Integer> travelTimes = new ConcurrentHashMap<>();
     /** 地界 → (探索事件 key → 权重倍率) */
     private final Map<Long, Map<String, Double>> eventBias = new ConcurrentHashMap<>();
@@ -136,9 +142,24 @@ public class MapService {
                     return size() > 1024;
                 }
             });
-    /** 野外邻居"轻量对象"缓存：只有自身信息、不带邻居，用来避免解析时无限递归。 */
+    /**
+     * 野外邻居"轻量对象"缓存：只有自身信息、不带邻居，用来避免解析时无限递归。
+     *
+     * <p><b>必须设上限</b>：野外可以无限远，玩家每走到一个新地方就会给它的邻居
+     * 填一批 stub。曾经这里是裸 {@code LinkedHashMap}，条目只增不减 ——
+     * 长跑的服务器会单调增长（单个对象很小，但它是永久泄漏）。</p>
+     *
+     * <p>上限比 {@code wildernessCache} 稍大：一次解析一个节点要填它的全部邻居，
+     * 而邻居比节点本身更容易被复用。淘汰掉随时能由生成器重算，不会丢数据。</p>
+     */
+    private static final int WILDERNESS_STUB_CACHE_LIMIT = 2048;
     private final Map<Long, MapLocation> wildernessStubCache =
-            Collections.synchronizedMap(new LinkedHashMap<>());
+            Collections.synchronizedMap(new LinkedHashMap<>(64, 0.75f, true) {
+                @Override
+                protected boolean removeEldestEntry(Map.Entry<Long, MapLocation> eldest) {
+                    return size() > WILDERNESS_STUB_CACHE_LIMIT;
+                }
+            });
     private volatile boolean initialized = false;
 
     /**
@@ -179,7 +200,7 @@ public class MapService {
     public synchronized void reload() {
         loadFromDb();
         initialized = true;
-        LOG.info("地图数据已重载: " + locationCache.size() + " 个地点, " + connections.size() + " 条连接");
+        LOG.info("地图数据已重载: " + locationCache.size() + " 个地点, " + travelTimes.size() + " 条连接");
     }
 
     /**
@@ -198,7 +219,6 @@ public class MapService {
     public synchronized void invalidateCache() {
         synchronized (locationCache) {
             locationCache.clear();
-            connections.clear();
             travelTimes.clear();
             eventBias.clear();
             wildernessCache.clear();
@@ -222,7 +242,6 @@ public class MapService {
     private void loadFromDb() {
         synchronized (locationCache) {
             locationCache.clear();
-            connections.clear();
             travelTimes.clear();
             eventBias.clear();
             wildernessCache.clear();
@@ -230,7 +249,7 @@ public class MapService {
             // 补齐出厂数据与整张地图的读取必须看到同一个库状态，所以共用一条连接。
             // 连接由 MAP_DAO 取与归还（服务层不自己开连接）；刻意不用事务：
             // 加载只往缓存里「加」，而事务在 SQLITE_BUSY 上会重试，重试会把
-            // connections 加重复。
+            // 邻接关系（MapLocation.connections）加重复。
             MAP_DAO.inLoadConnection(conn -> {
                 repairDefaultData(conn);
                 loadLocations(conn);
@@ -384,7 +403,6 @@ public class MapService {
         for (ConnectionRow row : MAP_DAO.findAllConnections(conn)) {
             long from = row.fromLocationId();
             long to = row.toLocationId();
-            connections.add(new long[]{from, to});
             travelTimes.put(key(from, to), Math.max(1, row.travelTimeSeconds()));
             MapLocation a = locationCache.get(from);
             MapLocation b = locationCache.get(to);
@@ -451,8 +469,9 @@ public class MapService {
     /**
      * 该地点的全部邻居。
      *
-     * <p>已知世界读连接表（已在加载时挂到 {@code connections} 上），
-     * 野外由生成器现算。两种地点走同一个出口，调用方不必区分。</p>
+     * <p>已知世界的邻接关系在 {@link #loadConnections} 时挂到
+     * {@code MapLocation.connections} 上，野外由生成器现算。
+     * 两种地点走同一个出口，调用方不必区分。</p>
      */
     public List<MapLocation> getNeighbors(long locationId) {
         MapLocation loc = getLocation(locationId);
@@ -551,10 +570,21 @@ public class MapService {
                 .toList();
     }
 
-    /** 境界 id 对应的中文名（如 7 → 大乘期）。用于地点门槛提示，避免各处自行拼接境界文案。 */
+    /**
+     * 境界 id 对应的中文名（如 7 → 大乘期）。用于地点门槛提示，避免各处自行拼接境界文案。
+     *
+     * <p><b>查不到时返回"境界 N"而不是"凡人"</b>：这个兜底值曾经是个隐蔽的误导源 ——
+     * 野外危险度 4 的节点算出 {@code minRealm=12}（超过最高大境界 10），
+     * {@code getRealmConfig(12, 0)} 返回 null，于是提示变成"需要≥凡人"，
+     * 玩家看到"凡人可进"却怎么也进不去，GM 也无法从这句文案定位到"门槛是 12"。</p>
+     *
+     * <p>返回"境界 12"能让越界值一眼可见。真正的不变量由
+     * {@code WildernessMapConfig.minRealmForDanger} 保证（夹到合法区间），
+     * 这里只是让万一出现的越界值不再伪装成正常值。</p>
+     */
     public String getRealmName(int realm) {
         var config = GameConfigLoader.getRealmConfig(realm, 0);
-        return config != null ? config.getFullName() : "凡人";
+        return config != null ? config.getFullName() : "境界 " + realm;
     }
 
     // ==================== 玩家位置 ====================
@@ -1308,9 +1338,9 @@ public class MapService {
             return null;
         }
         MapLocation stub = buildWildernessLocation(id, node, config);
-        if (wildernessStubCache.size() > 4096) {
-            wildernessStubCache.clear();
-        }
+        // 淘汰交给 LinkedHashMap 的 removeEldestEntry（见字段声明），
+        // 这里不再做"超过 4096 就全清"——那样会在清空后立刻重建一批，
+        // 缓存命中率呈锯齿状，而 LRU 是平滑的。
         wildernessStubCache.put(id, stub);
         return stub;
     }
@@ -1509,11 +1539,18 @@ public class MapService {
     /**
      * 在当前野外地点采集资源。
      *
-     * <p>并发安全靠分片对象自身的 {@code synchronized}（见
-     * {@link WildernessChunk#consume(int, String, int)}）：同一分片全进程只有一份实例，
-     * 所以"读余量 → 扣减"在分片粒度上互斥，两个玩家同时点采集不会把同一份资源发两次。</p>
+     * <p><b>两层并发保护，各管一件事，缺一不可</b>：</p>
      *
-     * <p>顺序是<b>先扣库存并落盘、再发物品、发失败就加回去</b>，
+     * <ul>
+     *   <li><b>库存</b>靠分片对象自身的 {@code synchronized}（见
+     *       {@link WildernessChunk#consume(int, String, int)}）：同一分片全进程只有一份实例，
+     *       所以"读余量 → 扣减"在分片粒度上互斥，两个玩家同时点采集不会把同一份资源发两次。</li>
+     *   <li><b>冷却</b>靠 {@code MapDAO.updateGatherTimeIfUnchanged} 的 CAS。这一层曾经缺失：
+     *       分片锁只保证库存不被超扣，防不住"两个请求同时读到旧冷却值、双双通过校验"。
+     *       两次若采到不同物品，库存不会冲突，于是两份物品都发出去了 —— 冷却形同虚设。</li>
+     * </ul>
+     *
+     * <p>顺序是<b>先扣库存并落盘、再 CAS 抢冷却 + 发物品、失败就把库存加回去</b>，
      * 不允许出现"库存扣了、东西没到"。</p>
      */
     public GatherResult gather(long playerId) {
@@ -1568,15 +1605,27 @@ public class MapService {
 
         try {
             boolean granted = DatabaseManager.runTransaction(conn -> {
-                boolean ok = ServiceRegistry.getItemService().addItem(conn, playerId, itemKey, taken);
-                if (ok) {
-                    MAP_DAO.updateLastGatherTime(conn, playerId, now);
+                // CAS 先抢占冷却，再发物品 —— 两步在同一事务里，要么都成、要么都不成。
+                //
+                // 顺序很关键：若先 addItem 再无条件写冷却，两个并发请求会同时通过前面的
+                // 冷却校验、各发一份物品（分片锁只能防超扣库存，防不住冷却被绕过）。
+                // 用 CAS 之后，第二个请求的 UPDATE 影响行数为 0，整个事务回滚，
+                // 物品不会发出去，下面的 refund 再把库存补回去。
+                int claimed = MAP_DAO.updateGatherTimeIfUnchanged(conn, playerId, lastGather, now);
+                if (claimed == 0) {
+                    return false;
                 }
-                return ok;
+                return ServiceRegistry.getItemService().addItem(conn, playerId, itemKey, taken);
             });
             if (!granted) {
                 chunk.refund(slot, itemKey, taken);
                 chunkStore.save(chunk);
+                // 走到这里有两种可能：背包满导致 addItem 失败，或冷却被并发请求抢占。
+                // 前者才是"物品放不下"，后者应提示"刚采集过" —— 用一次重读区分。
+                if (readLastGatherTime(playerId) != lastGather) {
+                    return GatherResult.rejected(I18n.t("map.you_have_just_gathered",
+                            Math.max(1, cooldown - (now - readLastGatherTime(playerId)))));
+                }
                 return GatherResult.rejected(I18n.t("map.gathering_failed_2"));
             }
         } catch (Exception e) {

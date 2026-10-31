@@ -186,7 +186,14 @@ public final class WildernessTerrain {
      * 生成一片分片。
      *
      * <p>返回的 {@code edges} 只包含<b>片内</b>边；跨片边见 {@link #borderEdges}。
-     * 拆开是因为跨片边需要两端都物化才能落库（见 {@code MapService.materializeArea}）。</p>
+     * 拆开是因为跨片边由相邻两片<b>共同</b>决定：一条边只由"左/上"那一片生成一次，
+     * 所以要找全一个节点的跨片邻居必须同时查自己与左、上两片
+     * （见 {@link #neighborIds}）。</p>
+     *
+     * <p>注：早先这里写的是"跨片边需要两端都物化才能落库"，指向
+     * {@code MapService.materializeArea} —— 那是"野外入库"方案时期的代码，
+     * 后来改成"地形不入库、只存可变状态到分片文件"，该方法已删除，
+     * 注释没跟上，成了一个指向不存在方法的悬空引用。</p>
      */
     public static GeneratedChunk generate(long seed, int cx, int cy, WildernessMapConfig config) {
         int size = config.getChunkSize();
@@ -244,7 +251,11 @@ public final class WildernessTerrain {
 
         return new Node(slot, slot % size, slot / size, name, description,
                 biome.getKey(), biome.getName(), danger,
-                danger * config.getMinRealmPerDanger(),
+                // 门槛必须走 config.minRealmForDanger：它会把结果夹到 [0, 最高大境界]。
+                // 原实现是 danger * minRealmPerDanger，danger=4 时得出 12，
+                // 而最高大境界只有 10 —— 于是最深的野外永久不可达，且提示文案
+                // 显示成"需要≥凡人"（getRealmConfig(12,0) 返回 null 的兜底值）。
+                config.minRealmForDanger(danger),
                 config.getCultivationBonusBase() + config.getCultivationBonusPerDanger() * danger,
                 config.getExplorationBonusBase() + config.getExplorationBonusPerDanger() * danger);
     }

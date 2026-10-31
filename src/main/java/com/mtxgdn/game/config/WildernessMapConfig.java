@@ -40,10 +40,13 @@ public class WildernessMapConfig {
     /** jar 内资源路径（同时决定释放到 config/ 下的相对路径）。 */
     public static final String RESOURCE_PATH = "game/wilderness_map.json";
 
-    /** 旧版（固定槽位整批刷新）用过的字段名；读到就提示管理员删文件重新释放。 */
+    /** 旧版用过的字段名；读到就提示管理员删文件重新释放。 */
     private static final String[] LEGACY_FIELDS = {
             "idBase", "nodeCount", "refreshIntervalMinutes", "regions",
-            "namePrefixes", "nameSuffixes", "descriptions"
+            "namePrefixes", "nameSuffixes", "descriptions",
+            // 境界门槛从"每级乘一个系数"改成显式数组，旧字段不再生效。
+            // 不点名的话，升级上来的部署会保留 minRealmPerDanger 并以为它还在起作用。
+            "minRealmPerDanger"
     };
 
     private static volatile WildernessMapConfig instance;
@@ -71,8 +74,29 @@ public class WildernessMapConfig {
 
     /** 每远离原点多少分片，危险度 +1。 */
     private int dangerPerChunks = 12;
-    /** 每个危险度档位对应多少境界门槛。 */
-    private int minRealmPerDanger = 3;
+    /**
+     * 各危险度档位对应的境界门槛，索引 0 对应危险度 1。
+     *
+     * <p><b>为什么是数组而不是"每级乘一个系数"</b>：原实现是
+     * {@code minRealm = danger × minRealmPerDanger}（系数 3），得出
+     * {@code {3, 6, 9, 12}}。这套等差曲线有两个问题：</p>
+     * <ul>
+     *   <li><b>上界越界</b>：{@code realm_config.json} 最高大境界是 10（金仙），
+     *       而 {@code danger=4} 要求 12。{@code getRealmConfig(12, 0)} 返回 null，
+     *       {@code getRealmName} 的兜底是"凡人"，于是玩家看到"需要≥凡人"却永远进不去 ——
+     *       表现为"最危险的地带对所有人永久关闭"，且提示文案完全误导。</li>
+     *   <li><b>起步太陡</b>：{@code danger=1} 就要求金丹（3），新手（realm 0）
+     *       连最外圈野外都进不去，而野外是主要资源产地。</li>
+     * </ul>
+     *
+     * <p>改成显式数组后，门槛曲线是"可读的配置"而不是"一个隐含的乘法结果"，
+     * 管理员能直接看出每一档要什么境界，也能按自己的境界体系调整。
+     * 默认 {@code {1, 3, 5, 7}}：炼气即可进最外圈，最深处要求合体。</p>
+     *
+     * <p>长度不足时按最后一档补齐（见 {@link #minRealmForDanger(int)}），
+     * 且所有值都会被夹到 {@code [0, 最高大境界]}，不可能再越界。</p>
+     */
+    private List<Integer> minRealmByDanger = new ArrayList<>(List.of(1, 3, 5, 7));
     /** 高程噪声尺度（分片）：越大则地形带越宽阔。 */
     private int elevationScale = 24;
     /** 湿度噪声尺度（分片）。 */
@@ -364,8 +388,29 @@ public class WildernessMapConfig {
         if (dangerPerChunks < 1) {
             dangerPerChunks = 12;
         }
-        if (minRealmPerDanger < 0) {
-            minRealmPerDanger = 0;
+        if (minRealmByDanger == null || minRealmByDanger.isEmpty()) {
+            LOG.warn("野外地图 minRealmByDanger 为空，已改为默认 {1, 3, 5, 7}");
+            minRealmByDanger = new ArrayList<>(List.of(1, 3, 5, 7));
+        } else {
+            // 逐个夹到合法区间：负数会让"门槛"变成白送，超过最高大境界则永远进不去。
+            // 这两类错误都必须在加载时修正，否则会在运行时表现为
+            // "某个危险度的野外整片不可达"，而现场只能看到一句"需要≥凡人"。
+            int maxRealm = maxRealmId();
+            for (int i = 0; i < minRealmByDanger.size(); i++) {
+                Integer value = minRealmByDanger.get(i);
+                int realm = value == null ? 0 : value;
+                if (realm < 0) {
+                    LOG.warn("野外地图 minRealmByDanger[" + i + "]=" + realm
+                            + " 非法（门槛不能为负），已改为 0");
+                    realm = 0;
+                } else if (realm > maxRealm) {
+                    LOG.warn("野外地图 minRealmByDanger[" + i + "]=" + realm
+                            + " 超过最高大境界 " + maxRealm + "，已收敛为 " + maxRealm
+                            + "（否则该危险度的野外将永久不可达）");
+                    realm = maxRealm;
+                }
+                minRealmByDanger.set(i, realm);
+            }
         }
         if (elevationScale < 1) {
             elevationScale = 24;
@@ -580,7 +625,45 @@ public class WildernessMapConfig {
     public double getExplorationBonusBase() { return explorationBonusBase; }
     public double getExplorationBonusPerDanger() { return explorationBonusPerDanger; }
     public int getDangerPerChunks() { return dangerPerChunks; }
-    public int getMinRealmPerDanger() { return minRealmPerDanger; }
+
+    /** 各危险度档位的境界门槛原始配置（索引 0 = 危险度 1）。 */
+    public List<Integer> getMinRealmByDanger() { return minRealmByDanger; }
+
+    /**
+     * 某危险度档位要求的境界门槛。
+     *
+     * <p>这是<b>唯一</b>允许把危险度换算成境界门槛的地方，所有调用方都必须走它，
+     * 不要自己拿数组下标算 —— 这样"越界"与"长度不足"两种边界只需在这一处处理。</p>
+     *
+     * <p>三条保证：</p>
+     * <ul>
+     *   <li>危险度被夹到 {@code [1, 4]}（越界按最接近的档位处理，不抛异常）；</li>
+     *   <li>数组长度不足时沿用最后一档（管理员只配了两档也能跑）；</li>
+     *   <li>返回值必然落在 {@code [0, 最高大境界]}，因此永远不会出现
+     *       "要求一个不存在的境界"这种永久不可达的死区。</li>
+     * </ul>
+     */
+    public int minRealmForDanger(int danger) {
+        if (minRealmByDanger == null || minRealmByDanger.isEmpty()) {
+            return 0;
+        }
+        int index = Math.max(0, Math.min(danger - 1, minRealmByDanger.size() - 1));
+        Integer value = minRealmByDanger.get(index);
+        int realm = value == null ? 0 : value;
+        return Math.max(0, Math.min(realm, maxRealmId()));
+    }
+
+    /**
+     * 当前境界体系里的最高大境界 id。
+     *
+     * <p>配置归一化与 {@link #minRealmForDanger} 都依赖它来夹住上界。
+     * 这里刻意直接问 {@code GameConfigLoader} 而不是缓存：境界配置本身也支持热重载，
+     * 缓存一份反而会在改配置后失效。</p>
+     */
+    private static int maxRealmId() {
+        return com.mtxgdn.game.config.GameConfigLoader.getMaxRealmId();
+    }
+
     public int getElevationScale() { return elevationScale; }
     public int getMoistureScale() { return moistureScale; }
     public int getBorderEdgeChancePercent() { return borderEdgeChancePercent; }

@@ -31,9 +31,9 @@
   "explorationBonusBase": 1.15,
   "explorationBonusPerDanger": 0.15,
 
-  "_comment_danger": "危险度 = max(地形基础危险度, 距原点分片距离 ÷ dangerPerChunks)，并夹在 1~4。于是「越往深处走越险」是自动的：走满 48 片（192 格）就进入极危地带。minRealmPerDanger 是每个危险度档位对应的境界门槛（危险度 4 → 需境界 12）。",
+  "_comment_danger": "危险度 = max(地形基础危险度, 距原点分片距离 ÷ dangerPerChunks)，并夹在 1~4。于是「越往深处走越险」是自动的：走满 48 片（192 格）就进入极危地带。minRealmByDanger 是各危险度档位对应的境界门槛（索引 0 = 危险度 1），会按 realm_config 的最高大境界自动夹住上界。",
   "dangerPerChunks": 12,
-  "minRealmPerDanger": 3,
+  "minRealmByDanger": [1, 3, 5, 7],
 
   "_comment_noise": "地形噪声尺度（单位：分片）。值越大，同一片地形带越宽阔。高程与湿度两个场用不同尺度，避免地形边界整齐得像格子。",
   "elevationScale": 24,

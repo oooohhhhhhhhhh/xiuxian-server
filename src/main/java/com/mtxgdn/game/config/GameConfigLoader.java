@@ -96,6 +96,26 @@ public class GameConfigLoader {
         return realmConfigs.size();
     }
 
+    /**
+     * 最高大境界的 id（例如 10 = 金仙）。
+     *
+     * <p><b>与 {@link #getRealmTotal()} 的区别</b>：后者是"条目数"（凡人 + 各境界的
+     * 初期/中期/后期，共 33 条），而本方法返回的是"大境界序号的<b>上界</b>"。
+     * 需要"某个 realm 值是否存在"的场景必须用本方法 —— 拿条目数当上界会放行
+     * 一堆不存在的 id（33 条配置里最高大境界只有 10）。</p>
+     *
+     * <p>用在：野外节点的境界门槛校验、管理台的地点门槛校验。</p>
+     */
+    public static int getMaxRealmId() {
+        int max = 0;
+        for (RealmConfig config : getRealmConfigs()) {
+            if (config.getId() > max) {
+                max = config.getId();
+            }
+        }
+        return max;
+    }
+
     public static int getCultivationPerSecond(int realmId) {
         return (int) (getCultivationBaseValue() * getCultivationMultiplier(realmId));
     }

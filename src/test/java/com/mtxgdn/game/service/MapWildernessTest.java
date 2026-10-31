@@ -5,6 +5,7 @@ import com.mtxgdn.game.map.TravelResult;
 import com.mtxgdn.TestBase;
 import com.mtxgdn.common.service.ServiceRegistry;
 import com.mtxgdn.db.DatabaseManager;
+import com.mtxgdn.game.config.GameConfigLoader;
 import com.mtxgdn.game.config.MapDefaults;
 import com.mtxgdn.game.config.WildernessMapConfig;
 import com.mtxgdn.game.entity.MapLocation;
@@ -252,6 +253,10 @@ class MapWildernessTest extends TestBase {
             assertTrue(node.getDangerLevel() >= 1 && node.getDangerLevel() <= 4,
                     "野外危险度应在 1~4，实际 " + node.getDangerLevel());
             assertTrue(node.getMinRealm() >= 0, "境界门槛不应为负");
+            assertTrue(node.getMinRealm() <= GameConfigLoader.getMaxRealmId(),
+                    "境界门槛 " + node.getMinRealm() + " 超过最高大境界 "
+                            + GameConfigLoader.getMaxRealmId()
+                            + "，该节点将永久不可达");
 
             // 加成由危险度推导：base + perDanger × danger
             double expectedCult = cfg.getCultivationBonusBase()
@@ -260,6 +265,70 @@ class MapWildernessTest extends TestBase {
                     + cfg.getExplorationBonusPerDanger() * node.getDangerLevel();
             assertEquals(expectedCult, node.getCultivationBonus(), 1e-9, "野外灵气倍率应由危险度推导");
             assertEquals(expectedExpl, node.getExplorationBonus(), 1e-9, "野外地界倍率应由危险度推导");
+        }
+    }
+
+    // ==================== 野外：境界门槛（本轮修复 P0） ====================
+
+    @Test
+    @DisplayName("野外: 每个危险度的境界门槛都必须是一个真实存在的境界（否则该档永久不可达）")
+    void testEveryDangerLevelMapsToAnExistingRealm() {
+        WildernessMapConfig cfg = WildernessMapConfig.get();
+        int maxRealm = GameConfigLoader.getMaxRealmId();
+        assertTrue(maxRealm > 0, "境界配置应能读出最高大境界，实际: " + maxRealm);
+
+        for (int danger = 1; danger <= 4; danger++) {
+            int realm = cfg.minRealmForDanger(danger);
+            assertTrue(realm >= 0, "危险度 " + danger + " 的门槛不应为负，实际: " + realm);
+            assertTrue(realm <= maxRealm,
+                    "危险度 " + danger + " 的门槛 " + realm + " 超过最高大境界 " + maxRealm
+                            + "。这正是原实现 danger*3={3,6,9,12} 的缺陷："
+                            + "危险度 4 要求境界 12，而最高只有 " + maxRealm
+                            + "，getRealmConfig(12,0) 返回 null，提示文案退化成「需要≥凡人」，"
+                            + "玩家看到凡人可进却永远进不去");
+            assertNotNull(GameConfigLoader.getRealmConfig(realm, 0),
+                    "危险度 " + danger + " 的门槛 " + realm + " 在 realm_config 里查不到，"
+                            + "会被渲染成一个不存在的境界名");
+        }
+    }
+
+    @Test
+    @DisplayName("野外: 门槛随危险度单调不减，且最外圈新手可进")
+    void testRealmGateIsMonotonicAndReachable() {
+        WildernessMapConfig cfg = WildernessMapConfig.get();
+
+        int previous = -1;
+        for (int danger = 1; danger <= 4; danger++) {
+            int realm = cfg.minRealmForDanger(danger);
+            assertTrue(realm >= previous,
+                    "危险度 " + danger + " 的门槛 " + realm + " 不应低于上一档 " + previous
+                            + "（越深越险才对）");
+            previous = realm;
+        }
+
+        // 最外圈必须让新手（realm 0）进得去，否则野外这条主要资源线对新人完全封闭。
+        // 原实现 danger=1 → 金丹（3），新手刚出青云村就被挡在门外。
+        assertTrue(cfg.minRealmForDanger(1) <= 1,
+                "危险度 1（最外圈野外）的门槛应不高于炼气，让新手能踏入野外，实际: "
+                        + cfg.minRealmForDanger(1));
+    }
+
+    @Test
+    @DisplayName("野外: 门槛配置越界时被夹住，不会造出永久死区")
+    void testOutOfRangeRealmGateIsClamped() {
+        WildernessMapConfig cfg = WildernessMapConfig.get();
+        int maxRealm = GameConfigLoader.getMaxRealmId();
+
+        // 危险度越界（0 或 5）不应抛异常，也不应算出非法门槛
+        assertEquals(cfg.minRealmForDanger(1), cfg.minRealmForDanger(0),
+                "危险度 0 应按最外圈处理");
+        assertEquals(cfg.minRealmForDanger(4), cfg.minRealmForDanger(9),
+                "危险度超出 4 应按最深档处理");
+
+        for (int danger = -3; danger <= 10; danger++) {
+            int realm = cfg.minRealmForDanger(danger);
+            assertTrue(realm >= 0 && realm <= maxRealm,
+                    "危险度 " + danger + " 算出的门槛 " + realm + " 越界");
         }
     }
 
@@ -622,6 +691,52 @@ class MapWildernessTest extends TestBase {
         assertFalse(second.success(), "连续采集应被冷却挡下");
         assertTrue(second.message().contains("还需"),
                 "第二次采集应提示冷却剩余时间，实际: " + second.message());
+    }
+
+    @Test
+    @DisplayName("采集: 并发采集同一玩家时，冷却只放行一次（CAS 守住）")
+    void testConcurrentGatherOnlyOneSucceeds() throws Exception {
+        MapLocation node = firstNodeWithResources();
+        long playerId = createPlayer(9, node.getId());
+        setNodeResources(node, 200);
+        movePlayer(playerId, node.getId());
+
+        long cooldown = WildernessMapConfig.get().getGather().getCooldownSeconds();
+        assertTrue(cooldown > 0, "前置条件：测试环境应配置了非零采集冷却");
+
+        int threads = 8;
+        java.util.concurrent.CountDownLatch start = new java.util.concurrent.CountDownLatch(1);
+        java.util.concurrent.CountDownLatch done = new java.util.concurrent.CountDownLatch(threads);
+        java.util.concurrent.atomic.AtomicInteger success =
+                new java.util.concurrent.atomic.AtomicInteger();
+        java.util.List<Throwable> errors = java.util.Collections.synchronizedList(new java.util.ArrayList<>());
+
+        for (int i = 0; i < threads; i++) {
+            Thread t = new Thread(() -> {
+                try {
+                    start.await();
+                    if (mapService.gather(playerId).success()) {
+                        success.incrementAndGet();
+                    }
+                } catch (Throwable e) {
+                    errors.add(e);
+                } finally {
+                    done.countDown();
+                }
+            });
+            t.start();
+        }
+        start.countDown();
+        assertTrue(done.await(60, java.util.concurrent.TimeUnit.SECONDS),
+                "并发采集未在 60 秒内完成，疑似死锁");
+
+        assertTrue(errors.isEmpty(), "并发采集抛异常: " + errors);
+        assertEquals(1, success.get(),
+                "同一玩家并发采集时应当只有一次成功。原实现是"
+                        + "「读冷却 → 校验 → 扣库存 → 发物品 → 写冷却」，中间没有互斥，"
+                        + "多个请求会同时读到旧冷却值、双双通过校验、各发一份物品"
+                        + "（分片锁只能防超扣库存，防不住冷却被绕过）。实际成功次数: "
+                        + success.get());
     }
 
     // ==================== 危险度对 PVP 的影响 ====================
