@@ -989,6 +989,42 @@ public class MapDAO {
         }
     }
 
+    /**
+     * 条件写回采集时刻（CAS）：只有 {@code last_gather_time} 仍是校验时读到的旧值才落库。
+     *
+     * <p><b>为什么需要 CAS</b>：{@code MapService.gather} 的流程是"读冷却 → 校验 → 扣库存 →
+     * 发物品 → 写冷却"。中间那几段没有互斥，两个并发请求可以同时读到旧的
+     * {@code last_gather_time}、双双通过冷却校验，然后各自扣一次库存、各发一份物品。
+     * 分片对象的 {@code synchronized} 只能保证"库存不被超扣"，不能保证"冷却不被绕过" ——
+     * 两次扣的是不同物品时，两次都会成功。</p>
+     *
+     * <p>这与 {@link #updateTravelIfUnchanged} 是同一个模式：把"校验"和"写回"合成一次
+     * 带谓词的 UPDATE。返回 0 即说明有并发竞争，调用方必须回滚已扣的库存并拒绝本次采集。</p>
+     *
+     * @param expectedLastGather 校验时读到的旧值（玩家从没采集过时为 0）
+     * @return 影响行数；0 表示冷却已被其它请求改写
+     */
+    public int updateGatherTimeIfUnchanged(long playerId, long expectedLastGather, long gatherTime) {
+        try (Connection conn = DatabaseManager.getConnection()) {
+            return updateGatherTimeIfUnchanged(conn, playerId, expectedLastGather, gatherTime);
+        } catch (SQLException e) {
+            throw new RuntimeException("更新采集时间失败", e);
+        }
+    }
+
+    /** 事务内版本：只使用传入的连接。 */
+    public int updateGatherTimeIfUnchanged(Connection conn, long playerId, long expectedLastGather,
+                                           long gatherTime) throws SQLException {
+        String sql = "UPDATE players SET last_gather_time = ? "
+                + "WHERE id = ? AND COALESCE(last_gather_time, 0) = ?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setLong(1, gatherTime);
+            ps.setLong(2, playerId);
+            ps.setLong(3, expectedLastGather);
+            return ps.executeUpdate();
+        }
+    }
+
     // ==================== 7. 野外分片维护：位置区间查询 ====================
 
     /**
