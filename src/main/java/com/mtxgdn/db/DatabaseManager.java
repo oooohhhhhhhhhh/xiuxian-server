@@ -111,6 +111,9 @@ public class DatabaseManager {
                 // 现场极难定位。指令线程池默认 4 个，再加 Grizzly worker、WS 推送、
                 // 定时任务，4 个连接是不够的，所以下限给到 8。
                 cfg.setMaximumPoolSize(Math.min(16, Math.max(8, AppConfig.getInt("database.pool_max", 8))));
+                // 注：busy_timeout / journal_mode 由 SQLiteDialect.initConnection 设置，
+                // 而 getConnection() 每次借出连接都会调它 —— 所以这里不要再设一遍，
+                // 两处配置一旦不同步会让人以为改这里有效。
             }
             dataSource = new HikariDataSource(cfg);
             // 预热连接池：让驱动加载与方言初始化在启动阶段就完成，
@@ -172,12 +175,27 @@ public class DatabaseManager {
      * 「事务执行失败: [SQLITE_BUSY_SNAPSHOT]」，用户侧看到的是"使用物品失败"
      * 这类毫无规律、无法复现的报错。</p>
      *
-     * <p>事务已回滚，重跑一次是安全的；次数刻意压得很少（4 次，退避 20/40/80ms），
-     * 避免真正的高争用时把线程长时间占住。</p>
+     * <p>事务已回滚，重跑一次是安全的。重试预算要覆盖"一次真实的写事务时长"，
+     * 而不是只覆盖"调度抖动"：</p>
+     *
+     * <p><b>为什么原来的 4 次/退避 20-40-80ms 不够</b>：那总共只有约 140ms 的等待窗口。
+     * 但撞车的那一方是后台调度线程（自动回血每 10 秒 UPDATE players、玩家快照每 30 秒
+     * 回写、拍卖/坊市/宗门清扫），这些事务本身可能就要几十到几百毫秒。
+     * 前台事务的 4 次尝试很可能<b>全部落在对方还没提交的窗口里</b>，于是 140ms 一到就
+     * 直接抛错 —— 而对方再过 50ms 就提交了。表现出来就是"偶发的、无法复现的"
+     * 「事务执行失败: database is locked」，堆栈指向一条毫不相干的业务查询。</p>
+     *
+     * <p>现在改为 8 次、退避 25ms 起翻倍但单次封顶 400ms（25+50+100+200+400+400+400
+     * ≈ 1.6 秒总预算）。这比 {@code busy_timeout} 的 5 秒小，所以真死锁不会被
+     * 拖到 5 秒；又足够跨过后台调度的一次正常写事务。总耗时只在<b>确实撞车</b>时才发生，
+     * 无争用时一次就过，不影响正常路径。</p>
      */
-    private static final int TX_MAX_ATTEMPTS = 4;
+    private static final int TX_MAX_ATTEMPTS = 8;
 
-    private static final long TX_RETRY_BASE_DELAY_MS = 20L;
+    /** 单次退避上限：避免翻倍退避在后续尝试里膨胀到秒级。 */
+    private static final long TX_RETRY_MAX_DELAY_MS = 400L;
+
+    private static final long TX_RETRY_BASE_DELAY_MS = 25L;
 
     public static <T> T runTransaction(SQLFunction<T> function) {
         RuntimeException last = null;
@@ -284,8 +302,11 @@ public class DatabaseManager {
     }
 
     private static void backoffBeforeRetry(int attempt) {
+        // 指数退避但封顶：25, 50, 100, 200, 400, 400, 400 → 累计约 1.6 秒。
+        // 不封顶的话第 8 次会退到 3.2 秒，单个请求被拖得太久。
+        long delay = Math.min(TX_RETRY_BASE_DELAY_MS * (1L << (attempt - 1)), TX_RETRY_MAX_DELAY_MS);
         try {
-            Thread.sleep(TX_RETRY_BASE_DELAY_MS * (1L << (attempt - 1)));
+            Thread.sleep(delay);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }

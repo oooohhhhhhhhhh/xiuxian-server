@@ -100,8 +100,10 @@ public class MapCommand extends Command {
             for (var nb : neighbors) {
                 String icon = nb.accessible() ? "🚶" : "🔒";
                 String hint = nb.accessible() ? "" : " [境界不足]";
+                // 地名只在 "/地图 go <地名>" 里出现一次。早先这里还额外拼了一段
+                // " → 目的地名"，渲染出来是「/地图 go 青云山  → 青云山」——
+                // 目的地已经包含在命令里了，重复纯属噪音。
                 sb.append("  ").append(icon).append(" /地图 go ").append(nb.name())
-                        .append("  → ").append(nb.name())
                         .append("（").append(nb.region()).append(" · 路程约 ").append(nb.travelSeconds()).append("秒）").append(hint);
                 if (nb.safeZone()) sb.append(" 🛡安全区");
                 if (nb.dangerLevel() > 0) sb.append(" ☠").append(nb.dangerName());
