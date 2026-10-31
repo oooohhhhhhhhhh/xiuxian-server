@@ -196,10 +196,7 @@ public class AdminMapResource {
             }
             if (hasJsonValue(req, "minRealm")) {
                 int realm = req.get("minRealm").getAsInt();
-                int maxRealm = GameConfigLoader.getRealmTotal() - 1;
-                if (realm < 0 || realm > maxRealm) {
-                    throw new IllegalArgumentException("境界门槛应在 0~" + maxRealm + " 之间");
-                }
+                requireValidMinRealm(realm);
                 update.put("min_realm", realm);
             }
             if (hasJsonValue(req, "safeZone")) {
@@ -298,10 +295,7 @@ public class AdminMapResource {
             if (region.isEmpty()) throw new IllegalArgumentException("区域名不能为空");
 
             int minRealm = hasJsonValue(req, "minRealm") ? req.get("minRealm").getAsInt() : 0;
-            int maxRealm = GameConfigLoader.getRealmTotal() - 1;
-            if (minRealm < 0 || minRealm > maxRealm) {
-                throw new IllegalArgumentException("境界门槛应在 0~" + maxRealm + " 之间");
-            }
+            requireValidMinRealm(minRealm);
             boolean safeZone = hasJsonValue(req, "safeZone") && req.get("safeZone").getAsBoolean();
             int dangerLevel = hasJsonValue(req, "dangerLevel") ? req.get("dangerLevel").getAsInt() : 0;
             if (dangerLevel < 0 || dangerLevel > MAX_DANGER_LEVEL) {
@@ -517,6 +511,24 @@ public class AdminMapResource {
     }
 
     /**
+     * 校验境界门槛。
+     *
+     * <p><b>上界必须用 {@code getMaxRealmId()} 而不是 {@code getRealmTotal() - 1}</b>：
+     * 后者是"配置条目数减一"（凡人 + 各境界初期/中期/后期，共 33 条 → 32），
+     * 而最高大境界只有 10。用条目数当上界会放行 11~32 这些<b>不存在</b>的境界，
+     * 造出的地点谁也进不去，且提示文案会退化成"需要≥凡人"——
+     * 与野外境界门槛那个 P0 缺陷是同一种病。</p>
+     */
+    private static void requireValidMinRealm(int realm) {
+        int maxRealm = GameConfigLoader.getMaxRealmId();
+        if (realm < 0 || realm > maxRealm) {
+            throw new IllegalArgumentException("境界门槛应在 0~" + maxRealm
+                    + " 之间（最高大境界为 " + maxRealm
+                    + "；超过它的门槛会让该地点永久无人可进）");
+        }
+    }
+
+    /**
      * 更新地点时校验"改完之后"的安全区/危险度组合是否自洽。
      * <p>行不存在时静默返回，由 UPDATE 的 affected==0 统一给出 404。</p>
      */
@@ -544,6 +556,7 @@ public class AdminMapResource {
      * @param excludeId 更新场景下排除自身；新建传 0
      */
     private static void checkMapLocationNameAvailable(String name, long excludeId) {
+        requireNameNotInWildernessNamespace(name);
         boolean taken = DatabaseManager.runTransaction(conn ->
                 MAP_DAO.countLocationsByNameExceptId(conn, name, excludeId) > 0);
         if (taken) {
@@ -555,9 +568,32 @@ public class AdminMapResource {
     /** 事务内版本：名字占用检查与随后的插入要落在同一条连接上（避免查完就被别人抢注）。 */
     private static void checkMapLocationNameAvailable(Connection conn, String name, long excludeId)
             throws SQLException {
+        requireNameNotInWildernessNamespace(name);
         if (MAP_DAO.countLocationsByNameExceptId(conn, name, excludeId) > 0) {
             throw new IllegalArgumentException("已存在同名地点「" + name
                     + "」，重名会导致其中一个无法通过 /地图 go 抵达");
+        }
+    }
+
+    /** 野外程序化地名专用的分隔符（见 {@code WildernessTerrain.buildNode} 的 {@code "·"} 尾缀）。 */
+    private static final String WILDERNESS_NAME_SEPARATOR = "·";
+
+    /**
+     * 拒绝与野外命名空间混淆的地点名。
+     *
+     * <p>野外地名是 {@code 前缀 + 后缀 + "·" + 两个坐标派生字}（如「青松岭·甲乙」），
+     * 而这个分隔符是野外独有的。管理员若用 {@code ·} 建一个已知世界地点，那个名字
+     * 看起来会像野外节点，运维时无法区分两者。</p>
+     *
+     * <p>注意这<b>不会</b>导致"走到错误的地方"——{@code getLocationByName} 只查已知世界，
+     * 野外本来就只靠 id 导航。所以这是<b>可读性/命名空间卫生</b>问题，不是正确性问题，
+     * 但既然能一行代码消除，就没必要留着。</p>
+     */
+    private static void requireNameNotInWildernessNamespace(String name) {
+        if (name != null && name.contains(WILDERNESS_NAME_SEPARATOR)) {
+            throw new IllegalArgumentException("地点名不能包含「" + WILDERNESS_NAME_SEPARATOR
+                    + "」——该符号是野外程序化地名的专用分隔符（如「青松岭·甲乙」），"
+                    + "用它会让已知世界地点与野外节点在名字上无法区分");
         }
     }
 

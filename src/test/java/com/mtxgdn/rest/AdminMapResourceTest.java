@@ -164,4 +164,47 @@ class AdminMapResourceTest extends TestBase {
         JsonObject out = callUpdate(QINGYUN_VILLAGE, new JsonObject());
         assertEquals(400, out.get("code").getAsInt(), out.toString());
     }
+
+    @Test
+    @DisplayName("境界门槛超过最高大境界时被拒绝（否则该地点永久无人可进）")
+    void testRejectsMinRealmAboveMaxRealm() {
+        int maxRealm = com.mtxgdn.game.config.GameConfigLoader.getMaxRealmId();
+        assertTrue(maxRealm > 0, "境界配置应能读出最高大境界，实际: " + maxRealm);
+
+        // 边界内应当通过
+        JsonObject ok = new JsonObject();
+        ok.addProperty("minRealm", maxRealm);
+        assertEquals(200, callUpdate(QINGYUN_VILLAGE, ok).get("code").getAsInt(),
+                "恰好等于最高大境界的门槛应被接受");
+
+        // 超过最高大境界应当被拒绝。注意这里刻意用 maxRealm+1 而不是一个大数：
+        // 原实现的上界是 GameConfigLoader.getRealmTotal()-1（条目数减一 = 32），
+        // 所以 maxRealm+1 在旧代码里会被放行 —— 正是要抓这个。
+        JsonObject bad = new JsonObject();
+        bad.addProperty("minRealm", maxRealm + 1);
+        JsonObject out = callUpdate(QINGYUN_VILLAGE, bad);
+        assertEquals(400, out.get("code").getAsInt(), out.toString());
+        assertTrue(out.get("message").getAsString().contains("境界门槛"),
+                out.get("message").getAsString());
+
+        // 被拒绝的更新不得落库
+        JsonObject village = findLocation(callGet().getAsJsonObject("data"), QINGYUN_VILLAGE);
+        assertEquals(maxRealm, village.get("minRealm").getAsInt(),
+                "被拒绝的更新不得落库，应仍是上一次成功设置的值");
+    }
+
+    @Test
+    @DisplayName("地点名含野外分隔符「·」时被拒绝（避免与野外节点混淆）")
+    void testRejectsWildernessSeparatorInName() {
+        JsonObject body = new JsonObject();
+        body.addProperty("name", "青松岭·甲乙");
+        JsonObject out = callUpdate(QINGYUN_VILLAGE, body);
+
+        assertEquals(400, out.get("code").getAsInt(), out.toString());
+        assertTrue(out.get("message").getAsString().contains("·"),
+                "拒绝原因应点名该分隔符，实际: " + out.get("message").getAsString());
+
+        JsonObject village = findLocation(callGet().getAsJsonObject("data"), QINGYUN_VILLAGE);
+        assertEquals("青云村", village.get("name").getAsString(), "被拒绝的改名不得落库");
+    }
 }
