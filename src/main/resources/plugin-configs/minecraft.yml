@@ -1,0 +1,42 @@
+# ========================================
+#  Minecraft 消息通道配置
+# ========================================
+# 插件：com.mtxgdn.plugin.builtin.AdapterChannelPlugin("minecraft")
+# 开关：enabled（等价于旧 plugins.yml 的 plugins.minecraft）
+#
+# 这里配的是「内嵌服务器」的启动参数。MC 侧的桥接插件（XiuxianBridge）
+# 有它自己的 plugins/XiuxianBridge/config.yml，两者通过 api_token 对齐。
+
+enabled: true
+
+# 服务端 jar 包路径（内置 MC 服务器用）。
+jar_path: ""
+
+# 服务端工作目录。
+server_dir: mc_server
+
+# Java 可执行路径。
+java_path: java
+
+# JVM 内存参数（MB）。
+min_memory_mb: 512
+max_memory_mb: 1024
+
+# 等待服务就绪超时（秒）。
+ready_timeout_seconds: 120
+
+# 额外的 JVM 启动参数。
+extra_jvm_args: ""
+
+# 是否正版验证（true=正版用户名，false=离线）。
+online_mode: false
+
+# MC 内指令前缀。
+command_prefix: "xiuxian"
+
+# MC 桥接插件调用 /api/mc-command 的共享令牌。
+# 为空 = 该接口关闭（拒绝所有请求）。
+# 启用 MC 桥接时必须同时在本文件和 MC 插件的
+# plugins/XiuxianBridge/config.yml 里配置同一个值，
+# 否则任何人都能冒充任意 MC 玩家执行指令。
+api_token: ""

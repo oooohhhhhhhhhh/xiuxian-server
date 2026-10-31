@@ -1,0 +1,9 @@
+# ========================================
+#  洞府系统：灵力收集、洞府升级
+# ========================================
+# 插件：com.mtxgdn.plugin.builtin.CavePlugin
+# 开关：enabled（等价于旧 plugins.yml 的 plugins.cave）
+#
+# 本插件没有可调参数，只有开关。
+
+enabled: true

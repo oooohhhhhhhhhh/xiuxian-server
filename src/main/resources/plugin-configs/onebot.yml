@@ -1,0 +1,22 @@
+# ========================================
+#  OneBot 消息通道配置
+# ========================================
+# 插件：com.mtxgdn.plugin.builtin.AdapterChannelPlugin("onebot")
+# 开关：enabled（等价于旧 plugins.yml 的 plugins.onebot）
+#
+# 这是「类型级总开关」；具体连哪个 QQ 号、连几个实例，
+# 仍在 config/adapters.json 里按实例配置。
+
+enabled: true
+
+# 消息发送模式：text=纯文本；其他可选（截图等）。
+send_mode: text
+
+# 截图目标窗口标题（留空自动识别）。
+screenshot:
+  window_title: ""
+  # 截图轮询间隔（毫秒）。
+  poll_interval: 2000
+
+# 离线奖励冷却（秒）。
+offline_reward_cooldown_seconds: 3600

@@ -153,6 +153,14 @@ public class AppConfig {
      * 这既是运维的应急开关（改一个值不必动配置文件、不必重新分发），
      * 也让测试能把"写文件"的目录整体拨到 {@code target/} 下，
      * 而不是往真实的 {@code data/players} 里灌一堆测试快照。</p>
+     *
+     * <p><b>查找顺序</b>：{@code -D} 系统属性 → 运行期覆盖 → 插件独立配置
+     * （{@code config/plugins/<name>.yml}）→ {@code application.yml}。</p>
+     *
+     * <p>插件配置插在 application.yml <b>之前</b>：同一个参数（如
+     * {@code world_boss.hp_multiplier}）如果两份文件都写了，以插件文件为准 ——
+     * 那才是它现在的归属地，application.yml 里的同名项降级为"旧位置兜底"。
+     * 这样升级上来的部署不会因为参数搬家而丢掉原有设置。</p>
      */
     public static String get(String path) {
         String override = System.getProperty(path);
@@ -163,8 +171,43 @@ public class AppConfig {
         if (runtime != null) {
             return runtime;
         }
+        String pluginValue = pluginConfigValue(path);
+        if (pluginValue != null) {
+            return pluginValue;
+        }
         Object value = config.get(path);
         return value != null ? value.toString() : null;
+    }
+
+    /**
+     * 从插件独立配置文件里取值；不属于任何插件、或该插件没配这一项时返回 null。
+     *
+     * <p>刻意用反射之外的软依赖方式调用：{@code com.mtxgdn.plugin.PluginConfigFiles}
+     * 的静态初始化会读 {@link #getJarDir()}，而本类的静态初始化早于它。
+     * 直接 import 会形成类初始化环（表现为 {@code getJarDir()} 返回 null 路径），
+     * 所以这里用一次性懒加载持有者，把首次触发放到真正需要取值的时候。</p>
+     */
+    private static String pluginConfigValue(String path) {
+        if (path == null) {
+            return null;
+        }
+        try {
+            return PluginConfigHolder.LOOKUP.lookup(path);
+        } catch (Throwable t) {
+            // 插件配置不可用时不能让整个配置系统瘫掉：回退到 application.yml
+            return null;
+        }
+    }
+
+    /** 懒加载持有者：把 PluginConfigFiles 的类初始化推迟到第一次真正取值。 */
+    private static final class PluginConfigHolder {
+        private static final PluginConfigLookup LOOKUP = com.mtxgdn.plugin.PluginConfigFiles::lookup;
+    }
+
+    /** 避免对 PluginConfigFiles 的编译期硬依赖（见 {@link #pluginConfigValue} 的说明）。 */
+    @FunctionalInterface
+    private interface PluginConfigLookup {
+        String lookup(String path);
     }
 
     /**

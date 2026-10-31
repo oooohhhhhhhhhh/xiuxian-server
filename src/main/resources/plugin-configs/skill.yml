@@ -1,0 +1,9 @@
+# ========================================
+#  技能系统：学习技能、技能列表、战斗策略
+# ========================================
+# 插件：com.mtxgdn.plugin.builtin.SkillPlugin
+# 开关：enabled（等价于旧 plugins.yml 的 plugins.skill）
+#
+# 本插件没有可调参数，只有开关。
+
+enabled: true

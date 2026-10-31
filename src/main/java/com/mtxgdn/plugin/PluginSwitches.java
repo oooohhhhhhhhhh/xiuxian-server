@@ -12,6 +12,7 @@ import java.nio.file.StandardCopyOption;
 import java.util.Collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
+import java.util.List;
 import java.util.Map;
 
 /**
@@ -53,6 +54,36 @@ public final class PluginSwitches {
     /** 覆盖配置文件路径的系统属性（仅供测试隔离使用）。 */
     public static final String PATH_PROPERTY = "xiuxian.plugins.config";
 
+    /**
+     * 插件配置模板清单（与 {@link PluginCatalog} 一一对应）。
+     *
+     * <p>jar 内不能列目录，所以这份清单必须显式维护。有测试
+     * （{@code PluginConfigFilesTest}）核对它与 {@code PluginCatalog} 完全一致 ——
+     * 新增插件却忘了加模板会直接失败，而不是等到运维发现"这个插件没有配置文件"。</p>
+     *
+     * <p><b>声明位置很关键</b>：必须排在下面那个静态块<b>之前</b>。
+     * Java 按文本顺序初始化静态字段，而静态块里的
+     * {@link #extractPluginConfigTemplates()} 会遍历本清单 ——
+     * 排在后面会读到 null，表现为类初始化时 NPE，
+     * 且整个 PluginSwitches 类从此不可用（NoClassDefFoundError）。</p>
+     */
+    public static final List<String> TEMPLATE_PLUGIN_FILES = List.of(
+            // 基础玩法
+            "exploration", "secret_realm", "trade", "sect", "farm", "cave",
+            // 社交
+            "chat", "friend", "rank", "search",
+            // 移动 / 养成
+            "map", "team", "title", "player",
+            // 修炼 / 战斗
+            "cultivation", "skill", "pvp", "world_boss", "inventory",
+            // 经济 / 制造
+            "economy", "energy", "technique", "crafting", "buff", "formation",
+            // 实验性
+            "experimental_sect_war", "experimental_energy_exchange",
+            // 消息通道
+            "onebot", "qq", "minecraft", "minecraft-player"
+    );
+
     /** 生效配置：模板默认值 ← 外部文件覆盖。 */
     private static Map<String, String> values;
     /** jar 内模板的平铺键值（文件里缺键时的默认值来源）。 */
@@ -74,6 +105,8 @@ public final class PluginSwitches {
         }
         legacyExperimentalPath = resolveLegacyExperimentalPath(externalPath);
         reload();
+        // 释放每个插件自己的配置文件（已存在的不覆盖，避免抹掉运维改过的值）
+        extractPluginConfigTemplates();
         System.out.println("[PluginSwitches] 插件开关已加载: " + externalPath.toAbsolutePath()
                 + "（" + values.size() + " 项）");
         if (!legacyExperimental.isEmpty()) {
@@ -229,6 +262,13 @@ public final class PluginSwitches {
      * @param defaultValue 插件自身默认值
      */
     public static Resolved resolve(String key, boolean defaultValue) {
+        // 插件独立文件 config/plugins/<name>.yml 是开关的新归属地，优先级最高。
+        // 旧 plugins.yml 降级为兜底：升级上来的部署里那份文件仍在，
+        // 其值必须继续生效，否则"我把 farm 关了，升级后又自己开了"。
+        Boolean fromPluginFile = PluginConfigFiles.readEnabled(key);
+        if (fromPluginFile != null) {
+            return new Resolved(fromPluginFile, Source.PLUGIN_FILE);
+        }
         String raw = values.get(KEY_PREFIX + key);
         if (raw != null) {
             return new Resolved(parse(raw, defaultValue), Source.CONFIG_FILE);
@@ -281,10 +321,65 @@ public final class PluginSwitches {
      * @return true 表示本文件的值已发生变化
      */
     public static synchronized boolean set(String key, boolean enabled) {
+        // 优先写回插件自己的文件：那才是开关的新归属地。
+        // 只在插件确实有独立文件时才这么做 —— 没有文件时（例如尚未释放模板）
+        // 回退到旧 plugins.yml，保证启停操作永远有落点。
+        Path pluginFile = PluginConfigFiles.getPluginFile(key);
+        if (pluginFile != null) {
+            boolean changed = YamlFileEditor.update(pluginFile,
+                    Collections.singletonMap(PluginConfigFiles.ENABLED_KEY, enabled));
+            PluginConfigFiles.reload();
+            return changed;
+        }
         boolean changed = YamlFileEditor.update(externalPath,
                 Collections.singletonMap(KEY_PREFIX + key.toLowerCase(), enabled));
         reload();
         return changed;
+    }
+
+    /**
+     * 把 jar 内模板的插件配置文件释放到 {@code config/plugins/}。
+     *
+     * <p>与 {@code plugins.yml} 的释放逻辑一致：外部文件不存在时用模板补齐，
+     * 已存在的<b>不覆盖</b> —— 覆盖会抹掉运维改过的值。</p>
+     *
+     * <p>模板清单来自 classpath 的 {@code plugin-configs/} 目录。jar 内无法列目录，
+     * 所以清单写死在 {@link #TEMPLATE_PLUGIN_FILES}；新增插件时在那里加一行。</p>
+     *
+     * @return 实际释放的文件数
+     */
+    public static synchronized int extractPluginConfigTemplates() {
+        Path dir = PluginConfigFiles.getConfigDir();
+        int written = 0;
+        try {
+            Files.createDirectories(dir);
+        } catch (Exception e) {
+            System.err.println("[PluginSwitches] 创建 " + dir + " 失败: " + e.getMessage());
+            return 0;
+        }
+        for (String name : TEMPLATE_PLUGIN_FILES) {
+            Path target = dir.resolve(name + ".yml");
+            if (Files.exists(target)) {
+                continue;
+            }
+            String resource = "plugin-configs/" + name + ".yml";
+            try (InputStream in = PluginSwitches.class.getClassLoader().getResourceAsStream(resource)) {
+                if (in == null) {
+                    System.err.println("[PluginSwitches] 缺少模板 " + resource + "，跳过");
+                    continue;
+                }
+                Files.copy(in, target, StandardCopyOption.REPLACE_EXISTING);
+                written++;
+            } catch (Exception e) {
+                System.err.println("[PluginSwitches] 释放 " + resource + " 失败: " + e.getMessage());
+            }
+        }
+        PluginConfigFiles.reload();
+        if (written > 0) {
+            System.out.println("[PluginSwitches] 已释放 " + written + " 个插件配置文件到 "
+                    + dir.toAbsolutePath());
+        }
+        return written;
     }
 
     /**
@@ -372,7 +467,9 @@ public final class PluginSwitches {
 
     /** 开关取值来源。 */
     public enum Source {
-        /** 本文件 plugins.yml（或在其中的模板默认）。 */
+        /** 插件独立文件 {@code config/plugins/<name>.yml} 的 {@code enabled}（当前归属地）。 */
+        PLUGIN_FILE,
+        /** 旧 {@code config/plugins.yml} 的 {@code plugins.<name>}（已降级为兜底）。 */
         CONFIG_FILE,
         /** 旧键只读兜底（application.yml 的 built_in_plugins.* 或 experimental.yml）。 */
         LEGACY,

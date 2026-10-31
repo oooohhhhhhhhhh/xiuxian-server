@@ -1,0 +1,15 @@
+# ========================================
+#  地图插件配置
+# ========================================
+# 插件：com.mtxgdn.plugin.builtin.MapPlugin
+# 开关：enabled（等价于旧 plugins.yml 的 plugins.map）
+#
+# 野外地形本身的可调项（危险度曲线、分片大小、 biome 权重…）在
+# src/main/resources/game/wilderness_map.json —— 那是一份结构化数据，
+# 不是"开关 + 少量标量"，拆进 yml 只会让两边都不好读。
+# 这里只放运行期参数。
+
+enabled: true
+
+# 野外分片文件的存放目录。
+dir: data/wilderness

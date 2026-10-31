@@ -34,6 +34,7 @@ class PluginSwitchesTest {
 
     private Path savedExternalPath;
     private Path savedLegacyPath;
+    private Path savedPluginConfigDir;
     private Path newConfigPath;
     private Path legacyExperimentalPath;
 
@@ -41,17 +42,22 @@ class PluginSwitchesTest {
     void swapConfigPaths() throws Exception {
         savedExternalPath = PluginSwitches.getConfigPath();
         savedLegacyPath = readLegacyPath();
+        savedPluginConfigDir = PluginConfigFiles.getConfigDir();
 
         Path dir = Files.createTempDirectory("plugin-switches-");
         newConfigPath = dir.resolve("plugins.yml");
         legacyExperimentalPath = dir.resolve("experimental.yml");
         PluginSwitches.useConfigPathsForTest(newConfigPath, legacyExperimentalPath);
+        // 插件独立配置目录也要隔离成空目录：本类的用例测的是"旧 plugins.yml 兜底"这条路径，
+        // 若真实的 config/plugins/ 可见，set() 会优先写插件文件，测的就不是同一件事了。
+        PluginConfigFiles.useConfigDirForTest(Files.createTempDirectory("plugin-configs-empty-"));
     }
 
     @AfterEach
     void restoreConfigPaths() {
         PluginSwitches.useConfigPathsForTest(savedExternalPath, savedLegacyPath);
         PluginSwitches.useLegacyAppValuesForTest(null);
+        PluginConfigFiles.useConfigDirForTest(savedPluginConfigDir);
     }
 
     // ==================== 读取优先级 ====================
@@ -158,6 +164,38 @@ class PluginSwitchesTest {
         // 写回后立即生效，且重复写入同值视为无变化
         assertFalse(PluginSwitches.isEnabled("farm", true));
         assertFalse(PluginSwitches.set("farm", false), "同值写入不应再改文件");
+    }
+
+    @Test
+    @DisplayName("插件有独立配置文件时，启停写回该文件而不是 plugins.yml")
+    void setWritesToPluginFileWhenItExists() throws Exception {
+        // @BeforeEach 已把插件配置目录隔离成空目录，这里只放一个 farm.yml
+        Path pluginDir = Files.createTempDirectory("plugin-configs-set-");
+        Path farmFile = pluginDir.resolve("farm.yml");
+        Files.writeString(farmFile, "# 农场\nenabled: true\n", StandardCharsets.UTF_8);
+        PluginConfigFiles.useConfigDirForTest(pluginDir);
+
+        writeNewConfig("# 头部注释\nplugins:\n  farm: true\n");
+
+        assertTrue(PluginSwitches.set("farm", false), "写插件文件应产生变更");
+
+        // 插件文件被改了，且注释保留
+        String pluginContent = Files.readString(farmFile, StandardCharsets.UTF_8);
+        assertEquals(Boolean.FALSE,
+                ((Map<?, ?>) new Yaml().load(pluginContent)).get("enabled"),
+                "开关应写回插件自己的文件");
+        assertTrue(pluginContent.contains("# 农场"), "插件文件的注释必须保留");
+
+        // 旧 plugins.yml 不该被动 —— 它的值仍写着 true
+        String legacy = Files.readString(newConfigPath, StandardCharsets.UTF_8);
+        assertEquals(Boolean.TRUE,
+                ((Map<?, ?>) ((Map<?, ?>) new Yaml().load(legacy)).get("plugins")).get("farm"),
+                "有插件文件时不应再写旧 plugins.yml");
+
+        // 生效值是插件文件的 false
+        assertFalse(PluginSwitches.isEnabled("farm", true));
+        assertEquals(PluginSwitches.Source.PLUGIN_FILE,
+                PluginSwitches.resolve("farm", true).getSource());
     }
 
     // ==================== 工具方法 ====================

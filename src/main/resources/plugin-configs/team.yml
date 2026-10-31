@@ -1,0 +1,9 @@
+# ========================================
+#  团队系统：创建团队、组队副本
+# ========================================
+# 插件：com.mtxgdn.plugin.builtin.TeamPlugin
+# 开关：enabled（等价于旧 plugins.yml 的 plugins.team）
+#
+# 本插件没有可调参数，只有开关。
+
+enabled: true

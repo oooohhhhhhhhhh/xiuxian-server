@@ -1,0 +1,9 @@
+# ========================================
+#  宗门战（实验性）
+# ========================================
+# 插件：com.mtxgdn.plugin.builtin.SectWarPlugin
+# 开关：enabled（等价于旧 plugins.yml 的 plugins.experimental_sect_war）
+#
+# 本插件没有可调参数，只有开关。
+
+enabled: false

@@ -1,0 +1,23 @@
+# ========================================
+#  坊市 / 交易插件配置
+# ========================================
+# 插件：com.mtxgdn.plugin.builtin.TradePlugin
+# 开关：enabled（等价于旧 plugins.yml 的 plugins.trade）
+#
+# 注意配置键前缀仍是 market. —— 代码里 4 个调用点都读 market.*，
+# 改前缀要动 TradeService / EconomyService，收益为零。
+# 归属关系由 PluginConfigFiles 的前缀归属表登记（market. → trade）。
+
+enabled: true
+
+# 挂单有效时长（小时），到期自动下架并把物品退回卖家。
+listing_duration_hours: 72
+
+# 成交价格历史保留天数（超期由清理任务删除）。
+price_history_keep_days: 30
+
+# 价格历史清理任务执行间隔（小时）。
+price_history_cleanup_interval_hours: 6
+
+# 拍卖到期扫描间隔（秒），最小 10。
+auction_sweep_seconds: 60

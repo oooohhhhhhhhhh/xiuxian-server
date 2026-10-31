@@ -1,0 +1,28 @@
+# ========================================
+#  背包 / 装备插件配置
+# ========================================
+# 插件：com.mtxgdn.plugin.builtin.InventoryPlugin
+# 开关：enabled（等价于旧 plugins.yml 的 plugins.inventory）
+#
+# 这里同时放背包容量与装备耐久：两者都归背包模块管（物品与装备是同一套
+# 持有关系），配置键前缀分别是 inventory. 与 equipment.。
+
+enabled: true
+
+# 初始背包格子数。
+base_capacity: 30
+
+# 每升一级增加的背包格子数。
+capacity_per_level: 5
+
+# 装备最大耐久。
+max_durability: 100
+
+# 每场 PVE 战斗消耗的耐久。
+wear_pve: 1
+
+# 每场 PVP 战斗消耗的耐久（比 PVE 高：玩家对战对装备损耗更狠）。
+wear_pvp: 2
+
+# 修理价格除数：修理费 = 缺失耐久 / 该值（越大越便宜）。
+repair_price_divisor: 50

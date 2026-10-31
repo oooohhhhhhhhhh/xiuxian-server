@@ -1,0 +1,9 @@
+# ========================================
+#  农场系统：种植灵药、浇灌、收获
+# ========================================
+# 插件：com.mtxgdn.plugin.builtin.FarmPlugin
+# 开关：enabled（等价于旧 plugins.yml 的 plugins.farm）
+#
+# 本插件没有可调参数，只有开关。
+
+enabled: true

@@ -1,0 +1,9 @@
+# ========================================
+#  好友系统：添加好友、好友列表
+# ========================================
+# 插件：com.mtxgdn.plugin.builtin.FriendPlugin
+# 开关：enabled（等价于旧 plugins.yml 的 plugins.friend）
+#
+# 本插件没有可调参数，只有开关。
+
+enabled: true

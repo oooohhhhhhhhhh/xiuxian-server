@@ -1,0 +1,9 @@
+# ========================================
+#  经济系统：拍卖、灵庄、商店、签到、灵石流转
+# ========================================
+# 插件：com.mtxgdn.plugin.builtin.EconomyPlugin
+# 开关：enabled（等价于旧 plugins.yml 的 plugins.economy）
+#
+# 本插件没有可调参数，只有开关。
+
+enabled: true

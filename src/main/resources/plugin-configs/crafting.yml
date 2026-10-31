@@ -1,0 +1,9 @@
+# ========================================
+#  炼丹锻造系统：配方、炼制
+# ========================================
+# 插件：com.mtxgdn.plugin.builtin.CraftingPlugin
+# 开关：enabled（等价于旧 plugins.yml 的 plugins.crafting）
+#
+# 本插件没有可调参数，只有开关。
+
+enabled: true
