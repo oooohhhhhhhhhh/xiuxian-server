@@ -41,6 +41,13 @@ class CollectionHookTest extends TestBase {
     @BeforeAll
     static void registerItems() {
         com.mtxgdn.game.item.ItemScanner.scanAndRegister();
+        // TestBase 默认关闭图鉴 hook；本类专门验证 hook，显式打开
+        CollectionHooks.setEnabledForTest(true);
+    }
+
+    @org.junit.jupiter.api.AfterAll
+    static void restoreHooks() {
+        CollectionHooks.setEnabledForTest(false);
     }
 
     @BeforeEach

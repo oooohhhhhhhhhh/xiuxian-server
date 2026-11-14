@@ -21,7 +21,27 @@ import java.util.function.Consumer;
  */
 public final class CollectionHooks {
 
+    /**
+     * 测试用总开关：{@code null} = 正常（跟随插件开关），{@code FALSE} = 全部 hook 空转。
+     *
+     * <p>为什么需要：图鉴奖励会改变玩家的金币/灵石/背包，而很多既有单测在断言
+     * "执行了某操作后余额正好是多少"。测试环境里让图鉴这个旁路系统统一保持关闭，
+     * 由 {@link com.mtxgdn.TestBase} 在每类测试前关闭、图鉴自己的集成测试再显式打开，
+     * 避免"某个测试先初始化了某项全局状态"导致别的测试时红时绿。</p>
+     */
+    private static volatile Boolean testEnabledOverride = null;
+
     private CollectionHooks() {
+    }
+
+    /** 测试用：强制打开/关闭图鉴 hook（{@code null} 恢复跟随插件开关）。 */
+    public static void setEnabledForTest(Boolean enabled) {
+        testEnabledOverride = enabled;
+    }
+
+    private static boolean hooksActive() {
+        Boolean override = testEnabledOverride;
+        return override == null || override;
     }
 
     /** 玩家获得物品（调用方无事务）。 */
@@ -76,6 +96,9 @@ public final class CollectionHooks {
 
     private static void fireInTx(Connection conn, CollectionCategory category,
                                  long playerId, String entryKey) {
+        if (!hooksActive()) {
+            return;
+        }
         try {
             ServiceRegistry.container().getCollectionService()
                     .unlockInTransaction(conn, category, playerId, entryKey);
@@ -85,6 +108,9 @@ public final class CollectionHooks {
     }
 
     private static void fire(Consumer<CollectionService> action) {
+        if (!hooksActive()) {
+            return;
+        }
         try {
             action.accept(ServiceRegistry.container().getCollectionService());
         } catch (Throwable ignored) {

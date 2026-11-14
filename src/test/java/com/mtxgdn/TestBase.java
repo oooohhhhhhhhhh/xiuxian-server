@@ -40,6 +40,12 @@ public class TestBase {
         I18nManager.load();
         DatabaseManager.init(testDbUrl("xiuxian_test.db"), "", "");
         JwtUtil.init(true); // test env: install mode generates a temporary key
+
+        // 图鉴奖励会改金币/灵石/背包，而很多单测在断言"操作后余额正好是多少"。
+        // 这里统一关掉图鉴 hook（旁路系统不该影响任何既有测试的精确断言）；
+        // 图鉴自己的集成测试会在子类 @BeforeAll 里显式打开。
+        // JUnit 保证父类 @BeforeAll 先于子类执行，所以子类的打开不会被覆盖。
+        com.mtxgdn.game.collection.CollectionHooks.setEnabledForTest(false);
     }
 
     /**
