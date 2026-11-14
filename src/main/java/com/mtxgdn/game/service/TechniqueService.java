@@ -144,6 +144,8 @@ public class TechniqueService implements TechniqueApi {
 
         // 学习不直接加属性；属性只在「装备」时生效（避免重复叠加）
 
+        // 图鉴：学会功法即解锁
+        com.mtxgdn.game.collection.CollectionHooks.techniqueLearned(playerId, technique.getName());
         return OperationResult.ok(I18n.t("technique.successfully_learned_the_technique", technique.getName()));
     }
 

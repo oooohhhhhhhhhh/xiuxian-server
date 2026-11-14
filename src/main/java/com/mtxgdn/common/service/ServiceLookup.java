@@ -1,5 +1,6 @@
 package com.mtxgdn.common.service;
 
+import com.mtxgdn.game.collection.CollectionService;
 import com.mtxgdn.game.service.*;
 import com.mtxgdn.minecraft.adapter.MinecraftPlayerBindingService;
 
@@ -50,4 +51,5 @@ public interface ServiceLookup {
     DurabilityService getDurabilityService();
     OfflineRewardService getOfflineRewardService();
     RedeemCodeService getRedeemCodeService();
+    CollectionService getCollectionService();
 }

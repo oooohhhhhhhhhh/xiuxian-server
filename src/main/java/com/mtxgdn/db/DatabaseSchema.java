@@ -1079,6 +1079,35 @@ public class DatabaseSchema {
                 ")";
     }
 
+    /**
+     * 图鉴解锁记录表。
+     *
+     * <p>一行 = 一个玩家在一个分类里解锁了一个条目；唯一约束
+     * {@code (player_id, category, entry_key)} 是"只发一次奖励"的最终保证。
+     * 集齐奖励复用同一张表，用 {@code entry_key = '__completion__'} 的伪条目记录，
+     * 这样"集齐只发一次"也不用额外建表。</p>
+     */
+    public static String createPlayerCollectionTable(String pk, String tsDefault, DatabaseDialect dialect) {
+        return "CREATE TABLE IF NOT EXISTS player_collection (" +
+                "id " + pk + ", " +
+                "player_id BIGINT NOT NULL, " +
+                "category VARCHAR(32) NOT NULL, " +
+                "entry_key VARCHAR(160) NOT NULL, " +
+                "unlocked_at " + tsDefault + ", " +
+                "reward_granted INT DEFAULT 1, " +
+                (dialect.supportsForeignKeysInCreateTable()
+                        ? "FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE, "
+                        : "") +
+                "UNIQUE (player_id, category, entry_key)" +
+                ")";
+    }
+
+    /** 图鉴按玩家查进度：{@code WHERE player_id = ? AND category = ?} */
+    public static String createPlayerCollectionPlayerIndex() {
+        return "CREATE INDEX IF NOT EXISTS idx_player_collection_player "
+                + "ON player_collection (player_id, category)";
+    }
+
     /** 按玩家查授权（「已授权应用」页与 token 校验都按 user_id 过滤） */
     public static String createOAuthGrantsUserIndex() {
         return "CREATE INDEX IF NOT EXISTS idx_oauth_grants_user ON oauth_grants (user_id)";

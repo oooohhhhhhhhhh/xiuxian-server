@@ -127,6 +127,8 @@ public class SkillService implements SkillApi {
             services.getTitleService().grantTitle(playerId, "sword_student");
         } catch (Exception ignored) {
         }
+        // 图鉴：学会技能即解锁
+        com.mtxgdn.game.collection.CollectionHooks.skillLearned(playerId, skill.getName());
         return LearnSkillResult.ok(
                 I18n.t("skill.successfully_learned", skill.getName()), skill);
     }
@@ -157,12 +159,14 @@ public class SkillService implements SkillApi {
             }
             int newLevel = currentLevel + 1;
             SKILL_DAO.updateLevel(playerId, skillId, newLevel);
+            com.mtxgdn.game.collection.CollectionHooks.skillLearned(playerId, skill.getName());
             return LearnSkillFromBookResult.leveledUp(
                     I18n.t("skill.comprehension_successful_2", skill.getName(), newLevel),
                     skill, newLevel);
         }
 
         SKILL_DAO.insertPlayerSkill(playerId, skillId);
+        com.mtxgdn.game.collection.CollectionHooks.skillLearned(playerId, skill.getName());
 
         return LearnSkillFromBookResult.ok(
                 I18n.t("skill.comprehension_successful", skill.getName()), skill);

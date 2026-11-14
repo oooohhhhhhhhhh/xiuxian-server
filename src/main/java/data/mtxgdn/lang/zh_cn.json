@@ -1512,6 +1512,8 @@
   "equip.unequip_broken": "{0}已损坏，无法卸下，请先修理（/修理）",
   "cmd.repair.desc": "修理装备耐久",
   "cmd.repair.usage": "/修理 - 查看装备耐久与修理费用\n/修理 武器|护甲|饰品|全部 - 执行修理",
+  "cmd.collection.desc": "全图鉴：收集物品/称号/功法等，逐条解锁发奖励",
+  "cmd.collection.usage": "/图鉴 - 查看各分类收集进度\n/图鉴 查看 <分类> [页码] - 查看某分类的条目\n/图鉴 奖励 - 查看图鉴奖励配置",
   "sect.not_in_sect": "你还没有加入任何宗门",
   "sect.treasury_panel_title": "===== 宗门金库 =====",
   "sect.treasury_balance": "金库余额: {0} 灵石",

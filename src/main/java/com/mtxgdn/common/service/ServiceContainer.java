@@ -14,6 +14,7 @@ package com.mtxgdn.common.service;
  */
 
 
+import com.mtxgdn.game.collection.CollectionService;
 import com.mtxgdn.game.service.*;
 import com.mtxgdn.minecraft.adapter.MinecraftPlayerBindingService;
 
@@ -60,6 +61,7 @@ public class ServiceContainer implements ServiceLookup {
     private volatile MinecraftPlayerBindingService mcBindingService;
     private volatile OfflineRewardService offlineRewardService;
     private volatile RedeemCodeService redeemCodeService;
+    private volatile CollectionService collectionService;
 
     public ServiceContainer() {
             com.mtxgdn.db.DatabaseManager.addReinitListener(reinitListener);
@@ -402,6 +404,18 @@ public class ServiceContainer implements ServiceLookup {
             }
         }
         return redeemCodeService;
+    }
+
+    @Override
+    public CollectionService getCollectionService() {
+        if (collectionService == null) {
+            synchronized (this) {
+                if (collectionService == null) {
+                    collectionService = new CollectionService(this);
+                }
+            }
+        }
+        return collectionService;
     }
 
     /**

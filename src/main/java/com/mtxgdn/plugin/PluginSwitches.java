@@ -73,7 +73,7 @@ public final class PluginSwitches {
             // 社交
             "chat", "friend", "rank", "search",
             // 移动 / 养成
-            "map", "team", "title", "player",
+            "map", "team", "title", "player", "collection",
             // 修炼 / 战斗
             "cultivation", "skill", "pvp", "world_boss", "inventory",
             // 经济 / 制造

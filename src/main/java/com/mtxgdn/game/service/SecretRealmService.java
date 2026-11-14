@@ -114,6 +114,8 @@ public class SecretRealmService implements SecretRealmApi {
         } catch (Exception ignored) {
         }
 
+        // 图鉴：进入过该秘境即解锁
+        com.mtxgdn.game.collection.CollectionHooks.secretRealmEntered(player.getId(), area.getFullKey());
         return result;
     }
 
@@ -698,6 +700,11 @@ public class SecretRealmService implements SecretRealmApi {
             result.setMessage("团队全军覆没");
         }
 
+        // 图鉴：参团进入秘境也解锁（记录在每人名下）
+        for (Player member : members) {
+            com.mtxgdn.game.collection.CollectionHooks.secretRealmEntered(
+                    member.getId(), area.getFullKey());
+        }
         services.getDailyService().onSecretRealm(leaderId);
         return result;
     }

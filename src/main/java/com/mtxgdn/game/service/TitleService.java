@@ -43,6 +43,8 @@ public class TitleService implements TitleApi {
 
         try {
             TITLE_DAO.grantTitle(playerId, titleKey);
+            // 图鉴：获得称号即解锁
+            com.mtxgdn.game.collection.CollectionHooks.titleGranted(playerId, titleKey);
             return TitleChangeResult.ok(
                     I18n.t("title.successfully_granted_title", title.getName()),
                     titleKey, title.getName());

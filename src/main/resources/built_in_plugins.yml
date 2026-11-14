@@ -37,6 +37,9 @@
 # 称号系统（成就、称号装备）
 # title: true
 
+# 全图鉴（收集物品/称号/功法等，逐条解锁发奖励）
+# collection: true
+
 # 功法系统（功法学习、装备、升级）
 # technique: true
 

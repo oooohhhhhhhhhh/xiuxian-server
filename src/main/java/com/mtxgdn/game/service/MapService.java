@@ -713,6 +713,8 @@ public class MapService implements MapApi {
 
         // 首次抵达的奖励与解锁提示附在移动结果里：玩家刚走到就该看到，不必再敲一次指令
         String firstVisit = recordFirstVisitRewarding(playerId, targetLocationId, true);
+        // 图鉴：到达过的地图地点即解锁
+        com.mtxgdn.game.collection.CollectionHooks.locationVisited(playerId, targetLocationId);
         String message = I18n.t("map.travel_arrived", player.getName(), current.getName(),
                 target.getName(), target.getDescription());
         if (firstVisit != null) {
@@ -788,6 +790,7 @@ public class MapService implements MapApi {
 
         executeTravel(playerId, targetLocationId);
         String firstVisit = recordFirstVisitRewarding(playerId, targetLocationId, false);
+        com.mtxgdn.game.collection.CollectionHooks.locationVisited(playerId, targetLocationId);
         String message = I18n.t("map.the_talisman_turns_into", target.getName());
         if (firstVisit != null) {
             message = message + "\n" + firstVisit;
@@ -1314,6 +1317,7 @@ public class MapService implements MapApi {
             return TravelResult.rejected(I18n.t("map.your_position_was_just_changed"));
         }
 
+        com.mtxgdn.game.collection.CollectionHooks.locationVisited(playerId, targetLocationId);
         return TravelResult.teleportedByUnlock(
                 I18n.t("map.teleported_to_consuming_spirit_stones",
                         target.getName(), cost, target.getDescription()),

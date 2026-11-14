@@ -1,0 +1,9 @@
+# ========================================
+#  全图鉴：收集物品/称号/功法等，逐条解锁并发奖励
+# ========================================
+# 插件：com.mtxgdn.plugin.builtin.CollectionPlugin
+# 开关：enabled（等价于旧 plugins.yml 的 plugins.collection）
+#
+# 本插件只有开关；每条图鉴奖励在 config/collection.yml 里配置。
+
+enabled: true

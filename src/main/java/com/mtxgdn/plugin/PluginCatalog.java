@@ -4,6 +4,7 @@ import com.mtxgdn.plugin.builtin.AdapterChannelPlugin;
 import com.mtxgdn.plugin.builtin.BuffPlugin;
 import com.mtxgdn.plugin.builtin.CavePlugin;
 import com.mtxgdn.plugin.builtin.ChatPlugin;
+import com.mtxgdn.plugin.builtin.CollectionPlugin;
 import com.mtxgdn.plugin.builtin.CraftingPlugin;
 import com.mtxgdn.plugin.builtin.CultivationPlugin;
 import com.mtxgdn.plugin.builtin.EconomyPlugin;
@@ -73,6 +74,7 @@ public final class PluginCatalog {
         plugins.add(new TeamPlugin());
         plugins.add(new TitlePlugin());
         plugins.add(new PlayerPlugin());
+        plugins.add(new CollectionPlugin());
 
         // ---- 修炼/战斗玩法模块 ----
         plugins.add(new CultivationPlugin());

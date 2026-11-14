@@ -76,7 +76,10 @@ class ServiceInjectionMigrationTest {
             "com/mtxgdn/plugin/builtin/SectQueryProvider.java",
             // 语言解析 / 探索事件：无实例上下文的静态工具
             "com/mtxgdn/i18n/LanguageResolver.java",
-            "data/mtxgdn/explorationevent/MonsterEvent.java");
+            "data/mtxgdn/explorationevent/MonsterEvent.java",
+            // 图鉴 hook：散布在 8 个业务服务里的纯旁路探针，拿不到 ServiceLookup，
+            // 失败必须被吞掉、绝不能影响主玩法，因此允许取全局容器
+            "com/mtxgdn/game/collection/CollectionHooks.java");
 
     @Test
     @DisplayName("静态门面只剩 container/install/reset 三个方法")

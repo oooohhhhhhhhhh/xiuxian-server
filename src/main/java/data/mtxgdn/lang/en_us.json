@@ -1512,6 +1512,8 @@
   "equip.unequip_broken": "Your {0} is broken and cannot be unequipped. Repair it first (/修理).",
   "cmd.repair.desc": "Repair equipment durability",
   "cmd.repair.usage": "/修理 - Show durability and repair costs\n/修理 武器|护甲|饰品|全部 - Repair now",
+  "cmd.collection.desc": "Collection atlas: unlock entries for items/titles/techniques and earn rewards",
+  "cmd.collection.usage": "/图鉴 - Overview and progress\n/图鉴 查看 <category> [page] - Entries of a category\n/图鉴 奖励 - Reward configuration",
   "sect.not_in_sect": "You are not in a sect",
   "sect.treasury_panel_title": "===== Sect Treasury =====",
   "sect.treasury_balance": "Treasury: {0} Spirit Stones",

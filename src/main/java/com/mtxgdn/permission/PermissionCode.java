@@ -32,6 +32,7 @@ public enum PermissionCode {
     GAME_SECT_DONATE("game.sect.donate", "宗门捐献", "游戏功能"),
     GAME_SECT_WAREHOUSE("game.sect.warehouse", "宗门仓库", "游戏功能"),
     GAME_CAVE_MANAGE("game.cave.manage", "洞府管理", "游戏功能"),
+    GAME_COLLECTION_VIEW("game.collection.view", "查看图鉴", "游戏功能"),
 
     GAME_DAILY("game.daily", "每日系统", "游戏功能"),
     GAME_MARKET_VIEW("game.market.view", "查看坊市", "游戏功能"),

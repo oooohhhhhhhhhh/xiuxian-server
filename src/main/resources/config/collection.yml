@@ -1,0 +1,82 @@
+# ========================================
+#  全图鉴奖励配置
+# ========================================
+# 功能：玩家收集到的每一样东西（物品/称号/功法/技能/秘境/游历事件/地图地点/配方）
+#       都会在图鉴里解锁一条记录，并立刻发放该条目的奖励；
+#       一个分类全部集齐后，再发一次"集齐奖励"。
+#
+# 加载方：com.mtxgdn.game.collection.CollectionConfig
+# 结构：
+#   categories:      分类开关（false = 该分类不再记录、不再发奖；已记录数据保留）
+#   default_reward:  全局兜底奖励（可选）
+#   rewards:         按分类覆盖：default（每条默认）/ completion（集齐）/ entries（单条覆盖）
+#
+# 奖励字段（全部可选，数字不能为负）：
+#   gold: 金币          spirit_stones: 灵石（下品）
+#   exp: 修为           items: { 物品key: 数量 }
+#
+# 取值优先级（高 → 低）：单条覆盖 > 分类默认 > 全局默认 > 代码内置默认。
+# 显式写 `{}` 表示"这条不发奖"，与"没配置"不同。
+# 改完文件无需重启：下一次读取自动生效（按文件指纹判断）。
+
+categories:
+  item: true
+  title: true
+  technique: true
+  skill: true
+  secret_realm: true
+  exploration_event: true
+  map_location: true
+  recipe: true
+
+# 全局兜底（注释掉则用代码内置默认：各分类的解锁/集齐奖励见下方 rewards 段的注释）
+# default_reward:
+#   gold: 0
+# default_completion_reward:
+#   gold: 0
+
+rewards:
+  # 物品：每解锁一种物品给一点金币；集齐全部物品给一份大奖
+  item:
+    default: { gold: 50 }
+    completion: { gold: 20000, items: { "mtxgdn:cultivation_elixir": 3 } }
+
+  # 称号：称号本身稀有，给的金币/灵石更高
+  title:
+    default: { gold: 1000, spirit_stones: 10 }
+    completion: { gold: 100000, spirit_stones: 500 }
+
+  # 功法
+  technique:
+    default: { gold: 500 }
+    completion: { gold: 10000 }
+
+  # 技能
+  skill:
+    default: { gold: 300 }
+    completion: { gold: 8000 }
+
+  # 秘境：额外给修为
+  secret_realm:
+    default: { gold: 800, exp: 200 }
+    completion: { gold: 20000, exp: 5000 }
+
+  # 游历事件
+  exploration_event:
+    default: { gold: 300 }
+    completion: { gold: 15000 }
+
+  # 地图地点
+  map_location:
+    default: { gold: 200 }
+    completion: { gold: 10000 }
+
+  # 配方
+  recipe:
+    default: { gold: 400 }
+    completion: { gold: 12000 }
+
+  # 单条覆盖示例（key 见游戏内 /图鉴 分类列表；物品用 mtxgdn:xxx，称号用 titleKey）：
+  # title:
+  #   entries:
+  #     arena_champion: { gold: 5000, spirit_stones: 50 }

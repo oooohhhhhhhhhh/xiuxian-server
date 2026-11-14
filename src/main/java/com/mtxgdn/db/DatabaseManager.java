@@ -467,6 +467,7 @@ public class DatabaseManager {
             stmt.execute(DatabaseSchema.createPlayerBankTable(pk, tsDefault, tsUpdate));
             stmt.execute(DatabaseSchema.createAuctionListingsTable(pk, tsDefault, tsUpdate));
             stmt.execute(DatabaseSchema.createAuctionBidsTable(pk, tsDefault));
+            stmt.execute(DatabaseSchema.createPlayerCollectionTable(pk, tsDefault, DIALECT));
             stmt.execute(DatabaseSchema.createPlayerEnergyTable(pk, DIALECT));
             stmt.execute(DatabaseSchema.createPlayerTitlesTable(pk, tsDefault, boolType, DIALECT));
             // V4 修复：JWT 吊销名单持久化表（登出后重启不复活）
@@ -507,6 +508,7 @@ public class DatabaseManager {
             createIndexQuietly(stmt, DatabaseSchema.createPlayerActionLogsUserIndex());
             createIndexQuietly(stmt, DatabaseSchema.createPlayerActionLogsQqIndex());
             createIndexQuietly(stmt, DatabaseSchema.createPlayerItemDurabilityPlayerIndex());
+            createIndexQuietly(stmt, DatabaseSchema.createPlayerCollectionPlayerIndex());
 
             logger.info("所有数据库表创建完成");
         } catch (SQLException e) {
@@ -544,7 +546,7 @@ public class DatabaseManager {
             "sect_members", "sect_applications", "sect_warehouse", "sects", "player_energy",
             "players", "player_buffs", "farm_plots", "player_economy", "player_bank",
             "auction_listings", "auction_bids", "player_titles", "caves", "formations",
-            "redeemed_codes", "sect_wars", "player_item_durability"
+            "redeemed_codes", "sect_wars", "player_item_durability", "player_collection"
     };
 
     public static Map<String, Integer> clearPlayerData() {
@@ -649,7 +651,9 @@ public class DatabaseManager {
         "user_permissions", "schema_migrations",
         // OAuth 第三方授权记录表。新增表的教训见上面那段注释 ——
         // 建表语句和这份白名单必须同步，否则备份/还原会把它当"非法表名"拒掉。
-        "oauth_grants"
+        "oauth_grants",
+        // 全图鉴解锁记录表
+        "player_collection"
     );
 
     /** 表名白名单缓存（避免每次校验都查库） */

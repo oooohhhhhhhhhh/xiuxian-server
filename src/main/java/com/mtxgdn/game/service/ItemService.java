@@ -95,6 +95,8 @@ public class ItemService implements ItemApi {
         boolean ok = ITEM_DAO.addItem(playerId, resolvedKey, quantity);
         if (ok) {
             com.mtxgdn.playerdata.PlayerDataService.markDirty(playerId);
+            // 图鉴：拿到新物品即解锁（失败只记日志，不影响入包）
+            com.mtxgdn.game.collection.CollectionHooks.itemObtained(playerId, resolvedKey);
         }
         return ok;
     }
@@ -105,7 +107,12 @@ public class ItemService implements ItemApi {
     public boolean addItem(Connection conn, long playerId, String itemKey, long quantity) throws SQLException {
         String resolvedKey = validateAddParams(itemKey, quantity);
         checkCapacity(conn, playerId, resolvedKey);
-        return ITEM_DAO.addItem(conn, playerId, resolvedKey, quantity);
+        boolean added = ITEM_DAO.addItem(conn, playerId, resolvedKey, quantity);
+        if (added) {
+            // 事务内路径（掉落/交易/炼制……）：解锁与发奖走同一条连接，随主事务提交
+            com.mtxgdn.game.collection.CollectionHooks.itemObtained(conn, playerId, resolvedKey);
+        }
+        return added;
     }
 
     private String validateAddParams(String itemKey, long quantity) {

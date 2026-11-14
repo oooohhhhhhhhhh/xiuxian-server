@@ -132,6 +132,9 @@ public class CraftingService implements CraftingApi {
 
                     int actualQuantity = recipe.getResultQuantity() * bonusMultiplier;
                     itemService.addItem(conn, playerId, recipe.getResultItemKey(), actualQuantity);
+                    // 图鉴：首次炼成配方便解锁（与炼制同一事务）
+                    com.mtxgdn.game.collection.CollectionHooks.recipeCrafted(
+                            conn, playerId, recipe.getName());
 
                     long expGain = recipe.getMinExpGain() + random.nextLong(recipe.getMaxExpGain() - recipe.getMinExpGain() + 1);
                     expGain = (long) (expGain * (1 + recipe.getQualityBonusRate() * (bonusMultiplier - 1)));

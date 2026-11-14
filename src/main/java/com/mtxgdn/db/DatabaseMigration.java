@@ -118,6 +118,8 @@ public class DatabaseMigration {
         steps.add(new Step("026_caves_last_meditate", "洞府冥想冷却列", this::addCavesLastMeditateColumn));
         steps.add(new Step("027_players_equipment_slot_normalize",
                 "装备栏位规范化为 weapon/armor/accessory", this::normalizeEquipmentSlots));
+        steps.add(new Step("028_player_collection_table",
+                "全图鉴解锁记录表", this::createPlayerCollectionTable));
         return steps;
     }
 
@@ -491,6 +493,29 @@ public class DatabaseMigration {
         tryAlter(stmt, "ALTER TABLE recipes ADD COLUMN high_quality_rate DOUBLE DEFAULT 0");
         tryAlter(stmt, "ALTER TABLE recipes ADD COLUMN max_quality_rate DOUBLE DEFAULT 0");
         tryAlter(stmt, "ALTER TABLE recipes ADD COLUMN quality_bonus_rate DOUBLE DEFAULT 0");
+    }
+
+    /** 图鉴解锁记录表（新装由 DatabaseSchema 建，升级上来的库靠这一步补）。 */
+    private void createPlayerCollectionTable(Statement stmt) throws SQLException {
+        String sql = "CREATE TABLE IF NOT EXISTS player_collection (" +
+                "id " + dialect.getPkDefinition() + ", " +
+                "player_id BIGINT NOT NULL, " +
+                "category VARCHAR(32) NOT NULL, " +
+                "entry_key VARCHAR(160) NOT NULL, " +
+                "unlocked_at " + dialect.getTimestampDefault() + ", " +
+                "reward_granted INT DEFAULT 1" +
+                (dialect.supportsForeignKeysInCreateTable()
+                        ? ", FOREIGN KEY (player_id) REFERENCES players(id) ON DELETE CASCADE"
+                        : "") +
+                ", UNIQUE (player_id, category, entry_key)" +
+                ")";
+        stmt.execute(sql);
+        try {
+            stmt.execute("CREATE INDEX IF NOT EXISTS idx_player_collection_player "
+                    + "ON player_collection (player_id, category)");
+        } catch (SQLException e) {
+            System.err.println("[DB] 创建图鉴索引失败（不影响启动）: " + e.getMessage());
+        }
     }
 
     private void createPlayerBuffsTable(Statement stmt) throws SQLException {

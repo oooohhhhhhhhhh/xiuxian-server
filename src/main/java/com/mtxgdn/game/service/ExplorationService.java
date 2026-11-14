@@ -181,6 +181,9 @@ public class ExplorationService implements ExplorationApi {
         }
 
         services.getDailyService().onExplore(player.getId(), result.getEventType());
+        // 图鉴：遭遇过的游历事件即解锁
+        com.mtxgdn.game.collection.CollectionHooks.explorationEventHappened(
+                player.getId(), event.getFullKey());
 
         // 插件事件：游历结束
         com.mtxgdn.plugin.event.PluginEventManager.fireQuietly(

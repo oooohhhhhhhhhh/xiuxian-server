@@ -48,7 +48,8 @@ class BuiltInModuleSetTest {
             {"economy", "com.mtxgdn.plugin.builtin.EconomyPlugin"},
             {"rank", "com.mtxgdn.plugin.builtin.RankPlugin"},
             {"search", "com.mtxgdn.plugin.builtin.SearchPlugin"},
-            {"player", "com.mtxgdn.plugin.builtin.PlayerPlugin"}
+            {"player", "com.mtxgdn.plugin.builtin.PlayerPlugin"},
+            {"collection", "com.mtxgdn.plugin.builtin.CollectionPlugin"}
     };
 
     /** 实验性插件：从玩法模块里拆出来单独登记，开关独立、默认值由插件声明。 */
@@ -111,8 +112,8 @@ class BuiltInModuleSetTest {
             assertEquals(plugin.getDefaultEnabled(), Boolean.parseBoolean(raw),
                     "模板默认值必须与插件的 getDefaultEnabled() 一致: " + plugin.getName());
         }
-        assertEquals(25 + EXPERIMENTAL_PLUGINS.length + 4, names.size(),
-                "PluginCatalog 应覆盖 25 个玩法模块 + 2 个实验性插件 + 4 个消息通道适配器");
+        assertEquals(26 + EXPERIMENTAL_PLUGINS.length + 4, names.size(),
+                "PluginCatalog 应覆盖 26 个玩法模块 + 2 个实验性插件 + 4 个消息通道适配器");
     }
 
     /** 校验插件类名、注册名与配置键一致。 */

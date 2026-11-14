@@ -33,6 +33,7 @@ plugins:
   team: true                   # 团队系统（创建团队、组队副本）
   title: true                  # 称号系统（成就、称号装备）
   player: true                 # 角色系统（状态、疗伤、灵根）
+  collection: true             # 全图鉴（收集物品/称号/功法等，逐条解锁发奖励）
 
   # ---- 修炼/战斗玩法模块 ----
   cultivation: true            # 修炼系统（打坐、突破、转世、天象、晨修）

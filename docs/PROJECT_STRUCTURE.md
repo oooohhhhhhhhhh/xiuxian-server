@@ -375,14 +375,14 @@
 | `PluginSwitches.java` | 344 | 插件开关配置：独立文件 `config/plugins.yml`，含模板释放与旧键迁移 `migrateLegacyKeys()` |
 | `BuiltInPluginRegistry.java` | 280 | 内置插件注册表：注册、`init()`、`enableAll()`、`disableAll()`、运行时单模块启停、`isEnabledOrUnknown()` 门控判定 |
 | `PluginMaker.java` | 201 | 插件生成器：按内置模板生成可编译的插件项目骨架（CLI 入口 `--plugin-make`） |
-| `PluginCatalog.java` | 108 | **内置插件清单唯一登记处**：25 个稳定玩法模块 + 2 个实验性插件 + 4 个消息通道适配器 |
+| `PluginCatalog.java` | 109 | **内置插件清单唯一登记处**：26 个稳定玩法模块 + 2 个实验性插件 + 4 个消息通道适配器 |
 | `PluginInfo.java` | 27 | 插件元数据（由 `plugin.json` 或 `@PluginMeta` 解析） |
 | `PluginMeta.java` | 24 | 主类注解式元数据声明 |
 | `PluginClassLoader.java` | 59 | 插件专用 `URLClassLoader` |
 | `BuiltInPlugin.java` | 37 | 内置插件基类（jar 内玩法模块继承此类） |
 | `PluginMakerSelfTest.java` | 81 | 插件模板加载/替换的独立自测程序（不依赖 Grizzly） |
 
-**`com/mtxgdn/plugin/builtin`（26）— 25 个玩法模块 + 适配器通道**
+**`com/mtxgdn/plugin/builtin`（27）— 26 个玩法模块 + 适配器通道**
 
 每个玩法模块约 31 行，职责为「声明模块名 + 默认开关 + 绑定的服务/指令集合」：
 
@@ -402,6 +402,7 @@
 | `TeamPlugin.java` | `team` | 团队系统 |
 | `TitlePlugin.java` | `title` | 称号系统 |
 | `PlayerPlugin.java` | `player` | 角色基础 |
+| `CollectionPlugin.java` | `collection` | 全图鉴（收集物品/称号/功法等，逐条解锁发奖） |
 | `CultivationPlugin.java` | `cultivation` | 修炼/突破/转世/天象 |
 | `SkillPlugin.java` | `skill` | 技能系统 |
 | `PvpPlugin.java` | `pvp` | 战斗系统 |
@@ -1095,6 +1096,7 @@ HTTP 侧由 `UnifiedRestResource`（`/game/{path:.*}`）把同一批 `RouteDefin
 | `team` | `TeamPlugin` | ✅ | `team` |
 | `title` | `TitlePlugin` | ✅ | `title` |
 | `player` | `PlayerPlugin` | ✅ | `player` |
+| `collection` | `CollectionPlugin` | ✅ | `collection` |
 | `cultivation` | `CultivationPlugin` | ✅ | `cultivation` |
 | `skill` | `SkillPlugin` | ✅ | `skill` |
 | `pvp` | `PvpPlugin` | ✅ | `pvp` |
