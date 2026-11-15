@@ -437,6 +437,25 @@ public class CollectionService {
     }
 
     /** 分类默认奖励与集齐奖励（指令展示用）。 */
+    /**
+     * 把一份奖励渲染成玩家可读的单行文本：物品 key 会转成物品显示名。
+     *
+     * <p>未注册的物品 key 原样显示（配置写错时要能一眼看出是哪个 key 有问题）。</p>
+     */
+    public String describeReward(CollectionReward reward) {
+        if (reward == null) {
+            return "无";
+        }
+        return reward.describe(key -> {
+            try {
+                com.mtxgdn.game.item.Item item = com.mtxgdn.game.item.ItemRegistry.get(key);
+                return item == null ? key : item.getName();
+            } catch (RuntimeException e) {
+                return key;
+            }
+        });
+    }
+
     public Map<CollectionCategory, List<CollectionReward>> rewardOverview() {
         Map<CollectionCategory, List<CollectionReward>> result = new LinkedHashMap<>();
         for (CollectionCategory category : enabledCategories()) {

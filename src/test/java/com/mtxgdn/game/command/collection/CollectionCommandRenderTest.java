@@ -26,6 +26,10 @@ class CollectionCommandRenderTest extends TestBase {
 
     @BeforeAll
     static void createCharacter() {
+        // 图鉴的「全集」取自各注册表；不扫描物品的话物品图鉴是空的，
+        // 奖励里的物品 key 也没法转成显示名（会回落成 mtxgdn:xxx）。
+        com.mtxgdn.game.item.ItemScanner.scanAndRegister();
+
         PlayerService playerService = ServiceRegistry.container().getPlayerService();
         long userId = DatabaseManager.insertRow("users", java.util.Map.of(
                 "username", "collection_render_user",
@@ -95,7 +99,9 @@ class CollectionCommandRenderTest extends TestBase {
     void rewards() {
         String out = render("奖励");
         assertTrue(out.contains("图鉴奖励"), out);
-        assertTrue(out.contains("每条"), out);
-        assertTrue(out.contains("集齐"), out);
+        assertTrue(out.contains("解锁一条"), out);
+        assertTrue(out.contains("集齐全部"), out);
+        // 玩家不该在指令输出里看到 mtxgdn:xxx 这种内部物品 key
+        assertFalse(out.contains("mtxgdn:"), out);
     }
 }

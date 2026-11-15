@@ -126,14 +126,28 @@ class CollectionConfigTest {
     }
 
     @Test
-    @DisplayName("奖励描述文本便于指令展示")
+    @DisplayName("奖励描述文本便于指令展示（无名字解析时回落成物品 key）")
     void describe() {
         CollectionReward reward = new CollectionReward(100, 5, 0,
                 Map.of("mtxgdn:healing_pill", 2L));
         String text = reward.describe();
         assertTrue(text.contains("金币 +100"), text);
-        assertTrue(text.contains("灵石 +5"), text);
+        assertTrue(text.contains("下品灵石 +5"), text);
         assertTrue(text.contains("mtxgdn:healing_pill ×2"), text);
         assertEquals("无", CollectionReward.EMPTY.describe());
+    }
+
+    @Test
+    @DisplayName("奖励描述里物品 key 会换成物品显示名")
+    void describeResolvesItemNames() {
+        CollectionReward reward = new CollectionReward(0, 0, 0,
+                Map.of("mtxgdn:cultivation_elixir", 3L));
+        // 玩家不该看到 mtxgdn:cultivation_elixir 这种内部 key
+        assertEquals("修炼丹 ×3", reward.describe(key -> "修炼丹"));
+        // 解析不到（返回 null / 抛异常）时回落成 key，方便排查配置写错
+        assertEquals("mtxgdn:cultivation_elixir ×3", reward.describe(key -> null));
+        assertEquals("mtxgdn:cultivation_elixir ×3", reward.describe(key -> {
+            throw new IllegalStateException("boom");
+        }));
     }
 }

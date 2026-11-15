@@ -156,8 +156,8 @@ public class CollectionCommand extends Command {
             CollectionReward perEntry = list.isEmpty() ? CollectionReward.EMPTY : list.get(0);
             CollectionReward completion = list.size() > 1 ? list.get(1) : CollectionReward.EMPTY;
             sb.append("▍").append(category.getDisplayName()).append('\n');
-            sb.append("  每条: ").append(perEntry.describe()).append('\n');
-            sb.append("  集齐: ").append(completion.describe()).append('\n');
+            sb.append("  解锁一条: ").append(service.describeReward(perEntry)).append('\n');
+            sb.append("  集齐全部: ").append(service.describeReward(completion)).append('\n');
         });
         sb.append("（奖励在 config/collection.yml 里逐分类/逐条配置）");
         return sb.toString();

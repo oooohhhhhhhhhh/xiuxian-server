@@ -3,6 +3,7 @@ package com.mtxgdn.game.collection;
 import java.util.Collections;
 import java.util.LinkedHashMap;
 import java.util.Map;
+import java.util.function.Function;
 
 /**
  * 一次图鉴解锁发放的奖励。
@@ -43,20 +44,42 @@ public record CollectionReward(long gold,
                 merged);
     }
 
-    /** 给玩家看的单行描述，例如「金币 +1000、灵石 +10、物品 mtxgdn:healing_pill ×2」。 */
+    /** 给玩家看的单行描述（物品名回落成 key），例如「金币 +1000、下品灵石 +10、回血丹 ×2」。 */
     public String describe() {
+        return describe(key -> key);
+    }
+
+    /**
+     * 给玩家看的单行描述，物品 key 交给 {@code itemNamer} 转成显示名。
+     *
+     * <p>为什么不在这里直接查 {@code ItemRegistry}：本类是纯值对象（配置解析与测试都用它），
+     * 让它可以脱离物品注册表单独构造；名字解析由服务层通过 {@code itemNamer} 注入。</p>
+     */
+    public String describe(Function<String, String> itemNamer) {
         if (isEmpty()) {
             return "无";
         }
         StringBuilder sb = new StringBuilder();
         append(sb, "金币", gold);
-        append(sb, "灵石", spiritStones);
+        append(sb, "下品灵石", spiritStones);
         append(sb, "修为", exp);
         for (Map.Entry<String, Long> entry : items.entrySet()) {
             if (sb.length() > 0) {
                 sb.append("、");
             }
-            sb.append(entry.getKey()).append(" ×").append(entry.getValue());
+            String key = entry.getKey();
+            String name = key;
+            if (itemNamer != null) {
+                try {
+                    String resolved = itemNamer.apply(key);
+                    if (resolved != null && !resolved.isBlank()) {
+                        name = resolved;
+                    }
+                } catch (RuntimeException ignored) {
+                    // 名字解析失败不影响展示，回落成 key
+                }
+            }
+            sb.append(name).append(" ×").append(entry.getValue());
         }
         return sb.toString();
     }
