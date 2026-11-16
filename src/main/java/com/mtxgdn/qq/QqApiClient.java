@@ -121,8 +121,15 @@ final class QqApiClient {
 
     /**
      * 调用 QQ 开放平台 HTTP API。
+     *
+     * @return {@code true} 仅当平台返回 2xx。
+     *         <p><b>为什么要有返回值</b>：新申请的机器人常常没有单聊（C2C）权限，
+     *         发往 {@code /v2/users/{openid}/messages} 的请求会被平台以 4xx 拒绝。
+     *         账号流程需要据此判断"私聊这条路走不通"，改在来源会话发一次性网页链接 ——
+     *         返回值一直吞掉的话，玩家就只会看到一个永远没有下文的提示。
+     *         原有调用点忽略返回值，行为不变。</p>
      */
-    void postApi(String path, JsonObject body) {
+    boolean postApi(String path, JsonObject body) {
         try {
             String token = getAccessToken();
             HttpRequest req = HttpRequest.newBuilder()
@@ -139,10 +146,17 @@ final class QqApiClient {
                     botLog.logSystem("群消息发送失败（HTTP " + resp.statusCode() + "）："
                             + "群聊仅支持 @ 机器人后 5 分钟内的被动回复（需携带 msg_seq），"
                             + "超出窗口或需主动推送请到 QQ 开放平台申请「主动消息」权限。");
+                } else if (path.contains("/users/") && path.endsWith("/messages")) {
+                    botLog.logSystem("单聊消息发送失败（HTTP " + resp.statusCode() + "）："
+                            + "本机器人可能没有单聊权限（新创建的官方机器人默认只有群聊），"
+                            + "账号流程将改为在群里发网页绑定链接。");
                 }
+                return false;
             }
+            return true;
         } catch (Exception e) {
             log.error("QQ API 调用异常 [" + path + "]: " + e.getMessage(), e);
+            return false;
         }
     }
 }

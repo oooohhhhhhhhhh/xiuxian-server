@@ -72,15 +72,7 @@ public class Auth extends BaseResource {
      * 因此取 XFF 的<b>最后一段</b>而非第一段（第一段由客户端完全可控）。
      */
     private String clientBucket(org.glassfish.grizzly.http.server.Request grizzlyReq) {
-        if (AppConfig.getBoolean("security.trust_proxy_headers", false)) {
-            String fwd = requestContext.getHeaderString("X-Forwarded-For");
-            if (fwd != null && !fwd.isBlank()) {
-                String[] hops = fwd.split(",");
-                // 最后一跳由可信反代写入，客户端无法伪造
-                return hops[hops.length - 1].trim();
-            }
-        }
-        return remoteAddress(grizzlyReq);
+        return ClientIp.bucket(requestContext, grizzlyReq);
     }
 
     /**
@@ -95,25 +87,7 @@ public class Auth extends BaseResource {
      * {@link org.glassfish.grizzly.http.server.Request}（GrizzlyBinder 以 RequestScoped 绑定）。</p>
      */
     private String remoteAddress(org.glassfish.grizzly.http.server.Request grizzlyReq) {
-        String remote = null;
-        if (grizzlyReq != null) {
-            try {
-                remote = grizzlyReq.getRemoteAddr();
-            } catch (Throwable ignored) {
-                // 落到下面的属性表兜底
-            }
-        }
-        if (remote == null) {
-            try {
-                Object addr = requestContext.getProperty("org.glassfish.grizzly.http.server.Request");
-                if (addr instanceof org.glassfish.grizzly.http.server.Request req) {
-                    remote = req.getRemoteAddr();
-                }
-            } catch (Throwable ignored) {
-                // 非 Grizzly 容器或属性不可用时走回退
-            }
-        }
-        return (remote != null && !remote.isBlank()) ? remote : "global";
+        return ClientIp.remoteAddress(requestContext, grizzlyReq);
     }
 
     /**

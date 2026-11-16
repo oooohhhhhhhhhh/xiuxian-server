@@ -43,8 +43,11 @@ import static com.mtxgdn.qq.QqSupport.log;
  * </ul>
  *
  * <p>本类不判断"该不该发"（那是路由与账号流程的事），只负责"怎么发出去"。</p>
+ *
+ * <p>非 final：测试需要用 Mockito 替换它来模拟"私聊发不出去"（新机器人没有 C2C 权限），
+ * 包私有类去掉 final 不影响任何外部契约。</p>
  */
-final class QqMessageSender {
+class QqMessageSender {
 
     private final QqApiClient api;
 
@@ -132,8 +135,38 @@ final class QqMessageSender {
         }
     }
 
+    /**
+     * 同 {@link #replyToSource}，但把"到底发出去没有"带回来。
+     *
+     * <p>账号流程需要它：单聊这条路在未开通 C2C 权限的机器人上会静默失败，
+     * 此时必须改在来源会话发一次性网页链接。没有返回值就只能"发完当作成功"，
+     * 玩家看到的是一条永远不会有下文的提示。</p>
+     */
+    boolean replyToSourceResult(OneBotSession session, String selfId, String senderQq,
+                                Long groupId, String message) {
+        if (groupId != null) {
+            String groupOpenid = openidByGroupId.get(groupId);
+            if (groupOpenid == null) {
+                log.warn("未知群ID: " + groupId + "，无法发送群消息");
+                return false;
+            }
+            return sendGroupMessage(groupOpenid, message);
+        }
+        return sendPrivateMsgResult(senderQq, message);
+    }
+
     void sendPrivateMsg(OneBotSession session, String selfId, String targetQq, String message) {
         sendC2cMessage(targetQq, message);
+    }
+
+    /**
+     * 发单聊并返回是否成功（未开通单聊权限时为 {@code false}）。
+     *
+     * <p>刻意不接收 {@code session}/{@code selfId}：官方通道的发送不需要它们，
+     * 原来的参数只是为了对齐 OneBot 的接口签名。</p>
+     */
+    boolean sendPrivateMsgResult(String targetQq, String message) {
+        return sendC2cMessage(targetQq, message);
     }
 
     void sendGroupMsg(OneBotSession session, String selfId, Long groupId, String message) {
@@ -147,38 +180,49 @@ final class QqMessageSender {
 
     /**
      * 发送单聊（C2C）消息。被动回复窗口（60 分钟）内携带 msg_id。
+     *
+     * @return 全部片段都发出（2xx）才为 {@code true}；没有 token / openid 为空、
+     *         或平台拒绝（常见于机器人没开通单聊权限）时为 {@code false}
      */
-    private void sendC2cMessage(String openid, String message) {
-        if (openid == null || openid.isEmpty()) return;
+    private boolean sendC2cMessage(String openid, String message) {
+        if (openid == null || openid.isEmpty()) return false;
         String token = api.getAccessToken();
-        if (token.isEmpty()) return;
+        if (token.isEmpty()) return false;
 
         for (String chunk : splitMessage(message)) {
             JsonObject body = new JsonObject();
             body.addProperty("content", chunk);
             body.addProperty("msg_type", 0);
             enrichC2cPassive(body, openid);
-            api.postApi("/v2/users/" + openid + "/messages", body);
             botLog.logSend(openid, gson.toJson(body));
+            if (!api.postApi("/v2/users/" + openid + "/messages", body)) {
+                return false;
+            }
         }
+        return true;
     }
 
     /**
      * 发送群聊消息。被动回复窗口（5 分钟）内携带 msg_id + msg_seq；无被动条件时明确告警。
+     *
+     * @return 全部片段都发出（2xx）才为 {@code true}
      */
-    private void sendGroupMessage(String groupOpenid, String message) {
-        if (groupOpenid == null || groupOpenid.isEmpty()) return;
+    private boolean sendGroupMessage(String groupOpenid, String message) {
+        if (groupOpenid == null || groupOpenid.isEmpty()) return false;
         String token = api.getAccessToken();
-        if (token.isEmpty()) return;
+        if (token.isEmpty()) return false;
 
         for (String chunk : splitMessage(message)) {
             JsonObject body = new JsonObject();
             body.addProperty("content", chunk);
             body.addProperty("msg_type", 0);
             enrichGroupPassive(body, groupOpenid);
-            api.postApi("/v2/groups/" + groupOpenid + "/messages", body);
             botLog.logSend("group:" + groupOpenid, gson.toJson(body));
+            if (!api.postApi("/v2/groups/" + groupOpenid + "/messages", body)) {
+                return false;
+            }
         }
+        return true;
     }
 
     /**

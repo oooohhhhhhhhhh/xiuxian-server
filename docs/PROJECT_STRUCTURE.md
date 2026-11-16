@@ -1053,7 +1053,7 @@ HTTP 侧由 `UnifiedRestResource`（`/game/{path:.*}`）把同一批 `RouteDefin
 | 段 | 关键项 |
 |---|---|
 | `app` | `name` |
-| `server` | `host`（默认 `127.0.0.1`）、`port`（8080） |
+| `server` | `host`（默认 `127.0.0.1`）、`port`（8080）、`public-url`（空 = 按 host 判断；QQ 官方机器人用它拼「网页绑定」一次性链接，回环/0.0.0.0 时网页方式不可用） |
 | `database` | `type`（`sqlite` 默认 / `mysql`）、`url`、`username`、`password`、`sqlite_path`（`xiuxian.db`）、`pool_max` |
 | `jwt` | `secret`（空 = 未安装，走安装向导） |
 | `season` | `mode`（`calendar` / `cycle`）、`cycle_hours`（6） |

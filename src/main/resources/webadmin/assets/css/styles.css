@@ -134,6 +134,14 @@ body {
 .login-error { color:var(--rd); font-size:13px; margin-top:14px; min-height:20px }
 .login-hint { color:var(--t4); font-size:12px; margin-top:18px; line-height:1.7 }
 
+/* QQ 绑定页：注册时角色名只读展示 */
+.qqbind-fixed-name {
+  margin: 0 0 16px; padding: 10px 14px; text-align:left;
+  background: var(--bg); border:1px solid var(--brd); border-radius: var(--r);
+  color: var(--t3); font-size: 13px
+}
+.qqbind-fixed-name strong { color: var(--t); margin-left: 4px }
+
 /* ===== 布局 ===== */
 .app { display:flex; flex:1; min-width:0 }
 .app.hidden { display:none }

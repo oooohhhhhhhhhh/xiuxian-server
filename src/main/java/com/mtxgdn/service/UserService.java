@@ -12,10 +12,9 @@ import jakarta.ws.rs.core.Response;
 import org.mindrot.jbcrypt.BCrypt;
 
 import java.sql.Timestamp;
-import java.util.Arrays;
-import java.util.List;
 import java.util.regex.Pattern;
 import com.mtxgdn.i18n.I18n;
+import com.mtxgdn.util.EmailRules;
 
 /**
  * 账号中心的业务逻辑：注册校验、BCrypt 哈希与校验、JWT 签发、登录锁定策略、
@@ -47,7 +46,6 @@ public class UserService {
     // 用户名格式：3-32字符，只允许字母、数字和下划线
     private static final Pattern USERNAME_PATTERN = Pattern.compile("^[a-zA-Z0-9_]{3,32}$");
     // 邮箱格式验证
-    private static final Pattern EMAIL_PATTERN = Pattern.compile("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$");
 
     public Response register(String username, String rawPassword, String email, String code) {
         if (username == null || username.trim().isEmpty()) {
@@ -90,11 +88,11 @@ public class UserService {
             }
             trimmedEmail = email.trim().toLowerCase();
 
-            if (!isValidEmail(trimmedEmail)) {
+            if (!EmailRules.isValidEmail(trimmedEmail)) {
                 return buildError(400, "邮箱格式不正确");
             }
 
-            if (!isAllowedEmailDomain(trimmedEmail)) {
+            if (!EmailRules.isAllowedEmailDomain(trimmedEmail)) {
                 return buildError(400, "不支持的邮箱类型");
             }
 
@@ -131,20 +129,6 @@ public class UserService {
         return Response.ok(GameMessage.restOk(I18n.t("auth.register_success"), data).toString()).build();
     }
 
-    private boolean isValidEmail(String email) {
-        return EMAIL_PATTERN.matcher(email).matches();
-    }
-
-    private boolean isAllowedEmailDomain(String email) {
-        String allowedDomains = AppConfig.get("verify_code.allowed_domains", "qq.com,163.com,126.com,gmail.com,outlook.com,hotmail.com");
-        List<String> domains = Arrays.asList(allowedDomains.split(","));
-        int atIndex = email.lastIndexOf('@');
-        if (atIndex <= 0 || atIndex >= email.length() - 1) {
-            return false;
-        }
-        String domain = email.substring(atIndex + 1).toLowerCase();
-        return domains.contains(domain);
-    }
 
     public Response login(String username, String rawPassword) {
         if (username == null || username.trim().isEmpty()) {

@@ -19,6 +19,7 @@ import * as oauthConsent from './modules/oauthConsent.js';
 import * as adapters from './modules/adapters.js';
 import * as plugins from './modules/plugins.js';
 import * as oauth from './modules/oauth.js';
+import * as qqbind from './modules/qqbind.js';
 
 window.app = {
   api,
@@ -42,7 +43,8 @@ window.app = {
     oauthConsent,
     adapters,
     plugins,
-    oauth
+    oauth,
+    qqbind
   },
   
   init() {
@@ -91,11 +93,18 @@ window.app = {
   }
 };
 
-// 页面加载：先尝试用已保存的 token 自动登录；否则停在登录界面
-if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', () => {
-    window.app.autoLogin();
-  });
-} else {
+// 页面加载：URL 带 qq_bind 时优先进入绑定页（玩家还没绑定账号，
+// 不能先落到登录框）；否则先尝试用已保存的 token 自动登录，否则停在登录界面
+function boot() {
+  if (qqbind.hasBindRequest()) {
+    qqbind.init();
+    return;
+  }
   window.app.autoLogin();
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', boot);
+} else {
+  boot();
 }

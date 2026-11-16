@@ -1541,5 +1541,17 @@
   "playerdata.restore_checksum_mismatch": "Snapshot verification failed: checksum or row count mismatch — the file may be corrupted, restore refused",
   "playerdata.restore_online": "This player is currently online. Restore refused to avoid overwriting in-progress data — have them log out and try again.",
   "playerdata.verify_ok": "Snapshot is intact — verification passed",
-  "playerdata.verify_legacy": "This file was exported by an older version and has no checksum; only its structure could be verified"
+  "playerdata.verify_legacy": "This file was exported by an older version and has no checksum; only its structure could be verified",
+  "auth.qq_bind.link_expired": "This link has expired. Please send /bind again in QQ",
+  "auth.qq_bind.email_disabled": "Email login is not enabled on this server",
+  "auth.qq_bind.bad_request": "Missing or invalid parameters",
+  "auth.qq_bind.rate_limited": "Too many attempts. Please try again later",
+  "auth.qq_bind.send_failed": "Failed to send the verification code. Please try again later",
+  "auth.qq_bind.code_sent": "Verification code sent (if the email is registered). Please check your inbox",
+  "auth.qq_bind.code_failed": "Incorrect or expired code, or the email is not linked to any account",
+  "auth.qq_bind.email_unlinked": "This email is not linked to any account",
+  "auth.qq_bind.password_failed": "Incorrect username or password",
+  "auth.qq_bind.conflict": "This account is already bound to another QQ identity: ",
+  "auth.qq_bind.success": "Bound successfully! Please return to the QQ bot to continue",
+  "auth.qq_bind.too_many_failures": "Too many failed attempts. This link is now invalid. Please send /bind again in QQ"
 }

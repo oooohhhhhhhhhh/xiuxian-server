@@ -273,13 +273,19 @@ class UserServiceDaoExtractionTest extends TestBase {
                 "MAX_FAILED_ATTEMPTS",
                 "LOCK_DURATION_MINUTES",
                 "USERNAME_PATTERN",
-                "EMAIL_PATTERN",
                 "verify_code.enabled",
                 "USER_DAO.")) {
             assertTrue(source.contains(anchor),
                     "服务层必须保留认证语义锚点 " + anchor + "：这次重构只搬数据访问，"
                             + "不许把判定规则搬进 DAO");
         }
+        // 邮箱规则已抽到 com.mtxgdn.util.EmailRules（UserService / QQ 聊天注册 / 网页注册共用一份），
+        // 服务层必须委托它，而不是自己再写一份正则；规则本身仍不许进 DAO。
+        assertTrue(source.contains("EmailRules.isValidEmail("),
+                "服务层必须委托 EmailRules 做邮箱校验（规则只有一份）");
+        String emailRules = stripComments(read(Paths.get("src/main/java/com/mtxgdn/util/EmailRules.java")));
+        assertTrue(emailRules.contains("EMAIL_PATTERN"),
+                "邮箱格式规则必须留在 EmailRules（不许搬进 DAO）");
 
         // 查重顺序是安全语义：用户名 → 邮箱 → 验证码，顺序变了错误码就会变
         int usernameCheck = source.indexOf("existsByUsername(");

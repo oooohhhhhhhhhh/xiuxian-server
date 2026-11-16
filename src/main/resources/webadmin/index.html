@@ -5,7 +5,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>修仙世界 · 管理后台</title>
-<link rel="stylesheet" href="assets/css/styles.css?v=2026072002">
+<link rel="stylesheet" href="assets/css/styles.css?v=2026111601">
 </head>
 <body>
 
@@ -30,6 +30,45 @@
     <button class="btn-login" onclick="window.app.login()">进 入 洞 府</button>
     <div class="login-error" id="loginError"></div>
     <div class="login-hint" id="loginHint">管理员可管理整个系统，玩家仅可查看自己的角色信息</div>
+  </div>
+</div>
+
+<div class="login-overlay" id="qqBindOverlay" style="display:none">
+  <div class="login-box">
+    <div class="logo">🔗</div>
+    <h2>修仙世界</h2>
+    <div class="subtitle" id="qqBindSubtitle">Q Q 账 号 绑 定</div>
+
+    <div class="login-type-switch" id="qqBindModeSwitch">
+      <label><input type="radio" name="qqBindMode" id="qqBindModePassword" value="password" checked> <span>密码登录</span></label>
+      <label><input type="radio" name="qqBindMode" id="qqBindModeEmail" value="email"> <span>邮箱验证码</span></label>
+    </div>
+
+    <div class="qqbind-fixed-name" id="qqBindFixedName" style="display:none">
+      角色名：<strong id="qqBindFixedNameValue"></strong>
+    </div>
+
+    <div class="input-group" id="qqBindUsernameGroup">
+      <span class="icon">👤</span>
+      <input id="qqBindUsr" placeholder="用户名" autocomplete="off">
+    </div>
+    <div class="input-group" id="qqBindPasswordGroup">
+      <span class="icon">🔒</span>
+      <input id="qqBindPwd" type="password" placeholder="密码">
+    </div>
+    <div class="input-group" id="qqBindEmailGroup" style="display:none">
+      <span class="icon">✉️</span>
+      <input id="qqBindEmail" placeholder="邮箱" autocomplete="off">
+    </div>
+    <div class="input-group" id="qqBindCodeGroup" style="display:none">
+      <span class="icon">🔢</span>
+      <input id="qqBindCode" placeholder="验证码" autocomplete="off">
+    </div>
+
+    <button class="btn-login" id="qqBindSendCodeBtn" style="display:none;margin-top:0;margin-bottom:10px;letter-spacing:2px">发 送 验 证 码</button>
+    <button class="btn-login" id="qqBindSubmitBtn">绑 定</button>
+    <div class="login-error" id="qqBindError"></div>
+    <div class="login-hint" id="qqBindHint">完成后回到 QQ 机器人即可继续游戏</div>
   </div>
 </div>
 

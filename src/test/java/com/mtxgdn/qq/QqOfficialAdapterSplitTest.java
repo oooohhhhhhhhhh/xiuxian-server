@@ -80,7 +80,7 @@ class QqOfficialAdapterSplitTest extends TestBase {
 
     /** 门面持有的协作对象字段：一个都不能漏接线，否则对应的一组方法会 NPE。 */
     private static final String[] DOMAIN_FIELDS = {
-            "ctx", "apiClient", "sender", "accountFlow", "router", "events", "gateway"
+            "ctx", "apiClient", "sender", "bindLink", "accountFlow", "router", "events", "gateway"
     };
 
     /**
@@ -207,19 +207,33 @@ class QqOfficialAdapterSplitTest extends TestBase {
         assertTrue(router.contains("isPrivateOnly()"),
                 "私聊专用指令在群里必须被拒（保护账号密码）");
 
-        String flow = stripComments(read(QQ_DIR.resolve("QqAccountFlow.java")));
-        assertTrue(flow.contains("\"qq_official_login_\" + username.toLowerCase()"),
-                "登录限流的 key 前缀不能变（改了等于把限流清零）");
-        assertTrue(flow.contains("RateLimiter.allow(rateLimitKey, 5, 60)"),
+        // 凭据校验策略（限流 / 锁定 / 失败计数 / BCrypt）已抽到 CredentialAuthService，
+        // 聊天与网页两条入口共用同一份实现 —— 否则"网页端被锁了、聊天端还能继续试"
+        // 就等于把锁定绕过去了。这里钉的是"策略还在、且只在那一处"。
+        Path credentialAuth = Paths.get("src/main/java/com/mtxgdn/identity/CredentialAuthService.java");
+        String cred = stripComments(read(credentialAuth));
+        assertTrue(cred.contains("rateLimitPrefix"),
+                "凭据校验必须按调用方给的前缀限流（聊天 qq_official_login_ / 网页 qq_web_login_）");
+        assertTrue(cred.contains("RateLimiter.allow(rateLimitKey, ATTEMPTS_PER_MINUTE, 60)")
+                        || cred.contains("RateLimiter.allow(rateLimitKey, 5, 60)"),
                 "同一用户名 5 次/分钟的登录限流不能丢");
-        // 锁定判定的 SQL 已进 UserServiceDAO（DAO 版多带 failed_attempts，判定逻辑不变），
-        // 但「先看 locked_until 有没有过期」这一步必须还在账号流程里。
-        assertTrue(flow.contains("getLockedUntil()"),
-                "账号锁定（连续 5 次错误锁 15 分钟）不能丢：过期判定要留在账号流程");
-        assertTrue(flow.contains("recordFailedAttempt("),
+        assertTrue(cred.contains("getLockedUntil()"),
+                "账号锁定（连续 5 次错误锁 15 分钟）不能丢：过期判定要留在凭据校验里");
+        assertTrue(cred.contains("recordFailedAttempt("),
                 "输错密码要计数（连续 5 次触发锁定）");
-        assertTrue(flow.contains("clearFailedAttempts("),
+        assertTrue(cred.contains("clearFailedAttempts("),
                 "登录成功要清零失败计数");
+
+        // 反向断言：账号流程里不许再出现 BCrypt / 锁定判定 —— 那是"复制了第二份实现"的信号
+        String flow = stripComments(read(QQ_DIR.resolve("QqAccountFlow.java")));
+        assertFalse(flow.contains("BCrypt.checkpw"),
+                "凭据比对只应存在于 CredentialAuthService，QqAccountFlow 不许再写一份");
+        assertFalse(flow.contains("getLockedUntil()"),
+                "锁定判定只应存在于 CredentialAuthService，QqAccountFlow 不许再写一份");
+        assertFalse(flow.contains("recordFailedAttempt("),
+                "失败计数只应存在于 CredentialAuthService，QqAccountFlow 不许再写一份");
+        assertTrue(flow.contains("CredentialAuthService.check("),
+                "账号流程必须委托 CredentialAuthService，而不是自己校验");
 
         String gateway = stripComments(read(QQ_DIR.resolve("QqGatewayClient.java")));
         assertTrue(gateway.contains("reconnecting.compareAndSet(false, true)"),

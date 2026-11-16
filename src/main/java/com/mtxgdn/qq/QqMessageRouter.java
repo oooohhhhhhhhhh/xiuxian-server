@@ -116,6 +116,15 @@ final class QqMessageRouter {
             processOfflineReward(senderQq, binding.getUserId());
         }
 
+        // 群里的 /cancel：待处理向导可能是在群里发起的（例如无单聊权限时的 /绑定）。
+        // 私聊那条路径由 handlePrivateMessage 里的 pending 分支接管，这里只处理群里这一半，
+        // 否则玩家在群里发 /取消 会落到 dispatchCommand 的"当前没有待取消的操作"。
+        if (ctx.pendingSessions.containsKey(senderQq) && "/cancel".equalsIgnoreCase(trimmed)) {
+            ctx.pendingSessions.remove(senderQq);
+            sender.replyToSource(ctx.self, ctx.selfId, senderQq, groupId, "已取消。");
+            return;
+        }
+
         if (!isCommand(trimmed)) return;
 
         String[] parsed = parseCommand(trimmed);

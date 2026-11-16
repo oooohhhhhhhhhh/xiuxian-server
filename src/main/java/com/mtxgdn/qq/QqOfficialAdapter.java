@@ -65,6 +65,8 @@ public class QqOfficialAdapter implements OneBotSession, OneBotMessageSenderClie
 
     private final QqApiClient apiClient;
     private final QqMessageSender sender;
+    /** 账号流程的下发方式（私聊菜单 / 网页链接）：由本类接线，域类之间不互相 new。 */
+    private final QqBindLinkFlow bindLink;
     private final QqAccountFlow accountFlow;
     private final QqMessageRouter router;
     private final QqEventDispatcher events;
@@ -73,7 +75,8 @@ public class QqOfficialAdapter implements OneBotSession, OneBotMessageSenderClie
     public QqOfficialAdapter() {
         this.apiClient = new QqApiClient(ctx);
         this.sender = new QqMessageSender(apiClient);
-        this.accountFlow = new QqAccountFlow(ctx, sender);
+        this.bindLink = new QqBindLinkFlow(sender);
+        this.accountFlow = new QqAccountFlow(ctx, sender, bindLink);
         this.router = new QqMessageRouter(ctx, sender, accountFlow, this);
         this.events = new QqEventDispatcher(ctx, apiClient, sender, router);
         this.gateway = new QqGatewayClient(ctx, apiClient, events);
