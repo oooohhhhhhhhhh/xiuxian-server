@@ -37,7 +37,8 @@ public class BindCommand extends Command {
             octx.getAccountFlow().handleBind(octx.getSocket(), octx.getSelfId(), octx.getSenderId());
         } else if (ctx instanceof OneBotClientCommandContext) {
             OneBotClientCommandContext cctx = (OneBotClientCommandContext) ctx;
-            cctx.getAccountFlow().handleBind(cctx.getSession(), cctx.getSelfId(), cctx.getSenderId());
+            cctx.getAccountFlow().handleBind(cctx.getSession(), cctx.getSelfId(), cctx.getSenderId(),
+                    cctx.getGroupId());
         } else if (ctx instanceof MinecraftCommandContext) {
             MinecraftCommandContext mctx = (MinecraftCommandContext) ctx;
             MinecraftAdapter.getInstance().handleBind(mctx.getMcName(), mctx.getMcUuid());

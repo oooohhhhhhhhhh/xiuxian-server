@@ -73,7 +73,7 @@ class QqOfficialAdapterSplitTest extends TestBase {
             "public boolean isOpen()",
             "public void close()",
             "public void handleRegister(com.mtxgdn.onebot.OneBotSession, java.lang.String, java.lang.String, java.lang.String, java.lang.Long)",
-            "public void handleBind(com.mtxgdn.onebot.OneBotSession, java.lang.String, java.lang.String)",
+            "public void handleBind(com.mtxgdn.onebot.OneBotSession, java.lang.String, java.lang.String, java.lang.Long)",
             "public void handleUnbind(com.mtxgdn.onebot.OneBotSession, java.lang.String, java.lang.String)",
             "public void handleChangePassword(com.mtxgdn.onebot.OneBotSession, java.lang.String, java.lang.String)",
             "public void handleDeleteAccount(com.mtxgdn.onebot.OneBotSession, java.lang.String, java.lang.String)");
@@ -150,7 +150,7 @@ class QqOfficialAdapterSplitTest extends TestBase {
         // 注意：这里没有 start()，所以 HttpClient 还是 null —— 回复发送会在
         // QqApiClient.fetchAccessToken() 里抛 NPE 并被它自己的 catch 吞掉（拆分前同样如此）。
         // 本断言只关心"门面 → 账号流程 → 上下文"这条链是否真的接通，不看发送结果。
-        facade.handleBind(null, "", openid);
+        facade.handleBind(null, "", openid, null);
         Object ctx = readField(facade, "ctx");
         @SuppressWarnings("unchecked")
         Map<String, QqPendingSession> pending = (Map<String, QqPendingSession>) readField(ctx, "pendingSessions");

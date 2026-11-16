@@ -280,8 +280,8 @@ public class QqOfficialAdapter implements OneBotSession, OneBotMessageSenderClie
     }
 
     @Override
-    public void handleBind(OneBotSession session, String selfId, String senderQq) {
-        accountFlow.handleBind(session, selfId, senderQq);
+    public void handleBind(OneBotSession session, String selfId, String senderQq, Long sourceGroupId) {
+        accountFlow.handleBind(session, selfId, senderQq, sourceGroupId);
     }
 
     @Override

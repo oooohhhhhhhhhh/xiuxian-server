@@ -139,24 +139,69 @@ final class QqApiClient {
                     .POST(HttpRequest.BodyPublishers.ofString(gson.toJson(body), StandardCharsets.UTF_8))
                     .build();
             HttpResponse<String> resp = ctx.httpClient.send(req, HttpResponse.BodyHandlers.ofString());
-            if (resp.statusCode() >= 400) {
-                log.warn("QQ API 调用失败 [" + path + "] HTTP " + resp.statusCode() + ": " + resp.body());
-                // 群消息发送失败：多为被动回复条件不满足或未开通主动消息权限
-                if (path.contains("/groups/") && path.endsWith("/messages")) {
-                    botLog.logSystem("群消息发送失败（HTTP " + resp.statusCode() + "）："
-                            + "群聊仅支持 @ 机器人后 5 分钟内的被动回复（需携带 msg_seq），"
-                            + "超出窗口或需主动推送请到 QQ 开放平台申请「主动消息」权限。");
-                } else if (path.contains("/users/") && path.endsWith("/messages")) {
-                    botLog.logSystem("单聊消息发送失败（HTTP " + resp.statusCode() + "）："
-                            + "本机器人可能没有单聊权限（新创建的官方机器人默认只有群聊），"
-                            + "账号流程将改为在群里发网页绑定链接。");
-                }
+            if (!apiCallSucceeded(resp.statusCode(), resp.body())) {
+                logFailure(path, resp.statusCode() >= 400
+                        ? "HTTP " + resp.statusCode()
+                        : "HTTP 200 但业务失败", resp.body());
                 return false;
             }
             return true;
         } catch (Exception e) {
             log.error("QQ API 调用异常 [" + path + "]: " + e.getMessage(), e);
             return false;
+        }
+    }
+
+    /**
+     * 判断一次 API 调用是否成功。
+     *
+     * <p>官方 API 在「无单聊权限」等业务失败时仍可能回 <b>HTTP 200</b>，错误码在 body 里
+     * （例如 {@code {"code":11244,"message":"无权限"}}）。只看状态码会把失败当成功，
+     * 调用方于是以为菜单发出去了，永远不降级到网页链接 —— 新机器人（无 C2C 权限）的
+     * {@code /绑定}、{@code /注册} 会表现为"发了但没反应"。</p>
+     *
+     * <p>成功判定：HTTP 2xx 且 body 里没有非零 {@code code}。body 不是 JSON、或 code
+     * 不是数字时按成功处理，避免误杀正常响应。</p>
+     */
+    static boolean apiCallSucceeded(int statusCode, String body) {
+        if (statusCode >= 400) {
+            return false;
+        }
+        JsonObject json = parseJsonOrNull(body);
+        if (json != null && json.has("code") && !json.get("code").isJsonNull()) {
+            int code;
+            try {
+                code = json.get("code").getAsInt();
+            } catch (RuntimeException ignored) {
+                code = 0;
+            }
+            return code == 0;
+        }
+        return true;
+    }
+
+    /** HTTP 失败与 body 错误码共用的日志/权限提示（文案与拆分前一致）。 */
+    private void logFailure(String path, String detail, String body) {
+        log.warn("QQ API 调用失败 [" + path + "] " + detail + ": " + body);
+        // 群消息发送失败：多为被动回复条件不满足或未开通主动消息权限
+        if (path.contains("/groups/") && path.endsWith("/messages")) {
+            botLog.logSystem("群消息发送失败（" + detail + "）："
+                    + "群聊仅支持 @ 机器人后 5 分钟内的被动回复（需携带 msg_seq），"
+                    + "超出窗口或需主动推送请到 QQ 开放平台申请「主动消息」权限。");
+        } else if (path.contains("/users/") && path.endsWith("/messages")) {
+            botLog.logSystem("单聊消息发送失败（" + detail + "）："
+                    + "本机器人可能没有单聊权限（新创建的官方机器人默认只有群聊），"
+                    + "账号流程将改为在群里发网页绑定链接。");
+        }
+    }
+
+    /** 解析 body 为对象；非 JSON 或解析失败返回 null（按成功处理）。 */
+    private static JsonObject parseJsonOrNull(String body) {
+        try {
+            com.google.gson.JsonElement el = com.google.gson.JsonParser.parseString(body);
+            return el.isJsonObject() ? el.getAsJsonObject() : null;
+        } catch (RuntimeException e) {
+            return null;
         }
     }
 }

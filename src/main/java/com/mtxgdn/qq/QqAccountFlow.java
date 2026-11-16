@@ -116,18 +116,19 @@ final class QqAccountFlow {
         }
     }
 
-    void handleBind(OneBotSession session, String selfId, String senderQq) {
+    void handleBind(OneBotSession session, String selfId, String senderQq, Long sourceGroupId) {
         QqBinding existing = ctx.bindingService.findByQq(senderQq);
         if (existing != null) {
             sender.sendPrivateMsg(session, selfId, senderQq,
                     "你已绑定账号 (用户ID: " + existing.getUserId() + ")，/unbind 可解绑。");
             return;
         }
-        QqPendingSession ps = new QqPendingSession();
+        QqPendingSession ps = new QqPendingSession("bind", sourceGroupId);
         ps.state = "WAITING_BIND_METHOD";
         ctx.pendingSessions.put(senderQq, ps);
+        // 先试私聊菜单；没有单聊权限时改发网页链接到来源会话（群里不会出现密码）。
         // 链接发出去后会话就没用了（网页流程独立），菜单发出去则要保留等玩家回复 1/2/3。
-        if (bindLink.deliver(session, selfId, senderQq, null, ctx.appId,
+        if (bindLink.deliver(session, selfId, senderQq, sourceGroupId, ctx.appId,
                 QqBindTokenStore.Intent.BIND, null) == QqBindLinkFlow.Delivery.LINK_SENT) {
             ctx.pendingSessions.remove(senderQq);
         }
