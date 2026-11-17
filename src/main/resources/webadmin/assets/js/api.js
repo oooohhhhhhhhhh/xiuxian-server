@@ -119,6 +119,8 @@ export async function request(path, options = {}) {
     ...options,
     headers: {
       ...getHeaders(),
+      // 自动轮询标记：后端只对列表页读取跳过审计（手点查询仍留痕）
+      ...(window.__dshPolling ? { 'X-Audit-Skip': '1' } : {}),
       ...options.headers
     }
   };

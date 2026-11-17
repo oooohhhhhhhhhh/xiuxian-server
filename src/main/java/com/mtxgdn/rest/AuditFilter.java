@@ -46,8 +46,24 @@ public class AuditFilter implements ContainerRequestFilter, ContainerResponseFil
     private static final String PROP_AUDIT_DESC = "audit.desc";
 
     private static final String[] SENSITIVE_READ_PREFIXES = {
-            "admin/players", "admin/users", "admin/database", "admin/me", "game/"
+            "admin/players", "admin/users", "admin/db", "admin/database", "admin/me", "game/"
     };
+
+    /** 前端自动轮询时带的请求头：只有「列表轮询」允许跳过审计。 */
+    static final String POLL_HEADER = "X-Audit-Skip";
+
+    /**
+     * 允许按 {@link #POLL_HEADER} 跳过审计的路径（精确匹配）。
+     *
+     * <p>只放列表页：后台「玩家/用户/数据库」页每 8 秒自动刷新一次，不跳审会每 8 秒
+     * 写一行「某人看了列表」，把审计表刷成噪声。单条详情（如 {@code admin/players/1}）
+     * 不在清单里 —— 那是有意查看某个玩家，必须留痕。</p>
+     */
+    private static final java.util.Set<String> POLL_SKIP_EXACT = java.util.Set.of(
+            "admin/players", "admin/users", "admin/db/tables");
+
+    /** 数据库表内容页的轮询（{@code admin/db/tables/<表名>}）。 */
+    private static final String[] POLL_SKIP_PREFIXES = {"admin/db/tables/"};
 
     @Override
     public void filter(ContainerRequestContext ctx) {
@@ -60,6 +76,9 @@ public class AuditFilter implements ContainerRequestFilter, ContainerResponseFil
         boolean read = isSensitiveRead(path, method);
         if (!write && !read) {
             return;
+        }
+        if (read && shouldSkipAudit(path, method, ctx.getHeaderString(POLL_HEADER))) {
+            return; // 前端自动轮询：不写审计（手动查询仍会留痕）
         }
 
         Actor actor = resolveActor(ctx);
@@ -125,6 +144,28 @@ public class AuditFilter implements ContainerRequestFilter, ContainerResponseFil
             return false;
         }
         for (String prefix : SENSITIVE_READ_PREFIXES) {
+            if (path.startsWith(prefix)) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 轮询是否跳过审计。
+     *
+     * <p>只对 GET 生效（写操作永远不可跳过），且只认清单里的列表路径。
+     * 客户端可以伪造这个头，但能伪造的只有「我自己看了列表」这类低敏感度读取；
+     * 单条详情仍需留痕，写操作更不可能被绕过。</p>
+     */
+    static boolean shouldSkipAudit(String path, String method, String headerValue) {
+        if (!"GET".equals(method) || headerValue == null || headerValue.isBlank()) {
+            return false;
+        }
+        if (POLL_SKIP_EXACT.contains(path)) {
+            return true;
+        }
+        for (String prefix : POLL_SKIP_PREFIXES) {
             if (path.startsWith(prefix)) {
                 return true;
             }

@@ -109,7 +109,17 @@ export function switchTab(name) {
   if (loader) loader();
 
   const ms = POLL_MS[name];
-  if (ms) dataTimer = setInterval(loader, ms);
+  if (ms) {
+    dataTimer = setInterval(() => {
+      // 标记这次加载来自自动轮询：后端据此跳过「列表读取」的审计
+      window.__dshPolling = true;
+      try {
+        loader();
+      } finally {
+        window.__dshPolling = false;
+      }
+    }, ms);
+  }
 }
 
 function clearTimers() {

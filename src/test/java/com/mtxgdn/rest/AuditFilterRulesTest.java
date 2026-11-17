@@ -49,6 +49,7 @@ class AuditFilterRulesTest {
         assertTrue(AuditFilter.isSensitiveRead("admin/players/1", "GET"));
         assertTrue(AuditFilter.isSensitiveRead("admin/users", "GET"));
         assertTrue(AuditFilter.isSensitiveRead("admin/database/tables", "GET"));
+        assertTrue(AuditFilter.isSensitiveRead("admin/db/tables", "GET"), "数据库表列表也算敏感读");
         assertTrue(AuditFilter.isSensitiveRead("admin/me", "GET"));
         assertTrue(AuditFilter.isSensitiveRead("game/player/1", "GET"));
     }
@@ -65,5 +66,40 @@ class AuditFilterRulesTest {
     @DisplayName("敏感路径的写请求不算「读」")
     void writeIsNotRead() {
         assertFalse(AuditFilter.isSensitiveRead("admin/players/1/edit", "POST"));
+    }
+
+    // ==================== 轮询跳过审计 ====================
+
+    @Test
+    @DisplayName("列表页自动轮询带标记 → 跳过审计（手点查询不带标记仍留痕）")
+    void pollSkipsListReads() {
+        assertTrue(AuditFilter.shouldSkipAudit("admin/players", "GET", "1"));
+        assertTrue(AuditFilter.shouldSkipAudit("admin/users", "GET", "1"));
+        assertTrue(AuditFilter.shouldSkipAudit("admin/db/tables", "GET", "1"));
+        assertTrue(AuditFilter.shouldSkipAudit("admin/db/tables/players", "GET", "1"));
+    }
+
+    @Test
+    @DisplayName("没有轮询标记时一律审计")
+    void noHeaderMeansAudit() {
+        assertFalse(AuditFilter.shouldSkipAudit("admin/players", "GET", null));
+        assertFalse(AuditFilter.shouldSkipAudit("admin/players", "GET", ""));
+    }
+
+    @Test
+    @DisplayName("单条详情即使带标记也要审计（有意查看某个玩家）")
+    void singleEntityIsNeverSkipped() {
+        assertFalse(AuditFilter.shouldSkipAudit("admin/players/1", "GET", "1"));
+        assertFalse(AuditFilter.shouldSkipAudit("admin/users/5", "GET", "1"));
+        assertFalse(AuditFilter.shouldSkipAudit("admin/me", "GET", "1"));
+        assertFalse(AuditFilter.shouldSkipAudit("game/player/1", "GET", "1"));
+    }
+
+    @Test
+    @DisplayName("写操作永远不能被轮询标记绕过（fail-closed 底线）")
+    void writesNeverSkip() {
+        assertFalse(AuditFilter.shouldSkipAudit("admin/players", "POST", "1"));
+        assertFalse(AuditFilter.shouldSkipAudit("admin/users/5", "DELETE", "1"));
+        assertFalse(AuditFilter.shouldSkipAudit("admin/db/tables", "PUT", "1"));
     }
 }
