@@ -13,7 +13,7 @@ public class DeleteAccountCommand extends Command {
                 "/注销",
                 "账号",
                 "game.player.info",
-                true);
+                false);
     
         setI18nKeys("cmd.delete_account.desc", "cmd.delete_account.usage");
     }
@@ -27,7 +27,7 @@ public class DeleteAccountCommand extends Command {
         } else if (ctx instanceof OneBotClientCommandContext) {
             OneBotClientCommandContext cctx = (OneBotClientCommandContext) ctx;
             cctx.getAccountFlow().handleDeleteAccount(
-                    cctx.getSession(), cctx.getSelfId(), cctx.getSenderId());
+                    cctx.getSession(), cctx.getSelfId(), cctx.getSenderId(), cctx.getGroupId());
         }
     }
 }

@@ -56,6 +56,16 @@ class AdminEndpointPermissionGuardTest {
      *   <li>{@code /whoami}、{@code /me}：只回调用者自己的身份信息，不含他人数据。</li>
      * </ul>
      */
+    /**
+     * 玩家自助账号端点的资源类（不是管理员权限体系的一部分）。
+     *
+     * <p>{@code PlayerAccountResource} 的所有操作只作用于调用者自己的账号：
+     * 由 {@link com.mtxgdn.rest.AdminAuthFilter} 的玩家自我服务分支用游戏 JWT 鉴权，
+     * 且改密/注销还要再验密码；它不提供任何管理能力，因此不该要求 admin 权限码。
+     * 放行范围限定到类名，避免误放行同名的其它路径。</p>
+     */
+    private static final Set<String> PLAYER_SELF_RESOURCES = Set.of("PlayerAccountResource");
+
     private static final Set<String> ALLOWLIST = Set.of("/login", "/whoami", "/me");
 
     private static final List<Class<? extends Annotation>> HTTP_METHODS =
@@ -95,6 +105,9 @@ class AdminEndpointPermissionGuardTest {
         int checked = 0;
 
         for (Class<?> cls : adminResourceClasses()) {
+            if (PLAYER_SELF_RESOURCES.contains(cls.getSimpleName())) {
+                continue;
+            }
             for (Method method : cls.getDeclaredMethods()) {
                 if (!isHttpEndpoint(method)) {
                     continue;

@@ -172,6 +172,11 @@ class AdminWritePermissionTest {
         List<String> missing = new ArrayList<>();
         List<String> reusedReadPerm = new ArrayList<>();
         for (Method m : adminEndpoints()) {
+            // 玩家自助端点（解绑/改密/注销）不属于管理员权限体系：
+            // AdminAuthFilter 用玩家 JWT 鉴权，资源内部只操作调用者自己的账号，且写操作再验密码。
+            if ("PlayerAccountResource".equals(m.getDeclaringClass().getSimpleName())) {
+                continue;
+            }
             String verb = httpVerbOf(m);
             if (!isWriteVerb(verb)) continue;
             String path = m.getAnnotation(jakarta.ws.rs.Path.class).value();

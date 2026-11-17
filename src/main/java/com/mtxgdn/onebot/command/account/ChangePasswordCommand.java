@@ -13,7 +13,7 @@ public class ChangePasswordCommand extends Command {
                 "/改密",
                 "账号",
                 "game.player.info",
-                true);
+                false);
     
         setI18nKeys("cmd.change_password.desc", "cmd.change_password.usage");
     }
@@ -27,7 +27,7 @@ public class ChangePasswordCommand extends Command {
         } else if (ctx instanceof OneBotClientCommandContext) {
             OneBotClientCommandContext cctx = (OneBotClientCommandContext) ctx;
             cctx.getAccountFlow().handleChangePassword(
-                    cctx.getSession(), cctx.getSelfId(), cctx.getSenderId());
+                    cctx.getSession(), cctx.getSelfId(), cctx.getSenderId(), cctx.getGroupId());
         }
     }
 }

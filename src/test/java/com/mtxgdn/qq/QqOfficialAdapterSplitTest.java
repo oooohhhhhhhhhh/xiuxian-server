@@ -74,9 +74,9 @@ class QqOfficialAdapterSplitTest extends TestBase {
             "public void close()",
             "public void handleRegister(com.mtxgdn.onebot.OneBotSession, java.lang.String, java.lang.String, java.lang.String, java.lang.Long)",
             "public void handleBind(com.mtxgdn.onebot.OneBotSession, java.lang.String, java.lang.String, java.lang.Long)",
-            "public void handleUnbind(com.mtxgdn.onebot.OneBotSession, java.lang.String, java.lang.String)",
-            "public void handleChangePassword(com.mtxgdn.onebot.OneBotSession, java.lang.String, java.lang.String)",
-            "public void handleDeleteAccount(com.mtxgdn.onebot.OneBotSession, java.lang.String, java.lang.String)");
+            "public void handleUnbind(com.mtxgdn.onebot.OneBotSession, java.lang.String, java.lang.String, java.lang.Long)",
+            "public void handleChangePassword(com.mtxgdn.onebot.OneBotSession, java.lang.String, java.lang.String, java.lang.Long)",
+            "public void handleDeleteAccount(com.mtxgdn.onebot.OneBotSession, java.lang.String, java.lang.String, java.lang.Long)");
 
     /** 门面持有的协作对象字段：一个都不能漏接线，否则对应的一组方法会 NPE。 */
     private static final String[] DOMAIN_FIELDS = {

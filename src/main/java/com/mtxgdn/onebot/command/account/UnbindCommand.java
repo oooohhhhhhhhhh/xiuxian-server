@@ -15,7 +15,7 @@ public class UnbindCommand extends Command {
                 "/解绑",
                 "账号",
                 "game.player.info",
-                true);
+                false);
     
         setI18nKeys("cmd.unbind.desc", "cmd.unbind.usage");
     }
@@ -27,7 +27,8 @@ public class UnbindCommand extends Command {
             octx.getAccountFlow().handleUnbind(octx.getSocket(), octx.getSelfId(), octx.getSenderId());
         } else if (ctx instanceof OneBotClientCommandContext) {
             OneBotClientCommandContext cctx = (OneBotClientCommandContext) ctx;
-            cctx.getAccountFlow().handleUnbind(cctx.getSession(), cctx.getSelfId(), cctx.getSenderId());
+            cctx.getAccountFlow().handleUnbind(cctx.getSession(), cctx.getSelfId(), cctx.getSenderId(),
+                    cctx.getGroupId());
         } else if (ctx instanceof MinecraftCommandContext) {
             MinecraftCommandContext mctx = (MinecraftCommandContext) ctx;
             MinecraftAdapter.getInstance().handleUnbind(mctx.getMcName(), mctx.getMcUuid());

@@ -828,3 +828,24 @@ input:checked+.slider:before { transform:translateX(20px) }
   padding-top:6px;
 }
 
+
+/* ===== 玩家个人页 · 账号安全（自助解绑 / 改密 / 注销） ===== */
+.player-profile .acct-row {
+  display:flex; align-items:center; gap:10px; flex-wrap:wrap;
+  padding:10px 0; border-bottom:1px dashed var(--brd)
+}
+.player-profile .acct-row:last-of-type { border-bottom:none }
+.player-profile .acct-label {
+  width:76px; flex:none; font-size:13px; color:var(--t3)
+}
+.player-profile .acct-value { font-size:13px; color:var(--t2) }
+.player-profile .acct-row input {
+  width:170px; padding:8px 10px;
+  background:var(--bg); border:1px solid var(--brd); border-radius:var(--r);
+  color:var(--t); font-size:13px; font-family:inherit; outline:none
+}
+.player-profile .acct-row input:focus { border-color:var(--ac) }
+.player-profile .acct-hint { font-size:12px; color:var(--t4); margin-top:10px; line-height:1.7 }
+.player-profile .acct-msg { font-size:13px; margin-top:8px; min-height:18px }
+.player-profile .acct-msg.ok { color:var(--gn) }
+.player-profile .acct-msg.err { color:var(--rd) }

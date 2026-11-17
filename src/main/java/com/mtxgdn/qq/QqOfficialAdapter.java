@@ -285,17 +285,17 @@ public class QqOfficialAdapter implements OneBotSession, OneBotMessageSenderClie
     }
 
     @Override
-    public void handleUnbind(OneBotSession session, String selfId, String senderQq) {
-        accountFlow.handleUnbind(session, selfId, senderQq);
+    public void handleUnbind(OneBotSession session, String selfId, String senderQq, Long sourceGroupId) {
+        accountFlow.handleUnbind(session, selfId, senderQq, sourceGroupId);
     }
 
     @Override
-    public void handleChangePassword(OneBotSession session, String selfId, String senderQq) {
-        accountFlow.handleChangePassword(session, selfId, senderQq);
+    public void handleChangePassword(OneBotSession session, String selfId, String senderQq, Long sourceGroupId) {
+        accountFlow.handleChangePassword(session, selfId, senderQq, sourceGroupId);
     }
 
     @Override
-    public void handleDeleteAccount(OneBotSession session, String selfId, String senderQq) {
-        accountFlow.handleDeleteAccount(session, selfId, senderQq);
+    public void handleDeleteAccount(OneBotSession session, String selfId, String senderQq, Long sourceGroupId) {
+        accountFlow.handleDeleteAccount(session, selfId, senderQq, sourceGroupId);
     }
 }

@@ -10,6 +10,7 @@ import com.mtxgdn.onebot.OneBotSession;
 import com.mtxgdn.identity.QqBinding;
 import com.mtxgdn.service.VerificationCodeService;
 import com.mtxgdn.util.EmailService;
+import com.mtxgdn.util.PublicUrl;
 import com.mtxgdn.util.RateLimiter;
 import org.mindrot.jbcrypt.BCrypt;
 
@@ -134,44 +135,70 @@ final class QqAccountFlow {
         }
     }
 
-    void handleUnbind(OneBotSession session, String selfId, String senderQq) {
+    void handleUnbind(OneBotSession session, String selfId, String senderQq, Long sourceGroupId) {
         QqBinding b = ctx.bindingService.findByQq(senderQq);
         if (b == null) {
-            sender.sendPrivateMsg(session, selfId, senderQq, "你尚未绑定账号。");
+            notify(session, selfId, senderQq, sourceGroupId, "你尚未绑定账号。");
             return;
         }
         try {
             ctx.bindingService.unbindByQq(senderQq);
-            sender.sendPrivateMsg(session, selfId, senderQq, "解绑成功！");
+            notify(session, selfId, senderQq, sourceGroupId, "解绑成功！");
         } catch (RuntimeException e) {
-            sender.sendPrivateMsg(session, selfId, senderQq, "解绑失败: " + e.getMessage());
+            notify(session, selfId, senderQq, sourceGroupId, "解绑失败: " + e.getMessage());
         }
     }
 
-    void handleChangePassword(OneBotSession session, String selfId, String senderQq) {
+    void handleChangePassword(OneBotSession session, String selfId, String senderQq, Long sourceGroupId) {
         QqBinding b = ctx.bindingService.findByQq(senderQq);
         if (b == null) {
-            sender.sendPrivateMsg(session, selfId, senderQq, "你尚未绑定账号，请先 /绑定。");
+            notify(session, selfId, senderQq, sourceGroupId, "你尚未绑定账号，请先 /绑定。");
             return;
         }
-        QqPendingSession ps = new QqPendingSession("changePassword", null);
+        // 改密要私聊输入密码（不能出现在群里）。私聊发不出去就指路网页自助。
+        if (!sender.sendPrivateMsgResult(senderQq,
+                "===== 修改密码 =====\n请输入当前密码：\n(输入 /cancel 取消)")) {
+            sender.replyToSourceResult(session, selfId, senderQq, sourceGroupId,
+                    webSelfServiceHint("修改密码"));
+            return;
+        }
+        QqPendingSession ps = new QqPendingSession("changePassword", sourceGroupId);
         ps.state = "WAITING_OLD_PASSWORD";
         ctx.pendingSessions.put(senderQq, ps);
-        sender.sendPrivateMsg(session, selfId, senderQq,
-                "===== 修改密码 =====\n请输入当前密码：\n(输入 /cancel 取消)");
     }
 
-    void handleDeleteAccount(OneBotSession session, String selfId, String senderQq) {
+    void handleDeleteAccount(OneBotSession session, String selfId, String senderQq, Long sourceGroupId) {
         QqBinding b = ctx.bindingService.findByQq(senderQq);
         if (b == null) {
-            sender.sendPrivateMsg(session, selfId, senderQq, "你尚未绑定账号，请先 /绑定。");
+            notify(session, selfId, senderQq, sourceGroupId, "你尚未绑定账号，请先 /绑定。");
             return;
         }
-        QqPendingSession ps = new QqPendingSession("deleteAccount", null);
+        if (!sender.sendPrivateMsgResult(senderQq,
+                "===== 注销账号 =====\n⚠ 此操作不可逆！\n注销后将删除你的角色、物品、灵石等全部数据！\n\n请输入账号密码确认注销：\n(输入 /cancel 取消)")) {
+            sender.replyToSourceResult(session, selfId, senderQq, sourceGroupId,
+                    webSelfServiceHint("注销账号"));
+            return;
+        }
+        QqPendingSession ps = new QqPendingSession("deleteAccount", sourceGroupId);
         ps.state = "WAITING_DELETE_CONFIRM";
         ctx.pendingSessions.put(senderQq, ps);
-        sender.sendPrivateMsg(session, selfId, senderQq,
-                "===== 注销账号 =====\n⚠ 此操作不可逆！\n注销后将删除你的角色、物品、灵石等全部数据！\n\n请输入账号密码确认注销：\n(输入 /cancel 取消)");
+    }
+
+    /** 优先私聊；发不出去（无 C2C 权限）就在来源会话里回，避免玩家什么都收不到。 */
+    private void notify(OneBotSession session, String selfId, String senderQq,
+                        Long sourceGroupId, String message) {
+        if (!sender.sendPrivateMsgResult(senderQq, message)) {
+            sender.replyToSourceResult(session, selfId, senderQq, sourceGroupId, message);
+        }
+    }
+
+    /** 需要私聊输入的指令在无 C2C 时的指路文案（网页端自助操作）。 */
+    private static String webSelfServiceHint(String action) {
+        if (PublicUrl.available()) {
+            return "本机器人无法私聊你，" + action + "需要输入密码。\n请打开 " + PublicUrl.baseUrl()
+                    + "/admin/ 用账号密码登录，在「我的角色」页自助操作。";
+        }
+        return "本机器人无法私聊你，" + action + "需要输入密码；本服网页入口也未开放。\n请联系管理员处理。";
     }
 
     // ==================== Pending Flow ====================

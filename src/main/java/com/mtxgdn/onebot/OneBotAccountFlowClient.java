@@ -9,9 +9,9 @@ public interface OneBotAccountFlowClient {
 
     void handleBind(OneBotSession session, String selfId, String senderQq, Long sourceGroupId);
 
-    void handleUnbind(OneBotSession session, String selfId, String senderQq);
+    void handleUnbind(OneBotSession session, String selfId, String senderQq, Long sourceGroupId);
 
-    void handleChangePassword(OneBotSession session, String selfId, String senderQq);
+    void handleChangePassword(OneBotSession session, String selfId, String senderQq, Long sourceGroupId);
 
-    void handleDeleteAccount(OneBotSession session, String selfId, String senderQq);
+    void handleDeleteAccount(OneBotSession session, String selfId, String senderQq, Long sourceGroupId);
 }

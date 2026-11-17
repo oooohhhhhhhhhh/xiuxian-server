@@ -234,13 +234,17 @@ public class AdminAuthFilter implements ContainerRequestFilter {
     }
 
     /**
-     * 玩家中心自我服务端点放行：仅当请求路径是玩家自我端点（admin/me、admin/whoami）
-     * 且 token 为合法游戏 JWT 时，以玩家身份放行（不授予任何 admin 权限）。
+     * 玩家中心自我服务端点放行：仅当请求路径是玩家自我端点（admin/me、admin/whoami、
+     * admin/account/**）且 token 为合法游戏 JWT 时，以玩家身份放行（不授予任何 admin 权限）。
+     *
+     * <p>{@code admin/account/**} 是玩家自助账号管理（解绑 QQ / 改密 / 注销），
+     * 没有单聊权限的机器人玩家只能走这里；这些端点内部只操作调用者自己的账号。</p>
      *
      * @return 是否已按玩家身份放行
      */
     private static boolean tryAcceptPlayerSelf(ContainerRequestContext ctx, String path, String token) {
-        boolean playerSelfPath = "admin/me".equals(path) || "admin/whoami".equals(path);
+        boolean playerSelfPath = "admin/me".equals(path) || "admin/whoami".equals(path)
+                || "admin/account".equals(path) || path.startsWith("admin/account/");
         if (!playerSelfPath) {
             return false;
         }
