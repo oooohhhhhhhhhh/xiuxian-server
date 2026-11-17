@@ -1,6 +1,6 @@
 package com.mtxgdn.util;
 
-import com.mtxgdn.db.PlayerActionLogDAO;
+import com.mtxgdn.audit.AuditService;
 
 import java.io.IOException;
 import java.io.PrintWriter;
@@ -195,12 +195,12 @@ public class PlayerActionLogger {
             fileWriter.flush();
         }
 
-        // 写入数据库
-        try {
-            new PlayerActionLogDAO().insertPlayerActionLog(userId, playerName, action, detail, qqNumber);
-        } catch (Exception e) {
-            System.err.println("[PlayerActionLogger] 写入数据库失败: " + e.getMessage());
-        }
+        // 写入数据库：统一走审计日志（audit_logs，actor=PLAYER）。
+        // fail-open：行为日志写不进去不应该阻断玩家操作，所以用 recordQuietly 语义的 player()。
+        String auditDetail = qqNumber != null && !qqNumber.isEmpty()
+                ? detail + " [QQ:" + qqNumber + "]"
+                : detail;
+        AuditService.getInstance().player(userId, playerName, action, auditDetail);
     }
 
     private String truncate(String s, int maxLen) {

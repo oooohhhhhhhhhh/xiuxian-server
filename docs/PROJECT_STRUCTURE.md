@@ -1064,7 +1064,7 @@ HTTP 侧由 `UnifiedRestResource`（`/game/{path:.*}`）把同一批 `RouteDefin
 | `verify_code` | `enabled`、`allowed_domains`、`rate_limit_seconds` |
 | `onebot` | `enabled`、`send_mode`、`screenshot.*` |
 | `minecraft` | `jar_path`、`server_dir`、`java_path`、`min_memory_mb`、`max_memory_mb`、`ready_timeout_seconds`、`extra_jvm_args`、`online_mode`、`command_prefix` |
-| `logging` | `level`、`dir`、`color` |
+| `logging` | `level`、`dir`、`color`、`max_files`、`audit_retention_days`（审计热数据保留天数，超期归档为 JSONL.gz）、`audit_archive_batch` |
 | `inventory` | `base_capacity`（30）、`capacity_per_level`（5） |
 | `market` | `listing_duration_hours`（72）、`price_history_keep_days`（30）、`price_history_cleanup_interval_hours`（6） |
 | `buff` | `expire_sweep_seconds`（60，过期增益兜底回收间隔；活跃玩家走访问时的惰性过期，最小 10 秒） |

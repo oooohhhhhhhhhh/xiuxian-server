@@ -1202,7 +1202,8 @@ public class PlayerDAO {
     /**
      * 删除该玩家的行为日志。
      *
-     * <p>{@code player_action_logs} 没有 {@code player_id} 列，它是按
+     * <p>审计日志（audit_logs）不在级联清单里：审计是"只增不删"的证据，
+     * 删号不应带走操作留痕。旧表 {@code player_action_logs} 没有 {@code player_id} 列，它是按
      * {@code user_id}（账号维度）关联的 —— 一个账号可以有多个角色，
      * 所以这里删的是整个账号的日志。必须在删除 {@code players} 行<b>之前</b>
      * 取到 {@code user_id}，删完就查不到了。</p>
@@ -1223,7 +1224,6 @@ public class PlayerDAO {
         if (userId == null) {
             return;
         }
-        deleteByLong(conn, "DELETE FROM player_action_logs WHERE user_id = ?", userId);
     }
 
     /**

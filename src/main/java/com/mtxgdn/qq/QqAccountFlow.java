@@ -174,6 +174,8 @@ final class QqAccountFlow {
         }
         try {
             ctx.bindingService.unbindByQq(senderQq);
+            com.mtxgdn.audit.AuditService.getInstance().player(b.getUserId(), "",
+                    com.mtxgdn.audit.AuditActions.QQ_UNBIND, "openid=" + senderQq + " 主动解绑");
             notify(session, selfId, senderQq, sourceGroupId, "解绑成功！");
         } catch (RuntimeException e) {
             notify(session, selfId, senderQq, sourceGroupId, "解绑失败: " + e.getMessage());
@@ -642,6 +644,8 @@ final class QqAccountFlow {
         }
         try {
             ctx.bindingService.bind(senderQq, check.userId());
+            com.mtxgdn.audit.AuditService.getInstance().player(check.userId(), ps.username,
+                    com.mtxgdn.audit.AuditActions.QQ_BIND, "openid=" + senderQq + ", 绑定到账号 " + ps.username);
             // 绑定成功：不再伪造 <openid>@qq.com 邮箱（QQ官方身份与邮箱无关，且不应覆盖用户已有邮箱）
             sender.sendPrivateMsg(ctx.self, ctx.selfId, senderQq,
                     "绑定成功！\n用户名: " + ps.username + "\n用户ID: " + check.userId());

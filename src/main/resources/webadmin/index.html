@@ -5,7 +5,7 @@
 <meta http-equiv="Cache-Control" content="no-cache, no-store, must-revalidate">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>修仙世界 · 管理后台</title>
-<link rel="stylesheet" href="assets/css/styles.css?v=2026111701">
+<link rel="stylesheet" href="assets/css/styles.css?v=2026111702">
 </head>
 <body>
 
@@ -105,8 +105,8 @@
       <div class="nav-item" data-tab="logs">
         <span class="nav-icon">📜</span><span>实时日志</span>
       </div>
-      <div class="nav-item" data-tab="traces">
-        <span class="nav-icon">👣</span><span>玩家轨迹</span>
+      <div class="nav-item" data-tab="audit">
+        <span class="nav-icon">📋</span><span>审计日志</span>
       </div>
       <div class="nav-item" data-tab="redeemCodes">
         <span class="nav-icon">🎫</span><span>兑换码</span>
@@ -338,38 +338,40 @@
         </div>
       </div>
 
-      <div class="tab" id="tab-traces">
+      <div class="tab" id="tab-audit">
         <div class="card">
-          <div class="card-title">👣 玩家操作轨迹</div>
+          <div class="card-title">📋 审计日志</div>
           <div class="row" style="flex-wrap:wrap;gap:8px">
-            <input placeholder="玩家名" id="tracePlayerName" style="width:140px" onkeydown="if(event.key==='Enter')window.app.modules.traces.load()">
-            <input placeholder="UID" id="traceUserId" style="width:100px" type="number" onkeydown="if(event.key==='Enter')window.app.modules.traces.load()">
-            <input placeholder="QQ号" id="traceQQ" style="width:120px" onkeydown="if(event.key==='Enter')window.app.modules.traces.load()">
-            <select id="traceAction">
-              <option value="">全部操作</option>
-              <option value="连接">连接</option>
-              <option value="聊天">聊天</option>
-              <option value="开始修炼">开始修炼</option>
-              <option value="停止修炼">停止修炼</option>
-              <option value="境界突破">境界突破</option>
-              <option value="游历探索">游历探索</option>
-              <option value="秘境探索">秘境探索</option>
-              <option value="使用物品">使用物品</option>
-              <option value="学习技能">学习技能</option>
-              <option value="战斗">战斗</option>
-              <option value="获得物品">获得物品</option>
+            <select id="auditActorType">
+              <option value="">全部主体</option>
+              <option value="PLAYER">玩家</option>
+              <option value="ADMIN">管理员</option>
+              <option value="SYSTEM">系统</option>
+              <option value="ADAPTER">适配器</option>
+              <option value="PLUGIN">插件</option>
             </select>
-            <input type="datetime-local" id="traceStart" style="width:180px" title="开始时间">
-            <input type="datetime-local" id="traceEnd" style="width:180px" title="结束时间">
-            <button class="btn btn-primary" onclick="window.app.modules.traces.load()">🔍 查询</button>
-            <button class="btn-sm" onclick="window.app.modules.traces.reset()">重置</button>
+            <input placeholder="动作（如 LOGIN）" id="auditAction" style="width:150px" onkeydown="if(event.key==='Enter')window.app.modules.audit.load()">
+            <input placeholder="主体ID" id="auditActorId" style="width:110px" onkeydown="if(event.key==='Enter')window.app.modules.audit.load()">
+            <input placeholder="目标ID" id="auditTargetId" style="width:110px" onkeydown="if(event.key==='Enter')window.app.modules.audit.load()">
+            <select id="auditResult">
+              <option value="">全部结果</option>
+              <option value="OK">成功</option>
+              <option value="DENY">拒绝</option>
+              <option value="FAIL">失败</option>
+            </select>
+            <input placeholder="关键词" id="auditKeyword" style="width:150px" onkeydown="if(event.key==='Enter')window.app.modules.audit.load()">
+            <input type="datetime-local" id="auditFrom" style="width:175px" title="开始时间">
+            <input type="datetime-local" id="auditTo" style="width:175px" title="结束时间">
+            <button class="btn btn-primary" onclick="window.app.modules.audit.load()">🔍 查询</button>
+            <button class="btn-sm" onclick="window.app.modules.audit.exportCsv()">⬇ 导出 CSV</button>
+            <button class="btn-sm" onclick="window.app.modules.audit.reset()">重置</button>
           </div>
         </div>
         <div class="card">
-          <div id="tracesTable" class="table-wrap">
-            <div class="empty">点击查询按钮查看玩家操作轨迹</div>
+          <div id="auditTable" class="table-wrap">
+            <div class="empty">点击查询按钮查看审计日志</div>
           </div>
-          <div id="tracesPagination" style="margin-top:12px"></div>
+          <div id="auditPagination" style="margin-top:12px"></div>
         </div>
       </div>
 

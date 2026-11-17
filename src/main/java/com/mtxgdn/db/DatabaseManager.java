@@ -448,7 +448,7 @@ public class DatabaseManager {
             stmt.execute(DatabaseSchema.createUserRolesTable(pk, tsDefault, DIALECT));
             stmt.execute(DatabaseSchema.createChatMessagesTable(pk, tsDefault, DIALECT));
             stmt.execute(DatabaseSchema.createFriendsTable(pk, tsDefault, tsUpdate, DIALECT));
-            stmt.execute(DatabaseSchema.createPlayerActionLogsTable(pk, tsDefault));
+            stmt.execute(DatabaseSchema.createAuditLogsTable(pk, tsDefault));
             stmt.execute(DatabaseSchema.createSectsTable(pk, tsDefault, tsUpdate, DIALECT));
             stmt.execute(DatabaseSchema.createSectMembersTable(pk, tsDefault, DIALECT));
             stmt.execute(DatabaseSchema.createSectApplicationsTable(pk, tsDefault, tsUpdate, DIALECT));
@@ -504,9 +504,10 @@ public class DatabaseManager {
             // 且只有 MySQL 会执行（SQLite 上一条索引都没有），而 SQLite 是默认数据库。
             createIndexQuietly(stmt, DatabaseSchema.createChatMessagesChannelIndex());
             createIndexQuietly(stmt, DatabaseSchema.createChatMessagesReceiverIndex());
-            createIndexQuietly(stmt, DatabaseSchema.createPlayerActionLogsTimeIndex());
-            createIndexQuietly(stmt, DatabaseSchema.createPlayerActionLogsUserIndex());
-            createIndexQuietly(stmt, DatabaseSchema.createPlayerActionLogsQqIndex());
+            createIndexQuietly(stmt, DatabaseSchema.createAuditLogsTimeIndex());
+            createIndexQuietly(stmt, DatabaseSchema.createAuditLogsActorIndex());
+            createIndexQuietly(stmt, DatabaseSchema.createAuditLogsActionIndex());
+            createIndexQuietly(stmt, DatabaseSchema.createAuditLogsTargetIndex());
             createIndexQuietly(stmt, DatabaseSchema.createPlayerItemDurabilityPlayerIndex());
             createIndexQuietly(stmt, DatabaseSchema.createPlayerCollectionPlayerIndex());
 
@@ -542,7 +543,7 @@ public class DatabaseManager {
      */
     static final String[] CLEAR_PLAYER_TABLES = {
             "players_skills", "players_techniques", "players_items", "players_equipment",
-            "player_daily", "trade_listings", "chat_messages", "friends", "player_action_logs",
+            "player_daily", "trade_listings", "chat_messages", "friends",
             "sect_members", "sect_applications", "sect_warehouse", "sects", "player_energy",
             "players", "player_buffs", "farm_plots", "player_economy", "player_bank",
             "auction_listings", "auction_bids", "player_titles", "caves", "formations",
@@ -571,7 +572,7 @@ public class DatabaseManager {
         Map<String, Integer> result = new LinkedHashMap<>();
         String[] tables = {
                 "players_skills", "players_techniques", "players_items", "players_equipment",
-                "player_daily", "trade_listings", "chat_messages", "friends", "player_action_logs",
+                "player_daily", "trade_listings", "chat_messages", "friends",
                 "sect_members", "sect_applications", "sect_warehouse", "sects", "player_energy",
                 "players", "qq_bindings", "qq_official_bindings", "mc_bindings", "user_roles", "role_permissions",
                 "roles", "permissions", "verification_codes", "player_buffs", "farm_plots",
@@ -633,11 +634,11 @@ public class DatabaseManager {
      * 回归测试：{@code DatabaseTableWhitelistTest}。</p>
      */
     private static final java.util.Set<String> ALLOWED_TABLES = java.util.Set.of(
-        "users", "verification_codes", "players", "players_items", "players_equipment",
+        "users", "verification_codes", "audit_logs", "players", "players_items", "players_equipment",
         "skills", "players_skills", "techniques", "players_techniques", "recipes",
         "trade_listings", "player_daily", "qq_bindings", "qq_official_bindings",
         "mc_bindings", "roles", "permissions", "role_permissions", "user_roles",
-        "chat_messages", "friends", "player_action_logs", "sects", "sect_members",
+        "chat_messages", "friends", "sects", "sect_members",
         "sect_applications", "sect_warehouse", "sect_wars", "map_locations",
         "map_connections", "map_location_event_bias", "player_map_exploration",
         "map_wilderness_resources", "redeem_codes", "redeemed_codes", "caves", "formations",
@@ -811,16 +812,6 @@ public class DatabaseManager {
         return ds == null ? -1 : ds.getMaximumPoolSize();
     }
 
-    public static List<Map<String, Object>> queryPlayerActionLogs(Long userId, String playerName, String action,
-                                                                   String qqNumber, String startTime, String endTime,
-                                                                   int limit, int offset) {
-        return new PlayerActionLogDAO().queryPlayerActionLogs(userId, playerName, action, qqNumber, startTime, endTime, limit, offset);
-    }
-
-    public static int countPlayerActionLogs(Long userId, String playerName, String action,
-                                             String qqNumber, String startTime, String endTime) {
-        return new PlayerActionLogDAO().countPlayerActionLogs(userId, playerName, action, qqNumber, startTime, endTime);
-    }
 
     public static int countTableRows(String tableName) {
         return countTable(tableName);

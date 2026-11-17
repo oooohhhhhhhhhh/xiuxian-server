@@ -2,16 +2,20 @@ package com.mtxgdn.game.command.admin;
 
 import com.mtxgdn.common.command.Command;
 import com.mtxgdn.common.command.CommandContext;
-import com.mtxgdn.db.DatabaseManager;
 import com.mtxgdn.permission.PermissionService;
 import com.mtxgdn.identity.QqBinding;
 import com.mtxgdn.identity.QqBindingService;
+import com.mtxgdn.audit.AuditService;
 
 import java.util.List;
 import java.util.Map;
 import com.mtxgdn.i18n.I18n;
 
 public class TraceCommand extends Command {
+
+    private static final java.time.format.DateTimeFormatter TRACE_TIME =
+            java.time.format.DateTimeFormatter.ofPattern("MM-dd HH:mm")
+                    .withZone(java.time.ZoneId.systemDefault());
     public TraceCommand() {
         super(new String[]{"轨迹", "trace", "玩家轨迹"},
                 "查看玩家操作轨迹",
@@ -92,13 +96,15 @@ public class TraceCommand extends Command {
             }
         }
 
-        String qqFilter = targetQq;
-
+        // 审计日志查询：actor=PLAYER；按 UID 精确查，按玩家名/QQ 走 keyword
         List<Map<String, Object>> logs;
-        if (isAdmin && targetPlayerName != null) {
-            logs = DatabaseManager.queryPlayerActionLogs(null, targetPlayerName, null, null, null, null, limit, 0);
+        if (targetUserId != null) {
+            logs = AuditService.getInstance().query("PLAYER", null, String.valueOf(targetUserId),
+                    null, null, null, null, null, limit, 0);
         } else {
-            logs = DatabaseManager.queryPlayerActionLogs(targetUserId, null, null, qqFilter, null, null, limit, 0);
+            logs = AuditService.getInstance().query("PLAYER", null, null, null, null,
+                    targetPlayerName != null ? targetPlayerName : targetQq,
+                    null, null, limit, 0);
         }
 
         if (logs.isEmpty()) {
@@ -114,19 +120,17 @@ public class TraceCommand extends Command {
         }
 
         for (Map<String, Object> log : logs) {
-            String createdAt = (String) log.get("createdAt");
-            String time = (createdAt != null && createdAt.length() >= 16) ? createdAt.substring(5, 16) : "?";
-            String pName = (String) log.get("playerName");
+            Object ts = log.get("ts");
+            String time = ts instanceof Number n
+                    ? TRACE_TIME.format(java.time.Instant.ofEpochMilli(n.longValue()))
+                    : "?";
+            String pName = (String) log.get("actor_name");
             String action = (String) log.get("action");
             String detail = (String) log.get("detail");
-            String qq = (String) log.get("qqNumber");
 
             sb.append("[").append(time).append("] ");
             if (isAdmin && (targetUserId == null || targetUserId != myUserId)) {
                 sb.append("【").append(pName != null ? pName : "?").append("】");
-                if (qq != null && !qq.isEmpty()) {
-                    sb.append("(QQ:").append(qq).append(") ");
-                }
             }
             sb.append(action).append(": ").append(detail).append("\n");
         }

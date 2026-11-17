@@ -49,6 +49,9 @@ public class AdminAuthResource extends BaseResource {
     @Context
     private HttpHeaders httpHeaders;
 
+    @Context
+    private jakarta.ws.rs.container.ContainerRequestContext requestContext;
+
     @POST
     @Path("/login")
     @Consumes(MediaType.APPLICATION_JSON)
@@ -93,6 +96,11 @@ public class AdminAuthResource extends BaseResource {
             Long userId = AdminAuthFilter.getUserIdByUsername(username);
             String role = AdminAuthFilter.getAdminRole(userId);
             String token = AdminAuthFilter.generateAdminToken(userId != null ? userId : 0L, username, role);
+            com.mtxgdn.audit.AuditService.getInstance().recordQuietly(
+                    com.mtxgdn.audit.AuditActor.ADMIN, String.valueOf(userId == null ? 0L : userId),
+                    username, com.mtxgdn.audit.AuditActions.LOGIN, "ADMIN", username,
+                    "后台登录成功，角色 " + role,
+                    ClientIp.bucket(requestContext, null), com.mtxgdn.audit.AuditResult.OK, "");
 
             JsonObject result = new JsonObject();
             result.addProperty("code", 200);

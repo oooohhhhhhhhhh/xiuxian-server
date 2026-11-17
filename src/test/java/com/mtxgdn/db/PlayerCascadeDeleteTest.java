@@ -35,7 +35,8 @@ import static org.junit.jupiter.api.Assertions.fail;
  *   <li>{@code auction_bids} → 列名是 {@code bidder_player_id}</li>
  *   <li>{@code trade_listings} → 列名是 {@code seller_player_id}</li>
  *   <li>{@code chat_messages} → 列名是 {@code sender_player_id} / {@code receiver_player_id}</li>
- *   <li>{@code player_action_logs} → 按 {@code user_id} 关联，没有 player 维度</li>
+ *   <li>{@code player_action_logs} 已并入审计表 {@code audit_logs}，且审计「只增不删」，
+ *       不再参与删号级联</li>
  * </ul>
  *
  * <p>SQLite 对不存在的列直接报 {@code no such column: player_id}，异常一抛整笔事务
@@ -58,7 +59,7 @@ class PlayerCascadeDeleteTest extends TestBase {
             "player_buffs", "player_map_exploration", "player_item_durability",
             "world_boss_damage", "farm_plots", "caves", "formations",
             "auction_listings", "auction_bids", "trade_listings", "chat_messages",
-            "player_action_logs", "friends", "redeemed_codes", "sect_members", "sect_applications");
+            "friends", "redeemed_codes", "sect_members", "sect_applications");
 
     private static long userId;
     private static long playerId;
@@ -92,7 +93,6 @@ class PlayerCascadeDeleteTest extends TestBase {
             // 私聊：他发出去的、以及别人发给他的
             insertChatMessage(conn, playerId, null, "他发出的私聊");
             insertChatMessage(conn, otherPlayerId, playerId, "别人发给他的私聊");
-            insertActionLog(conn, userId, "login");
             insertFriends(conn, playerId, otherPlayerId);
 
             // 其余从表：按 PRAGMA 拿到 NOT NULL 且无默认值的列，填最小合法值
@@ -108,7 +108,7 @@ class PlayerCascadeDeleteTest extends TestBase {
     /** 上面已经用"语义正确"的方式插过的表，跳过最小行生成。 */
     private static final List<String> ALREADY_SEEDED = List.of(
             "auction_listings", "auction_bids", "trade_listings",
-            "chat_messages", "player_action_logs", "friends");
+            "chat_messages", "friends");
 
     @Test
     @DisplayName("级联删除能跑完：注销账号不再抛「删除玩家失败」")
@@ -123,7 +123,7 @@ class PlayerCascadeDeleteTest extends TestBase {
             fail("deletePlayerCascade 抛异常了 —— 注销账号/后台删角色会直接失败。"
                     + "\n根因通常是某张从表没有 player_id 列（auction_listings 用的是 "
                     + "seller_player_id，chat_messages 用的是 sender/receiver_player_id，"
-                    + "player_action_logs 按 user_id 关联）。"
+                    + "player_action_logs 已并入 audit_logs 且不参与级联）。"
                     + "\n实际异常: " + e.getMessage()
                     + (cause == null ? "" : "\n底层原因: " + cause.getMessage()));
             return;
@@ -156,7 +156,6 @@ class PlayerCascadeDeleteTest extends TestBase {
             assertGone(conn, "trade_listings", "seller_player_id = " + playerId);
             assertGone(conn, "chat_messages", "sender_player_id = " + playerId);
             assertGone(conn, "chat_messages", "receiver_player_id = " + playerId);
-            assertGone(conn, "player_action_logs", "user_id = " + userId);
             assertGone(conn, "friends", "player_id = " + playerId);
             assertGone(conn, "friends", "friend_player_id = " + playerId);
 
@@ -241,14 +240,6 @@ class PlayerCascadeDeleteTest extends TestBase {
         }
     }
 
-    private static void insertActionLog(Connection conn, long uid, String action) throws SQLException {
-        try (PreparedStatement ps = conn.prepareStatement(
-                "INSERT INTO player_action_logs (user_id, action) VALUES (?, ?)")) {
-            ps.setLong(1, uid);
-            ps.setString(2, action);
-            ps.executeUpdate();
-        }
-    }
 
     private static void insertFriends(Connection conn, long a, long b) throws SQLException {
         try (PreparedStatement ps = conn.prepareStatement(

@@ -32,12 +32,12 @@ import static com.mtxgdn.rest.AdminSupport.playerService;
  * 管理台 · 玩家数据接口（玩家列表、详情、改属性、发奖励、改名、灵根、称号、行为轨迹）。
  *
  * <p>从 4000+ 行的 {@code AdminResource} 里拆出来的一块：{@code /players/**}
- * 与 {@code /player-traces} 是本项目里被前端用得最频繁的一组管理接口，
+ * 是本项目里被前端用得最频繁的一组管理接口，
  * 单独成类后改玩家相关逻辑不用再在几屏无关代码之间找位置。</p>
  *
  * <p>拆分只按"路径前缀 + 依赖集合"切，不夹带任何行为改动 —— 路径、权限码、
  * 返回结构全部保持原样，前端 {@code /api/admin/players/*}、
- * {@code /api/admin/player-traces} 不受影响。</p>
+ * 审计查询已迁到 {@code /api/admin/audit-logs}。</p>
  *
  * <p>类级路径 {@code /admin} + 方法级 {@code /players/{id}} 拼出来的地址与拆分前逐字一致
  * （Jersey 的路径拼接规则）。</p>
@@ -429,57 +429,6 @@ public class AdminPlayersResource extends BaseResource {
         return Response.ok(gson.toJson(resp)).build();
     }
 
-    @GET
-    @Path("/player-traces")
-    @Produces(MediaType.APPLICATION_JSON)
-    @RequirePermission("admin.logs.view")
-    public Response getPlayerTraces(
-            @QueryParam("userId") Long userId,
-            @QueryParam("playerName") @DefaultValue("") String playerName,
-            @QueryParam("action") @DefaultValue("") String action,
-            @QueryParam("qqNumber") @DefaultValue("") String qqNumber,
-            @QueryParam("startTime") @DefaultValue("") String startTime,
-            @QueryParam("endTime") @DefaultValue("") String endTime,
-            @QueryParam("limit") @DefaultValue("50") int limit,
-            @QueryParam("offset") @DefaultValue("0") int offset) {
-
-        List<Map<String, Object>> logs = DatabaseManager.queryPlayerActionLogs(
-                userId,
-                playerName.isBlank() ? null : playerName,
-                action.isBlank() ? null : action,
-                qqNumber.isBlank() ? null : qqNumber,
-                startTime.isBlank() ? null : startTime,
-                endTime.isBlank() ? null : endTime,
-                Math.min(limit, 200),
-                offset);
-
-        int total = DatabaseManager.countPlayerActionLogs(
-                userId,
-                playerName.isBlank() ? null : playerName,
-                action.isBlank() ? null : action,
-                qqNumber.isBlank() ? null : qqNumber,
-                startTime.isBlank() ? null : startTime,
-                endTime.isBlank() ? null : endTime);
-
-        JsonArray arr = new JsonArray();
-        for (Map<String, Object> log : logs) {
-            JsonObject obj = new JsonObject();
-            obj.addProperty("id", ((Number) log.get("id")).longValue());
-            obj.addProperty("userId", ((Number) log.get("userId")).longValue());
-            obj.addProperty("playerName", (String) log.get("playerName"));
-            obj.addProperty("action", (String) log.get("action"));
-            obj.addProperty("detail", (String) log.get("detail"));
-            obj.addProperty("qqNumber", (String) log.get("qqNumber"));
-            obj.addProperty("createdAt", (String) log.get("createdAt"));
-            arr.add(obj);
-        }
-
-        JsonObject result = new JsonObject();
-        result.addProperty("code", 200);
-        result.add("traces", arr);
-        result.addProperty("total", total);
-        return Response.ok(gson.toJson(result)).build();
-    }
 
     // ==================== 称号管理 ====================
 

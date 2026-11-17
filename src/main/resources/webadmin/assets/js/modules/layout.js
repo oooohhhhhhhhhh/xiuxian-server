@@ -7,7 +7,7 @@ const TAB_TITLES = {
   database: '🗄️ 数据库',
   users: '🔑 用户/角色',
   logs: '📜 实时日志',
-  traces: '👣 玩家轨迹',
+  audit: '📋 审计日志',
   redeemCodes: '🎫 兑换码',
   titles: '🏆 称号管理',
   market: '🏪 坊市管理',
@@ -21,7 +21,7 @@ const TAB_TITLES = {
   oauth: '🔐 OAuth2 管理'
 };
 
-const ADMIN_TABS = ['overview', 'players', 'map', 'database', 'users', 'logs', 'traces', 'redeemCodes', 'titles', 'market', 'statsMessages', 'statsCommands', 'adapters', 'plugins', 'oauth'];
+const ADMIN_TABS = ['overview', 'players', 'map', 'database', 'users', 'logs', 'audit', 'redeemCodes', 'titles', 'market', 'statsMessages', 'statsCommands', 'adapters', 'plugins', 'oauth'];
 const PLAYER_TABS = ['myProfile', 'authorizedApps'];
 
 /**
@@ -40,7 +40,7 @@ const TAB_LOADERS = {
   map: () => window.app.modules.map.load(),
   users: () => window.app.modules.users.load(),
   database: () => window.app.modules.database.loadTables(),
-  traces: () => window.app.modules.traces.load(),
+  audit: () => window.app.modules.audit.load(),
   redeemCodes: () => window.app.modules.redeemCodes.load(),
   titles: () => window.app.modules.titles.load(),
   market: () => window.app.modules.market.load(),
@@ -59,7 +59,7 @@ const POLL_MS = {
   overview: 8000,
   players: 8000,
   users: 8000,
-  traces: 5000,
+  audit: 0,
   redeemCodes: 8000,
   database: 8000
 };

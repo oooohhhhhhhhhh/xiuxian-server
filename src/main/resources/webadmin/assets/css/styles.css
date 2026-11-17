@@ -849,3 +849,9 @@ input:checked+.slider:before { transform:translateX(20px) }
 .player-profile .acct-msg { font-size:13px; margin-top:8px; min-height:18px }
 .player-profile .acct-msg.ok { color:var(--gn) }
 .player-profile .acct-msg.err { color:var(--rd) }
+
+/* ===== 审计日志：结果徽标 ===== */
+.audit-result { font-weight:600; font-size:12px }
+.audit-result.ok { color:var(--gn) }
+.audit-result.warn { color:#f59e0b }
+.audit-result.err { color:var(--rd) }

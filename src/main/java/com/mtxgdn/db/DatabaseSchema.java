@@ -356,22 +356,10 @@ public class DatabaseSchema {
      * {@code user_id} / {@code qq_number} 精确匹配与 {@code created_at} 区间过滤，
      * 全部走全表扫描。日志表只增不删，几个月后翻一页要扫几十万行。</p>
      */
-    public static String createPlayerActionLogsTimeIndex() {
-        return "CREATE INDEX IF NOT EXISTS idx_player_action_logs_created "
-                + "ON player_action_logs (created_at)";
-    }
 
     /** 见 {@link #createPlayerActionLogsTimeIndex()}。 */
-    public static String createPlayerActionLogsUserIndex() {
-        return "CREATE INDEX IF NOT EXISTS idx_player_action_logs_user "
-                + "ON player_action_logs (user_id, created_at)";
-    }
 
     /** 见 {@link #createPlayerActionLogsTimeIndex()}。 */
-    public static String createPlayerActionLogsQqIndex() {
-        return "CREATE INDEX IF NOT EXISTS idx_player_action_logs_qq "
-                + "ON player_action_logs (qq_number)";
-    }
 
     /**
      * 装备耐久表的玩家索引。
@@ -541,16 +529,53 @@ public class DatabaseSchema {
                 ")";
     }
 
-    public static String createPlayerActionLogsTable(String pk, String tsDefault) {
-        return "CREATE TABLE IF NOT EXISTS player_action_logs (" +
+    /**
+     * 全量审计日志（取代 player_action_logs）。
+     *
+     * <p><b>为什么合并</b>：原来的 {@code player_action_logs} 只记玩家，管理员改数据、
+     * 系统任务、适配器绑定、插件启停都没有留痕；排障时"谁把这个人删了"根本查不到。
+     * 审计要求「所有操作」都记，就必须有一张能容纳不同主体的表。</p>
+     *
+     * <p>{@code ts} 用毫秒时间戳而不是 {@code created_at}：审计需要精确排序，
+     * 而 {@code CURRENT_TIMESTAMP} 在 SQLite 上只有秒级精度，同一秒内的多条记录
+     * 顺序不可靠。{@code created_at} 保留给按天归档的 SQL 用。</p>
+     */
+    public static String createAuditLogsTable(String pk, String tsDefault) {
+        return "CREATE TABLE IF NOT EXISTS audit_logs (" +
                 "id " + pk + ", " +
-                "user_id BIGINT DEFAULT NULL, " +
-                "player_name VARCHAR(64) DEFAULT '', " +
+                "ts BIGINT NOT NULL, " +
+                "actor_type VARCHAR(16) NOT NULL, " +
+                "actor_id VARCHAR(64) DEFAULT '', " +
+                "actor_name VARCHAR(64) DEFAULT '', " +
                 "action VARCHAR(64) NOT NULL, " +
-                "detail VARCHAR(1024) DEFAULT '', " +
-                "qq_number VARCHAR(32) DEFAULT NULL, " +
+                "target_type VARCHAR(32) DEFAULT '', " +
+                "target_id VARCHAR(64) DEFAULT '', " +
+                "detail VARCHAR(2048) DEFAULT '', " +
+                "ip VARCHAR(64) DEFAULT '', " +
+                "result VARCHAR(16) NOT NULL, " +
+                "trace_id VARCHAR(64) DEFAULT '', " +
                 "created_at " + tsDefault +
                 ")";
+    }
+
+    /** 审计日志按时间查询（后台列表默认倒序）。 */
+    public static String createAuditLogsTimeIndex() {
+        return "CREATE INDEX IF NOT EXISTS idx_audit_logs_ts ON audit_logs (ts)";
+    }
+
+    /** 审计日志按主体类型 + 时间过滤。 */
+    public static String createAuditLogsActorIndex() {
+        return "CREATE INDEX IF NOT EXISTS idx_audit_logs_actor ON audit_logs (actor_type, ts)";
+    }
+
+    /** 审计日志按动作 + 时间过滤（例如只看 DELETE_USER）。 */
+    public static String createAuditLogsActionIndex() {
+        return "CREATE INDEX IF NOT EXISTS idx_audit_logs_action ON audit_logs (action, ts)";
+    }
+
+    /** 审计日志按目标（如某个玩家 ID）查。 */
+    public static String createAuditLogsTargetIndex() {
+        return "CREATE INDEX IF NOT EXISTS idx_audit_logs_target ON audit_logs (target_id, ts)";
     }
 
     public static String createSectsTable(String pk, String tsDefault, String tsUpdate,

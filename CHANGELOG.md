@@ -44,6 +44,21 @@
 
 ### 新增
 
+- **全量审计日志（合并「玩家轨迹」）**：新增 `audit_logs` 表，审计覆盖
+  玩家 / 管理员 / 系统任务 / 消息适配器 / 插件五类主体，统一记录
+  `ts、actor_type、actor_id、actor_name、action、target_type、target_id、detail、ip、result、trace_id`。
+  - 管理员后台：`/api/admin` 下所有非 GET 操作由 `AuditFilter` 统一留痕，**fail-closed**
+    （审计写不进去返回 503，操作不执行）；玩家/用户/数据库/自身资料与 `/api/game` 的读取按
+    **fail-open** 记录（审计故障不阻断普通读）。
+  - 玩家行为日志从 `player_action_logs` 迁入（迁移 `029_audit_logs`，迁完删旧表），
+    `PlayerActionLogger` 改为写审计表。
+  - 系统启动/停止、适配器启停、插件启停、QQ 绑定/解绑均落审计。
+  - 新增后台「审计日志」页（替代「玩家轨迹」）：按主体/动作/结果/时间/关键词筛选，
+    支持 CSV 导出；`/轨迹` 管理指令改为查审计表。
+  - 归档：库内只留 `logging.audit_retention_days`（默认 90）天的热数据，超期记录每天
+    归档为 `logs/audit/audit-YYYY-MM-<时间>.jsonl.gz` 后删除，归档文件永久保留。
+    `player_action_logs` 不再参与「清除玩家数据 / 全量重置」。
+
 - **无密码注册兜底**：当机器人无单聊权限、且 `server.public-url` 未配置（网页也不可用）时，
   群里 `/注册` 不再卡死，而是直接建号。账号写入一个 128 位随机密码（明文直接丢弃、
   永远不会出现在任何提示里），只能通过已绑定的 QQ 身份使用；同时标记

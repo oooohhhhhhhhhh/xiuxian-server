@@ -59,7 +59,7 @@ class AdminRouteResolutionTest {
     private static final String[] GET_PATHS = {
             "/admin/status", "/admin/logs", "/admin/plugins", "/admin/plugins/list",
             "/admin/roles", "/admin/permissions", "/admin/groups", "/admin/users",
-            "/admin/players", "/admin/players/1", "/admin/player-traces",
+            "/admin/players", "/admin/players/1", "/admin/audit-logs",
             "/admin/db/tables", "/admin/db/tables/users", "/admin/db/tables/users/1",
             "/admin/backup", "/admin/redeem-codes", "/admin/blacklist",
             "/admin/market/listings", "/admin/market/price", "/admin/items",

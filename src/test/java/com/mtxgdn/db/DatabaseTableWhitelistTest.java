@@ -63,17 +63,17 @@ class DatabaseTableWhitelistTest extends TestBase {
     }
 
     @Test
-    @DisplayName("SQLite 上聊天记录与操作日志必须有索引")
+    @DisplayName("SQLite 上聊天记录与审计日志必须有索引")
     void indexesExistOnSqlite() throws SQLException {
         List<String> indexes = listIndexes();
         assertTrue(indexes.contains("idx_chat_channel"),
                 "缺少 idx_chat_channel —— 该索引原本只写在 CREATE TABLE 里且只有 MySQL 执行，"
                         + "SQLite（默认数据库）上从未创建。现有索引: " + indexes);
         assertTrue(indexes.contains("idx_chat_receiver"), "缺少 idx_chat_receiver。现有: " + indexes);
-        assertTrue(indexes.contains("idx_player_action_logs_created"),
-                "缺少 idx_player_action_logs_created —— 该表原本一条索引都没有。现有: " + indexes);
-        assertTrue(indexes.contains("idx_player_action_logs_user"), "缺少 idx_player_action_logs_user。现有: " + indexes);
-        assertTrue(indexes.contains("idx_player_action_logs_qq"), "缺少 idx_player_action_logs_qq。现有: " + indexes);
+        for (String index : List.of("idx_audit_logs_ts", "idx_audit_logs_actor",
+                "idx_audit_logs_action", "idx_audit_logs_target")) {
+            assertTrue(indexes.contains(index), "缺少 " + index + "。现有: " + indexes);
+        }
     }
 
     @Test
@@ -95,11 +95,11 @@ class DatabaseTableWhitelistTest extends TestBase {
     }
 
     @Test
-    @DisplayName("操作日志保留策略：0/负数表示不清理")
+    @DisplayName("审计归档保留策略：0/负数表示永久保留，不归档不删除")
     void retentionZeroMeansKeepEverything() {
-        PlayerActionLogDAO dao = new PlayerActionLogDAO();
-        assertEquals(0, dao.purgeOlderThanDays(0), "保留天数 0 表示永久保留，不应删除任何行");
-        assertEquals(0, dao.purgeOlderThanDays(-1), "负数同样表示永久保留");
+        com.mtxgdn.audit.AuditArchiveService archiver = new com.mtxgdn.audit.AuditArchiveService();
+        assertEquals(0, archiver.archiveOlderThanDays(0), "保留天数 0 表示永久保留，不应归档任何行");
+        assertEquals(0, archiver.archiveOlderThanDays(-1), "负数同样表示永久保留");
     }
 
     // ==================== 夹具 ====================

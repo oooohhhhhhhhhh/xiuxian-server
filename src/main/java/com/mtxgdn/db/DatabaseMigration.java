@@ -120,6 +120,8 @@ public class DatabaseMigration {
                 "装备栏位规范化为 weapon/armor/accessory", this::normalizeEquipmentSlots));
         steps.add(new Step("028_users_password_placeholder",
                 "用户是否尚未设置密码（无密码注册兜底）", this::addUsersPasswordPlaceholderColumn));
+        steps.add(new Step("029_audit_logs",
+                "全量审计日志：建表 + 迁移玩家行为日志 + 删除旧表", this::migratePlayerActionLogsToAudit));
         steps.add(new Step("028_player_collection_table",
                 "全图鉴解锁记录表", this::createPlayerCollectionTable));
         return steps;
@@ -239,6 +241,63 @@ public class DatabaseMigration {
      */
     private void addUsersPasswordPlaceholderColumn(Statement stmt) throws SQLException {
         tryAlter(stmt, "ALTER TABLE users ADD COLUMN password_placeholder INT DEFAULT 0");
+    }
+
+    /**
+     * 审计日志合并：把老的 {@code player_action_logs} 迁进 {@code audit_logs}，然后删掉旧表。
+     *
+     * <p><b>幂等性</b>：迁移完成时先写一条 {@code MIGRATED_ACTION_LOGS} 标记行，再删旧表。
+     * 如果"复制成功、删表失败"（例如 MySQL 的 DDL 隐式提交），下次启动会看到标记直接跳过复制，
+     * 只重试删表 —— 不会把同一批数据复制两遍。</p>
+     *
+     * <p>旧表的 {@code created_at} 是时间戳类型，新表的 {@code ts} 是毫秒值；
+     * 两种数据库的转换函数不同，这里按方言分支。</p>
+     */
+    private void migratePlayerActionLogsToAudit(Statement stmt) throws SQLException {
+        Connection conn = stmt.getConnection();
+        if (!tableExists(conn, "player_action_logs")) {
+            return; // 新库或已经迁移过
+        }
+        if (!tableExists(conn, "audit_logs")) {
+            return; // 理论上不可能：audit_logs 由 initTable 先建好
+        }
+        boolean alreadyCopied = false;
+        try (PreparedStatement ps = conn.prepareStatement(
+                "SELECT COUNT(*) FROM audit_logs WHERE action = 'MIGRATED_ACTION_LOGS'")) {
+            try (ResultSet rs = ps.executeQuery()) {
+                alreadyCopied = rs.next() && rs.getInt(1) > 0;
+            }
+        }
+        if (!alreadyCopied) {
+            String copySql = isSqlite
+                    ? "INSERT INTO audit_logs (ts, actor_type, actor_id, actor_name, action, detail, result) "
+                    + "SELECT CAST(strftime('%s', created_at) AS INTEGER) * 1000, 'PLAYER', "
+                    + "COALESCE(CAST(user_id AS TEXT), ''), COALESCE(player_name, ''), "
+                    + "action, COALESCE(detail, ''), 'OK' FROM player_action_logs"
+                    : "INSERT INTO audit_logs (ts, actor_type, actor_id, actor_name, action, detail, result) "
+                    + "SELECT UNIX_TIMESTAMP(created_at) * 1000, 'PLAYER', "
+                    + "CAST(COALESCE(user_id, 0) AS CHAR), COALESCE(player_name, ''), "
+                    + "action, COALESCE(detail, ''), 'OK' FROM player_action_logs";
+            stmt.execute(copySql);
+            stmt.execute("INSERT INTO audit_logs (ts, actor_type, actor_id, actor_name, action, detail, result) "
+                    + "VALUES (" + System.currentTimeMillis() + ", 'SYSTEM', 'migration', 'migration', "
+                    + "'MIGRATED_ACTION_LOGS', 'player_action_logs -> audit_logs', 'OK')");
+        }
+        stmt.execute("DROP TABLE player_action_logs");
+    }
+
+    /** 表是否存在（迁移里用于判断旧表 / 新表是否就绪）。 */
+    private static boolean tableExists(Connection conn, String table) throws SQLException {
+        try (ResultSet rs = conn.getMetaData().getTables(null, null, table, new String[]{"TABLE"})) {
+            if (rs.next()) {
+                return true;
+            }
+        }
+        // 某些驱动对大小写敏感：再试一次大写
+        try (ResultSet rs = conn.getMetaData().getTables(null, null, table.toUpperCase(Locale.ROOT),
+                new String[]{"TABLE"})) {
+            return rs.next();
+        }
     }
 
     /**

@@ -166,6 +166,8 @@ public class AdapterManager {
                     runningAdapters.put(cfg.getId(), instance);
                 }
             }
+            com.mtxgdn.audit.AuditService.getInstance().adapter(id,
+                    com.mtxgdn.audit.AuditActions.ADAPTER_START, "type=" + cfg.getType());
             LOG.info("适配器 " + id + " (" + cfg.getType() + ") 已启动");
             return true;
         } catch (Exception e) {
@@ -196,6 +198,8 @@ public class AdapterManager {
                 case ManagedAdapter ma -> ma.stop();
                 default -> LOG.warn("未知实例类型: " + instance.getClass().getSimpleName());
             }
+            com.mtxgdn.audit.AuditService.getInstance().adapter(adapterId,
+                    com.mtxgdn.audit.AuditActions.ADAPTER_STOP, "stopped");
             LOG.info("适配器 " + adapterId + " 已停止");
         } catch (Exception e) {
             LOG.error("适配器 " + adapterId + " 停止失败", e);

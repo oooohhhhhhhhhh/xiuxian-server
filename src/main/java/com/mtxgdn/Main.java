@@ -80,6 +80,8 @@ public class Main {
 
     private static void registerShutdownHook() {
         ServerShutdownHook hook = ServerShutdownHook.createDefault();
+        hook.addTask(() -> com.mtxgdn.audit.AuditService.getInstance().system(
+                com.mtxgdn.audit.AuditActions.SYSTEM_STOP, "服务正在停止"));
         hook.addTask(() -> AdapterManager.stopAll());
         hook.addTask(() -> {
             if (gameWebSocketApp != null) {
@@ -267,6 +269,8 @@ public class Main {
             }
         });
 
+        com.mtxgdn.audit.AuditService.getInstance().system(
+                com.mtxgdn.audit.AuditActions.SYSTEM_START, "服务启动完成");
         LOG.info("服务已启动");
         LOG.info("API路由启动在 http://" + serverHost + ":" + serverPort + "/api/");
         LOG.info("WebSocket路由启动在 ws://" + serverHost + ":" + serverPort);
@@ -319,21 +323,16 @@ public class Main {
             }
         }, 5, 5, java.util.concurrent.TimeUnit.MINUTES);
 
-        // 操作日志保留策略：player_action_logs 只增不删，跑几个月就是几十万行，
-        // 管理后台翻页越来越慢、备份越来越大，且没有任何回收途径。
-        // 默认保留 90 天；配置为 0 或负数表示永久保留（需要长期审计的部署可关掉）。
-        int actionLogRetentionDays = AppConfig.getInt("logging.action_log_retention_days", 90);
-        if (actionLogRetentionDays > 0) {
+        // 审计保留策略：库内只留热数据，超期记录归档成月度 JSONL.gz 后删除。
+        // 默认 90 天；0 或负数表示永久保留在库里（此时不做归档删除，但备份会持续变大）。
+        int auditRetentionDays = AppConfig.getInt("logging.audit_retention_days", 90);
+        if (auditRetentionDays > 0) {
+            com.mtxgdn.audit.AuditArchiveService archiver = new com.mtxgdn.audit.AuditArchiveService();
             cleanupScheduler.scheduleAtFixedRate(() -> {
                 try {
-                    int deleted = new com.mtxgdn.db.PlayerActionLogDAO()
-                            .purgeOlderThanDays(actionLogRetentionDays);
-                    if (deleted > 0) {
-                        LOG.info("已清理 " + deleted + " 条超过 " + actionLogRetentionDays
-                                + " 天的玩家操作日志");
-                    }
+                    archiver.archiveOlderThanDays(auditRetentionDays);
                 } catch (Throwable e) {
-                    LOG.warn("清理玩家操作日志失败: " + e.getMessage());
+                    LOG.warn("审计归档失败: " + e.getMessage());
                 }
             }, 10, 24 * 60, java.util.concurrent.TimeUnit.MINUTES);
         }

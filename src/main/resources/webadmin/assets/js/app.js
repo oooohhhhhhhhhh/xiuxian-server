@@ -8,7 +8,7 @@ import * as map from './modules/map.js';
 import * as database from './modules/database.js';
 import * as users from './modules/users.js';
 import * as logs from './modules/logs.js';
-import * as traces from './modules/traces.js';
+import * as audit from './modules/audit.js';
 import * as redeemCodes from './modules/redeemCodes.js';
 import * as titles from './modules/titles.js';
 import * as market from './modules/market.js';
@@ -33,7 +33,7 @@ window.app = {
     database,
     users,
     logs,
-    traces,
+    audit,
     redeemCodes,
     titles,
     market,

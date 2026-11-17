@@ -306,6 +306,8 @@ public final class BuiltInPluginRegistry {
         enableEntry(entry);
         if (entry.active) {
             persistConfig(name, true);
+            com.mtxgdn.audit.AuditService.getInstance().plugin(name,
+                    com.mtxgdn.audit.AuditActions.PLUGIN_ENABLE, "内置模块启用");
             return true;
         }
         return false;
@@ -329,6 +331,8 @@ public final class BuiltInPluginRegistry {
         }
         disableEntry(entry);
         persistConfig(name, false);
+        com.mtxgdn.audit.AuditService.getInstance().plugin(name,
+                com.mtxgdn.audit.AuditActions.PLUGIN_DISABLE, "内置模块停用");
         return true;
     }
 

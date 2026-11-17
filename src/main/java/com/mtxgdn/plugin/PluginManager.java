@@ -187,6 +187,8 @@ public final class PluginManager {
             return false;
         }
         enableSingle(lp);
+        com.mtxgdn.audit.AuditService.getInstance().plugin(name,
+                com.mtxgdn.audit.AuditActions.PLUGIN_ENABLE, "外部插件启用");
         return true;
     }
 
@@ -205,6 +207,8 @@ public final class PluginManager {
             LOG.error("插件 onDisable 异常: " + lp.info.getName(), t);
         }
         lp.enabled = false;
+        com.mtxgdn.audit.AuditService.getInstance().plugin(name,
+                com.mtxgdn.audit.AuditActions.PLUGIN_DISABLE, "外部插件停用");
         // 故意不连锁停用依赖方：一次手动操作带走半个服，比"某个功能悄悄少了"更难善后。
         // 依赖方会在下一次被启用时被 missingEnabledDepends 拒之门外，所以不会带病运行。
         List<String> dependents = findEnabledDependents(name);
