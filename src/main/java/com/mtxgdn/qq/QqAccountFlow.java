@@ -110,10 +110,35 @@ final class QqAccountFlow {
         ps.state = "WAITING_REGISTER_METHOD";
         ctx.pendingSessions.put(senderQq, ps);
         // 先试私聊菜单；没有单聊权限时改发网页链接（聊天里不出现密码）。
-        // 链接发出去后会话就没用了（网页流程独立），菜单发出去则要保留等玩家回复 1/2。
-        if (bindLink.deliver(session, selfId, senderQq, sourceGroupId, ctx.appId,
-                QqBindTokenStore.Intent.REGISTER, name) == QqBindLinkFlow.Delivery.LINK_SENT) {
+        QqBindLinkFlow.Delivery delivery = bindLink.deliver(session, selfId, senderQq, sourceGroupId,
+                ctx.appId, QqBindTokenStore.Intent.REGISTER, name);
+        if (delivery == QqBindLinkFlow.Delivery.LINK_SENT) {
+            // 链接发出去后会话就没用了（网页流程独立）
             ctx.pendingSessions.remove(senderQq);
+            return;
+        }
+        if (delivery == QqBindLinkFlow.Delivery.UNREACHABLE) {
+            // 私聊与网页都不可用：直接建号（随机密码，玩家用 QQ 身份进入）。
+            // 否则玩家在群里发 /注册 会彻底卡死 —— 既收不到私聊提示，也没有网页可输密码。
+            ctx.pendingSessions.remove(senderQq);
+            QqAccountRegistrar.Result result = QqAccountRegistrar.registerWithoutPassword(
+                    services, name, bindHook(senderQq));
+            if (!result.ok()) {
+                sender.replyToSourceResult(session, selfId, senderQq, sourceGroupId,
+                        "注册失败: " + result.error());
+                return;
+            }
+            String reply;
+            try {
+                PlayerInfo player = services.getPlayerService().getPlayerByUserId(result.userId());
+                reply = player == null ? "注册成功！" : services.getGuideService().buildCreateMessage(player);
+            } catch (RuntimeException e) {
+                reply = "注册成功！";
+            }
+            sender.replyToSourceResult(session, selfId, senderQq, sourceGroupId,
+                    reply + "\n（本服暂未开放网页与私聊，账号尚未设置密码；"
+                            + "需要网页登录时，请在私聊可用后发送 /改密 设置密码，或联系管理员重置）");
+            actionLog.logCreatePlayer(result.userId(), name);
         }
     }
 
@@ -128,10 +153,16 @@ final class QqAccountFlow {
         ps.state = "WAITING_BIND_METHOD";
         ctx.pendingSessions.put(senderQq, ps);
         // 先试私聊菜单；没有单聊权限时改发网页链接到来源会话（群里不会出现密码）。
-        // 链接发出去后会话就没用了（网页流程独立），菜单发出去则要保留等玩家回复 1/2/3。
-        if (bindLink.deliver(session, selfId, senderQq, sourceGroupId, ctx.appId,
-                QqBindTokenStore.Intent.BIND, null) == QqBindLinkFlow.Delivery.LINK_SENT) {
+        QqBindLinkFlow.Delivery delivery = bindLink.deliver(session, selfId, senderQq, sourceGroupId,
+                ctx.appId, QqBindTokenStore.Intent.BIND, null);
+        if (delivery == QqBindLinkFlow.Delivery.LINK_SENT) {
+            // 链接发出去后会话就没用了（网页流程独立）
             ctx.pendingSessions.remove(senderQq);
+        } else if (delivery == QqBindLinkFlow.Delivery.UNREACHABLE) {
+            // 绑定必须验证已有账号的密码，无法像注册那样兜底建号，只能提示管理员配置网页入口
+            sender.replyToSourceResult(session, selfId, senderQq, sourceGroupId,
+                    "机器人无法私聊你，本服也没有开放网页登录。\n"
+                            + "请联系管理员配置 server.public-url（对外访问地址）后重试。");
         }
     }
 
@@ -155,15 +186,21 @@ final class QqAccountFlow {
             notify(session, selfId, senderQq, sourceGroupId, "你尚未绑定账号，请先 /绑定。");
             return;
         }
-        // 改密要私聊输入密码（不能出现在群里）。私聊发不出去就指路网页自助。
-        if (!sender.sendPrivateMsgResult(senderQq,
-                "===== 修改密码 =====\n请输入当前密码：\n(输入 /cancel 取消)")) {
+        // 无密码注册兜底建的号：没有可验证的原密码，直接让玩家设一个新的
+        // （身份已由绑定的 openid 证明）。改密必须私聊，密码不能出现在群里。
+        boolean noPassword = USER_DAO.isPasswordPlaceholder(b.getUserId());
+        String prompt = noPassword
+                ? "===== 设置密码 =====\n你的账号还未设置密码。\n请输入新密码（不少于"
+                        + QqAccountRegistrar.MIN_PASSWORD_LENGTH + "位）：\n(输入 /cancel 取消)"
+                : "===== 修改密码 =====\n请输入当前密码：\n(输入 /cancel 取消)";
+        if (!sender.sendPrivateMsgResult(senderQq, prompt)) {
+            // 私聊发不出去就指路：无密码账号不能走网页（无法登录），只能等私聊或管理员重置
             sender.replyToSourceResult(session, selfId, senderQq, sourceGroupId,
-                    webSelfServiceHint("修改密码"));
+                    noPassword ? noPasswordHint() : webSelfServiceHint("修改密码"));
             return;
         }
         QqPendingSession ps = new QqPendingSession("changePassword", sourceGroupId);
-        ps.state = "WAITING_OLD_PASSWORD";
+        ps.state = noPassword ? "WAITING_NEW_PASSWORD" : "WAITING_OLD_PASSWORD";
         ctx.pendingSessions.put(senderQq, ps);
     }
 
@@ -184,12 +221,37 @@ final class QqAccountFlow {
         ctx.pendingSessions.put(senderQq, ps);
     }
 
+    /** 聊天通道的绑定钩子：失败要回滚账号，注册的两条路径共用同一份实现。 */
+    private QqAccountRegistrar.BindHook bindHook(String senderQq) {
+        return new QqAccountRegistrar.BindHook() {
+            @Override
+            public void bind(long userId) {
+                ctx.bindingService.bind(senderQq, userId);
+            }
+
+            @Override
+            public void unbind(long userId) {
+                try {
+                    ctx.bindingService.unbindByQq(senderQq);
+                } catch (RuntimeException ignored) {
+                    // 没绑上就没有可解绑的
+                }
+            }
+        };
+    }
+
     /** 优先私聊；发不出去（无 C2C 权限）就在来源会话里回，避免玩家什么都收不到。 */
     private void notify(OneBotSession session, String selfId, String senderQq,
                         Long sourceGroupId, String message) {
         if (!sender.sendPrivateMsgResult(senderQq, message)) {
             sender.replyToSourceResult(session, selfId, senderQq, sourceGroupId, message);
         }
+    }
+
+    /** 无密码账号在无 C2C 时的提示：它无法登录网页，只能等私聊或管理员重置。 */
+    private static String noPasswordHint() {
+        return "你的账号尚未设置密码，且本机器人无法私聊你。\n"
+                + "请在私聊可用后发送 /改密 设置密码，或联系管理员在后台重置密码。";
     }
 
     /** 需要私聊输入的指令在无 C2C 时的指路文案（网页端自助操作）。 */
@@ -473,6 +535,12 @@ final class QqAccountFlow {
         try {
             String hashedPassword = BCrypt.hashpw(newPassword, BCrypt.gensalt());
             UserAccountDAO.updatePassword(b.getUserId(), hashedPassword);
+            // 玩家已经有自己的密码了，占位标记清掉（失败不影响本次设置）
+            try {
+                USER_DAO.setPasswordPlaceholder(b.getUserId(), false);
+            } catch (RuntimeException ignored) {
+                // 标记残留只会让下次 /改密 仍跳过原密码校验；密码本身已生效
+            }
             ctx.pendingSessions.remove(senderQq);
             sender.sendPrivateMsg(ctx.self, ctx.selfId, senderQq, "密码修改成功！");
             actionLog.logCustom(b.getUserId(), "系统", "修改密码", "成功");

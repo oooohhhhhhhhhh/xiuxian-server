@@ -246,6 +246,51 @@ public class UserServiceDAO {
      * <p>返回 {@code null} 表示账号不存在或该列为 {@code NULL}；
      * BCrypt 比对属于安全语义，留在调用方。</p>
      */
+    /**
+     * 标记/清除「尚未设置密码」。
+     *
+     * <p>无密码注册（私聊与网页都不可用时的兜底）会写入一个随机密码并打上此标记：
+     * 密码不可用于登录，{@code /改密} 见到标记就跳过原密码校验，让玩家自己设一个。</p>
+     */
+    public boolean setPasswordPlaceholder(long userId, boolean placeholder) {
+        try (Connection conn = DatabaseManager.getConnection()) {
+            return setPasswordPlaceholder(conn, userId, placeholder);
+        } catch (SQLException e) {
+            throw new RuntimeException("更新密码占位标记失败", e);
+        }
+    }
+
+    /** 事务内版本：只使用传入的连接。 */
+    public boolean setPasswordPlaceholder(Connection conn, long userId, boolean placeholder) throws SQLException {
+        String sql = "UPDATE users SET password_placeholder = ? WHERE id = ?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setInt(1, placeholder ? 1 : 0);
+            ps.setLong(2, userId);
+            return ps.executeUpdate() > 0;
+        }
+    }
+
+    /** 该账号是否还没设置过密码（无密码注册兜底建的号）。 */
+    public boolean isPasswordPlaceholder(long userId) {
+        try (Connection conn = DatabaseManager.getConnection()) {
+            return isPasswordPlaceholder(conn, userId);
+        } catch (SQLException e) {
+            // 列还没迁移到位时按"已设置密码"处理：宁可让玩家走原密码校验，也不能放开校验
+            return false;
+        }
+    }
+
+    /** 事务内版本：只使用传入的连接。 */
+    public boolean isPasswordPlaceholder(Connection conn, long userId) throws SQLException {
+        String sql = "SELECT password_placeholder FROM users WHERE id = ?";
+        try (PreparedStatement ps = conn.prepareStatement(sql)) {
+            ps.setLong(1, userId);
+            try (ResultSet rs = ps.executeQuery()) {
+                return rs.next() && rs.getInt(1) == 1;
+            }
+        }
+    }
+
     public String findPasswordHashById(long userId) {
         try (Connection conn = DatabaseManager.getConnection()) {
             return findPasswordHashById(conn, userId);
@@ -402,6 +447,8 @@ public class UserServiceDAO {
             ps.setLong(2, userId);
             ps.executeUpdate();
         }
+        // 玩家拿到的是新设置的已知密码，"未设置密码"标记一并清掉（同一条连接）
+        setPasswordPlaceholder(conn, userId, false);
     }
 
     /**
@@ -425,11 +472,17 @@ public class UserServiceDAO {
     /** 事务内版本：只使用传入的连接。 */
     public boolean adminResetPassword(Connection conn, long userId, String hashedPassword) throws SQLException {
         String sql = "UPDATE users SET password = ?, failed_attempts = 0, locked_until = NULL WHERE id = ?";
+        boolean updated;
         try (PreparedStatement ps = conn.prepareStatement(sql)) {
             ps.setString(1, hashedPassword);
             ps.setLong(2, userId);
-            return ps.executeUpdate() > 0;
+            updated = ps.executeUpdate() > 0;
         }
+        if (updated) {
+            // 管理员设了玩家知道的新密码，就不再是"未设置密码"状态（同一条连接，保持原子性）
+            setPasswordPlaceholder(conn, userId, false);
+        }
+        return updated;
     }
 
     /**

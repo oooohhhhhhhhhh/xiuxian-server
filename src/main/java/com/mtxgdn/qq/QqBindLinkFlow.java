@@ -37,7 +37,12 @@ final class QqBindLinkFlow {
         this.sender = sender;
     }
 
-    /** 下发结果：菜单已发（会话要保留）/ 链接已发（会话可移除）/ 两条路都不可达。 */
+    /**
+     * 下发结果：菜单已发（会话要保留）/ 链接已发（会话可移除）/ 两条路都不可达。
+     *
+     * <p>{@link #UNREACHABLE} 的提示文案由调用方决定：注册可以退化为「直接建号」，
+     * 绑定只能提示玩家联系管理员 —— 两者需要的措辞不同。</p>
+     */
     enum Delivery {
         MENU_SENT,
         LINK_SENT,
@@ -65,7 +70,7 @@ final class QqBindLinkFlow {
      * @param pendingName   注册用途的角色名；绑定用途传 null
      * @return 下发结果：{@link Delivery#MENU_SENT} 表示私聊菜单已发出（会话要保留）；
      *         {@link Delivery#LINK_SENT} 表示改发了网页链接（会话可移除）；
-     *         {@link Delivery#UNREACHABLE} 表示两条路都不可用（已就地提示或记日志）
+     *         {@link Delivery#UNREACHABLE} 表示两条路都不可用（已记日志，提示由调用方决定）
      */
     Delivery deliver(OneBotSession session, String selfId, String senderQq, Long sourceGroupId,
                      String appId, QqBindTokenStore.Intent intent, String pendingName) {
@@ -74,13 +79,10 @@ final class QqBindLinkFlow {
             return Delivery.MENU_SENT;
         }
 
-        // 私聊不通：能发链接就发链接，否则明确说明为什么不行
+        // 私聊不通：能发链接就发链接；网页也没有就交给调用方处理（注册会退化为直接建号）
         if (!webAvailable()) {
             log.warn("账号流程需要私聊或网页，但两者都不可用: openid=" + senderQq
                     + "（机器人无单聊权限，且 server.public-url 未配置 / server.host 为回环）");
-            sender.replyToSourceResult(session, selfId, senderQq, sourceGroupId,
-                    "机器人无法私聊你，本服也没有开放网页登录。\n"
-                            + "请联系管理员配置 server.public-url（对外访问地址）后重试。");
             return Delivery.UNREACHABLE;
         }
         return sender.replyToSourceResult(session, selfId, senderQq, sourceGroupId,

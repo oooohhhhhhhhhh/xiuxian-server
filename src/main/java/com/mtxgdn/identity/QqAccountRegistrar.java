@@ -125,12 +125,55 @@ public final class QqAccountRegistrar {
         }
 
         String hashed = BCrypt.hashpw(rawPassword, BCrypt.gensalt());
-        Long userId = UserAccountDAO.insertUser(name, hashed, normalizedEmail);
+        return create(services, name, hashed, normalizedEmail, false, hook);
+    }
+
+    /**
+     * 无密码注册：私聊与网页<b>都不可用</b>时的兜底。
+     *
+     * <p><b>为什么允许</b>：新申请的 QQ 官方机器人常常没有单聊权限，管理员也可能还没配置
+     * {@code server.public-url}。两个条件同时成立时，玩家在群里发 {@code /注册} 会彻底卡死 ——
+     * 既收不到私聊提示，也没有网页可以输入密码。相比"注册失败"，先建号让玩家能玩更合理。</p>
+     *
+     * <p><b>为什么不是空密码</b>：空密码意味着任何人都能拿「用户名 + 空密码」登录网页，
+     * 或通过聊天通道 {@code /绑定} 抢走这个账号。这里给账号一个 128 位的随机密码，
+     * 明文<b>直接丢弃</b>：账号只能通过已绑定的 QQ 身份使用；需要网页登录时，
+     * 由管理员在后台「重置密码」设置一个玩家知道的新密码。</p>
+     *
+     * @param services 服务查询面
+     * @param username 角色名
+     * @param hook     绑定钩子
+     */
+    public static Result registerWithoutPassword(ServiceLookup services, String username, BindHook hook) {
+        if (username == null || username.trim().isEmpty()) {
+            return Result.failure("角色名不能为空。");
+        }
+        String name = username.trim();
+        if (name.length() > MAX_NAME_LENGTH) {
+            return Result.failure("角色名不能超过" + MAX_NAME_LENGTH + "个字。");
+        }
+        if (UserAccountDAO.isUsernameExists(name)) {
+            return Result.failure("角色名【" + name + "】已被占用，请换一个。");
+        }
+        // 随机密码：不可猜、不展示、丢弃明文。账号的可用性来自 QQ 身份绑定。
+        String randomPassword = java.util.UUID.randomUUID().toString()
+                + java.util.UUID.randomUUID();
+        return create(services, name, BCrypt.hashpw(randomPassword, BCrypt.gensalt()), null, true, hook);
+    }
+
+    /** 建号 + 绑身份 + 建角色（注册的两条路径共用；任何一步失败都回滚）。 */
+    private static Result create(ServiceLookup services, String name, String passwordHash,
+                                 String email, boolean passwordPlaceholder, BindHook hook) {
+        Long userId = UserAccountDAO.insertUser(name, passwordHash, email);
         if (userId == null) {
             return Result.failure("注册失败，请稍后重试。");
         }
 
         try {
+            if (passwordPlaceholder) {
+                // 标记"还没设过密码"：/改密 见到它跳过原密码校验
+                USER_SERVICE_DAO.setPasswordPlaceholder(userId, true);
+            }
             PermissionService.assignDefaultRole(userId);
             hook.bind(userId);
 

@@ -158,6 +158,9 @@ class UserServiceDaoExtractionTest extends TestBase {
      * 这里按拼接后的整句比对（去空白后两者等价）。</p>
      */
     private static final List<String> GOLDEN_SQL = List.of(
+            // ---- 无密码注册兜底：占位标记（028_users_password_placeholder） ----
+            "UPDATE users SET password_placeholder = ? WHERE id = ?",
+            "SELECT password_placeholder FROM users WHERE id = ?",
             // ---- 注册查重 ----
             "SELECT COUNT(*) FROM users WHERE username = ?",
             "SELECT COUNT(*) FROM users WHERE email = ?",

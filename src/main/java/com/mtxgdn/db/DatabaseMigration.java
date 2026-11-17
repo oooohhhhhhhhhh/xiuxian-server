@@ -118,6 +118,8 @@ public class DatabaseMigration {
         steps.add(new Step("026_caves_last_meditate", "洞府冥想冷却列", this::addCavesLastMeditateColumn));
         steps.add(new Step("027_players_equipment_slot_normalize",
                 "装备栏位规范化为 weapon/armor/accessory", this::normalizeEquipmentSlots));
+        steps.add(new Step("028_users_password_placeholder",
+                "用户是否尚未设置密码（无密码注册兜底）", this::addUsersPasswordPlaceholderColumn));
         steps.add(new Step("028_player_collection_table",
                 "全图鉴解锁记录表", this::createPlayerCollectionTable));
         return steps;
@@ -227,6 +229,17 @@ public class DatabaseMigration {
     }
 
     // ==================== 具体迁移 ====================
+
+    /**
+     * 无密码注册标记：{@code users.password_placeholder}。
+     *
+     * <p>私聊与网页都不可用时，注册会直接建号并写入一个随机密码（玩家不知道、也无法用于登录）。
+     * 这个标记让 {@code /改密} 知道该账号"还没设过密码"，从而允许玩家在私聊可用后
+     * 直接设置新密码（不需要原密码）。默认 0 对老账号无影响。</p>
+     */
+    private void addUsersPasswordPlaceholderColumn(Statement stmt) throws SQLException {
+        tryAlter(stmt, "ALTER TABLE users ADD COLUMN password_placeholder INT DEFAULT 0");
+    }
 
     /**
      * 界面语言列：老库的 players 补 {@code lang}。
